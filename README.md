@@ -1,4 +1,4 @@
-<img src="https://github.com/Paururo/get_MNV/blob/main/images/get_mnv2.png" height="250" alt="get_MNV">
+<img src="https://github.com/Pathogenomics/get_MNV/blob/main/images/get_mnv2.png" height="250" alt="get_MNV">
 
 __Paula Ruiz-Rodriguez<sup>1</sup>__ 
 __and Mireia Coscolla<sup>1</sup>__
@@ -10,7 +10,7 @@ __and Mireia Coscolla<sup>1</sup>__
 ## Annotate Multi-Nucleotide Variants 
 <p align="justify">Single nucleotide variants (SNVs), are one of the most prevalent mutation types, but it can happen this SNV occur in the same codon and translates to a different amino acid, known as multi-nucleotide variants (MNV). With annotation programs like Annovar or snpEff currently only work with SNV, so we could miss the actual aminoacid change due to multiple SNV in the same codon.</p>
 
-<p align="center"><img src="https://github.com/Paururo/get_MNV/blob/main/images/get_mnv_aa.png" height="350" alt="get_MNV"></p>
+<p align="center"><img src="https://github.com/Pathogenomics/get_MNV/blob/main/images/get_mnv_aa.png" height="350" alt="get_MNV"></p>
 
 <p align="justify">We created a script in python in order to re-annotated SNPs in snpEff program, and annotate them as MNV to get the actual amino acid changes that occurs in the genome.</p>
 
