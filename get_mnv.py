@@ -184,10 +184,10 @@ def getMNV(analyze_genelist, lista_snp, sequence, out_write):
                 my_codon = Seq(sequence[start_codon-1:end_codon])
                 if orientation == '-':
                     my_aa = my_codon.reverse_complement().translate()
-                    codon = int(new_cod - codon + 1)
+                    p_codon = int(new_cod - codon + 1)
                     new_codon = list(my_codon)
 
-                    process_listcodonN(lista_codon, new_codon, codon, my_aa,gene, out_write)
+                    process_listcodonN(lista_codon, new_codon, p_codon, my_aa,gene, out_write)
                     
                 else:
                     my_aa = my_codon.translate()
