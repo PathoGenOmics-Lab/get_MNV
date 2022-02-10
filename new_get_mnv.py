@@ -173,3 +173,7 @@ def process_listcodon(lista_codon: list, new_codon, codon, my_aa, gene,lista_sal
         new_codon[int(i[0])] = str(i[2])
     new_codon = Seq(''.join(new_codon))    
     my_newaa = new_codon.translate()
+    
+    chg_aa = ''.join([str(my_aa),str(codon),str(my_newaa)])
+    chg_aa = iupac_aa(chg_aa)
+    esta = False
