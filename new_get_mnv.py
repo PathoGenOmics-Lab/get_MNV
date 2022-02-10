@@ -79,3 +79,14 @@ SNPEFF = ['chromosome_number_variation', 'exon_loss_variant',
 'conserved_intron_variant', 'intron_variant', 'intragenic_variant', 
 'conserved_intergenic_variant', 'intergenic_region', 'coding_sequence_variant', 
 'non_coding_exon_variant', 'nc_transcript_variant', 'gene_variant', 'chromosome']
+
+def reference_fasta(fasta_file: str = 'MTB_ancestor.fas'):
+    '''
+    Function to parse and get reference sequence, requires SeqIO
+    Input  -> fasta file with id and sequence
+    Output -> only sequence in str()
+    '''
+    fasta_sequences = SeqIO.parse(open(fasta_file),'fasta')
+    for fasta in fasta_sequences:
+        sequence = str(fasta.seq)
+    return sequence
