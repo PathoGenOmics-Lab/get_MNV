@@ -120,7 +120,7 @@ def getseq_posbase(vcf_file: str = 'G35894.var.snp.vcf'):
                     list_snp.append([l[1],l[4]]) #[1:pos,4:alt_base]
     return list_snp
 
-def iupac_aa(codon):
+def iupac_aa(codon: str):
     '''
     Function to translate iupac code to three aa code letter  
         Input  -> aa string with 1 letter     -->   refPOSalt  
