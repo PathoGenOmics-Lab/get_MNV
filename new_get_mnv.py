@@ -186,3 +186,28 @@ def process_listcodon(lista_codon: list, new_codon, codon, my_aa, gene, lista_sa
                 esta = True
         if not esta:
             lista_salida.append([sentence])
+
+def process_listcodonN(lista_codon: list, new_codon, codon, my_aa, gene, lista_salida: list):
+    '''
+    Function for process snps in negative strand, gets old codon, and translates with new snps
+    '''
+    for i in lista_codon:
+        new_codon[int(i[0])] = str(i[2])
+
+    new_codon2 = Seq(''.join(new_codon))
+    new2 = new_codon2.reverse_complement()
+
+    my_newaa = new2.translate()
+
+    chg_aa = ''.join([str(my_aa),str(codon),str(my_newaa)])
+    chg_aa = iupac_aa(chg_aa)
+    esta = False
+    for i in lista_codon:
+        sentence = '\t'.join([gene, i[1], i[2], chg_aa]) + '\n'
+        for elemento in lista_salida:
+            pos = elemento[0].split("\t")[1]
+            if int(i[1]) == int(pos):
+                elemento.append(sentence)
+                esta = True
+        if not esta:
+            lista_salida.append([sentence])
