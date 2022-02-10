@@ -52,7 +52,7 @@ Contact -> @paururo
 __author__ = 'Paula Ruiz Rodriguez'
 __credits__ = ['Paula Ruiz Rodriguez', 'PathoGenOmics']
 __license__ = 'GPL'
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 __maintainer__ = 'Paula Ruiz Rodriguez: @paururo'
 __email__ = 'paula.ruiz-rodriguez@uv.es'
 __status__ = 'developing'
