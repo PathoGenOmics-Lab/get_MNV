@@ -207,14 +207,14 @@ def process_listcodonN(lista_codon: list, new_codon, codon, my_aa, gene, lista_s
     for i in lista_codon:
         sentence = '\t'.join([gene, i[1], i[2], chg_aa]) + '\n'
         for elemento in lista_salida:
-            pos = elemento[0].split("\t")[1]
+            pos = elemento[0].split('\t')[1]
             if int(i[1]) == int(pos):
                 elemento.append(sentence)
                 esta = True
         if not esta:
             lista_salida.append([sentence])
 
-def getMNV(analyze_genelist, lista_snp, sequence):                
+def getMNV(analyze_genelist: list, lista_snp: list, sequence):                
     '''
     Function to distinct SNPs being MNV and calculate new aa change 
     '''
