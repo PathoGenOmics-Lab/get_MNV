@@ -143,7 +143,6 @@ def iupac_aa(codon):
     else:
         status = 'missense_variant'
     cod_codon = ''.join([aa_code.get(codon[0]), codon[1:-1], aa_code.get(codon[-1])]) + '\t' + status
-    
     return cod_codon
 
 def check_genes(list_snp: list, gene_file: str):
