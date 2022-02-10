@@ -90,3 +90,16 @@ def reference_fasta(fasta_file: str = 'MTB_ancestor.fas'):
     for fasta in fasta_sequences:
         sequence = str(fasta.seq)
     return sequence
+
+def read_genes_names(genes_file: str):
+    '''
+    Function to get gene names  
+    Input  -> text file with gene names in first column (tab sep)  
+    Output -> list with gene names  
+    '''
+    list_name_genes = list()    
+    with open(genes_file,'r') as in_file:
+        for line in in_file:
+            gene_name = line.strip('\n').split('\t')[0]
+            list_name_genes.append(gene_name) 
+    return list_name_genes  
