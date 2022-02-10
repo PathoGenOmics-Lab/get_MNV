@@ -103,3 +103,19 @@ def read_genes_names(genes_file: str):
             gene_name = line.strip('\n').split('\t')[0]
             list_name_genes.append(gene_name) 
     return list_name_genes  
+
+def getseq_posbase(vcf_file: str = 'G35894.var.snp.vcf'):
+    '''
+    Function to get positions and alternative base of annotated vcf file 
+    ignoring intergenic regions
+    Input  -> annotated vcf file with snpEff
+    Output -> list of list (positions with alternative base)
+    '''
+    list_snp = list()    
+    with open(vcf_file,'r') as in_file:
+        for line in in_file:
+            if '#' not in line: #ignore header
+                if 'intergenic' not in line: #ignore intergenic pos
+                    l = line.strip('\n').split('\t')
+                    list_snp.append([l[1],l[4]]) #[1:pos,4:alt_base]
+    return list_snp
