@@ -145,3 +145,23 @@ def iupac_aa(codon):
     cod_codon = ''.join([aa_code.get(codon[0]), codon[1:-1], aa_code.get(codon[-1])]) + '\t' + status
     
     return cod_codon
+
+def check_genes(list_snp: list, gene_file: str):
+    '''
+    Function to get genes containing snps in the analyzed vcf  
+        Input  -> list_snps: list with snps of vcf file, gene_file: 
+                  genes with coord  
+        Output -> list with genes of interest containing snps of vcf file
+    '''
+    analyze_genelist = list()
+    with open(gene_file,'r') as in_file:
+        for line in in_file:
+            l = line.strip('\n').split('\t')
+            start_gene, end_gene = int(l[1]), int(l[2])
+            for elemento in list_snp:
+                if int(elemento[0]) > end_gene:
+                    break
+                elif start_gene <= int(elemento[0]) <= end_gene:
+                    if line not in analyze_genelist:
+                        analyze_genelist.append(line)
+    return analyze_genelist
