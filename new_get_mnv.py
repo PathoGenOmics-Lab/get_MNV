@@ -172,3 +172,4 @@ def process_listcodon(lista_codon: list, new_codon, codon, my_aa, gene,lista_sal
     for i in lista_codon:
         new_codon[int(i[0])] = str(i[2])
     new_codon = Seq(''.join(new_codon))    
+    my_newaa = new_codon.translate()
