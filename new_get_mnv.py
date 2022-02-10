@@ -272,7 +272,7 @@ def write_vcf(in_vcf: str, outfile: str, list_MNV: list, list_name_genes: list):
     '''
     
     '''
-    a_a=False
+    a_a = False
     with open(outfile,'w') as o_sfile:
         with open(in_vcf, 'r') as i_efile:
             for line in i_efile:
@@ -294,8 +294,7 @@ def write_vcf(in_vcf: str, outfile: str, list_MNV: list, list_name_genes: list):
                                 sent = '-'.join(['MNV', gene, aa, chg])
                                 if sent not in lista_cambios:
                                     lista_cambios.append(sent)
-                                mnv = True
-                                 
+                                mnv = True                                 
                     info = l[7].split('|')        
                     lista_snp = []
                     
@@ -309,7 +308,6 @@ def write_vcf(in_vcf: str, outfile: str, list_MNV: list, list_name_genes: list):
                                     elif elemento in SNPEFF:
                                         chg = elemento
                                     sent = '-'.join(['SNP',gene,aa,chg])
-
                                     lista_cambios.append(sent)
                             elif "intragenic" not in line:
                                 gene = elemento
@@ -322,7 +320,7 @@ def write_vcf(in_vcf: str, outfile: str, list_MNV: list, list_name_genes: list):
                     if a_a:
                         sent = '-'.join(['SNP',gene,aa,chg])
                         lista_snp.append(sent)
-                        a_a=False
+                        a_a = False
                                                                      
                     if len(lista_snp) != 0:
                         for ele in lista_snp:
@@ -345,7 +343,6 @@ def write_vcf(in_vcf: str, outfile: str, list_MNV: list, list_name_genes: list):
                                     aa = elemento.strip('p.')
                                     g = True
                                 elif "gene" in elemento:
-                                    
                                     gene = elemento.strip('Transcript_gene-').strip('gene-')
                                     p = True
                                 elif "custom" not in elemento:
