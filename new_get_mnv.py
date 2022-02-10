@@ -214,6 +214,19 @@ def process_listcodonN(lista_codon: list, new_codon, codon, my_aa, gene, lista_s
         if not esta:
             lista_salida.append([sentence])
 
+def get_place(place: float):
+    '''
+    Function to get position of snp in a codon
+    '''
+    
+    if '.33' in str(place): #second place in codon
+        p_name = 1
+    elif '.66' in str(place): #third place in codon
+        p_name = 2
+    else: #first place in codon
+        p_name = 0
+    return p_name
+
 def getMNV(analyze_genelist: list, lista_snp: list, sequence):                
     '''
     Function to distinct SNPs being MNV and calculate new aa change 
@@ -237,12 +250,7 @@ def getMNV(analyze_genelist: list, lista_snp: list, sequence):
                 elif start_gene <= int(elemento[0]) <= end_gene:
                     if start_codon <= int(elemento[0]) <= end_codon:
                         place = (int(elemento[0]) - start_gene) / 3
-                        if '.33' in str(place): #second place in codon
-                            p_name = 1
-                        elif '.66' in str(place): #third place in codon
-                            p_name = 2
-                        else: #first place in codon
-                            p_name = 0
+                        p_name = get_place(place)
                         lista_codon.append([p_name,elemento[0], elemento[1]])
             
             if len(lista_codon) > 1: #if exists consecutive SNPs in same codon            
