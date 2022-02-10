@@ -177,3 +177,12 @@ def process_listcodon(lista_codon: list, new_codon, codon, my_aa, gene,lista_sal
     chg_aa = ''.join([str(my_aa),str(codon),str(my_newaa)])
     chg_aa = iupac_aa(chg_aa)
     esta = False
+    for i in lista_codon:
+        sentence = '\t'.join ([gene, i[1], i[2], chg_aa]) + "\n"
+        for elemento in lista_salida:
+            pos = elemento[0].split("\t")[1]
+            if int(i[1]) == int(pos):
+                elemento.append(sentence)
+                esta = True
+        if not esta:
+            lista_salida.append([sentence])
