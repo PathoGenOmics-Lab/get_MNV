@@ -269,6 +269,105 @@ def getMNV(analyze_genelist: list, lista_snp: list, sequence):
             codon += 1
     return lista_salida
 
+def write_vcf(in_vcf, outfile, list_MNV, list_name_genes):
+    '''
+    
+    '''
+    a_a=False
+    with open(outfile,'w') as o_sfile:
+        with open(in_vcf, 'r') as i_efile:
+            for line in i_efile:
+                lista_cambios = []                
+                mnv = False
+                if '#' in line:
+                    o_sfile.write(line)
+                else:
+                    lista_genes_cambios = []
+                    l = line.strip('\n').split('\t')
+                    for element1 in list_MNV:
+                        for element in element1:
+                            pos = element.strip("\n").split("\t")[1]
+                            if int(pos) == int(l[1]):
+                                aa = element.strip("\n").split("\t")[3]
+                                chg = element.strip("\n").split("\t")[4]
+                                gene = element.strip("\n").split("\t")[0]
+                                lista_genes_cambios.append(gene)
+                                sent = '-'.join(['MNV', gene, aa, chg])
+                                if sent not in lista_cambios:
+                                    lista_cambios.append(sent)
+                                mnv = True
+                                 
+                    info = l[7].split('|')        
+                    lista_snp = []
+                    
+                    for elemento in info:
+                        if elemento in list_name_genes:
+                            if mnv:
+                                if elemento not in lista_genes_cambios:
+                                    gene = elemento
+                                    if 'p.' in elemento:
+                                        aa = elemento.strip('p.')
+                                    elif elemento in SNPEFF:
+                                        chg = elemento
+                                    sent = '-'.join(['SNP',gene,aa,chg])
+
+                                    lista_cambios.append(sent)
+                            elif "intragenic" not in line:
+                                gene = elemento
+                                if 'p.' in elemento:
+                                    aa = elemento.strip('p.')
+                                    a_a = True
+                                elif "custom" not in elemento: 
+                                    if elemento in SNPEFF:
+                                        chg = elemento
+                    if a_a:
+                        sent = '-'.join(['SNP',gene,aa,chg])
+                        lista_snp.append(sent)
+                        a_a=False
+                                                                     
+                    if len(lista_snp) != 0:
+                        for ele in lista_snp:
+                            lista_cambios.append(ele)
+
+                    if "intergenic" not in line:
+                        res = ";".join(lista_cambios)
+                        if "MNV" in res:
+                            inf = "MNV"
+                            if "SNP" in res:
+                                inf = "MNV+SNP"
+                        else:
+                            inf = "SNP"
+
+                            g = False
+                            p = False
+                            t = False            
+                            for elemento in info:
+                                if 'p.' in elemento:
+                                    aa = elemento.strip('p.')
+                                    g = True
+                                elif "gene" in elemento:
+                                    gene = elemento.strip('Transcript_gene-').strip('gene-')
+                                    p = True
+                                elif "custom" not in elemento:
+                                    if elemento in SNPEFF:
+                                        chg = elemento
+                                    t = True
+                                if g and p and t:
+
+                                    res = 'SNP-' + gene + '-' + aa + '-' + chg
+                                    g = False
+                                    p = False
+                                    t = False 
+
+                        sen1 = inf + '|' + res
+                        sentence = '\t'.join(l[0:6]) + '\t' + info[0]+ '|' + sen1 + '|' + '|'.join(info[1:])+"\n"
+                        o_sfile.write(sentence)
+                    else:
+                        sen1 = "intergenic" +"|"+"intergenic"
+                        sentence = '\t'.join(l[0:6]) + '\t' + info[0]+ '|' + sen1 + '|' + '|'.join(info[1:])+"\n"
+                        o_sfile.write(sentence)
+
+
 def main():
     parser = argparse.ArgumentParser(description = 'script to annotate MNV') 
     parser.add_argument('-v', dest = 'vcf', required =True, help = 'Vcf file with snps')
@@ -287,6 +386,10 @@ def main():
         for element in list_results:
             for i in element:
                 out_write.write(i)
+        list_name_genes = read_genes_names(args.genes)
     
+    outvcffile = args.vcf.strip('.vcf') + '.MNV.vcf'
+    write_vcf(args.vcf, outvcffile, list_results, list_name_genes)
+
 if __name__ == '__main__':
     main()
