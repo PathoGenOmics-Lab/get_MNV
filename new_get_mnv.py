@@ -383,13 +383,13 @@ def main():
     with open(outtxtfile,'w') as out_write:
         analyze_genelist = check_genes(lista_snp, args.genes)
         list_results = getMNV(analyze_genelist, lista_snp, sequence)
-        #for element in list_results:
-        #    for i in element:
-        #        out_write.write(i)
+        for element in list_results:
+            for i in element:
+                out_write.write(i)
         list_name_genes = read_genes_names(args.genes)
     
     outvcffile = args.vcf.strip('.vcf') + '.MNV.vcf'
-    #write_vcf(args.vcf, outvcffile, list_results, list_name_genes)
+    write_vcf(args.vcf, outvcffile, list_results, list_name_genes)
 
 if __name__ == '__main__':
     main()
