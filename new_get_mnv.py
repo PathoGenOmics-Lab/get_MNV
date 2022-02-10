@@ -218,7 +218,6 @@ def get_place(place: float):
     '''
     Function to get position of snp in a codon
     '''
-    
     if '.33' in str(place): #second place in codon
         p_name = 1
     elif '.66' in str(place): #third place in codon
@@ -269,7 +268,7 @@ def getMNV(analyze_genelist: list, lista_snp: list, sequence):
             codon += 1
     return lista_salida
 
-def write_vcf(in_vcf, outfile, list_MNV, list_name_genes):
+def write_vcf(in_vcf: str, outfile: str, list_MNV: list, list_name_genes: list):
     '''
     
     '''
@@ -346,6 +345,7 @@ def write_vcf(in_vcf, outfile, list_MNV, list_name_genes):
                                     aa = elemento.strip('p.')
                                     g = True
                                 elif "gene" in elemento:
+                                    
                                     gene = elemento.strip('Transcript_gene-').strip('gene-')
                                     p = True
                                 elif "custom" not in elemento:
@@ -383,13 +383,13 @@ def main():
     with open(outtxtfile,'w') as out_write:
         analyze_genelist = check_genes(lista_snp, args.genes)
         list_results = getMNV(analyze_genelist, lista_snp, sequence)
-        for element in list_results:
-            for i in element:
-                out_write.write(i)
+        #for element in list_results:
+        #    for i in element:
+        #        out_write.write(i)
         list_name_genes = read_genes_names(args.genes)
     
     outvcffile = args.vcf.strip('.vcf') + '.MNV.vcf'
-    write_vcf(args.vcf, outvcffile, list_results, list_name_genes)
+    #write_vcf(args.vcf, outvcffile, list_results, list_name_genes)
 
 if __name__ == '__main__':
     main()
