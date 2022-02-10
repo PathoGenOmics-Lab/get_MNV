@@ -169,3 +169,6 @@ def process_listcodon(lista_codon: list, new_codon, codon, my_aa, gene,lista_sal
     '''
     Function for process snps in positive chain, gets old codon, and translates with new snps
     '''
+    for i in lista_codon:
+        new_codon[int(i[0])] = str(i[2])
+    new_codon = Seq(''.join(new_codon))    
