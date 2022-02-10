@@ -251,14 +251,12 @@ def getMNV(analyze_genelist: list, lista_snp: list, sequence):
                     my_aa = my_codon.reverse_complement().translate()
                     p_codon = int(new_cod - codon + 1)
                     new_codon = list(my_codon)
-
-                    process_listcodonN(lista_codon, new_codon, p_codon, my_aa,gene, lista_salida)
+                    process_listcodonN(lista_codon, new_codon, p_codon, my_aa, gene, lista_salida)
                     
                 else:
                     my_aa = my_codon.translate()
-                
                     new_codon = list(my_codon)
-                    process_listcodon(lista_codon, new_codon, codon, my_aa,gene, lista_salida)
+                    process_listcodon(lista_codon, new_codon, codon, my_aa, gene, lista_salida)
 
             codon += 1
     return lista_salida
