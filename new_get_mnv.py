@@ -213,3 +213,52 @@ def process_listcodonN(lista_codon: list, new_codon, codon, my_aa, gene, lista_s
                 esta = True
         if not esta:
             lista_salida.append([sentence])
+
+def getMNV(analyze_genelist, lista_snp, sequence):                
+    '''
+    Function to distinct SNPs being MNV and calculate new aa change 
+    '''
+    lista_salida = []
+    for line in analyze_genelist:
+        l = line.strip('\n').split('\t')
+        gene, orientation = l[0], l[3]   
+        codon = 1
+        start_gene, end_gene = int(l[1]), int(l[2])
+        for ele in range(start_gene, end_gene, 3):
+            new_cod = (end_gene - start_gene + 1) / 3
+            start_codon = ele
+            end_codon = ele + 2 
+
+            lista_codon = list()
+            for elemento in lista_snp:
+                if int(elemento[0]) > end_gene:
+                    break
+
+                elif start_gene <= int(elemento[0]) <= end_gene:
+                    if start_codon <= int(elemento[0]) <= end_codon:
+                        place = (int(elemento[0]) - start_gene) / 3
+                        if '.33' in str(place): #second place in codon
+                            p_name = 1
+                        elif '.66' in str(place): #third place in codon
+                            p_name = 2
+                        else: #first place in codon
+                            p_name = 0
+                        lista_codon.append([p_name,elemento[0], elemento[1]])
+            
+            if len(lista_codon) > 1: #if exists consecutive SNPs in same codon            
+                my_codon = Seq(sequence[start_codon-1:end_codon])
+                if orientation == '-':
+                    my_aa = my_codon.reverse_complement().translate()
+                    p_codon = int(new_cod - codon + 1)
+                    new_codon = list(my_codon)
+
+                    process_listcodonN(lista_codon, new_codon, p_codon, my_aa,gene, lista_salida)
+                    
+                else:
+                    my_aa = my_codon.translate()
+                
+                    new_codon = list(my_codon)
+                    process_listcodon(lista_codon, new_codon, codon, my_aa,gene, lista_salida)
+
+            codon += 1
+    return lista_salida
