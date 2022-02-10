@@ -57,3 +57,7 @@ __maintainer__ = 'Paula Ruiz Rodriguez: @paururo'
 __email__ = 'paula.ruiz-rodriguez@uv.es'
 __status__ = 'developing'
 __lab__ = 'PathoGenOmics, I2SysBio'
+
+import argparse
+from Bio import SeqIO
+from Bio.Seq import Seq
