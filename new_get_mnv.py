@@ -164,3 +164,8 @@ def check_genes(list_snp: list, gene_file: str):
                     if line not in analyze_genelist:
                         analyze_genelist.append(line)
     return analyze_genelist
+
+def process_listcodon(lista_codon: list, new_codon, codon, my_aa, gene,lista_salida: list):
+    '''
+    Function for process snps in positive chain, gets old codon, and translates with new snps
+    '''
