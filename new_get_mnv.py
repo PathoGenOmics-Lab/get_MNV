@@ -119,3 +119,29 @@ def getseq_posbase(vcf_file: str = 'G35894.var.snp.vcf'):
                     l = line.strip('\n').split('\t')
                     list_snp.append([l[1],l[4]]) #[1:pos,4:alt_base]
     return list_snp
+
+def iupac_aa(codon):
+    '''
+    Function to translate iupac code to three aa code letter  
+        Input  -> aa string with 1 letter     -->   refPOSalt  
+        Output -> aa string with 3 letters    -->   refPOSalt  
+    '''
+    aa_code = {
+    'A': 'Ala', 'C': 'Cys', 'D': 'Asp', 'E': 'Glu', 'F': 'Phe',
+    'G': 'Gly', 'H': 'His', 'I': 'Ile', 'K': 'Lys', 'L': 'Leu', 
+    'M': 'Met', 'N': 'Asn', 'P': 'Pro', 'Q': 'Gln', 'R': 'Arg', 
+    'S': 'Ser', 'T': 'Thr', 'V': 'Val', 'W': 'Trp', 'Y': 'Tyr',
+    '*':'*'
+    }
+
+    ref = aa_code.get(codon[0])
+    chg = aa_code.get(codon[-1])
+    if ref == chg:
+        status = 'synonymous_variant'
+    elif chg == '*':
+        status = 'stop_gained'
+    else:
+        status = 'missense_variant'
+    cod_codon = ''.join([aa_code.get(codon[0]), codon[1:-1], aa_code.get(codon[-1])]) + '\t' + status
+    
+    return cod_codon
