@@ -165,9 +165,9 @@ def check_genes(list_snp: list, gene_file: str):
                         analyze_genelist.append(line)
     return analyze_genelist
 
-def process_listcodon(lista_codon: list, new_codon, codon, my_aa, gene,lista_salida: list):
+def process_listcodon(lista_codon: list, new_codon, codon, my_aa, gene, lista_salida: list):
     '''
-    Function for process snps in positive chain, gets old codon, and translates with new snps
+    Function for process snps in positive strand, gets old codon, and translates with new snps
     '''
     for i in lista_codon:
         new_codon[int(i[0])] = str(i[2])
