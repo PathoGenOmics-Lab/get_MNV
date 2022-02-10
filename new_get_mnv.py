@@ -268,3 +268,25 @@ def getMNV(analyze_genelist: list, lista_snp: list, sequence):
 
             codon += 1
     return lista_salida
+
+def main():
+    parser = argparse.ArgumentParser(description = 'script to annotate MNV') 
+    parser.add_argument('-v', dest = 'vcf', required =True, help = 'Vcf file with snps')
+    parser.add_argument('-f', dest = 'fasta', required =True, help = 'Name of the reference fasta') 
+    parser.add_argument('-g', dest = 'genes', required = True, help = 'File with gene info')
+    args = parser.parse_args()
+    
+    print(__doc__)
+
+    sequence = reference_fasta(args.fasta)
+    lista_snp = getseq_posbase(args.vcf)
+    outtxtfile = args.vcf.strip('.vcf') + '.MNV.tsv'
+    with open(outtxtfile,'w') as out_write:
+        analyze_genelist = check_genes(lista_snp, args.genes)
+        list_results = getMNV(analyze_genelist, lista_snp, sequence)
+        for element in list_results:
+            for i in element:
+                out_write.write(i)
+    
+if __name__ == '__main__':
+    main()
