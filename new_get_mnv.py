@@ -168,6 +168,7 @@ def check_genes(list_snp: list, gene_file: str):
 def process_listcodon(lista_codon: list, new_codon, codon, my_aa, gene, lista_salida: list):
     '''
     Function for process snps in positive strand, gets old codon, and translates with new snps
+    Works inside get_MNV function
     '''
     for i in lista_codon:
         new_codon[int(i[0])] = str(i[2])
@@ -190,6 +191,7 @@ def process_listcodon(lista_codon: list, new_codon, codon, my_aa, gene, lista_sa
 def process_listcodonN(lista_codon: list, new_codon, codon, my_aa, gene, lista_salida: list):
     '''
     Function for process snps in negative strand, gets old codon, and translates with new snps
+    Works inside get_MNV function
     '''
     for i in lista_codon:
         new_codon[int(i[0])] = str(i[2])
