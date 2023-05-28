@@ -5,7 +5,7 @@ __and Mireia Coscolla<sup>1</sup>__
 <br>
 <sub> 1. I<sup>2</sup>SysBio, University of Valencia-CSIC, FISABIO Joint Research Unit Infection and Public Health, Valencia, Spain </sub>  
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-brightgreen.svg)](https://github.com/Paururo/get_MNV/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-brightgreen.svg)](https://github.com/PathoGenOmics-Lab/get_MNV/)
 
 ## Annotate Multi-Nucleotide Variants 
 <p align="justify">Single nucleotide variants (SNVs), are one of the most prevalent mutation types, but it can happen this SNV occur in the same codon and translates to a different amino acid, known as multi-nucleotide variants (MNV). With annotation programs like Annovar or snpEff currently only work with SNV, so we could miss the actual aminoacid change due to multiple SNV in the same codon.</p>
