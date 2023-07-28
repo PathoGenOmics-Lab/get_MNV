@@ -1,6 +1,8 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-brightgreen.svg)](https://github.com/PathoGenOmics-Lab/get_MNV/blob/main/LICENSE)
 <p align="center">
-  <img src="https://github.com/Pathogenomics-Lab/get_MNV/blob/main/images/get_mnv2.png" height="230" alt="get_MNV">
+  <a href="https://github.com/PathoGenOmics-Lab/get_MNV">
+    <img src="https://github.com/Pathogenomics-Lab/get_MNV/blob/main/images/get_mnv2.png" height="230" alt="get_MNV">
+  </a>
 </p>
 
 __Paula Ruiz-Rodriguez<sup>1</sup>__ 
