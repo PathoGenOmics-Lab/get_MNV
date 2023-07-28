@@ -12,7 +12,7 @@ __and Mireia Coscolla<sup>1</sup>__
 
 
 
-# get_Multi-NucleotideVariants 
+# get Multi-Nucleotide Variants 
 <p align="justify">Single Nucleotide Variants (SNVs) represent one of the most common types of genetic mutations. However, a situation may arise where multiple SNVs occur within the same codon, leading to the translation of a different amino acid. This is referred to as a Multi-Nucleotide Variant (MNV).
 
 Current annotation programs, such as ANNOVAR or SnpEff, are designed to work predominantly with SNVs, which implies a potential gap in their functionality. Consequently, we may overlook the actual amino acid changes that result from multiple SNVs within the same codon. 
