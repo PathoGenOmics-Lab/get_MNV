@@ -3,7 +3,6 @@
   <img src="https://github.com/Pathogenomics-Lab/get_MNV/blob/main/images/get_mnv2.png" height="250" alt="get_MNV">
 </p>
 
-
 __Paula Ruiz-Rodriguez<sup>1</sup>__ 
 __and Mireia Coscolla<sup>1</sup>__
 <br>
