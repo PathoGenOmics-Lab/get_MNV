@@ -43,9 +43,6 @@ Command:
 Outputs:
     vcf_name + .MNV.vcf  -> annotated vcfs
     vcf_name + .MNV.tsv  -> tsv file with MNV variants
- 
-Requires biopython
-
 Contact -> @paururo
 """
 
@@ -508,5 +505,5 @@ def main():
     
     write_to_vcf(converted_df, name + '.MNV.vcf')
 #python3 new.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
-
-main()
+if __name__ == '__main__':
+    main()
