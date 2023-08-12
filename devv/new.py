@@ -349,7 +349,51 @@ def update_vcf(df, exclude_set):
 
         info_dict = modify_info_for_snv(info_dict)
         df.at[index, 'INFO'] = str(info_dict)
-        print(df.at[index, 'INFO'])
+
+    return df
+
+import pandas as pd
+
+def convert_info(row):
+    if isinstance(row, str):
+        try:
+            info_dict = eval(row)
+        except:
+            return row  # if conversion fails, return the original string
+
+        # Convert dictionary to ';' separated string format
+        return ';'.join([f'{k}={v}' for k, v in info_dict.items()])
+    return row
+
+def process_info_string(s):
+    replacements = [('{', ''), ('}', ''),
+                    ('[', ''), (']', ''),
+                    ("'", ''), (': ', '='),
+                    (',', ';'), ('; ', ',')
+    ]
+    for old, new in replacements:
+        s = s.replace(old, new)
+    return s
+
+def convert_to_vcf_format(df):
+    # Convert list values in ALT column to string
+    df['ALT'] = df['ALT'].str[0]
+    
+    # Convert list values in ANN column to string
+    df['INFO'] = df['INFO'].apply(lambda x: x.replace('['', '').replace('']', ''))
+    
+    # Set FILTER column to 'PASS'
+    df['FILTER'] = 'PASS'
+    
+    # Replace missing values with VCF's '.' representation
+    df = df.fillna('.')
+    
+    # Convert the 'INFO' column's dictionary format to VCF's ';' separated format
+    df['INFO'] = df['INFO'].apply(convert_info)
+    df['INFO'] = df['INFO'].apply(process_info_string)
+    # Drop unnecessary columns and format the DataFrame to resemble VCF
+    columns = ['CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT']
+    df = df[columns]
 
     return df
 
@@ -370,7 +414,13 @@ def main():
     df = vcf_to_dataframe(args.vcf)
     updated_df, mnv_position = change_vcf(df, mnv)
     ultimate_df = update_vcf(updated_df, mnv_position)
-    ultimate_df.to_csv('ultimate_df.txt', index=False, header=True)
+    converted_df = convert_to_vcf_format(ultimate_df)
+    converted_df.to_csv('ultimate_df.txt', index=False, header=True)
+    with open('output.vcf', 'w') as f:
+    # Add VCF header
+        f.write('##fileformat=VCFv4.2\n')
+        f.write('#' + '\t'.join(converted_df.columns) + '\n')
+        converted_df.to_csv(f, sep='\t', index=False, header=False)
 #python3 new.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
 
 main()
