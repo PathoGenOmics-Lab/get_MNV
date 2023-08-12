@@ -5,7 +5,7 @@ from typing import List
 from collections import namedtuple
 import vcf
 import pandas as pd
-
+import ast
 def reference_fasta(fasta_file: str = 'MTB_ancestor.fas') -> str:
     '''
     Parse a FASTA file and return the sequence of the first record.
@@ -233,6 +233,40 @@ def vcf_to_dataframe(vcf_filename):
     df.set_index('POS', inplace=True, drop=False)  # Set 'POS' as index but still retain it in the DataFrame
     return df
 
+def change_vcf(df, mnv):
+    for snp in mnv:
+        list_snp = snp.split('\t')
+        gene = list_snp[0]
+        position = int(list_snp[1])
+        aa = list_snp[3]
+        chg = list_snp[4]
+        
+        info_data = df.loc[position, 'INFO']
+        
+        if isinstance(info_data, str):
+            try:
+                info_dict = ast.literal_eval(info_data)
+            except ValueError:
+                print(f"Failed to convert {info_data} to dictionary.")
+                continue
+        elif isinstance(info_data, dict):
+            info_dict = info_data
+        else:
+            print(f"Unexpected data type for {info_data}.")
+            continue
+
+        segments = info_dict['ANN'][0].split('|')
+        segments.insert(1, 'MNV')
+        segments[4] = chg
+        segments[5] = gene
+        segments[11] = f'p.{aa}'
+        
+        info_dict['ANN'][0] = '|'.join(segments)
+        df.loc[position, 'INFO'] = str(info_dict) 
+        print(df.loc[position,'INFO'])
+
+    return df
+
 def arguments():
     parser = argparse.ArgumentParser(description = 'script to annotate MNV') 
     parser.add_argument('-v', dest = 'vcf', required =True, help = 'Vcf file with snps')
@@ -246,14 +280,15 @@ def main():
     sequence = reference_fasta(args.fasta)
     lista_snp = getseq_posbase(args.vcf)
     gene_list = check_genes(lista_snp,args.genes)
-    get_mnv_variants(gene_list, lista_snp, sequence)
+    mnv = get_mnv_variants(gene_list, lista_snp, sequence)
     df = vcf_to_dataframe(args.vcf)
-    print(df.head())
-    print(df['FORMAT'])
-    print(df.iloc[0])
-    
-    df['ANN'] = df['INFO'].apply(lambda x: x.get('ANN') if isinstance(x, dict) else None)
-    df['ANN'].to_csv('column_ANN.txt', index=False, header=True)
+    change_vcf(df, mnv)
+    #print(df.head())
+    #print(df['FORMAT'])
+    #print(df.iloc[0])
+    #
+    #df['ANN'] = df['INFO'].apply(lambda x: x.get('ANN') if isinstance(x, dict) else None)
+    #df['ANN'].to_csv('column_ANN.txt', index=False, header=True)
 #python3 new.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
 
 main()
