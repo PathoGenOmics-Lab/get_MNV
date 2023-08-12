@@ -76,8 +76,8 @@ def check_genes(list_snp: list, gene_file: str) -> list:
     return list(genes_of_interest)
 
 # Define a structure to group related parameters
-CodonInfo = namedtuple("CodonInfo", ["codon_list", "new_codon", "original_codon", "gene_name", "gene_start", "gene_end", "codon_start", "codon_end"])
-SNP = namedtuple("SNP", ["index", "position", "base"])
+CodonInfo = namedtuple('CodonInfo', ['codon_list', 'new_codon', 'original_codon', 'gene_name', 'gene_start', 'gene_end', 'codon_start', 'codon_end'])
+SNP = namedtuple('SNP', ['index', 'position', 'base'])
 
 def iupac_aa(codon: str):
     '''
@@ -105,7 +105,7 @@ def iupac_aa(codon: str):
     return cod_codon
 
 def process_codons_based_on_strand(codon_info: CodonInfo, strand: str = '+') -> List[str]:
-    """
+    '''
     Process codons based on the provided information and strand orientation.
 
     Args:
@@ -115,7 +115,7 @@ def process_codons_based_on_strand(codon_info: CodonInfo, strand: str = '+') -> 
 
     Returns:
         List[str]: A list of strings containing processed information for each SNP in the codon.
-    """
+    '''
     output_list = []
     # Create a mutable version of the codon for mutation
     mutable_codon = list(codon_info.original_codon)
@@ -146,11 +146,11 @@ def process_codons_based_on_strand(codon_info: CodonInfo, strand: str = '+') -> 
     return output_list
 
 def extract_codon_snp(codon_start: int, codon_end: int, snp_list: list):
-    """Extract SNPs that fall within a specific codon."""
+    '''Extract SNPs that fall within a specific codon.'''
     return [snp for snp in snp_list if codon_start <= int(snp[0]) <= codon_end]
 
 def get_mnv_variants(gene_list: list, snp_list: list, sequence: str) -> list:
-    """
+    '''
     Identify codons with multiple SNPs within genes from the provided gene and SNP lists.
     
     Parameters:
@@ -160,7 +160,7 @@ def get_mnv_variants(gene_list: list, snp_list: list, sequence: str) -> list:
     
     Returns:
     - List of processed codons containing multiple SNPs based on gene strand.
-    """
+    '''
     
     results = []
     for gene_info in gene_list:
@@ -197,7 +197,7 @@ def get_mnv_variants(gene_list: list, snp_list: list, sequence: str) -> list:
 
 
 def vcf_to_dataframe(vcf_filename):
-    """
+    '''
     Convert a VCF file to a pandas DataFrame.
 
     Args:
@@ -205,7 +205,7 @@ def vcf_to_dataframe(vcf_filename):
 
     Returns:
     - pd.DataFrame: DataFrame representation of the VCF file, indexed by position number.
-    """
+    '''
     
     vcf_reader = vcf.Reader(open(vcf_filename, 'r'))
     
@@ -247,12 +247,12 @@ def change_vcf(df, mnv):
             try:
                 info_dict = ast.literal_eval(info_data)
             except ValueError:
-                print(f"Failed to convert {info_data} to dictionary.")
+                print(f'Failed to convert {info_data} to dictionary.')
                 continue
         elif isinstance(info_data, dict):
             info_dict = info_data
         else:
-            print(f"Unexpected data type for {info_data}.")
+            print(f'Unexpected data type for {info_data}.')
             continue
 
         segments = info_dict['ANN'][0].split('|')
