@@ -74,7 +74,7 @@ def check_genes(list_snp: list, gene_file: str) -> list:
     return list(genes_of_interest)
 
 # Define a structure to group related parameters
-CodonInfo = namedtuple("CodonInfo", ["codon_list", "new_codon", "original_codon", "amino_acid", "gene"])
+CodonInfo = namedtuple("CodonInfo", ["codon_list", "new_codon", "original_codon", "gene_name", "gene_start", "gene_end", "codon_start", "codon_end"])
 SNP = namedtuple("SNP", ["index", "position", "base"])
 
 def iupac_aa(codon: str):
@@ -102,34 +102,35 @@ def iupac_aa(codon: str):
     cod_codon = ''.join([aa_code.get(codon[0]), codon[1:-1], aa_code.get(codon[-1])]) + '\t' + status
     return cod_codon
 
-def process_codons_based_on_strand(codon_info: CodonInfo, strand: str = '+') -> List[List[str]]:
+def process_codons_based_on_strand(codon_info: CodonInfo, strand: str = '+') -> List[str]:
     output_list = []
-
+    # Create a mutable version of the codon for mutation
+    mutable_codon = list(codon_info.original_codon)
     for snp in codon_info.codon_list:
-        print(snp)
-        codon_info.new_codon[snp.index] = snp.base
+        position_in_codon = snp['codon']
+        mutable_codon[position_in_codon] = snp['base']
 
+    # Translate original and mutated codons
+    original_aa = Seq(''.join(codon_info.original_codon)).translate()
+    
     if strand == '-':
-        translated_codon = Seq(''.join(codon_info.new_codon)).reverse_complement()
+        mutated_aa = Seq(''.join(mutable_codon)).reverse_complement().translate()
+        original_aa = Seq(''.join(codon_info.original_codon)).reverse_complement().translate()
     else:
-        translated_codon = Seq(''.join(codon_info.new_codon))
+        mutated_aa = Seq(''.join(mutable_codon)).translate()
 
-    my_newaa = translated_codon.translate()
-
-    chg_aa = ''.join([str(codon_info.amino_acid), str(codon_info.original_codon), str(my_newaa)])
-    chg_aa = iupac_aa(chg_aa)
-
+    # Construct the output list for each SNP in the codon
     for snp in codon_info.codon_list:
-        sentence = '\t'.join([codon_info.gene, snp.position, snp.base, chg_aa]) + '\n'
+        aa_position = (codon_info.codon_start - codon_info.gene_start + int(snp['codon'])) // 3 + 1
+        if strand == '-':
+            aa_position = (codon_info.gene_end - codon_info.codon_end + int(snp['codon'])) // 3 + 1
+        chg_aa = ''.join([str(original_aa), str(aa_position), str(mutated_aa)])
+        chg_aa = iupac_aa(chg_aa)
         
-        for entry in output_list:
-            pos = entry[0].split('\t')[1]
-            if snp.position == pos:
-                entry.append(sentence)
-                break
-        else:
-            output_list.append([sentence])
+        sentence = '\t'.join([codon_info.gene_name, snp['position'], snp['base'], chg_aa])
+        output_list.append(sentence)
 
+    print(output_list)
     return output_list
 
 def extract_codon_snp(codon_start: int, codon_end: int, snp_list: list):
@@ -143,18 +144,33 @@ def get_mnv_variants(gene_list: list, snp_list: list, sequence: str):
     for gene_info in gene_list:
         details = gene_info.strip('\n').split('\t')
         gene_name, strand, gene_start, gene_end = details[0], details[3], int(details[1]), int(details[2])
-        print(gene_name, strand, gene_start, gene_end)
-        relevant_snps = [SNP(i, *snp) for i, snp in enumerate(snp_list) if gene_start <= int(snp[0]) <= gene_end]
-        print(relevant_snps)
+        relevant_snps = [(i, *snp) for i, snp in enumerate(snp_list) if gene_start <= int(snp[0]) <= gene_end]
+        
         for position in range(gene_start, gene_end, 3):
             codon_start, codon_end = position, position + 2
-            codon_snps = [snp for snp in relevant_snps if codon_start <= int(snp.position) <= codon_end]
+            # We calculate the SNP position within the codon while constructing this list
+            codon_snps = [{
+                'index': index,
+                'position': snp_position,
+                'base': snp_base,
+                'codon': int(snp_position) - codon_start
+            } for index, snp_position, snp_base in relevant_snps if codon_start <= int(snp_position) <= codon_end]
+            
             if len(codon_snps) > 1:  # If multiple SNPs are in the same codon
                 codon_sequence = Seq(sequence[codon_start-1:codon_end])
                 
-                info = CodonInfo(codon_snps, codon_sequence, None, None, gene_name)
-                #print(info,strand)
-                #results.extend(process_codons_based_on_strand(info, strand))
+                info = CodonInfo(
+                    codon_list=codon_snps,
+                    original_codon=codon_sequence, 
+                    new_codon=None,  # You will need to define this later
+                    gene_name=gene_name, 
+                    gene_start=gene_start,
+                    gene_end=gene_end,
+                    codon_start=codon_start,
+                    codon_end=codon_end
+                )
+                #print(info)  
+                results.extend(process_codons_based_on_strand(info, strand))
 
     return results
 
@@ -167,7 +183,7 @@ args = parser.parse_args()
 sequence = reference_fasta(args.fasta)
 lista_snp = getseq_posbase(args.vcf)
 gene_list = check_genes(lista_snp,args.genes)
-print(len(gene_list))
-#get_mnv_variants(gene_list, lista_snp, sequence)
+#print(len(gene_list))
+get_mnv_variants(gene_list, lista_snp, sequence)
 
 #python3 new.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
