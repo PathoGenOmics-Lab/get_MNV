@@ -271,8 +271,7 @@ def modify_info_dict(info_dict, gene, chg, aa):
     """
     segments = info_dict['ANN'][0].split('|')
     segments.insert(1, 'MNV')
-    segments[4] = chg
-    segments[5] = gene
+    segments[2] = chg
     segments[11] = f'p.{aa}'
     
     info_dict['ANN'][0] = '|'.join(segments)
@@ -329,7 +328,7 @@ def main():
     #print(df.iloc[0])
     #
     #df['ANN'] = df['INFO'].apply(lambda x: x.get('ANN') if isinstance(x, dict) else None)
-    #df['ANN'].to_csv('column_ANN.txt', index=False, header=True)
+    updated_df.to_csv('updated_df.txt', index=False, header=True)
 #python3 new.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
 
 main()
