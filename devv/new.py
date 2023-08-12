@@ -234,7 +234,7 @@ def vcf_to_dataframe(vcf_filename):
     return df
 
 def convert_to_dict(info_data):
-    """
+    '''
     Converts a string representation of a dictionary to an actual dictionary.
     
     Args:
@@ -243,7 +243,7 @@ def convert_to_dict(info_data):
     Returns:
     - dict: Converted dictionary or the original data if already a dictionary.
     - None: If the conversion fails or data type is unexpected.
-    """
+    '''
     if isinstance(info_data, str):
         try:
             return ast.literal_eval(info_data)
@@ -257,7 +257,7 @@ def convert_to_dict(info_data):
         return None
 
 def modify_info_dict(info_dict, gene, chg, aa):
-    """
+    '''
     Modifies a dictionary based on the provided gene, change, and amino acid info.
 
     Args:
@@ -268,7 +268,7 @@ def modify_info_dict(info_dict, gene, chg, aa):
 
     Returns:
     - dict: Modified dictionary.
-    """
+    '''
     segments = info_dict['ANN'][0].split('|')
     segments.insert(1, 'MNV')
     segments[2] = chg
@@ -278,7 +278,7 @@ def modify_info_dict(info_dict, gene, chg, aa):
     return info_dict
 
 def change_vcf(df, mnv):
-    """
+    '''
     Modifies a DataFrame based on a list of MNVs.
 
     Args:
@@ -288,7 +288,7 @@ def change_vcf(df, mnv):
     Returns:
     - pd.DataFrame: Modified DataFrame.
     - mnv_position (set): Set of MNV positions.
-    """
+    '''
     mnv_position = set()
     for snp in mnv:
         list_snp = snp.split('\t')
@@ -310,6 +310,49 @@ def change_vcf(df, mnv):
 
     return df, mnv_position
 
+def modify_info_for_snv(info_dict):
+    '''
+    Modifies a dictionary to add 'SNV' for a specific segment.
+
+    Args:
+    - info_dict (dict): Dictionary to be modified.
+
+    Returns:
+    - dict: Modified dictionary.
+    '''
+    segments = info_dict['ANN'][0].split('|')
+    segments.insert(1, 'SNV')
+    info_dict['ANN'][0] = '|'.join(segments)
+    return info_dict
+
+def update_vcf(df, exclude_set):
+    '''
+    Updates a DataFrame's 'ANN' information by adding 'SNV' to specific segments.
+    Rows with index in the 'exclude_set' are not updated.
+
+    Args:
+    - df (pd.DataFrame): DataFrame with VCF data.
+    - exclude_set (set): Set of row indices to be excluded from the update.
+
+    Returns:
+    - pd.DataFrame: Updated DataFrame.
+    '''
+    for index, row in df.iterrows():
+        if index in exclude_set:
+            continue
+        
+        info_data = row['INFO']
+        info_dict = convert_to_dict(info_data)
+        
+        if info_dict is None:
+            continue
+
+        info_dict = modify_info_for_snv(info_dict)
+        df.at[index, 'INFO'] = str(info_dict)
+        print(df.at[index, 'INFO'])
+
+    return df
+
 def arguments():
     parser = argparse.ArgumentParser(description = 'script to annotate MNV') 
     parser.add_argument('-v', dest = 'vcf', required =True, help = 'Vcf file with snps')
@@ -326,12 +369,8 @@ def main():
     mnv = get_mnv_variants(gene_list, lista_snp, sequence)
     df = vcf_to_dataframe(args.vcf)
     updated_df, mnv_position = change_vcf(df, mnv)
-    #print(df.head())
-    #print(df['FORMAT'])
-    #print(df.iloc[0])
-    #
-    #df['ANN'] = df['INFO'].apply(lambda x: x.get('ANN') if isinstance(x, dict) else None)
-    updated_df.to_csv('updated_df.txt', index=False, header=True)
+    ultimate_df = update_vcf(updated_df, mnv_position)
+    ultimate_df.to_csv('ultimate_df.txt', index=False, header=True)
 #python3 new.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
 
 main()
