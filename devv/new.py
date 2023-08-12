@@ -103,6 +103,17 @@ def iupac_aa(codon: str):
     return cod_codon
 
 def process_codons_based_on_strand(codon_info: CodonInfo, strand: str = '+') -> List[str]:
+    """
+    Process codons based on the provided information and strand orientation.
+
+    Args:
+        codon_info (CodonInfo): Information about the codon and associated SNPs.
+        strand (str, optional): Strand orientation ('+' for positive strand, '-' for negative strand).
+            Defaults to '+'
+
+    Returns:
+        List[str]: A list of strings containing processed information for each SNP in the codon.
+    """
     output_list = []
     # Create a mutable version of the codon for mutation
     mutable_codon = list(codon_info.original_codon)
@@ -130,7 +141,6 @@ def process_codons_based_on_strand(codon_info: CodonInfo, strand: str = '+') -> 
         sentence = '\t'.join([codon_info.gene_name, snp['position'], snp['base'], chg_aa])
         output_list.append(sentence)
 
-    print(output_list)
     return output_list
 
 def extract_codon_snp(codon_start: int, codon_end: int, snp_list: list):
@@ -171,8 +181,8 @@ def get_mnv_variants(gene_list: list, snp_list: list, sequence: str):
                 )
                 #print(info)  
                 results.extend(process_codons_based_on_strand(info, strand))
-
     return results
+
 def arguments():
     parser = argparse.ArgumentParser(description = 'script to annotate MNV') 
     parser.add_argument('-v', dest = 'vcf', required =True, help = 'Vcf file with snps')
