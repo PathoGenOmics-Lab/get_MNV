@@ -15,3 +15,16 @@ def reference_fasta(fasta_file: str = 'MTB_ancestor.fas') -> str:
     with open(fasta_file, 'r') as file:
         fasta_sequence = next(SeqIO.parse(file, 'fasta'))
         return str(fasta_sequence.seq)
+    
+def read_genes_names(genes_file: str) -> list[str]:
+    '''
+    Extract gene names from a tab-separated file.
+    
+    Parameters:
+    - genes_file (str): Path to the text file with gene names in the first column.
+    
+    Returns:
+    - list[str]: List containing gene names.
+    '''
+    with open(genes_file, 'r') as in_file:
+        return [line.split('\t')[0].strip() for line in in_file]
