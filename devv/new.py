@@ -288,10 +288,12 @@ def change_vcf(df, mnv):
     Returns:
     - pd.DataFrame: Modified DataFrame.
     """
+    mnv_position = set()
     for snp in mnv:
         list_snp = snp.split('\t')
         gene = list_snp[0]
         position = int(list_snp[1])
+        mnv_position.add(position)
         aa = list_snp[3]
         chg = list_snp[4]
 
@@ -305,7 +307,7 @@ def change_vcf(df, mnv):
         df.loc[position, 'INFO'] = str(info_dict) 
         print(df.loc[position,'INFO'])
 
-    return df
+    return df, mnv_position
 
 def arguments():
     parser = argparse.ArgumentParser(description = 'script to annotate MNV') 
@@ -322,7 +324,7 @@ def main():
     gene_list = check_genes(lista_snp,args.genes)
     mnv = get_mnv_variants(gene_list, lista_snp, sequence)
     df = vcf_to_dataframe(args.vcf)
-    updated_df = change_vcf(df, mnv)
+    updated_df, mnv_position = change_vcf(df, mnv)
     #print(df.head())
     #print(df['FORMAT'])
     #print(df.iloc[0])
