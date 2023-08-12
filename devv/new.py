@@ -3,6 +3,8 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from typing import List
 from collections import namedtuple
+import vcf
+import pandas as pd
 
 def reference_fasta(fasta_file: str = 'MTB_ancestor.fas') -> str:
     '''
@@ -183,17 +185,65 @@ def get_mnv_variants(gene_list: list, snp_list: list, sequence: str):
                 results.extend(process_codons_based_on_strand(info, strand))
     return results
 
+
+def vcf_to_dataframe(vcf_filename):
+    """
+    Convert a VCF file to a pandas DataFrame.
+
+    Args:
+    - vcf_filename (str): Path to the VCF file.
+
+    Returns:
+    - pd.DataFrame: DataFrame representation of the VCF file, indexed by position number.
+    """
+    
+    vcf_reader = vcf.Reader(open(vcf_filename, 'r'))
+    
+    records = []
+    for record in vcf_reader:
+        record_data = {
+            'CHROM': record.CHROM,
+            'POS': record.POS,
+            'ID': record.ID,
+            'REF': record.REF,
+            'ALT': [str(alt) for alt in record.ALT],
+            'QUAL': record.QUAL,
+            'FILTER': record.FILTER,
+            'INFO': record.INFO,
+            'FORMAT': record.FORMAT
+        }
+        if record.samples:
+            sample_data = record.samples[0].data
+            for key in sample_data._fields:
+                record_data[key] = getattr(sample_data, key)  # Use getattr to access named tuple fields
+        
+        records.append(record_data)
+
+    df = pd.DataFrame.from_records(records)
+    df.set_index('POS', inplace=True, drop=False)  # Set 'POS' as index but still retain it in the DataFrame
+    return df
+
 def arguments():
     parser = argparse.ArgumentParser(description = 'script to annotate MNV') 
     parser.add_argument('-v', dest = 'vcf', required =True, help = 'Vcf file with snps')
     parser.add_argument('-f', dest = 'fasta', required =True, help = 'Name of the reference fasta') 
     parser.add_argument('-g', dest = 'genes', required = True, help = 'File with gene info')
     args = parser.parse_args()
+    return args
+
 def main():
     args = arguments()
     sequence = reference_fasta(args.fasta)
     lista_snp = getseq_posbase(args.vcf)
     gene_list = check_genes(lista_snp,args.genes)
     get_mnv_variants(gene_list, lista_snp, sequence)
-
+    df = vcf_to_dataframe(args.vcf)
+    print(df.head())
+    print(df['FORMAT'])
+    print(df.iloc[0])
+    
+    df['ANN'] = df['INFO'].apply(lambda x: x.get('ANN') if isinstance(x, dict) else None)
+    df['ANN'].to_csv('column_ANN.txt', index=False, header=True)
 #python3 new.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
+
+main()
