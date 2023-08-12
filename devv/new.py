@@ -6,6 +6,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from typing import List
 from collections import namedtuple
+from io import StringIO
 
 def reference_fasta(fasta_file: str = 'MTB_ancestor.fas') -> str:
     '''
@@ -403,6 +404,13 @@ def arguments():
     args = parser.parse_args()
     return args
 
+def write_to_tsv(data_list,filename):
+    data_str = "\n".join(data_list)
+    df = pd.read_csv(StringIO(data_str), sep='\t', header=None)
+    df[1] = pd.to_numeric(df[1])
+    df = df.sort_values(by=1)
+    df.to_csv(filename+'.mnv.tsv', sep='\t', index=False, header=False)
+
 def write_to_vcf(df, filename):
     """Writes a DataFrame to a VCF format file."""
     with open(filename, 'w') as f:
@@ -413,6 +421,8 @@ def write_to_vcf(df, filename):
 
 def main():
     args = arguments()# Parse arguments
+    name = '.'.join(args.vcf.split('.')[:-1])
+    print(name)
     # Obtain the sequence from a reference FASTA
     sequence = reference_fasta(args.fasta)
     # Get SNP list from VCF
@@ -420,11 +430,12 @@ def main():
     # Check which genes have been mentioned in the provided list
     gene_list = check_genes(lista_snp, args.genes)
     mnv = get_mnv_variants(gene_list, lista_snp, sequence)# Obtain MNV variants
+    write_to_tsv(mnv, name)# Write MNV variants to TSV
     df = vcf_to_dataframe(args.vcf) # Convert VCF to DataFrame
     updated_df, mnv_position = change_vcf(df, mnv)# Change VCF entries based on MNV information
     ultimate_df = update_vcf(updated_df, mnv_position)# Update VCF with positions
     converted_df = convert_to_vcf_format(ultimate_df)# Convert the updated DataFrame back to VCF format
-    name = args.vcf.split('.')[0]# Derive filename and write to VCF
+    
     write_to_vcf(converted_df, name + '.mnv.vcf')
 #python3 new.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
 
