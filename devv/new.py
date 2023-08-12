@@ -1,7 +1,7 @@
 import argparse
 from Bio import SeqIO
 from Bio.Seq import Seq
-from typing import List, Tuple, Union
+from typing import List
 from collections import namedtuple
 
 def reference_fasta(fasta_file: str = 'MTB_ancestor.fas') -> str:
@@ -172,7 +172,7 @@ def get_mnv_variants(gene_list: list, snp_list: list, sequence: str):
                 info = CodonInfo(
                     codon_list=codon_snps,
                     original_codon=codon_sequence, 
-                    new_codon=None,  # You will need to define this later
+                    new_codon=None,  
                     gene_name=gene_name, 
                     gene_start=gene_start,
                     gene_end=gene_end,
@@ -194,7 +194,6 @@ def main():
     sequence = reference_fasta(args.fasta)
     lista_snp = getseq_posbase(args.vcf)
     gene_list = check_genes(lista_snp,args.genes)
-    #print(len(gene_list))
     get_mnv_variants(gene_list, lista_snp, sequence)
 
 #python3 new.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
