@@ -198,7 +198,7 @@ def get_mnv_variants(gene_list: list, snp_list: list, sequence: str) -> list:
     return results
 
 
-def vcf_to_dataframe(vcf_filename):
+def vcf_to_dataframe(vcf_filename: str):
     '''
     Convert a VCF file to a pandas DataFrame.
 
@@ -258,7 +258,7 @@ def convert_to_dict(info_data):
         print(f'Unexpected data type for {info_data}.')
         return None
 
-def modify_info_dict(info_dict, gene, chg, aa):
+def modify_info_dict(info_dict, chg, aa):
     '''
     Modifies a dictionary based on the provided gene, change, and amino acid info.
 
@@ -306,7 +306,7 @@ def change_vcf(df, mnv):
         if info_dict is None:
             continue
 
-        info_dict = modify_info_dict(info_dict, gene, chg, aa)
+        info_dict = modify_info_dict(info_dict, chg, aa)
         df.loc[position, 'INFO'] = str(info_dict) 
 
     return df, mnv_position
@@ -404,7 +404,18 @@ def arguments():
     args = parser.parse_args()
     return args
 
-def write_to_tsv(data_list,filename):
+def write_to_tsv(data_list:List[str] ,filename:str):
+    '''
+    Convert a list of tab-separated values to a DataFrame, sort it by the second column, 
+    and save it to a TSV file.
+    
+    Parameters:
+    - data_list (List[str]): A list of strings containing tab-separated values.
+    - filename (str): The base name of the file to save the sorted DataFrame.
+    
+    Returns:
+    None. Writes sorted data to a TSV file named '{filename}.mnv.tsv'.
+    '''
     data_str = "\n".join(data_list)
     df = pd.read_csv(StringIO(data_str), sep='\t', header=None)
     df[1] = pd.to_numeric(df[1])
@@ -422,7 +433,6 @@ def write_to_vcf(df, filename):
 def main():
     args = arguments()# Parse arguments
     name = '.'.join(args.vcf.split('.')[:-1])
-    print(name)
     # Obtain the sequence from a reference FASTA
     sequence = reference_fasta(args.fasta)
     # Get SNP list from VCF
