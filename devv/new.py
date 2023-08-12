@@ -52,37 +52,26 @@ def getseq_posbase(vcf_file: str = 'G35894.var.snp.vcf') -> List[List[str]]:
             for fields in (line.strip().split('\t') for line in in_file if not line.startswith('#') and 'intergenic' not in line)
         ]
 
-def check_genes(list_snp: List[Tuple[int, str]], gene_file: str) -> List[str]:
+def check_genes(list_snp: list, gene_file: str) -> list:
     '''
-    Extract genes containing SNPs from an analyzed VCF.
-
-    Parameters:
-    - list_snp (List[Tuple[int, str]]): List of SNPs from a VCF file, where each SNP is represented by (position, base).
-    - gene_file (str): File with genes and their coordinates.
-
-    Returns:
-    - List[str]: List of genes of interest containing SNPs from the VCF file.
+    Function to get genes containing SNPs in the analyzed vcf.
+        Input  -> list_snps: list with SNPs of vcf file, gene_file: 
+                  genes with coordinates.
+        Output -> list with genes of interest containing SNPs of vcf file.
     '''
-    
-    analyze_genelist = set()
-    list_snp.sort(key=lambda x: x[0])  # Sort SNP list by position
-    snp_index = 0
-    snp_count = len(list_snp)
-    
+    genes_of_interest = set()
+
     with open(gene_file, 'r') as in_file:
-        for line in in_file:
-            fields = line.strip().split('\t')
-            start_gene, end_gene = int(fields[1]), int(fields[2])
-            
-            while snp_index < snp_count:
-                snp_position = int(list_snp[snp_index][0])
-                if snp_position > end_gene:
-                    break
-                elif start_gene <= snp_position <= end_gene:
-                    analyze_genelist.add(line)
-                snp_index += 1
+        for gene_entry in in_file:
+            chromosome, start_gene, end_gene, *rest = gene_entry.strip('\n').split('\t')
+            start_gene, end_gene = int(start_gene), int(end_gene)
 
-    return list(analyze_genelist)
+            relevant_snps = [snp for snp in list_snp if start_gene <= int(snp[0]) <= end_gene]
+
+            if relevant_snps:
+                genes_of_interest.add(gene_entry)
+
+    return list(genes_of_interest)
 
 # Define a structure to group related parameters
 CodonInfo = namedtuple("CodonInfo", ["codon_list", "new_codon", "original_codon", "amino_acid", "gene"])
@@ -113,13 +102,14 @@ def iupac_aa(codon: str):
     cod_codon = ''.join([aa_code.get(codon[0]), codon[1:-1], aa_code.get(codon[-1])]) + '\t' + status
     return cod_codon
 
-def process_codons_based_on_strand(codon_info: CodonInfo, strand: str = 'positive') -> List[List[str]]:
+def process_codons_based_on_strand(codon_info: CodonInfo, strand: str = '+') -> List[List[str]]:
     output_list = []
 
     for snp in codon_info.codon_list:
+        print(snp)
         codon_info.new_codon[snp.index] = snp.base
 
-    if strand == 'negative':
+    if strand == '-':
         translated_codon = Seq(''.join(codon_info.new_codon)).reverse_complement()
     else:
         translated_codon = Seq(''.join(codon_info.new_codon))
@@ -153,16 +143,31 @@ def get_mnv_variants(gene_list: list, snp_list: list, sequence: str):
     for gene_info in gene_list:
         details = gene_info.strip('\n').split('\t')
         gene_name, strand, gene_start, gene_end = details[0], details[3], int(details[1]), int(details[2])
-
+        print(gene_name, strand, gene_start, gene_end)
         relevant_snps = [SNP(i, *snp) for i, snp in enumerate(snp_list) if gene_start <= int(snp[0]) <= gene_end]
-
+        print(relevant_snps)
         for position in range(gene_start, gene_end, 3):
             codon_start, codon_end = position, position + 2
             codon_snps = [snp for snp in relevant_snps if codon_start <= int(snp.position) <= codon_end]
-
             if len(codon_snps) > 1:  # If multiple SNPs are in the same codon
                 codon_sequence = Seq(sequence[codon_start-1:codon_end])
+                
                 info = CodonInfo(codon_snps, codon_sequence, None, None, gene_name)
-                results.extend(process_codons_based_on_strand(info, strand))
+                #print(info,strand)
+                #results.extend(process_codons_based_on_strand(info, strand))
 
     return results
+
+parser = argparse.ArgumentParser(description = 'script to annotate MNV') 
+parser.add_argument('-v', dest = 'vcf', required =True, help = 'Vcf file with snps')
+parser.add_argument('-f', dest = 'fasta', required =True, help = 'Name of the reference fasta') 
+parser.add_argument('-g', dest = 'genes', required = True, help = 'File with gene info')
+args = parser.parse_args()
+
+sequence = reference_fasta(args.fasta)
+lista_snp = getseq_posbase(args.vcf)
+gene_list = check_genes(lista_snp,args.genes)
+print(len(gene_list))
+#get_mnv_variants(gene_list, lista_snp, sequence)
+
+#python3 new.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
