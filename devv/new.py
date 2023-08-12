@@ -1,11 +1,12 @@
+import vcf
+import pandas as pd
+import ast
 import argparse
 from Bio import SeqIO
 from Bio.Seq import Seq
 from typing import List
 from collections import namedtuple
-import vcf
-import pandas as pd
-import ast
+
 def reference_fasta(fasta_file: str = 'MTB_ancestor.fas') -> str:
     '''
     Parse a FASTA file and return the sequence of the first record.
@@ -306,7 +307,6 @@ def change_vcf(df, mnv):
 
         info_dict = modify_info_dict(info_dict, gene, chg, aa)
         df.loc[position, 'INFO'] = str(info_dict) 
-        print(df.loc[position,'INFO'])
 
     return df, mnv_position
 
@@ -351,8 +351,6 @@ def update_vcf(df, exclude_set):
         df.at[index, 'INFO'] = str(info_dict)
 
     return df
-
-import pandas as pd
 
 def convert_info(row):
     if isinstance(row, str):
