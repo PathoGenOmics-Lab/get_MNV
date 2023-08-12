@@ -1,3 +1,63 @@
+#! /usr/bin/python3
+# -*- coding: utf-8 -*-
+"""                                                                                                                                                                                                                                                                                                                                                                                       
+                                                                                           .            .       :            ...   ::            ::.  
+                                                                                           =:          :=       *+:          **-   %@*         .%@#   
+                                                                                         .===.    .   -==.    .:***=.    .  :**:   -@@-.   .. :@@#    
+                                                                                         -===-      .====.     =*++*+:      =**     #@#   .  -@@+.    
+                                                                                    .   .==:==:    .==-==:  . .**=.:**+.   .**=    .-@@-  ..=@@=..    
+                                                                                      ..==-.-== ..:==-.-=-   ::**....+**-. .**:.    .*@@. .*@@:  ..   
+                                                                   .****:              -==   ==- :==:  :==    -**     :**=.-**    .  .@@* #@%:        
+                                                                 .**.  =%             :==.   .==-==.   .==    +*=   .  .=****=        =@@%@#. .       
+                                                                +#:  .**.     #+    .:==: . . -===. ...:==. :.**:..   ...:***-.    ... %@@#.   ..   :@
+                                                         .-----%=   +#:       #*     -==       ==       ==:  :**.          =*          :@+          :@
+                            :.                           .:::-:    =-         #*               .              ..            .           :           :@
+               :=******: -#*-*%           -+*****+.        .%=  .******:      ##====================================================================*@
+            .+#+:  :=: :#+   *+        -**-. -+: =%       -%:  =%:            ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+          :**:  =*+-..+#.   :%       =#=  =*+-   =#     .#*  :#=                                     .                                                
+        .#*.  =%-   .%=     %-     =%- .*#-     =%.    =%: .*#.                            .::::   -.                                                 
+       +#.  .%=    -%: -%  +#    .#+  *#:     -#+    :%+  -%-                            :-:.:::-.                                                    
+      +-   =%:    **   %= :@.   =%: :%-:..:=**=     +*.  *#         -%:             .:..:-                                                            
+          -%    :%-   =#  +- .=#-  :@. :==-:     .+#:   +#        :#*            ::-:::-:                                                             
+      .   %-   +#. : :@.  :+*+:    +#         .=#*:     %=      :#*:               :             -::                                                  
+     -@   +*-+#- :#=:@: .%=.    =+ .#*=--=++**=:     *: :%+--=**=.        :::::::::::::::::::::. : .                                                  
+     .@:   .:. :** :%:  %=      .%=   .::.  .=**:    *#   .::..-*#:      -::::::::::::::::::: .=                                                      
+      :**=--=**=. -%.  #+         -***+++***+:        =#*+=++*+-                                                                                      
+         .::.:   +#.  #=                                  .                                                                                           
+          -*#= .#+  .%=                                                                                                                               
+       -*#=   =%:  :%:                                                                                                                                
+    .*#=    :#=   +#.                                                                                                                                 
+  .**.    :#+   :%=                                                                                                                                   
+  @:   .=#+   :#*                                                                                                                                     
+  *+++*=:   -*+.                                                                                                                                      
+@-      .-*#=                                                                                                                                         
+:**++***+-                                                                                                                                            
+
+Script for annotate vcf file with multiple-nucleotide variants
+
+**IMPORTANT these script works with SNV against a reference, 
+insertions and deletions modifiying reading frame are not currently supported**
+
+Command:
+    python3 get_mnv.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
+Outputs:
+    vcf_name + .MNV.vcf  -> annotated vcfs
+    vcf_name + .MNV.tsv  -> tsv file with MNV variants
+ 
+Requires biopython
+
+Contact -> @paururo
+"""
+
+__author__ = 'Paula Ruiz Rodriguez'
+__credits__ = ['Paula Ruiz Rodriguez', 'PathoGenOmics']
+__license__ = 'GPL'
+__version__ = '0.1.2'
+__maintainer__ = 'Paula Ruiz Rodriguez: @paururo'
+__email__ = 'paula.ruiz-rodriguez@uv.es'
+__status__ = 'developing'
+__lab__ = 'PathoGenOmics, I2SysBio'
+
 import vcf
 import pandas as pd
 import ast
@@ -420,7 +480,7 @@ def write_to_tsv(data_list:List[str] ,filename:str):
     df = pd.read_csv(StringIO(data_str), sep='\t', header=None)
     df[1] = pd.to_numeric(df[1])
     df = df.sort_values(by=1)
-    df.to_csv(filename+'.mnv.tsv', sep='\t', index=False, header=False)
+    df.to_csv(filename+'.MNV.tsv', sep='\t', index=False, header=False)
 
 def write_to_vcf(df, filename):
     """Writes a DataFrame to a VCF format file."""
@@ -446,7 +506,7 @@ def main():
     ultimate_df = update_vcf(updated_df, mnv_position)# Update VCF with positions
     converted_df = convert_to_vcf_format(ultimate_df)# Convert the updated DataFrame back to VCF format
     
-    write_to_vcf(converted_df, name + '.mnv.vcf')
+    write_to_vcf(converted_df, name + '.MNV.vcf')
 #python3 new.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
 
 main()
