@@ -233,35 +233,76 @@ def vcf_to_dataframe(vcf_filename):
     df.set_index('POS', inplace=True, drop=False)  # Set 'POS' as index but still retain it in the DataFrame
     return df
 
+def convert_to_dict(info_data):
+    """
+    Converts a string representation of a dictionary to an actual dictionary.
+    
+    Args:
+    - info_data (str or dict): Data to be converted into a dictionary.
+
+    Returns:
+    - dict: Converted dictionary or the original data if already a dictionary.
+    - None: If the conversion fails or data type is unexpected.
+    """
+    if isinstance(info_data, str):
+        try:
+            return ast.literal_eval(info_data)
+        except ValueError:
+            print(f'Failed to convert {info_data} to dictionary.')
+            return None
+    elif isinstance(info_data, dict):
+        return info_data
+    else:
+        print(f'Unexpected data type for {info_data}.')
+        return None
+
+def modify_info_dict(info_dict, gene, chg, aa):
+    """
+    Modifies a dictionary based on the provided gene, change, and amino acid info.
+
+    Args:
+    - info_dict (dict): Dictionary to be modified.
+    - gene (str): Gene information.
+    - chg (str): Change information.
+    - aa (str): Amino acid information.
+
+    Returns:
+    - dict: Modified dictionary.
+    """
+    segments = info_dict['ANN'][0].split('|')
+    segments.insert(1, 'MNV')
+    segments[4] = chg
+    segments[5] = gene
+    segments[11] = f'p.{aa}'
+    
+    info_dict['ANN'][0] = '|'.join(segments)
+    return info_dict
+
 def change_vcf(df, mnv):
+    """
+    Modifies a DataFrame based on a list of MNVs.
+
+    Args:
+    - df (pd.DataFrame): DataFrame with VCF data.
+    - mnv (list): List of MNVs.
+
+    Returns:
+    - pd.DataFrame: Modified DataFrame.
+    """
     for snp in mnv:
         list_snp = snp.split('\t')
         gene = list_snp[0]
         position = int(list_snp[1])
         aa = list_snp[3]
         chg = list_snp[4]
-        
+
         info_data = df.loc[position, 'INFO']
+        info_dict = convert_to_dict(info_data)
         
-        if isinstance(info_data, str):
-            try:
-                info_dict = ast.literal_eval(info_data)
-            except ValueError:
-                print(f'Failed to convert {info_data} to dictionary.')
-                continue
-        elif isinstance(info_data, dict):
-            info_dict = info_data
-        else:
-            print(f'Unexpected data type for {info_data}.')
+        if info_dict is None:
             continue
 
-        segments = info_dict['ANN'][0].split('|')
-        segments.insert(1, 'MNV')
-        segments[4] = chg
-        segments[5] = gene
-        segments[11] = f'p.{aa}'
-        
-        info_dict['ANN'][0] = '|'.join(segments)
+        info_dict = modify_info_dict(info_dict, gene, chg, aa)
         df.loc[position, 'INFO'] = str(info_dict) 
         print(df.loc[position,'INFO'])
 
@@ -282,7 +323,7 @@ def main():
     gene_list = check_genes(lista_snp,args.genes)
     mnv = get_mnv_variants(gene_list, lista_snp, sequence)
     df = vcf_to_dataframe(args.vcf)
-    change_vcf(df, mnv)
+    updated_df = change_vcf(df, mnv)
     #print(df.head())
     #print(df['FORMAT'])
     #print(df.iloc[0])
