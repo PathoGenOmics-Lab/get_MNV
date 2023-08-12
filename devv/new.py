@@ -173,17 +173,18 @@ def get_mnv_variants(gene_list: list, snp_list: list, sequence: str):
                 results.extend(process_codons_based_on_strand(info, strand))
 
     return results
-
-parser = argparse.ArgumentParser(description = 'script to annotate MNV') 
-parser.add_argument('-v', dest = 'vcf', required =True, help = 'Vcf file with snps')
-parser.add_argument('-f', dest = 'fasta', required =True, help = 'Name of the reference fasta') 
-parser.add_argument('-g', dest = 'genes', required = True, help = 'File with gene info')
-args = parser.parse_args()
-
-sequence = reference_fasta(args.fasta)
-lista_snp = getseq_posbase(args.vcf)
-gene_list = check_genes(lista_snp,args.genes)
-#print(len(gene_list))
-get_mnv_variants(gene_list, lista_snp, sequence)
+def arguments():
+    parser = argparse.ArgumentParser(description = 'script to annotate MNV') 
+    parser.add_argument('-v', dest = 'vcf', required =True, help = 'Vcf file with snps')
+    parser.add_argument('-f', dest = 'fasta', required =True, help = 'Name of the reference fasta') 
+    parser.add_argument('-g', dest = 'genes', required = True, help = 'File with gene info')
+    args = parser.parse_args()
+def main():
+    args = arguments()
+    sequence = reference_fasta(args.fasta)
+    lista_snp = getseq_posbase(args.vcf)
+    gene_list = check_genes(lista_snp,args.genes)
+    #print(len(gene_list))
+    get_mnv_variants(gene_list, lista_snp, sequence)
 
 #python3 new.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
