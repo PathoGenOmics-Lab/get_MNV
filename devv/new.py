@@ -149,8 +149,18 @@ def extract_codon_snp(codon_start: int, codon_end: int, snp_list: list):
     """Extract SNPs that fall within a specific codon."""
     return [snp for snp in snp_list if codon_start <= int(snp[0]) <= codon_end]
 
-def get_mnv_variants(gene_list: list, snp_list: list, sequence: str):
-    """Identify and process multiple nucleotide variants (MNVs) from a given SNP list."""
+def get_mnv_variants(gene_list: list, snp_list: list, sequence: str) -> list:
+    """
+    Identify codons with multiple SNPs within genes from the provided gene and SNP lists.
+    
+    Parameters:
+    - gene_list: Contains gene name, start, end, and strand data in tab-separated format.
+    - snp_list: Contains SNP position and base mutation information.
+    - sequence: DNA sequence for deriving codons.
+    
+    Returns:
+    - List of processed codons containing multiple SNPs based on gene strand.
+    """
     
     results = []
     for gene_info in gene_list:
