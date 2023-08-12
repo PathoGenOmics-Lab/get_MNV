@@ -179,7 +179,7 @@ def get_mnv_variants(gene_list: list, snp_list: list, sequence: str):
                     codon_start=codon_start,
                     codon_end=codon_end
                 )
-                #print(info)  
+                  
                 results.extend(process_codons_based_on_strand(info, strand))
     return results
 
