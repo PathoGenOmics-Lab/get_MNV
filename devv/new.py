@@ -287,6 +287,7 @@ def change_vcf(df, mnv):
 
     Returns:
     - pd.DataFrame: Modified DataFrame.
+    - mnv_position (set): Set of MNV positions.
     """
     mnv_position = set()
     for snp in mnv:
