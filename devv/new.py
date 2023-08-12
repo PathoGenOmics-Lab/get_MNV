@@ -141,3 +141,28 @@ def process_codons_based_on_strand(codon_info: CodonInfo, strand: str = 'positiv
             output_list.append([sentence])
 
     return output_list
+
+def extract_codon_snp(codon_start: int, codon_end: int, snp_list: list):
+    """Extract SNPs that fall within a specific codon."""
+    return [snp for snp in snp_list if codon_start <= int(snp[0]) <= codon_end]
+
+def get_mnv_variants(gene_list: list, snp_list: list, sequence: str):
+    """Identify and process multiple nucleotide variants (MNVs) from a given SNP list."""
+    
+    results = []
+    for gene_info in gene_list:
+        details = gene_info.strip('\n').split('\t')
+        gene_name, strand, gene_start, gene_end = details[0], details[3], int(details[1]), int(details[2])
+
+        relevant_snps = [SNP(i, *snp) for i, snp in enumerate(snp_list) if gene_start <= int(snp[0]) <= gene_end]
+
+        for position in range(gene_start, gene_end, 3):
+            codon_start, codon_end = position, position + 2
+            codon_snps = [snp for snp in relevant_snps if codon_start <= int(snp.position) <= codon_end]
+
+            if len(codon_snps) > 1:  # If multiple SNPs are in the same codon
+                codon_sequence = Seq(sequence[codon_start-1:codon_end])
+                info = CodonInfo(codon_snps, codon_sequence, None, None, gene_name)
+                results.extend(process_codons_based_on_strand(info, strand))
+
+    return results
