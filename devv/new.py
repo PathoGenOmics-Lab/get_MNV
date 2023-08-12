@@ -403,22 +403,29 @@ def arguments():
     args = parser.parse_args()
     return args
 
-def main():
-    args = arguments()
-    sequence = reference_fasta(args.fasta)
-    lista_snp = getseq_posbase(args.vcf)
-    gene_list = check_genes(lista_snp,args.genes)
-    mnv = get_mnv_variants(gene_list, lista_snp, sequence)
-    df = vcf_to_dataframe(args.vcf)
-    updated_df, mnv_position = change_vcf(df, mnv)
-    ultimate_df = update_vcf(updated_df, mnv_position)
-    converted_df = convert_to_vcf_format(ultimate_df)
-    converted_df.to_csv('ultimate_df.txt', index=False, header=True)
-    with open('output.vcf', 'w') as f:
-    # Add VCF header
+def write_to_vcf(df, filename):
+    """Writes a DataFrame to a VCF format file."""
+    with open(filename, 'w') as f:
+        # Add VCF header
         f.write('##fileformat=VCFv4.2\n')
-        f.write('#' + '\t'.join(converted_df.columns) + '\n')
-        converted_df.to_csv(f, sep='\t', index=False, header=False)
+        f.write('#' + '\t'.join(df.columns) + '\n')
+        df.to_csv(f, sep='\t', index=False, header=False)
+
+def main():
+    args = arguments()# Parse arguments
+    # Obtain the sequence from a reference FASTA
+    sequence = reference_fasta(args.fasta)
+    # Get SNP list from VCF
+    lista_snp = getseq_posbase(args.vcf)
+    # Check which genes have been mentioned in the provided list
+    gene_list = check_genes(lista_snp, args.genes)
+    mnv = get_mnv_variants(gene_list, lista_snp, sequence)# Obtain MNV variants
+    df = vcf_to_dataframe(args.vcf) # Convert VCF to DataFrame
+    updated_df, mnv_position = change_vcf(df, mnv)# Change VCF entries based on MNV information
+    ultimate_df = update_vcf(updated_df, mnv_position)# Update VCF with positions
+    converted_df = convert_to_vcf_format(ultimate_df)# Convert the updated DataFrame back to VCF format
+    name = args.vcf.split('.')[0]# Derive filename and write to VCF
+    write_to_vcf(converted_df, name + '.mnv.vcf')
 #python3 new.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
 
 main()
