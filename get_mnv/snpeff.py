@@ -453,14 +453,6 @@ def convert_to_vcf_format(df):
 
     return df
 
-def arguments():
-    parser = argparse.ArgumentParser(description = 'script to annotate MNV') 
-    parser.add_argument('-v', dest = 'vcf', required =True, help = 'Vcf file with snps')
-    parser.add_argument('-f', dest = 'fasta', required =True, help = 'Name of the reference fasta') 
-    parser.add_argument('-g', dest = 'genes', required = True, help = 'File with gene info')
-    args = parser.parse_args()
-    return args
-
 def write_to_tsv(data_list:List[str] ,filename:str):
     '''
     Convert a list of tab-separated values to a DataFrame, sort it by the second column, 
@@ -487,23 +479,19 @@ def write_to_vcf(df, filename):
         f.write('#' + '\t'.join(df.columns) + '\n')
         df.to_csv(f, sep='\t', index=False, header=False)
 
-def main():
-    args = arguments()# Parse arguments
-    name = '.'.join(args.vcf.split('.')[:-1])
+def get_snpeff(vcf, fasta, genes):
+    name = '.'.join(vcf.split('.')[:-1])
     # Obtain the sequence from a reference FASTA
-    sequence = reference_fasta(args.fasta)
+    sequence = reference_fasta(fasta)
     # Get SNP list from VCF
-    lista_snp = getseq_posbase(args.vcf)
+    lista_snp = getseq_posbase(vcf)
     # Check which genes have been mentioned in the provided list
-    gene_list = check_genes(lista_snp, args.genes)
+    gene_list = check_genes(lista_snp, genes)
     mnv = get_mnv_variants(gene_list, lista_snp, sequence)# Obtain MNV variants
     write_to_tsv(mnv, name)# Write MNV variants to TSV
-    df = vcf_to_dataframe(args.vcf) # Convert VCF to DataFrame
+    df = vcf_to_dataframe(vcf) # Convert VCF to DataFrame
     updated_df, mnv_position = change_vcf(df, mnv)# Change VCF entries based on MNV information
     ultimate_df = update_vcf(updated_df, mnv_position)# Update VCF with positions
     converted_df = convert_to_vcf_format(ultimate_df)# Convert the updated DataFrame back to VCF format
     
     write_to_vcf(converted_df, name + '.MNV.vcf')
-#python3 new.py -v G35894.var.snp.vcf -f MTB_ancestor.fas -g anot_genes.txt
-if __name__ == '__main__':
-    main()
