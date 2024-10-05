@@ -3,6 +3,10 @@ name = "get_mnv"
 version = "1.0.0"
 edition = "2021"
 
+[[bin]]
+name = "get_mnv"
+path = "src/main.rs"
+
 [dependencies]
 bio = "0.41.0"
 clap = { version = "4.0.32", features = ["derive"] }
