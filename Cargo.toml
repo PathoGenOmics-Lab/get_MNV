@@ -12,7 +12,7 @@ bio = "0.41.0"
 clap = { version = "4.0.32", features = ["derive"] }
 env_logger = "0.10"
 log = "0.4"
-rust-htslib = "0.47.0"
+rust-htslib = "0.37.0"
 serde = { version = "1.0", features = ["derive"] }
 csv = "1.1"
 protein-translate = "0.2.0" 
