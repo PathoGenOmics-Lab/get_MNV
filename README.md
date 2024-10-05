@@ -13,9 +13,7 @@ __and Mireia Coscolla<sup>1</sup>__
 
 
 # get Multi-Nucleotide Variants 
-<p align="justify">Single Nucleotide Variants (SNVs) represent one of the most common types of genetic mutations. However, a situation may arise where multiple SNVs occur within the same codon, leading to the translation of a different amino acid. This is referred to as a Multi-Nucleotide Variant (MNV).
-
-Current annotation programs, such as ANNOVAR or SnpEff, are designed to work predominantly with SNVs, which implies a potential gap in their functionality. Consequently, we may overlook the actual amino acid changes that result from multiple SNVs within the same codon. 
+<p align="justify">get_MNV is a tool designed to identify Multi-Nucleotide Variants (MNVs) within the same codon in genomic sequences. MNVs occur when multiple Single Nucleotide Variants (SNVs) are present within the same codon, leading to the translation of a different amino acid. This tool addresses limitations in current annotation programs like ANNOVAR or SnpEff, which are primarily designed to work with individual SNVs and might overlook the actual amino acid changes resulting from MNVs.. 
 
 **get_MNV** seeks to address this issue, enhancing the comprehensiveness of genetic variant interpretation.</p>
 
@@ -23,6 +21,12 @@ Current annotation programs, such as ANNOVAR or SnpEff, are designed to work pre
 
 
 **IMPORTANT this script works with SNV against a reference, insertions and deletions modifiying reading frame are not currently supported**
+
+## Features
+- MNV Identification: Detects SNVs occurring within the same codon and reclassifies them as MNVs.
+- Accurate Amino Acid Change Calculation: Computes the resulting amino acid changes based on genomic reads.
+- Integration with BAM and VCF Files: Supports input from VCF files for variants and optional BAM files for aligned reads.
+- Quality Analysis: Allows setting a minimum Phred quality threshold to filter out low-quality reads.
 
 ## Installation
 
