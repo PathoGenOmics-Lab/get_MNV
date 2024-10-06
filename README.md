@@ -29,14 +29,18 @@ __and Mireia Coscolla<sup>1</sup>__
 - Quality Analysis: Allows setting a minimum Phred quality threshold to filter out low-quality reads.
 
 ## Installation
-You can install get_MNV via conda, mamba or downloading the binary file:
-### Using conda
+You can install get_MNV via conda, mamba or downloading [the binary file](https://github.com/PathoGenOmics-Lab/get_MNV/releases/download/1.0.0/get_mnv):
+### Using conda (pending)
 ```
 conda install -c bioconda get_mnv
 ```
-### Using mamba
+### Using mamba (pending)
 ```
 mamba install -c bioconda get_mnv
+```
+### Using binary
+```
+wget https://github.com/PathoGenOmics-Lab/get_MNV/releases/download/1.0.0/get_mnv
 ```
 # Usage
 ```
