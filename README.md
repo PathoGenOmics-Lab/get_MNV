@@ -86,3 +86,13 @@ The program generates a TSV file named <vcf_filename>.MNV.tsv containing the fol
 # Limitations
 - The script currently works only with SNVs compared against a reference sequence.
 - Insertions and deletions that modify the reading frame are not supported in this version.
+
+# Fun
+## 3D model logo
+Click for the stl file
+<p align="center">
+  <a href="https://www.printables.com/model/1030383-get_mnv-logo" target="_blank">
+    <img src="https://media.printables.com/media/prints/1030383/images/7820375_62fee28c-1ef3-446a-9187-3a74e3912c09_7526c3fd-6f35-4ec1-ab2c-a8022ac592e9/thumbs/inside/1920x1440/jpg/img_3773.webp" height="350" alt="get_MNV">
+  </a>
+</p>
+
