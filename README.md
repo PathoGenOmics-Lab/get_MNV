@@ -1,4 +1,9 @@
-[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-brightgreen.svg)](https://github.com/PathoGenOmics-Lab/get_MNV/blob/main/LICENSE)
+[![get_mnv](https://img.shields.io/badge/get_mnv-rust-%23ff8000?style=flat-square)](https://github.com/PathoGenOmics-Lab/get_MNV)
+[![License: GPL v3](https://anaconda.org/bioconda/get_mnv/badges/license.svg)](https://github.com/PathoGenOmics-Lab/get_MNV/blob/main/LICENSE) 
+[![Anaconda-Server Badge](https://anaconda.org/bioconda/get_mnv/badges/downloads.svg)](https://anaconda.org/bioconda/get_mnv)
+[![Anaconda-Version Badge](https://anaconda.org/bioconda/get_mnv/badges/version.svg)](https://anaconda.org/bioconda/get_mnv)
+
+
 <p align="center">
   <a href="https://github.com/PathoGenOmics-Lab/get_MNV">
     <img src="https://github.com/Pathogenomics-Lab/get_MNV/blob/main/images/get_mnv.png" height="350" alt="get_MNV">
@@ -30,11 +35,11 @@ __and Mireia Coscolla<sup>1</sup>__
 
 ## Installation
 You can install get_MNV via conda, mamba or downloading [the binary file](https://github.com/PathoGenOmics-Lab/get_MNV/releases/download/1.0.0/get_mnv):
-### Using conda (pending)
+### Using conda
 ```
 conda install -c bioconda get_mnv
 ```
-### Using mamba (pending)
+### Using mamba
 ```
 mamba install -c bioconda get_mnv
 ```
