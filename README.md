@@ -1,3 +1,10 @@
+
+
+<p align="center">
+  <a href="https://github.com/PathoGenOmics-Lab/get_MNV">
+    <img src="https://github.com/Pathogenomics-Lab/get_MNV/blob/main/images/get_mnv.png" height="350" alt="get_MNV">
+  </a>
+</p>
 <div align="center">
   
 [![get_mnv](https://img.shields.io/badge/get_mnv-rust-%23ff8000?style=flat-square)](https://github.com/PathoGenOmics-Lab/get_MNV)
@@ -8,12 +15,6 @@
 [![PGO](https://img.shields.io/badge/PathoGenOmics-lab-red?style=flat-square)](https://github.com/PathoGenOmics-Lab)
 
 </div>
-
-<p align="center">
-  <a href="https://github.com/PathoGenOmics-Lab/get_MNV">
-    <img src="https://github.com/Pathogenomics-Lab/get_MNV/blob/main/images/get_mnv.png" height="350" alt="get_MNV">
-  </a>
-</p>
 
 __Paula Ruiz-Rodriguez<sup>1</sup>__ 
 __and Mireia Coscolla<sup>1</sup>__
@@ -39,7 +40,7 @@ __and Mireia Coscolla<sup>1</sup>__
 - Quality Analysis: Allows setting a minimum Phred quality threshold to filter out low-quality reads.
 
 ## Installation
-You can install get_MNV via conda, mamba or downloading [the binary file](https://github.com/PathoGenOmics-Lab/get_MNV/releases/download/1.0.0/get_mnv):
+You can install get_MNV via conda, mamba (for unix/mac) or downloading [the binary file](https://github.com/PathoGenOmics-Lab/get_MNV/releases/download/1.0.0/get_mnv) (unix):
 ### Using conda
 ```
 conda install -c bioconda get_mnv
@@ -96,7 +97,17 @@ The program generates a TSV file named <vcf_filename>.MNV.tsv containing the fol
 - Change Type: Type of change at the protein level (Synonymous, Non-synonymous, Stop gained).
 - SNP Reads: (If BAM provided) Count of reads supporting each SNP.
 - MNV Reads: (If BAM provided) Count of reads supporting the MNV.
-    
+
+Example:
+```
+Gene	Positions	Base Changes	AA Changes	SNP AA Changes	Variant Type	Change Type	SNP Reads	MNV Reads
+Rv0095c_Rv0095c	104838	T	Asp126Glu	Asp126Glu	SNP	Non-synonymous	0	16
+Rv0095c_Rv0095c	104941,104942	T,G	Gly92Gln	Gly92Glu; Gly92Arg	MNV	Non-synonymous	0,0	25
+esxL_Rv1198	1341044	C	His13His	His13His	SNP	Synonymous	0	41
+esxL_Rv1198	1341083	G	Ala26Ala	Ala26Ala	SNP	Synonymous	0	12
+esxL_Rv1198	1341102,1341103	T,C	Arg33Ser	Arg33Cys; Arg33Pro	MNV	Non-synonymous	0,0	11
+```
+  
 # Limitations
 - The script currently works only with SNVs compared against a reference sequence.
 - Insertions and deletions that modify the reading frame are not supported in this version.
