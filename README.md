@@ -1,9 +1,13 @@
+<div align="center">
+  
 [![get_mnv](https://img.shields.io/badge/get_mnv-rust-%23ff8000?style=flat-square)](https://github.com/PathoGenOmics-Lab/get_MNV)
 [![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-%23af64d1?style=flat-square)](https://github.com/PathoGenOmics-Lab/get_MNV/blob/main/LICENSE) 
 [![Anaconda-Server Badge](https://anaconda.org/bioconda/get_mnv/badges/downloads.svg)](https://anaconda.org/bioconda/get_mnv)
 [![Anaconda-Version Badge](https://anaconda.org/bioconda/get_mnv/badges/version.svg)](https://anaconda.org/bioconda/get_mnv)
 [![DOI](https://img.shields.io/badge/doi-10.5281%2Fzenodo.13907423-%23ff0077?style=flat-square)](https://doi.org/10.5281/zenodo.13907423)
 [![PGO](https://img.shields.io/badge/PathoGenOmics-lab-red?style=flat-square)](https://github.com/PathoGenOmics-Lab)
+
+</div>
 
 <p align="center">
   <a href="https://github.com/PathoGenOmics-Lab/get_MNV">
