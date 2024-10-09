@@ -1,8 +1,9 @@
 [![get_mnv](https://img.shields.io/badge/get_mnv-rust-%23ff8000?style=flat-square)](https://github.com/PathoGenOmics-Lab/get_MNV)
-[![License: GPL v3](https://anaconda.org/bioconda/get_mnv/badges/license.svg)](https://github.com/PathoGenOmics-Lab/get_MNV/blob/main/LICENSE) 
+[![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-%23af64d1?style=flat-square)](https://github.com/PathoGenOmics-Lab/get_MNV/blob/main/LICENSE) 
 [![Anaconda-Server Badge](https://anaconda.org/bioconda/get_mnv/badges/downloads.svg)](https://anaconda.org/bioconda/get_mnv)
 [![Anaconda-Version Badge](https://anaconda.org/bioconda/get_mnv/badges/version.svg)](https://anaconda.org/bioconda/get_mnv)
-
+[![DOI](https://img.shields.io/badge/doi-10.5281%2Fzenodo.13907423-%23ff0077?style=flat-square)](https://doi.org/10.5281/zenodo.13907423)
+[![PGO](https://img.shields.io/badge/PathoGenOmics-lab-red?style=flat-square)](https://github.com/PathoGenOmics-Lab)
 
 <p align="center">
   <a href="https://github.com/PathoGenOmics-Lab/get_MNV">
@@ -18,7 +19,7 @@ __and Mireia Coscolla<sup>1</sup>__
 
 
 # get Multi-Nucleotide Variants 
-<p align="justify">get_MNV is a tool designed to identify Multi-Nucleotide Variants (MNVs) within the same codon in genomic sequences. MNVs occur when multiple Single Nucleotide Variants (SNVs) are present within the same codon, leading to the translation of a different amino acid. This tool addresses limitations in current annotation programs like ANNOVAR or SnpEff, which are primarily designed to work with individual SNVs and might overlook the actual amino acid changes resulting from MNVs.. 
+<p align="justify">get_MNV is a tool designed to identify Multi-Nucleotide Variants (MNVs) within the same codon in genomic sequences. MNVs occur when multiple Single Nucleotide Variants (SNVs) are present within the same codon, leading to the translation of a different amino acid. This tool addresses limitations in current annotation programs like ANNOVAR or SnpEff, which are primarily designed to work with individual SNVs and might overlook the actual amino acid changes resulting from MNVs.
 
 **get_MNV** seeks to address this issue, enhancing the comprehensiveness of genetic variant interpretation.</p>
 
