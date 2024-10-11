@@ -1,0 +1,29 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: get_MNV
+message: 'If you use this software, please cite it as below.'
+type: software
+authors:
+  - family-names: Ruiz-Rodriguez
+    given-names: Paula
+    orcid: 'https://orcid.org/0000-0003-0727-5974'
+    affiliation: >-
+      Institute for Integrative Systems Biology (I2SysBio,
+      University of Valencia - CSIC), FISABIO Joint Research
+      Unit “Infection and Public Health”, Paterna, Spain
+    email: paula.ruiz-rodriguez@uv.es
+  - family-names: Coscolla
+    given-names: Mireia
+    orcid: 'https://orcid.org/0000-0003-0752-0538'
+    affiliation: >-
+      Institute for Integrative Systems Biology (I2SysBio,
+      University of Valencia - CSIC), FISABIO Joint Research
+      Unit “Infection and Public Health”, Paterna, Spain
+    email: mireia.coscolla@csic.es
+url: 'https://github.com/PathoGenOmics-Lab/get_MNV'
+license: GPL-3.0
+version: 1.0.0
+date-released: '2024-10-05'
+doi: 10.5281/zenodo.13907423
