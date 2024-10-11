@@ -33,31 +33,31 @@ __and Mireia Coscolla<sup>1</sup>__
 
 **IMPORTANT this script works with SNV against a reference, insertions and deletions modifiying reading frame are not currently supported**
 
-## Features
+## 💾 Features
 - MNV Identification: Detects SNVs occurring within the same codon and reclassifies them as MNVs.
 - Accurate Amino Acid Change Calculation: Computes the resulting amino acid changes based on genomic reads.
 - Integration with BAM and VCF Files: Supports input from VCF files for variants and optional BAM files for aligned reads.
 - Quality Analysis: Allows setting a minimum Phred quality threshold to filter out low-quality reads.
 
-## Installation
+## 🛠️ Installation
 You can install get_MNV via conda, mamba (for unix/mac) or downloading [the binary file](https://github.com/PathoGenOmics-Lab/get_MNV/releases/download/1.0.0/get_mnv) (unix):
-### Using conda
+### 🐍 Using conda
 ```
 conda install -c bioconda get_mnv
 ```
-### Using mamba
+### 🐍 Using mamba
 ```
 mamba install -c bioconda get_mnv
 ```
-### Using binary
+### 📨 Using binary
 ```
 wget https://github.com/PathoGenOmics-Lab/get_MNV/releases/download/1.0.0/get_mnv
 ```
-# Usage
+# 📎 Usage
 ```
 get_mnv [OPTIONS] --vcf <VCF_FILE> --fasta <FASTA_FILE> --genes <GENES_FILE>
 ```
-## Options:
+## 🗃️ Options:
 - -v, --vcf <VCF_FILE>: VCF file containing the SNVs. (Required)
 - -b, --bam <BAM_FILE>: BAM file with aligned reads. (Optional)
 - -f, --fasta <FASTA_FILE>: FASTA file with the reference sequence. (Required)
@@ -86,7 +86,7 @@ Rv0008c_Rv0008c	11874	12311	-
 ppiA_Rv0009	12468	13016	+
 Rv0010c_Rv0010c	13133	13558	-
 ```
-## Output
+## 🎴Output
 The program generates a TSV file named <vcf_filename>.MNV.tsv containing the following information:
 - Gene: Name of the gene.
 - Positions: Positions of the variants.
@@ -108,7 +108,7 @@ esxL_Rv1198	1341083	G	Ala26Ala	Ala26Ala	SNP	Synonymous	0	12
 esxL_Rv1198	1341102,1341103	T,C	Arg33Ser	Arg33Cys; Arg33Pro	MNV	Non-synonymous	0,0	11
 ```
   
-# Limitations
+# 📉 Limitations
 - The script currently works only with SNVs compared against a reference sequence.
 - Insertions and deletions that modify the reading frame are not supported in this version.
 ---
