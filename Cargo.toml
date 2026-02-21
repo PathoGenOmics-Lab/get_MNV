@@ -1,19 +1,24 @@
 [package]
 name = "get_mnv"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
+default-run = "get_mnv"
 
 [[bin]]
 name = "get_mnv"
 path = "src/main.rs"
 
 [dependencies]
-bio = "0.41.0"
-clap = { version = "4.0.32", features = ["derive"] }
-env_logger = "0.10"
-log = "0.4"
-rust-htslib = { version = "0.47.0", default-features = false, features = ["static"] }
-serde = { version = "1.0", features = ["derive"] }
-csv = "1.1"
+bio = "2.0.3"
+clap = { version = "4.5.30", features = ["derive"] }
+env_logger = "0.11.6"
+log = "0.4.26"
+rust-htslib = { version = "0.49.0", default-features = false, features = ["static"] }
+serde = { version = "1.0.218", features = ["derive"] }
+serde_json = "1.0.140"
+csv = "1.3.1"
 protein-translate = "0.2.0" 
 hashbrown = "0.15.2"
+rayon = "1.8"
+thiserror = "2.0.11"
+sha2 = "0.10.8"
