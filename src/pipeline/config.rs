@@ -243,3 +243,149 @@ pub(crate) fn append_sample_suffix(base_name: &str, sample_suffix: Option<&str>)
         None => base_name.to_string(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_configure_threads_zero_is_error() {
+        let result = configure_threads(Some(0));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("must be >= 1"));
+    }
+
+    #[test]
+    fn test_configure_threads_none_is_ok() {
+        assert!(configure_threads(None).is_ok());
+    }
+
+    #[test]
+    fn test_selected_contigs_from_chrom_arg() {
+        let mut args = default_test_args();
+        args.chrom = Some("chrB, chrA, chrA".to_string());
+        let snps: HashMap<String, Vec<VcfPosition>> = HashMap::new();
+        let contigs = selected_contigs(&args, &snps).unwrap();
+        assert_eq!(contigs, vec!["chrA", "chrB"]); // sorted, deduped
+    }
+
+    #[test]
+    fn test_selected_contigs_empty_is_error() {
+        let mut args = default_test_args();
+        args.chrom = Some("".to_string());
+        let snps: HashMap<String, Vec<VcfPosition>> = HashMap::new();
+        let result = selected_contigs(&args, &snps);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_sanitize_sample_for_path_special_chars() {
+        assert_eq!(sanitize_sample_for_path("sample/1:bad"), "sample_1_bad");
+        assert_eq!(sanitize_sample_for_path("ok-name_123"), "ok-name_123");
+    }
+
+    #[test]
+    fn test_append_sample_suffix_with_and_without() {
+        assert_eq!(append_sample_suffix("output", None), "output");
+        assert_eq!(
+            append_sample_suffix("output", Some("sample1")),
+            "output.sample_sample1"
+        );
+    }
+
+    #[test]
+    fn test_validate_contig_inputs_tsv_multi_contig_error() {
+        let contigs = vec!["chr1".to_string(), "chr2".to_string()];
+        let refs: ReferenceMap = [("chr1".into(), "ACGT".into()), ("chr2".into(), "TTTT".into())]
+            .into_iter()
+            .collect();
+        let snps: HashMap<String, Vec<VcfPosition>> = [
+            ("chr1".into(), vec![]),
+            ("chr2".into(), vec![]),
+        ]
+        .into_iter()
+        .collect();
+        let result = validate_contig_inputs(&contigs, &refs, &snps, AnnotationFormat::Tsv);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("TSV annotation"));
+    }
+
+    #[test]
+    fn test_validate_strict_original_metrics_missing_dp() {
+        let contigs = vec!["chr1".to_string()];
+        let snps: HashMap<String, Vec<VcfPosition>> = [(
+            "chr1".into(),
+            vec![VcfPosition {
+                position: 10,
+                ref_allele: "A".to_string(),
+                alt_allele: "T".to_string(),
+                original_dp: None,
+                original_freq: Some(0.5),
+                original_info: None,
+            }],
+        )]
+        .into_iter()
+        .collect();
+        let result = validate_strict_original_metrics(&contigs, &snps, true);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("ODP missing"));
+    }
+
+    #[test]
+    fn test_validate_strict_disabled_always_ok() {
+        let contigs = vec!["chr1".to_string()];
+        let snps: HashMap<String, Vec<VcfPosition>> = [(
+            "chr1".into(),
+            vec![VcfPosition {
+                position: 10,
+                ref_allele: "A".to_string(),
+                alt_allele: "T".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            }],
+        )]
+        .into_iter()
+        .collect();
+        assert!(validate_strict_original_metrics(&contigs, &snps, false).is_ok());
+    }
+
+    fn default_test_args() -> crate::cli::Args {
+        crate::cli::Args {
+            vcf_file: String::new(),
+            bam_file: None,
+            fasta_file: String::new(),
+            genes_file: String::new(),
+            sample: None,
+            chrom: None,
+            normalize_alleles: false,
+            min_quality: 20,
+            min_mapq: 20,
+            threads: None,
+            min_snp_reads: 1,
+            min_mnv_reads: 1,
+            min_snp_strand_reads: 0,
+            min_mnv_strand_reads: 0,
+            min_strand_bias_p: 0.0,
+            dry_run: false,
+            strict: false,
+            split_multiallelic: false,
+            emit_filtered: false,
+            vcf_gz: false,
+            index_vcf_gz: false,
+            strand_bias_info: false,
+            keep_original_info: false,
+            exclude_intergenic: false,
+            bcf: false,
+            summary_json: None,
+            error_json: None,
+            run_manifest: None,
+            gff_features: vec!["gene".to_string(), "pseudogene".to_string()],
+            convert: false,
+            both: false,
+            output_dir: None,
+            output_prefix: None,
+        }
+    }
+}

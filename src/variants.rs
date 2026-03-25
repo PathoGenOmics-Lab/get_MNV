@@ -38,6 +38,14 @@ pub enum ChangeType {
 }
 
 impl ChangeType {
+    /// Parse a human-readable label into a `ChangeType`.
+    ///
+    /// # Examples
+    /// ```
+    /// use get_mnv::variants::ChangeType;
+    /// assert_eq!(ChangeType::from_label("Synonymous"), ChangeType::Synonymous);
+    /// assert_eq!(ChangeType::from_label("unknown_label"), ChangeType::Unknown);
+    /// ```
     pub fn from_label(label: &str) -> Self {
         match label {
             "Synonymous" => ChangeType::Synonymous,
@@ -57,6 +65,16 @@ impl ChangeType {
         }
     }
 
+    /// Convert to the frameshift variant of this change type.
+    ///
+    /// # Examples
+    /// ```
+    /// use get_mnv::variants::ChangeType;
+    /// assert_eq!(
+    ///     ChangeType::Synonymous.with_frameshift(),
+    ///     ChangeType::FrameshiftSynonymous
+    /// );
+    /// ```
     pub fn with_frameshift(self) -> Self {
         match self {
             ChangeType::Synonymous => ChangeType::FrameshiftSynonymous,
@@ -77,6 +95,14 @@ impl ChangeType {
 }
 
 impl VariantType {
+    /// Return the short display label.
+    ///
+    /// # Examples
+    /// ```
+    /// use get_mnv::variants::VariantType;
+    /// assert_eq!(VariantType::Snp.as_str(), "SNP");
+    /// assert_eq!(VariantType::Mnv.as_str(), "MNV");
+    /// ```
     pub fn as_str(self) -> &'static str {
         match self {
             VariantType::Snp => "SNP",
@@ -621,6 +647,141 @@ mod tests {
             assert!(bounds.0 <= pos && pos <= bounds.1);
             assert!(bounds.0 >= gene.start && bounds.1 <= gene.end);
         }
+    }
+
+    #[test]
+    fn test_change_type_from_label_roundtrip() {
+        let labels = [
+            "Synonymous",
+            "Non-synonymous",
+            "Stop gained",
+            "Stop lost",
+            "Unknown",
+            "Indel overlap",
+            "Synonymous (frameshift)",
+            "Non-synonymous (frameshift)",
+            "Stop gained (frameshift)",
+            "Stop lost (frameshift)",
+            "Unknown (frameshift)",
+            "Frameshift Indel",
+            "In-frame Indel",
+        ];
+        for label in labels {
+            let ct = ChangeType::from_label(label);
+            assert_eq!(ct.to_string(), label);
+        }
+    }
+
+    #[test]
+    fn test_change_type_from_label_unknown_fallback() {
+        assert_eq!(ChangeType::from_label("garbage"), ChangeType::Unknown);
+        assert_eq!(ChangeType::from_label(""), ChangeType::Unknown);
+    }
+
+    #[test]
+    fn test_with_frameshift_idempotent() {
+        let fs = ChangeType::FrameshiftSynonymous;
+        assert_eq!(fs.with_frameshift(), ChangeType::FrameshiftSynonymous);
+        let base = ChangeType::StopGained;
+        assert_eq!(base.with_frameshift(), ChangeType::FrameshiftStopGained);
+    }
+
+    #[test]
+    fn test_variant_type_display() {
+        assert_eq!(VariantType::Snp.to_string(), "SNP");
+        assert_eq!(VariantType::Mnv.to_string(), "MNV");
+        assert_eq!(VariantType::SnpMnv.to_string(), "SNP/MNV");
+        assert_eq!(VariantType::Indel.to_string(), "INDEL");
+    }
+
+    #[test]
+    fn test_strand_from_str() {
+        assert_eq!("+".parse::<Strand>(), Ok(Strand::Plus));
+        assert_eq!("-".parse::<Strand>(), Ok(Strand::Minus));
+        assert!("?".parse::<Strand>().is_err());
+    }
+
+    #[test]
+    fn test_codon_bounds_outside_gene_returns_none() {
+        let gene = Gene {
+            name: "g".to_string(),
+            start: 100,
+            end: 199,
+            strand: Strand::Plus,
+        };
+        assert!(codon_bounds_for_position(&gene, 50).is_none());
+        assert!(codon_bounds_for_position(&gene, 300).is_none());
+    }
+
+    #[test]
+    fn test_get_mnv_variants_for_gene_mixed_snps_and_indels() {
+        use super::get_mnv_variants_for_gene;
+        use crate::io::{Reference, VcfPosition};
+
+        let gene = Gene {
+            name: "testGene".to_string(),
+            start: 1,
+            end: 9,
+            strand: Strand::Plus,
+        };
+        let reference = Reference {
+            sequence: "ATGATGATG".to_string(),
+        };
+
+        let snps = vec![
+            VcfPosition { position: 2, ref_allele: "T".to_string(), alt_allele: "C".to_string(), original_dp: None, original_freq: None, original_info: None },
+            VcfPosition { position: 5, ref_allele: "TG".to_string(), alt_allele: "T".to_string(), original_dp: None, original_freq: None, original_info: None },
+        ];
+
+        let variants = get_mnv_variants_for_gene(&gene, &snps, &reference, "chr1");
+        assert!(variants.len() >= 2, "expected SNP + indel, got {}", variants.len());
+        let has_snp = variants.iter().any(|v| v.variant_type == VariantType::Snp);
+        let has_indel = variants.iter().any(|v| v.variant_type == VariantType::Indel);
+        assert!(has_snp, "missing SNP variant");
+        assert!(has_indel, "missing indel variant");
+    }
+
+    #[test]
+    fn test_build_intergenic_variant_snp() {
+        use super::build_intergenic_variant;
+        use crate::io::VcfPosition;
+
+        let pos = VcfPosition { position: 42, ref_allele: "A".to_string(), alt_allele: "G".to_string(), original_dp: Some(30), original_freq: Some(0.8), original_info: None };
+        let v = build_intergenic_variant("chrX", &pos);
+        assert_eq!(v.gene, "intergenic");
+        assert_eq!(v.variant_type, VariantType::Snp);
+        assert_eq!(v.positions, vec![42]);
+        assert_eq!(v.original_dp, Some(vec![30]));
+    }
+
+    #[test]
+    fn test_build_intergenic_variant_indel() {
+        use super::build_intergenic_variant;
+        use crate::io::VcfPosition;
+
+        let pos = VcfPosition { position: 10, ref_allele: "AT".to_string(), alt_allele: "A".to_string(), original_dp: None, original_freq: None, original_info: None };
+        let v = build_intergenic_variant("chr1", &pos);
+        assert_eq!(v.variant_type, VariantType::Indel);
+    }
+
+    #[test]
+    fn test_process_codon_mnv_two_snps_in_codon() {
+        let codon_info = CodonInfo {
+            codon_list: vec![
+                Snp { index: 100, position: 100, ref_base: "A".to_string(), base: "T".to_string(), original_dp: None, original_freq: None, original_info: None },
+                Snp { index: 101, position: 101, ref_base: "T".to_string(), base: "C".to_string(), original_dp: None, original_freq: None, original_info: None },
+            ],
+            original_codon: "ATG".to_string(),
+            gene_name: "gene1".to_string(),
+            gene_start: 100,
+            gene_end: 399,
+            codon_start: 100,
+            codon_end: 102,
+        };
+        let result = process_codon(codon_info, Strand::Plus, "chr1");
+        assert_eq!(result.variant_type, VariantType::SnpMnv);
+        assert_eq!(result.positions.len(), 2);
+        assert!(result.mnv_codon.is_some());
     }
 
     #[test]

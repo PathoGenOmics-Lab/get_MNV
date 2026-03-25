@@ -2,7 +2,7 @@
 
 use super::summary::{InputChecksums, RunInputs, RunSummary};
 use crate::cli::Args;
-use crate::error::{AppError, AppResult, IoResultExt};
+use crate::error::{AppResult, IoResultExt};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::fs::File;

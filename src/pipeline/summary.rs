@@ -147,3 +147,84 @@ pub fn write_summary_json(path: &str, summary: &RunSummary) -> AppResult<()> {
     file.write_all(b"\n").with_path(path)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::variants::VariantType;
+
+    fn make_variant(gene: &str, vtype: VariantType) -> VariantInfo {
+        VariantInfo {
+            chrom: "chr1".to_string(),
+            gene: gene.to_string(),
+            positions: vec![100],
+            ref_bases: vec!["A".to_string()],
+            base_changes: vec!["T".to_string()],
+            aa_changes: vec!["V100A".to_string()],
+            snp_aa_changes: vec!["V100A".to_string()],
+            variant_type: vtype,
+            change_type: crate::variants::ChangeType::NonSynonymous,
+            snp_reads: None, snp_forward_reads: None, snp_reverse_reads: None,
+            mnv_reads: None, mnv_forward_reads: None, mnv_reverse_reads: None,
+            mnv_total_reads: None, total_reads: None, total_forward_reads: None,
+            total_reverse_reads: None, mnv_total_forward_reads: None, mnv_total_reverse_reads: None,
+            ref_codon: None, snp_codon: None, mnv_codon: None,
+            original_dp: None, original_freq: None, original_info: None,
+        }
+    }
+
+    #[test]
+    fn test_summarize_contig_variants_counts() {
+        let variants = vec![
+            make_variant("geneA", VariantType::Snp),
+            make_variant("geneA", VariantType::Mnv),
+            make_variant("intergenic", VariantType::Snp),
+            make_variant("geneB", VariantType::Indel),
+        ];
+        let summary = summarize_contig_variants("chr1", 10, 2, &variants, 5, 3);
+        assert_eq!(summary.snp_variants, 1);
+        assert_eq!(summary.mnv_variants, 1);
+        assert_eq!(summary.indel_variants, 1);
+        assert_eq!(summary.intergenic_variants, 1);
+        assert_eq!(summary.produced_variants, 4);
+        assert_eq!(summary.region_cache_hits, 5);
+        assert_eq!(summary.region_cache_misses, 3);
+    }
+
+    #[test]
+    fn test_update_global_summary_accumulates() {
+        let mut global = GlobalSummary::default();
+        let contig1 = ContigSummary {
+            contig: "chr1".to_string(),
+            snp_records_in_vcf: 10,
+            mapped_genes: 5,
+            produced_variants: 8,
+            snp_variants: 4,
+            mnv_variants: 2,
+            snp_mnv_variants: 1,
+            indel_variants: 0,
+            intergenic_variants: 1,
+            region_cache_hits: 3,
+            region_cache_misses: 2,
+        };
+        let contig2 = ContigSummary {
+            contig: "chr2".to_string(),
+            snp_records_in_vcf: 5,
+            mapped_genes: 3,
+            produced_variants: 4,
+            snp_variants: 2,
+            mnv_variants: 1,
+            snp_mnv_variants: 0,
+            indel_variants: 1,
+            intergenic_variants: 0,
+            region_cache_hits: 1,
+            region_cache_misses: 1,
+        };
+        update_global_summary(&mut global, &contig1);
+        update_global_summary(&mut global, &contig2);
+        assert_eq!(global.contig_count, 2);
+        assert_eq!(global.snp_records_in_vcf, 15);
+        assert_eq!(global.produced_variants, 12);
+        assert_eq!(global.region_cache_hits, 4);
+    }
+}

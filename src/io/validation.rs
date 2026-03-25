@@ -66,6 +66,14 @@ pub(crate) fn validate_vcf_allele(
     )
 }
 
+/// Extract the file stem from a path, stripping `.vcf` / `.vcf.gz` suffixes.
+///
+/// # Examples
+/// ```
+/// use get_mnv::io::get_base_name;
+/// assert_eq!(get_base_name("sample.vcf").unwrap(), "sample");
+/// assert_eq!(get_base_name("/data/run.vcf.gz").unwrap(), "run.vcf");
+/// ```
 pub fn get_base_name(file_path: &str) -> AppResult<String> {
     let path = Path::new(file_path);
     let stem = path.file_stem().ok_or_else(|| {

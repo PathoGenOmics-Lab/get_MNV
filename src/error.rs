@@ -85,6 +85,14 @@ impl std::error::Error for AppError {
 }
 
 impl AppError {
+    /// Create an error with a specific code and message.
+    ///
+    /// # Examples
+    /// ```
+    /// use get_mnv::error::{AppError, ErrorCode};
+    /// let err = AppError::new(ErrorCode::Validation, "invalid allele");
+    /// assert_eq!(err.code, ErrorCode::Validation);
+    /// ```
     pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
         Self {
             code,
@@ -94,6 +102,14 @@ impl AppError {
     }
 
     /// Attach an underlying cause to this error.
+    ///
+    /// # Examples
+    /// ```
+    /// use get_mnv::error::AppError;
+    /// let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "gone");
+    /// let err = AppError::io("open failed").with_source(io_err);
+    /// assert!(err.to_string().contains("gone"));
+    /// ```
     pub fn with_source(
         mut self,
         source: impl std::error::Error + Send + Sync + 'static,
@@ -103,6 +119,14 @@ impl AppError {
     }
 
     /// Add context to an existing error, wrapping it as the source.
+    ///
+    /// # Examples
+    /// ```
+    /// use get_mnv::error::AppError;
+    /// let err = AppError::validation("bad allele");
+    /// let wrapped = err.context("while parsing VCF line 42");
+    /// assert!(wrapped.to_string().contains("line 42"));
+    /// ```
     pub fn context(self, ctx: impl Into<String>) -> Self {
         let code = self.code;
         let ctx_msg = ctx.into();
@@ -135,7 +159,6 @@ impl AppError {
 
     /// Return the full causal chain as a multi-line string (for debugging).
     pub fn chain(&self) -> String {
-        use std::error::Error;
         let mut lines = vec![self.to_string()];
         let mut current: &dyn std::error::Error = self;
         while let Some(cause) = current.source() {

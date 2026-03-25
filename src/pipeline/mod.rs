@@ -16,8 +16,8 @@ use config::{
     append_sample_suffix, configure_threads, log_run_configuration, sanitized_command_line,
 };
 use manifest::{build_input_metadata, build_run_manifest_value, write_json_value};
-use processing::{emit_contig_variants, parse_inputs, process_contig, reclassify_generic_as_validation, sort_variants};
-use summary::{summarize_contig_variants, update_global_summary};
+use processing::{emit_contig_variants, parse_inputs, process_contig, reclassify_generic_as_validation};
+use summary::update_global_summary;
 
 use crate::cli::Args;
 use crate::error::{AppError, AppResult};
