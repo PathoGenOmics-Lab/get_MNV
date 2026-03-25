@@ -64,8 +64,13 @@ pub fn iupac_aa(aa_change_1_letter: &str) -> String {
 
 pub fn reverse_complement(seq: &str) -> String {
     let rc = bio::alphabets::dna::revcomp(seq.as_bytes());
-    String::from_utf8(rc)
-        .expect("Critical error: reverse-complement sequence contains invalid UTF-8.")
+    String::from_utf8(rc).unwrap_or_else(|e| {
+        log::warn!(
+            "reverse_complement produced invalid UTF-8 for input '{}': {}. Falling back to lossy conversion.",
+            seq, e
+        );
+        String::from_utf8_lossy(e.as_bytes()).into_owned()
+    })
 }
 
 pub fn process_translate(seq: &[u8]) -> String {
