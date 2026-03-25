@@ -1,5 +1,4 @@
 use protein_translate::translate;
-use std::collections::HashMap;
 
 pub fn determine_change_type(aa_change: &str) -> String {
     if aa_change.is_empty() {
@@ -20,34 +19,34 @@ pub fn determine_change_type(aa_change: &str) -> String {
     }
 }
 
-pub fn iupac_aa(aa_change_1_letter: &str) -> String {
-    let aa_map: HashMap<char, &str> = [
-        ('A', "Ala"),
-        ('C', "Cys"),
-        ('D', "Asp"),
-        ('E', "Glu"),
-        ('F', "Phe"),
-        ('G', "Gly"),
-        ('H', "His"),
-        ('I', "Ile"),
-        ('K', "Lys"),
-        ('L', "Leu"),
-        ('M', "Met"),
-        ('N', "Asn"),
-        ('P', "Pro"),
-        ('Q', "Gln"),
-        ('R', "Arg"),
-        ('S', "Ser"),
-        ('T', "Thr"),
-        ('V', "Val"),
-        ('W', "Trp"),
-        ('Y', "Tyr"),
-        ('*', "*"),
-    ]
-    .iter()
-    .cloned()
-    .collect();
+fn aa_three_letter(code: char) -> &'static str {
+    match code {
+        'A' => "Ala",
+        'C' => "Cys",
+        'D' => "Asp",
+        'E' => "Glu",
+        'F' => "Phe",
+        'G' => "Gly",
+        'H' => "His",
+        'I' => "Ile",
+        'K' => "Lys",
+        'L' => "Leu",
+        'M' => "Met",
+        'N' => "Asn",
+        'P' => "Pro",
+        'Q' => "Gln",
+        'R' => "Arg",
+        'S' => "Ser",
+        'T' => "Thr",
+        'V' => "Val",
+        'W' => "Trp",
+        'Y' => "Tyr",
+        '*' => "*",
+        _ => "X",
+    }
+}
 
+pub fn iupac_aa(aa_change_1_letter: &str) -> String {
     if aa_change_1_letter.len() < 3 {
         return "Invalid_format".to_string();
     }
@@ -55,8 +54,8 @@ pub fn iupac_aa(aa_change_1_letter: &str) -> String {
     let first_char = aa_change_1_letter.chars().next().unwrap_or('X');
     let last_char = aa_change_1_letter.chars().last().unwrap_or('X');
 
-    let first = *aa_map.get(&first_char).unwrap_or(&"X");
-    let last = *aa_map.get(&last_char).unwrap_or(&"X");
+    let first = aa_three_letter(first_char);
+    let last = aa_three_letter(last_char);
 
     let position = &aa_change_1_letter[1..aa_change_1_letter.len() - 1];
 

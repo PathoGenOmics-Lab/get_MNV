@@ -150,6 +150,7 @@ fn run_synthetic(
             alt_allele: "G".to_string(),
             original_dp: Some(30),
             original_freq: Some(0.5),
+            original_info: None,
         })
         .collect();
 
@@ -213,8 +214,13 @@ fn run_dataset(
     let annotation_path = infer_annotation_path(dataset_dir)?;
 
     let references = io::load_references(fasta_path.to_string_lossy().as_ref())?;
-    let snp_by_contig =
-        io::load_vcf_positions_by_contig(vcf_path.to_string_lossy().as_ref(), None, false, false)?;
+    let snp_by_contig = io::load_vcf_positions_by_contig(
+        vcf_path.to_string_lossy().as_ref(),
+        None,
+        false,
+        false,
+        false,
+    )?;
 
     let target_contigs = if let Some(contig) = config.contig.as_ref() {
         vec![contig.clone()]
@@ -236,10 +242,12 @@ fn run_dataset(
                 AppError::validation(format!("Dataset missing contig '{}' in VCF", contig))
             })?
             .clone();
+        let default_features = vec!["gene".to_string(), "pseudogene".to_string()];
         let genes = io::load_genes(
             annotation_path.to_string_lossy().as_ref(),
             &snp_list,
             Some(contig),
+            &default_features,
         )?;
         contig_jobs.push((contig.clone(), reference, snp_list, genes));
     }

@@ -24,17 +24,27 @@ pub struct Args {
     pub vcf_gz: bool,
     pub index_vcf_gz: bool,
     pub strand_bias_info: bool,
+    pub keep_original_info: bool,
     pub bcf: bool,
     pub summary_json: Option<String>,
     pub error_json: Option<String>,
     pub run_manifest: Option<String>,
+    pub gff_features: Vec<String>,
+    pub exclude_intergenic: bool,
     pub convert: bool,
     pub both: bool,
+    /// Optional output directory. When set, output files are written here
+    /// instead of the process CWD. Used by the desktop app where CWD is
+    /// unpredictable (e.g. "/" on macOS .app bundles).
+    pub output_dir: Option<String>,
+    /// Optional output filename prefix. When set, this replaces the
+    /// VCF-derived stem in output filenames (e.g. "my_run" → "my_run.MNV.tsv").
+    pub output_prefix: Option<String>,
 }
 
 pub fn parse_args() -> Args {
     let matches = Command::new("get_mnv")
-        .version("1.0.1")
+        .version(env!("CARGO_PKG_VERSION"))
         .author("Paula Ruiz Rodriguez")
         .about("Identifies SNPs within codons, reclassifies multi-nucleotide variants (MNVs), calculates amino acid changes, and outputs results in TSV/VCF format.")
         .arg(Arg::new("vcf")
@@ -65,6 +75,11 @@ pub fn parse_args() -> Args {
             .long("gff")
             .value_name("GFF_FILE")
             .help("Gene annotation file in GFF/GFF3 format")
+            .required(false))
+        .arg(Arg::new("gff_features")
+            .long("gff-features")
+            .value_name("FEATURES")
+            .help("Comma-separated GFF feature types to analyze (default: gene,pseudogene)")
             .required(false))
         .arg(Arg::new("chrom")
             .long("chrom")
@@ -173,6 +188,10 @@ pub fn parse_args() -> Args {
             .long("strand-bias-info")
             .help("Add Fisher exact strand-bias p-values to VCF INFO fields (SBP/MSBP)")
             .action(clap::ArgAction::SetTrue))
+        .arg(Arg::new("keep_original_info")
+            .long("keep-original-info")
+            .help("Preserve all original INFO fields from the input VCF in the output VCF")
+            .action(clap::ArgAction::SetTrue))
         .arg(Arg::new("bcf")
             .long("bcf")
             .help("Also write a BCF output converted from generated VCF")
@@ -192,6 +211,10 @@ pub fn parse_args() -> Args {
             .value_name("JSON_FILE")
             .help("Write a reproducibility manifest (inputs, outputs, checksums, runtime metadata)")
             .required(false))
+        .arg(Arg::new("exclude_intergenic")
+            .long("exclude-intergenic")
+            .help("Exclude intergenic SNPs (variants outside annotated genes) from the output")
+            .action(clap::ArgAction::SetTrue))
         .arg(Arg::new("convert")
             .long("convert")
             .help("Output in VCF format (output file will have a .MNV.vcf extension)")
@@ -209,6 +232,16 @@ pub fn parse_args() -> Args {
         .or_else(|| matches.get_one::<String>("genes"))
         .expect("Critical error: either --genes or --gff must be provided.")
         .to_string();
+
+    let gff_features = matches
+        .get_one::<String>("gff_features")
+        .map(|s| {
+            s.split(',')
+                .map(|ft| ft.trim().to_string())
+                .filter(|ft| !ft.is_empty())
+                .collect()
+        })
+        .unwrap_or_else(|| vec!["gene".to_string(), "pseudogene".to_string()]);
 
     Args {
         vcf_file: matches.get_one::<String>("vcf").unwrap().to_string(),
@@ -233,11 +266,16 @@ pub fn parse_args() -> Args {
         vcf_gz: matches.get_flag("vcf_gz"),
         index_vcf_gz: matches.get_flag("index_vcf_gz"),
         strand_bias_info: matches.get_flag("strand_bias_info"),
+        keep_original_info: matches.get_flag("keep_original_info"),
         bcf: matches.get_flag("bcf"),
         summary_json: matches.get_one::<String>("summary_json").cloned(),
         error_json: matches.get_one::<String>("error_json").cloned(),
         run_manifest: matches.get_one::<String>("run_manifest").cloned(),
+        gff_features,
+        exclude_intergenic: matches.get_flag("exclude_intergenic"),
         convert: matches.get_flag("convert"),
         both: matches.get_flag("both"),
+        output_dir: None,
+        output_prefix: None,
     }
 }

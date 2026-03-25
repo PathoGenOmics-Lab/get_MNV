@@ -139,6 +139,7 @@ pub struct Snp {
     pub base: String,
     pub original_dp: Option<usize>,
     pub original_freq: Option<f64>,
+    pub original_info: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -180,6 +181,7 @@ pub struct VariantInfo {
     pub mnv_codon: Option<String>,
     pub original_dp: Option<Vec<usize>>,
     pub original_freq: Option<Vec<f64>>,
+    pub original_info: Option<String>,
 }
 
 use crate::utils::{determine_change_type, iupac_aa, process_translate, reverse_complement};
@@ -224,7 +226,7 @@ pub fn process_codon(codon_info: CodonInfo, strand: Strand, chrom: &str) -> Vari
         .iter()
         .map(|snp| construct_codon(&codon_info, &[snp]))
         .collect();
-    let snp_codon = snp_codons.join(" ; ");
+    let snp_codon = snp_codons.join(", ");
 
     let (orig_aa, mut_aa) = match strand {
         Strand::Minus => (
@@ -299,6 +301,10 @@ pub fn process_codon(codon_info: CodonInfo, strand: Strand, chrom: &str) -> Vari
         mnv_codon: Some(mnv_codon),
         original_dp: collect_all_usize(codon_info.codon_list.iter().map(|s| s.original_dp)),
         original_freq: collect_all_f64(codon_info.codon_list.iter().map(|s| s.original_freq)),
+        original_info: codon_info
+            .codon_list
+            .first()
+            .and_then(|s| s.original_info.clone()),
     }
 }
 
@@ -364,6 +370,7 @@ pub fn get_mnv_variants_for_gene(
                         base: variant.alt_allele.clone(),
                         original_dp: variant.original_dp,
                         original_freq: variant.original_freq,
+                        original_info: variant.original_info.clone(),
                     });
             }
         } else {
@@ -494,10 +501,56 @@ pub fn get_mnv_variants_for_gene(
             mnv_codon: None,
             original_dp: indel.original_dp.map(|value| vec![value]),
             original_freq: indel.original_freq.map(|value| vec![value]),
+            original_info: indel.original_info.clone(),
         });
     }
 
     variants
+}
+
+/// Build a `VariantInfo` for a VCF position that falls outside all annotated
+/// genes (intergenic).  The entry preserves the original position, alleles and
+/// any original metrics but has no codon / amino-acid annotation.
+pub fn build_intergenic_variant(chrom: &str, vcf_pos: &crate::io::VcfPosition) -> VariantInfo {
+    let is_snp = vcf_pos.ref_allele.len() == 1
+        && vcf_pos.alt_allele.len() == 1
+        && !vcf_pos.alt_allele.starts_with('<');
+
+    let variant_type = if is_snp {
+        VariantType::Snp
+    } else {
+        VariantType::Indel
+    };
+
+    VariantInfo {
+        chrom: chrom.to_string(),
+        gene: "intergenic".to_string(),
+        positions: vec![vcf_pos.position],
+        ref_bases: vec![vcf_pos.ref_allele.clone()],
+        base_changes: vec![vcf_pos.alt_allele.clone()],
+        aa_changes: vec!["-".to_string()],
+        snp_aa_changes: vec!["-".to_string()],
+        variant_type,
+        change_type: ChangeType::Unknown,
+        ref_codon: None,
+        snp_codon: None,
+        mnv_codon: None,
+        snp_reads: None,
+        snp_forward_reads: None,
+        snp_reverse_reads: None,
+        mnv_reads: None,
+        mnv_forward_reads: None,
+        mnv_reverse_reads: None,
+        mnv_total_reads: None,
+        total_reads: None,
+        total_forward_reads: None,
+        total_reverse_reads: None,
+        mnv_total_forward_reads: None,
+        mnv_total_reverse_reads: None,
+        original_dp: vcf_pos.original_dp.map(|dp| vec![dp]),
+        original_freq: vcf_pos.original_freq.map(|freq| vec![freq]),
+        original_info: vcf_pos.original_info.clone(),
+    }
 }
 
 #[cfg(test)]
@@ -577,6 +630,7 @@ mod tests {
                 base: "C".to_string(),
                 original_dp: Some(20),
                 original_freq: Some(0.5),
+                original_info: None,
             }],
             original_codon: "ATG".to_string(),
             gene_name: "gene1".to_string(),

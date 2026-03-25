@@ -10,7 +10,7 @@ use rust_htslib::bam::IndexedReader;
 use serde::Serialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufReader, Read as IoRead, Write};
 use std::path::Path;
@@ -26,6 +26,7 @@ pub struct ContigSummary {
     pub mnv_variants: usize,
     pub snp_mnv_variants: usize,
     pub indel_variants: usize,
+    pub intergenic_variants: usize,
     pub region_cache_hits: usize,
     pub region_cache_misses: usize,
 }
@@ -40,6 +41,7 @@ pub struct GlobalSummary {
     pub mnv_variants: usize,
     pub snp_mnv_variants: usize,
     pub indel_variants: usize,
+    pub intergenic_variants: usize,
     pub region_cache_hits: usize,
     pub region_cache_misses: usize,
 }
@@ -84,6 +86,15 @@ pub struct InputChecksums {
     pub bam_sha256: Option<String>,
 }
 
+/// Progress event emitted during pipeline execution (for desktop GUI).
+#[derive(Debug, Clone, Serialize)]
+pub struct ProgressEvent {
+    pub phase: String,
+    pub contig: Option<String>,
+    pub current: usize,
+    pub total: usize,
+}
+
 #[derive(Debug)]
 struct ParsedInputs {
     base_name: String,
@@ -91,6 +102,8 @@ struct ParsedInputs {
     snp_by_contig: HashMap<String, Vec<VcfPosition>>,
     contigs: Vec<String>,
     command_line: String,
+    preloaded_gff: Option<HashMap<String, Vec<Gene>>>,
+    original_info_headers: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -178,12 +191,11 @@ fn configure_threads(threads: Option<usize>) -> AppResult<()> {
         if threads == 0 {
             return Err(AppError::config("--threads must be >= 1"));
         }
-        rayon::ThreadPoolBuilder::new()
+        // build_global() succeeds only once per process; ignore
+        // "already initialized" on subsequent runs in the desktop app.
+        let _ = rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
-            .build_global()
-            .map_err(|e| {
-                AppError::config(format!("Failed to configure Rayon thread pool: {}", e))
-            })?;
+            .build_global();
     }
     Ok(())
 }
@@ -242,12 +254,12 @@ fn validate_contig_inputs(
             if missing_in_vcf.is_empty() {
                 "none".to_string()
             } else {
-                missing_in_vcf.join(",")
+                missing_in_vcf.join(", ")
             },
             if missing_in_fasta.is_empty() {
                 "none".to_string()
             } else {
-                missing_in_fasta.join(",")
+                missing_in_fasta.join(", ")
             }
         )));
     }
@@ -282,6 +294,7 @@ fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppResult<ParsedI
         sample_override,
         args.split_multiallelic,
         args.normalize_alleles,
+        args.keep_original_info,
     )
     .map_err(reclassify_generic_as_validation)?;
     let annotation_format =
@@ -290,12 +303,30 @@ fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppResult<ParsedI
     validate_strict_original_metrics(&contigs, &snp_by_contig, args.strict)?;
     validate_contig_inputs(&contigs, &references, &snp_by_contig, annotation_format)?;
 
+    let preloaded_gff = if annotation_format == AnnotationFormat::Gff {
+        Some(
+            io::preload_gff_genes(&args.genes_file, &args.gff_features)
+                .map_err(reclassify_generic_as_validation)?,
+        )
+    } else {
+        None
+    };
+
+    let original_info_headers = if args.keep_original_info {
+        io::extract_original_info_headers(&args.vcf_file)
+            .map_err(reclassify_generic_as_validation)?
+    } else {
+        Vec::new()
+    };
+
     Ok(ParsedInputs {
         base_name,
         references,
         snp_by_contig,
         contigs,
         command_line: sanitized_command_line(),
+        preloaded_gff,
+        original_info_headers,
     })
 }
 
@@ -479,11 +510,15 @@ fn summarize_contig_variants(
         ..ContigSummary::default()
     };
     for variant in variants {
-        match variant.variant_type {
-            VariantType::Snp => summary.snp_variants += 1,
-            VariantType::Mnv => summary.mnv_variants += 1,
-            VariantType::SnpMnv => summary.snp_mnv_variants += 1,
-            VariantType::Indel => summary.indel_variants += 1,
+        if variant.gene == "intergenic" {
+            summary.intergenic_variants += 1;
+        } else {
+            match variant.variant_type {
+                VariantType::Snp => summary.snp_variants += 1,
+                VariantType::Mnv => summary.mnv_variants += 1,
+                VariantType::SnpMnv => summary.snp_mnv_variants += 1,
+                VariantType::Indel => summary.indel_variants += 1,
+            }
         }
     }
     summary
@@ -494,6 +529,7 @@ fn process_contig(
     contig: &str,
     references: &ReferenceMap,
     snp_by_contig: &HashMap<String, Vec<VcfPosition>>,
+    preloaded_gff: Option<&HashMap<String, Vec<Gene>>>,
 ) -> AppResult<(Vec<VariantInfo>, ContigSummary)> {
     let reference =
         io::reference_for_chrom(references, contig).map_err(reclassify_generic_as_validation)?;
@@ -503,8 +539,21 @@ fn process_contig(
     io::validate_vcf_reference_alleles(contig, snp_list, &reference)
         .map_err(reclassify_generic_as_validation)?;
 
-    let genes = io::load_genes(&args.genes_file, snp_list, Some(contig))
-        .map_err(reclassify_generic_as_validation)?;
+    let genes = if let Some(gff_genes) = preloaded_gff {
+        let all_contig_genes = gff_genes.get(contig).cloned().unwrap_or_default();
+        let filtered = io::filter_genes_with_snps(&all_contig_genes, snp_list);
+        log::info!(
+            "GFF/GFF3 contig '{}': {} gene entries, {} mapped to SNPs, {} without SNPs",
+            contig,
+            all_contig_genes.len(),
+            filtered.len(),
+            all_contig_genes.len() - filtered.len()
+        );
+        filtered
+    } else {
+        io::load_genes(&args.genes_file, snp_list, Some(contig), &args.gff_features)
+            .map_err(reclassify_generic_as_validation)?
+    };
     info!(
         "Contig '{}' -> {} SNP/variant records in VCF, {} mapped genes",
         contig,
@@ -567,6 +616,31 @@ fn process_contig(
         all_variants.extend(result.variants);
     }
 
+    // Collect intergenic variants (positions not covered by any gene).
+    if !args.exclude_intergenic {
+        let mut covered: HashSet<usize> = HashSet::with_capacity(snp_list.len());
+        for gene in &genes {
+            for snp in snp_list {
+                if snp.position >= gene.start && snp.position <= gene.end {
+                    covered.insert(snp.position);
+                }
+            }
+        }
+        let mut intergenic_count = 0usize;
+        for snp in snp_list {
+            if !covered.contains(&snp.position) {
+                all_variants.push(variants::build_intergenic_variant(contig, snp));
+                intergenic_count += 1;
+            }
+        }
+        if intergenic_count > 0 {
+            info!(
+                "Contig '{}' -> {} intergenic variant(s) added",
+                contig, intergenic_count
+            );
+        }
+    }
+
     sort_variants(&mut all_variants);
     let summary = summarize_contig_variants(
         contig,
@@ -588,6 +662,7 @@ fn update_global_summary(global: &mut GlobalSummary, contig_summary: &ContigSumm
     global.mnv_variants += contig_summary.mnv_variants;
     global.snp_mnv_variants += contig_summary.snp_mnv_variants;
     global.indel_variants += contig_summary.indel_variants;
+    global.intergenic_variants += contig_summary.intergenic_variants;
     global.region_cache_hits += contig_summary.region_cache_hits;
     global.region_cache_misses += contig_summary.region_cache_misses;
 }
@@ -729,6 +804,13 @@ fn log_run_configuration(args: &Args, sample_override: Option<&str>) {
     }
     info!("FASTA file: {}", args.fasta_file);
     info!("Gene annotation file: {}", args.genes_file);
+    info!("GFF feature types: {}", args.gff_features.join(", "));
+    if let Ok(AnnotationFormat::Tsv) = io::detect_annotation_format(&args.genes_file) {
+        let default_features = vec!["gene".to_string(), "pseudogene".to_string()];
+        if args.gff_features != default_features {
+            log::warn!("--gff-features is ignored when using TSV annotation format (--genes)");
+        }
+    }
     if let Some(sample) = sample_override {
         info!("Target sample for original FORMAT metrics: {}", sample);
     } else {
@@ -763,6 +845,7 @@ fn log_run_configuration(args: &Args, sample_override: Option<&str>) {
     log_toggle("Build index for .vcf.gz output", args.index_vcf_gz);
     log_toggle("Strand bias INFO fields", args.strand_bias_info);
     log_toggle("Emit filtered records", args.emit_filtered);
+    log_toggle("Exclude intergenic variants", args.exclude_intergenic);
     log_toggle("BCF output", args.bcf);
     log_toggle("Dry run", args.dry_run);
     if args.dry_run && args.bam_file.is_some() {
@@ -775,16 +858,37 @@ fn run_single(
     sample_override: Option<&str>,
     sample_suffix: Option<&str>,
     write_reports: bool,
+    on_progress: &dyn Fn(ProgressEvent),
 ) -> AppResult<RunSummary> {
     let total_start = Instant::now();
     log_run_configuration(args, sample_override);
 
-    configure_threads(args.threads)?;
+    on_progress(ProgressEvent {
+        phase: "parsing".into(),
+        contig: None,
+        current: 0,
+        total: 0,
+    });
+
     let parse_start = Instant::now();
     let parsed = parse_inputs(args, sample_override)?;
     let inputs = build_input_metadata(args)?;
     let parse_inputs_ms = parse_start.elapsed().as_secs_f64() * 1000.0;
-    let output_stem = append_sample_suffix(&parsed.base_name, sample_suffix);
+    let base_stem = append_sample_suffix(&parsed.base_name, sample_suffix);
+    // Allow overriding the filename prefix (desktop app).
+    let stem_name = match &args.output_prefix {
+        Some(prefix) => prefix.clone(),
+        None => base_stem,
+    };
+    // When output_dir is set (e.g. desktop app), write output files there
+    // instead of the process CWD.
+    let output_stem = match &args.output_dir {
+        Some(dir) => {
+            let dir_path = std::path::Path::new(dir);
+            dir_path.join(&stem_name).to_string_lossy().into_owned()
+        }
+        None => stem_name,
+    };
 
     let output_tsv = if args.dry_run {
         None
@@ -834,6 +938,7 @@ fn run_single(
             args.min_strand_bias_p,
             args.emit_filtered,
             args.strand_bias_info,
+            &parsed.original_info_headers,
         )?)
     } else {
         None
@@ -853,10 +958,23 @@ fn run_single(
         ..RunSummary::default()
     };
 
-    for contig in &parsed.contigs {
+    let total_contigs = parsed.contigs.len();
+    for (contig_idx, contig) in parsed.contigs.iter().enumerate() {
+        on_progress(ProgressEvent {
+            phase: "processing".into(),
+            contig: Some(contig.clone()),
+            current: contig_idx + 1,
+            total: total_contigs,
+        });
+
         let process_start = Instant::now();
-        let (contig_variants, contig_summary) =
-            process_contig(args, contig, &parsed.references, &parsed.snp_by_contig)?;
+        let (contig_variants, contig_summary) = process_contig(
+            args,
+            contig,
+            &parsed.references,
+            &parsed.snp_by_contig,
+            parsed.preloaded_gff.as_ref(),
+        )?;
         process_ms += process_start.elapsed().as_secs_f64() * 1000.0;
 
         let emit_start = Instant::now();
@@ -869,13 +987,14 @@ fn run_single(
         emit_ms += emit_start.elapsed().as_secs_f64() * 1000.0;
 
         info!(
-            "Summary '{}' -> variants={} (SNP={}, MNV={}, SNP/MNV={}, INDEL={})",
+            "Summary '{}' -> variants={} (SNP={}, MNV={}, SNP/MNV={}, INDEL={}, intergenic={})",
             contig_summary.contig,
             contig_summary.produced_variants,
             contig_summary.snp_variants,
             contig_summary.mnv_variants,
             contig_summary.snp_mnv_variants,
-            contig_summary.indel_variants
+            contig_summary.indel_variants,
+            contig_summary.intergenic_variants
         );
         if !args.dry_run && args.bam_file.is_some() {
             info!(
@@ -889,6 +1008,13 @@ fn run_single(
         update_global_summary(&mut summary.global, &contig_summary);
         summary.contigs.push(contig_summary);
     }
+
+    on_progress(ProgressEvent {
+        phase: "complete".into(),
+        contig: None,
+        current: total_contigs,
+        total: total_contigs,
+    });
 
     summary.timings.parse_inputs_ms = parse_inputs_ms;
     summary.timings.process_ms = process_ms;
@@ -912,7 +1038,7 @@ fn run_single(
     }
 
     info!(
-        "Global summary -> contigs={}, VCF records={}, mapped genes={}, emitted variants={} (SNP={}, MNV={}, SNP/MNV={}, INDEL={})",
+        "Global summary -> contigs={}, VCF records={}, mapped genes={}, emitted variants={} (SNP={}, MNV={}, SNP/MNV={}, INDEL={}, intergenic={})",
         summary.global.contig_count,
         summary.global.snp_records_in_vcf,
         summary.global.mapped_genes,
@@ -920,7 +1046,8 @@ fn run_single(
         summary.global.snp_variants,
         summary.global.mnv_variants,
         summary.global.snp_mnv_variants,
-        summary.global.indel_variants
+        summary.global.indel_variants,
+        summary.global.intergenic_variants
     );
     if !args.dry_run && args.bam_file.is_some() {
         info!(
@@ -950,7 +1077,16 @@ fn run_single(
     Ok(summary)
 }
 
+/// Run the pipeline (CLI entry point, no progress reporting).
 pub fn run(args: &Args) -> AppResult<RunSummary> {
+    run_with_progress(args, &|_| {})
+}
+
+/// Run the pipeline with a progress callback (used by the desktop GUI).
+pub fn run_with_progress(
+    args: &Args,
+    on_progress: &dyn Fn(ProgressEvent),
+) -> AppResult<RunSummary> {
     if args.vcf_gz && !(args.convert || args.both) {
         return Err(AppError::config("--vcf-gz requires --convert or --both"));
     }
@@ -960,14 +1096,21 @@ pub fn run(args: &Args) -> AppResult<RunSummary> {
     if args.bcf && !(args.convert || args.both) {
         return Err(AppError::config("--bcf requires --convert or --both"));
     }
+    if args.keep_original_info && !(args.convert || args.both) {
+        return Err(AppError::config(
+            "--keep-original-info requires --convert or --both",
+        ));
+    }
     if !(0.0..=1.0).contains(&args.min_strand_bias_p) {
         return Err(AppError::config(
             "--min-strand-bias-p must be between 0 and 1",
         ));
     }
 
+    configure_threads(args.threads)?;
+
     if args.sample.as_deref() != Some("all") {
-        return run_single(args, args.sample.as_deref(), None, true);
+        return run_single(args, args.sample.as_deref(), None, true, on_progress);
     }
 
     let sample_names =
@@ -981,7 +1124,13 @@ pub fn run(args: &Args) -> AppResult<RunSummary> {
     let mut sample_summaries = Vec::new();
     for sample in &sample_names {
         info!("Processing sample '{}' in --sample all mode", sample);
-        sample_summaries.push(run_single(args, Some(sample), Some(sample), false)?);
+        sample_summaries.push(run_single(
+            args,
+            Some(sample),
+            Some(sample),
+            false,
+            on_progress,
+        )?);
     }
 
     let mut aggregate = RunSummary {
@@ -1005,6 +1154,7 @@ pub fn run(args: &Args) -> AppResult<RunSummary> {
         aggregate.global.mnv_variants += sample_summary.global.mnv_variants;
         aggregate.global.snp_mnv_variants += sample_summary.global.snp_mnv_variants;
         aggregate.global.indel_variants += sample_summary.global.indel_variants;
+        aggregate.global.intergenic_variants += sample_summary.global.intergenic_variants;
         aggregate.global.region_cache_hits += sample_summary.global.region_cache_hits;
         aggregate.global.region_cache_misses += sample_summary.global.region_cache_misses;
         aggregate.timings.parse_inputs_ms += sample_summary.timings.parse_inputs_ms;
@@ -1085,6 +1235,7 @@ mod tests {
                 mnv_variants: 1,
                 snp_mnv_variants: 0,
                 indel_variants: 0,
+                intergenic_variants: 0,
                 region_cache_hits: 0,
                 region_cache_misses: 1,
             }],
@@ -1103,6 +1254,7 @@ mod tests {
                 mnv_variants: 1,
                 snp_mnv_variants: 0,
                 indel_variants: 0,
+                intergenic_variants: 0,
                 region_cache_hits: 0,
                 region_cache_misses: 1,
             },

@@ -9,6 +9,14 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Error as IoError, ErrorKind};
 use std::path::Path;
 
+/// INFO tag IDs that get_mnv writes itself. When `--keep-original-info` is
+/// active we carry over every original INFO tag whose ID is **not** in this
+/// list so we never duplicate our own output fields.
+const GET_MNV_INFO_TAGS: &[&[u8]] = &[
+    b"GENE", b"AA", b"CT", b"TYPE", b"ODP", b"OFREQ", b"SR", b"SRF", b"SRR", b"MR", b"MRF", b"MRR",
+    b"DP", b"FREQ", b"SBP", b"MSBP",
+];
+
 #[derive(Debug, Clone)]
 pub struct VcfPosition {
     pub position: usize,
@@ -16,6 +24,9 @@ pub struct VcfPosition {
     pub alt_allele: String,
     pub original_dp: Option<usize>,
     pub original_freq: Option<f64>,
+    /// Pre-serialised original INFO fields (semicolon-separated) to carry over
+    /// when `--keep-original-info` is active.
+    pub original_info: Option<String>,
 }
 
 pub struct Reference {
@@ -245,7 +256,7 @@ fn resolve_sample_index(
         return Err(format!(
             "Sample '{}' not found in VCF header. Available samples: {}",
             name,
-            samples.join(",")
+            samples.join(", ")
         )
         .into());
     }
@@ -443,7 +454,7 @@ pub fn reference_for_chrom(references: &ReferenceMap, chrom: &str) -> AppResult<
             {
                 let mut names = references.keys().cloned().collect::<Vec<_>>();
                 names.sort();
-                names.join(",")
+                names.join(", ")
             }
         )
     })?;
@@ -458,25 +469,159 @@ fn normalize_ref_alt(pos: usize, ref_allele: &str, alt_allele: &str) -> (usize, 
         return (pos, ref_allele.to_string(), alt_allele.to_string());
     }
 
-    let mut normalized_pos = pos;
-    let mut ref_chars = ref_allele.chars().collect::<Vec<_>>();
-    let mut alt_chars = alt_allele.chars().collect::<Vec<_>>();
+    let ref_chars: Vec<char> = ref_allele.chars().collect();
+    let alt_chars: Vec<char> = alt_allele.chars().collect();
+    let mut start = 0usize;
+    let mut ref_end = ref_chars.len();
+    let mut alt_end = alt_chars.len();
 
-    while ref_chars.len() > 1 && alt_chars.len() > 1 && ref_chars.last() == alt_chars.last() {
-        ref_chars.pop();
-        alt_chars.pop();
+    while ref_end - start > 1
+        && alt_end - start > 1
+        && ref_chars[ref_end - 1] == alt_chars[alt_end - 1]
+    {
+        ref_end -= 1;
+        alt_end -= 1;
     }
-    while ref_chars.len() > 1 && alt_chars.len() > 1 && ref_chars.first() == alt_chars.first() {
-        ref_chars.remove(0);
-        alt_chars.remove(0);
-        normalized_pos += 1;
+    while ref_end - start > 1 && alt_end - start > 1 && ref_chars[start] == alt_chars[start] {
+        start += 1;
     }
 
     (
-        normalized_pos,
-        ref_chars.iter().collect::<String>(),
-        alt_chars.iter().collect::<String>(),
+        pos + start,
+        ref_chars[start..ref_end].iter().collect(),
+        alt_chars[start..alt_end].iter().collect(),
     )
+}
+
+use rust_htslib::bcf::header::{HeaderRecord, TagType};
+
+/// Collect the IDs and types of original INFO fields (those not defined by
+/// get_mnv itself) from a VCF header.
+fn original_info_tags(header: &bcf::header::HeaderView) -> Vec<(String, TagType)> {
+    let own: HashSet<&[u8]> = GET_MNV_INFO_TAGS.iter().copied().collect();
+    let mut tags = Vec::new();
+    for rec in header.header_records() {
+        if let HeaderRecord::Info { values, .. } = rec {
+            if let Some(id) = values.get("ID") {
+                if !own.contains(id.as_bytes()) {
+                    let tag_type = header
+                        .info_type(id.as_bytes())
+                        .map(|(t, _)| t)
+                        .unwrap_or(TagType::String);
+                    tags.push((id.clone(), tag_type));
+                }
+            }
+        }
+    }
+    tags
+}
+
+/// Reconstruct the `##INFO=<...>` header line for a given tag from the
+/// structured `HeaderRecord`.
+fn info_header_line(values: &linear_map::LinearMap<String, String>) -> String {
+    let mut parts = Vec::new();
+    // Emit in canonical order: ID, Number, Type, Description, then rest
+    for key in &["ID", "Number", "Type", "Description"] {
+        if let Some(val) = values.get(*key) {
+            if *key == "Description" {
+                parts.push(format!("{}=\"{}\"", key, val));
+            } else {
+                parts.push(format!("{}={}", key, val));
+            }
+        }
+    }
+    for (key, val) in values.iter() {
+        if !["ID", "Number", "Type", "Description"].contains(&key.as_str()) {
+            parts.push(format!("{}={}", key, val));
+        }
+    }
+    format!("##INFO=<{}>", parts.join(","))
+}
+
+/// Collect the original `##INFO=` header lines from a VCF whose ID is **not**
+/// one of the tags get_mnv writes itself. Returns the full `##INFO=<...>`
+/// lines ready to be re-emitted in the output VCF header.
+pub fn extract_original_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
+    let vcf = bcf::Reader::from_path(vcf_file)?;
+    let own: HashSet<&[u8]> = GET_MNV_INFO_TAGS.iter().copied().collect();
+    let mut lines = Vec::new();
+    for rec in vcf.header().header_records() {
+        if let HeaderRecord::Info { values, .. } = rec {
+            if let Some(id) = values.get("ID") {
+                if !own.contains(id.as_bytes()) {
+                    lines.push(info_header_line(&values));
+                }
+            }
+        }
+    }
+    Ok(lines)
+}
+
+/// Build a pre-serialised string of original INFO fields from a single VCF
+/// record, excluding get_mnv's own tags. `tags` is the pre-computed list of
+/// (ID, TagType) pairs obtained from `original_info_tags()`.
+fn extract_original_info(rec: &bcf::Record, tags: &[(String, TagType)]) -> Option<String> {
+    let mut parts: Vec<String> = Vec::new();
+
+    for (id, tag_type) in tags {
+        let tag = id.as_bytes();
+        match tag_type {
+            TagType::Integer => {
+                if let Ok(Some(values)) = rec.info(tag).integer() {
+                    let formatted: Vec<String> = values
+                        .iter()
+                        .filter(|&&v| v != i32::missing())
+                        .map(|v| v.to_string())
+                        .collect();
+                    if !formatted.is_empty() {
+                        parts.push(format!("{}={}", id, formatted.join(",")));
+                    }
+                }
+            }
+            TagType::Float => {
+                if let Ok(Some(values)) = rec.info(tag).float() {
+                    let formatted: Vec<String> = values
+                        .iter()
+                        .filter(|&&v| !v.is_nan() && v != f32::missing())
+                        .map(|v| format!("{}", v))
+                        .collect();
+                    if !formatted.is_empty() {
+                        parts.push(format!("{}={}", id, formatted.join(",")));
+                    }
+                }
+            }
+            TagType::Flag => {
+                if let Ok(true) = rec.info(tag).flag() {
+                    parts.push(id.to_string());
+                }
+            }
+            // TagType::String and anything else
+            _ => {
+                if let Ok(Some(values)) = rec.info(tag).string() {
+                    let formatted: Vec<String> = values
+                        .iter()
+                        .filter_map(|v| {
+                            let s = std::str::from_utf8(v).ok()?;
+                            if s == "." {
+                                None
+                            } else {
+                                Some(s.to_string())
+                            }
+                        })
+                        .collect();
+                    if !formatted.is_empty() {
+                        parts.push(format!("{}={}", id, formatted.join(",")));
+                    }
+                }
+            }
+        }
+    }
+
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(";"))
+    }
 }
 
 pub fn load_vcf_positions_by_contig(
@@ -484,10 +629,18 @@ pub fn load_vcf_positions_by_contig(
     sample_name: Option<&str>,
     split_multiallelic: bool,
     normalize_alleles: bool,
+    keep_original_info: bool,
 ) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
     log::info!("Loading VCF: {}", vcf_file);
     let mut vcf = bcf::Reader::from_path(vcf_file)?;
     let sample_index = resolve_sample_index(vcf.header(), sample_name)?;
+    // Pre-compute the list of original INFO tags before the records loop
+    // to avoid a simultaneous mutable+immutable borrow on `vcf`.
+    let orig_info_tags = if keep_original_info {
+        original_info_tags(vcf.header())
+    } else {
+        Vec::new()
+    };
     let mut positions_by_contig: HashMap<String, Vec<VcfPosition>> = HashMap::new();
     let mut split_count = 0usize;
 
@@ -606,6 +759,11 @@ Add matching ##contig lines to the VCF header.",
             )?;
             let (original_dp, original_freq) =
                 parse_original_metrics(&rec, sample_index, alt_idx - 1);
+            let original_info = if keep_original_info {
+                extract_original_info(&rec, &orig_info_tags)
+            } else {
+                None
+            };
 
             positions_by_contig
                 .entry(chrom.to_string())
@@ -616,6 +774,7 @@ Add matching ##contig lines to the VCF header.",
                     alt_allele: normalized_alt,
                     original_dp,
                     original_freq,
+                    original_info,
                 });
         }
         if alleles.len() > 2 {
@@ -710,37 +869,35 @@ pub fn detect_annotation_format(genes_file: &str) -> AppResult<AnnotationFormat>
 }
 
 fn decode_percent_encoded(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
+    let mut buf: Vec<u8> = Vec::with_capacity(value.len());
     let mut bytes = value.as_bytes().iter().copied();
     while let Some(current) = bytes.next() {
         if current == b'%' {
             let hi = bytes.next();
             let lo = bytes.next();
             if let (Some(hi), Some(lo)) = (hi, lo) {
-                let maybe = [hi, lo];
-                if let Ok(hex) = std::str::from_utf8(&maybe) {
+                let hex_pair = [hi, lo];
+                if let Ok(hex) = std::str::from_utf8(&hex_pair) {
                     if let Ok(decoded) = u8::from_str_radix(hex, 16) {
-                        out.push(decoded as char);
+                        buf.push(decoded);
                         continue;
                     }
                 }
-                out.push('%');
-                out.push(hi as char);
-                out.push(lo as char);
+                buf.extend_from_slice(&[b'%', hi, lo]);
                 continue;
             }
-            out.push('%');
+            buf.push(b'%');
             if let Some(hi) = hi {
-                out.push(hi as char);
+                buf.push(hi);
             }
             if let Some(lo) = lo {
-                out.push(lo as char);
+                buf.push(lo);
             }
             continue;
         }
-        out.push(current as char);
+        buf.push(current);
     }
-    out
+    String::from_utf8(buf).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
 }
 
 fn split_attribute_fields(attributes: &str) -> Vec<&str> {
@@ -790,10 +947,10 @@ fn parse_gff_attributes(attributes: &str) -> HashMap<String, String> {
     parsed
 }
 
+/// Requires `snp_list` to be sorted by position (guaranteed by `load_vcf_positions_by_contig`).
 fn has_snp_in_interval(snp_list: &[VcfPosition], start: usize, end: usize) -> bool {
-    snp_list
-        .iter()
-        .any(|snp| snp.position >= start && snp.position <= end)
+    let idx = snp_list.partition_point(|snp| snp.position < start);
+    idx < snp_list.len() && snp_list[idx].position <= end
 }
 
 fn parse_strand(raw: &str, line_number: usize) -> AppResult<crate::variants::Strand> {
@@ -911,20 +1068,20 @@ fn load_genes_from_tsv(genes_file: &str, snp_list: &[VcfPosition]) -> AppResult<
     Ok(genes)
 }
 
-fn load_genes_from_gff(
+/// A raw parsed gene record from a GFF line, before any filtering.
+struct GffGeneRecord {
+    contig: String,
+    gene: Gene,
+}
+
+/// Parse a GFF/GFF3 file, yielding one GffGeneRecord per matching feature type.
+fn parse_gff_gene_records(
     genes_file: &str,
-    snp_list: &[VcfPosition],
-    expected_chrom: Option<&str>,
-) -> AppResult<Vec<Gene>> {
-    log::info!("Loading GFF/GFF3 annotation file: {}", genes_file);
+    feature_types: &[String],
+) -> AppResult<Vec<GffGeneRecord>> {
     let file = File::open(genes_file)?;
     let reader = BufReader::new(file);
-    let mut genes: Vec<Gene> = Vec::new();
-    let mut parsed_entries = 0usize;
-    let mut genes_with_snps = 0usize;
-    let mut genes_without_snps = 0usize;
-    let mut genes_other_contigs = 0usize;
-    let mut other_contigs: HashSet<String> = HashSet::new();
+    let mut records = Vec::new();
 
     for (line_idx, line) in reader.lines().enumerate() {
         let line_number = line_idx + 1;
@@ -951,33 +1108,59 @@ fn load_genes_from_gff(
             .into());
         }
 
-        if fields[2] != "gene" {
+        if !feature_types.iter().any(|ft| ft == fields[2]) {
             continue;
         }
-
-        if let Some(chrom) = expected_chrom {
-            if fields[0] != chrom {
-                genes_other_contigs += 1;
-                other_contigs.insert(fields[0].to_string());
-                continue;
-            }
-        }
-
-        parsed_entries += 1;
 
         let (start, end) = parse_interval(fields[3], fields[4], line_number)?;
         let strand = parse_strand(fields[6], line_number)?;
         let attrs = parse_gff_attributes(fields[8]);
         let gene_name = gene_name_from_gff(&attrs);
 
-        if has_snp_in_interval(snp_list, start, end) {
-            genes_with_snps += 1;
-            genes.push(Gene {
+        records.push(GffGeneRecord {
+            contig: fields[0].to_string(),
+            gene: Gene {
                 name: gene_name,
                 start,
                 end,
                 strand,
-            });
+            },
+        });
+    }
+
+    Ok(records)
+}
+
+fn load_genes_from_gff(
+    genes_file: &str,
+    snp_list: &[VcfPosition],
+    expected_chrom: Option<&str>,
+    feature_types: &[String],
+) -> AppResult<Vec<Gene>> {
+    log::info!("Loading GFF/GFF3 annotation file: {}", genes_file);
+    let records = parse_gff_gene_records(genes_file, feature_types)?;
+
+    let mut genes: Vec<Gene> = Vec::new();
+    let mut parsed_entries = 0usize;
+    let mut genes_with_snps = 0usize;
+    let mut genes_without_snps = 0usize;
+    let mut genes_other_contigs = 0usize;
+    let mut other_contigs: HashSet<String> = HashSet::new();
+
+    for rec in records {
+        if let Some(chrom) = expected_chrom {
+            if rec.contig != chrom {
+                genes_other_contigs += 1;
+                other_contigs.insert(rec.contig);
+                continue;
+            }
+        }
+
+        parsed_entries += 1;
+
+        if has_snp_in_interval(snp_list, rec.gene.start, rec.gene.end) {
+            genes_with_snps += 1;
+            genes.push(rec.gene);
         } else {
             genes_without_snps += 1;
         }
@@ -994,7 +1177,7 @@ fn load_genes_from_gff(
         } else {
             let mut values = other_contigs.into_iter().collect::<Vec<_>>();
             values.sort();
-            format!(" ({})", values.join(","))
+            format!(" ({})", values.join(", "))
         }
     );
 
@@ -1005,11 +1188,51 @@ pub fn load_genes(
     genes_file: &str,
     snp_list: &[VcfPosition],
     expected_chrom: Option<&str>,
+    feature_types: &[String],
 ) -> AppResult<Vec<Gene>> {
     match detect_annotation_format(genes_file)? {
         AnnotationFormat::Tsv => load_genes_from_tsv(genes_file, snp_list),
-        AnnotationFormat::Gff => load_genes_from_gff(genes_file, snp_list, expected_chrom),
+        AnnotationFormat::Gff => {
+            load_genes_from_gff(genes_file, snp_list, expected_chrom, feature_types)
+        }
     }
+}
+
+/// Pre-load all gene entries from a GFF/GFF3 file, grouped by contig.
+/// No SNP filtering is applied; use `filter_genes_with_snps` afterwards.
+pub fn preload_gff_genes(
+    genes_file: &str,
+    feature_types: &[String],
+) -> AppResult<HashMap<String, Vec<Gene>>> {
+    log::info!("Pre-loading GFF/GFF3 annotation file: {}", genes_file);
+    let records = parse_gff_gene_records(genes_file, feature_types)?;
+    let total_entries = records.len();
+
+    let mut genes_by_contig: HashMap<String, Vec<Gene>> = HashMap::new();
+    for rec in records {
+        genes_by_contig
+            .entry(rec.contig)
+            .or_default()
+            .push(rec.gene);
+    }
+
+    let contig_count = genes_by_contig.len();
+    log::info!(
+        "GFF/GFF3 pre-loaded: {} gene entries across {} contigs",
+        total_entries,
+        contig_count
+    );
+    Ok(genes_by_contig)
+}
+
+/// Filter genes that overlap with at least one SNP position.
+/// Requires `snp_list` to be sorted by position.
+pub fn filter_genes_with_snps(genes: &[Gene], snp_list: &[VcfPosition]) -> Vec<Gene> {
+    genes
+        .iter()
+        .filter(|gene| has_snp_in_interval(snp_list, gene.start, gene.end))
+        .cloned()
+        .collect()
 }
 
 pub fn get_base_name(file_path: &str) -> AppResult<String> {
@@ -1092,6 +1315,7 @@ chrB\tsrc\tgene\t10\t30\t.\t+\t.\tID=gene-two;gene=two;locus_tag=L2
                 alt_allele: "T".to_string(),
                 original_dp: None,
                 original_freq: None,
+                original_info: None,
             },
             VcfPosition {
                 position: 20,
@@ -1099,11 +1323,18 @@ chrB\tsrc\tgene\t10\t30\t.\t+\t.\tID=gene-two;gene=two;locus_tag=L2
                 alt_allele: "G".to_string(),
                 original_dp: None,
                 original_freq: None,
+                original_info: None,
             },
         ];
 
-        let genes = load_genes_from_gff(path.to_string_lossy().as_ref(), &snp_list, Some("chrA"))
-            .expect("should load genes");
+        let default_features = vec!["gene".to_string(), "pseudogene".to_string()];
+        let genes = load_genes_from_gff(
+            path.to_string_lossy().as_ref(),
+            &snp_list,
+            Some("chrA"),
+            &default_features,
+        )
+        .expect("should load genes");
         assert_eq!(genes.len(), 1);
         assert_eq!(genes[0].name, "one_L1");
         assert_eq!(genes[0].start, 10);
@@ -1146,6 +1377,7 @@ chrB\tsrc\tgene\t10\t30\t.\t+\t.\tID=gene-two;gene=two;locus_tag=L2
             alt_allele: "T".to_string(),
             original_dp: None,
             original_freq: None,
+            original_info: None,
         }];
         let error = validate_vcf_reference_alleles("chr1", &snp_list, &reference)
             .expect_err("expected mismatch");
@@ -1165,6 +1397,144 @@ chrB\tsrc\tgene\t10\t30\t.\t+\t.\tID=gene-two;gene=two;locus_tag=L2
         assert_eq!(parse_optional_depth("22.0"), Some(22));
         assert_eq!(parse_optional_depth("."), None);
         assert_eq!(parse_optional_depth(""), None);
+    }
+
+    // ---- decode_percent_encoded tests ----
+
+    #[test]
+    fn test_decode_percent_basic_ascii() {
+        assert_eq!(decode_percent_encoded("hello%20world"), "hello world");
+        assert_eq!(decode_percent_encoded("a%2Cb%3Bc"), "a,b;c");
+        assert_eq!(decode_percent_encoded("100%25"), "100%");
+    }
+
+    #[test]
+    fn test_decode_percent_passthrough() {
+        assert_eq!(decode_percent_encoded("plain text"), "plain text");
+        assert_eq!(decode_percent_encoded(""), "");
+    }
+
+    #[test]
+    fn test_decode_percent_truncated_sequence() {
+        assert_eq!(decode_percent_encoded("abc%"), "abc%");
+        assert_eq!(decode_percent_encoded("abc%2"), "abc%2");
+    }
+
+    #[test]
+    fn test_decode_percent_invalid_hex() {
+        assert_eq!(decode_percent_encoded("%ZZ"), "%ZZ");
+        assert_eq!(decode_percent_encoded("%GG"), "%GG");
+    }
+
+    #[test]
+    fn test_decode_percent_multibyte_utf8() {
+        // %C3%A9 = UTF-8 for 'e with acute accent' (U+00E9)
+        assert_eq!(decode_percent_encoded("%C3%A9"), "\u{00E9}");
+    }
+
+    // ---- split_attribute_fields tests ----
+
+    #[test]
+    fn test_split_attribute_fields_basic() {
+        let fields = split_attribute_fields("ID=gene-abc;Name=foo;locus_tag=L1");
+        assert_eq!(fields, vec!["ID=gene-abc", "Name=foo", "locus_tag=L1"]);
+    }
+
+    #[test]
+    fn test_split_attribute_fields_quoted_semicolon() {
+        let fields = split_attribute_fields(r#"ID=gene-abc;note="ATPase;essential";gene=foo"#);
+        assert_eq!(
+            fields,
+            vec!["ID=gene-abc", r#"note="ATPase;essential""#, "gene=foo"]
+        );
+    }
+
+    #[test]
+    fn test_split_attribute_fields_empty_and_trailing() {
+        assert!(split_attribute_fields("").is_empty());
+        let fields = split_attribute_fields("ID=abc;Name=foo;");
+        assert_eq!(fields, vec!["ID=abc", "Name=foo"]);
+    }
+
+    // ---- gene_name_from_gff fallback chain tests ----
+
+    #[test]
+    fn test_gene_name_fallback_chain() {
+        // Only ID available (with gene- prefix stripping)
+        let mut attrs = HashMap::new();
+        attrs.insert("ID".to_string(), "gene-Rv0001".to_string());
+        assert_eq!(gene_name_from_gff(&attrs), "Rv0001_Rv0001");
+
+        // Name takes priority over locus_tag and ID
+        let mut attrs = HashMap::new();
+        attrs.insert("Name".to_string(), "dnaA".to_string());
+        attrs.insert("locus_tag".to_string(), "Rv0001".to_string());
+        attrs.insert("ID".to_string(), "gene-dnaA".to_string());
+        assert_eq!(gene_name_from_gff(&attrs), "dnaA_Rv0001");
+
+        // No attributes at all
+        let attrs = HashMap::new();
+        assert_eq!(gene_name_from_gff(&attrs), "unknown_gene_unknown_gene");
+    }
+
+    // ---- preload_gff_genes test ----
+
+    #[test]
+    fn test_preload_gff_genes_groups_by_contig() {
+        let gff = "\
+##gff-version 3
+chrA\tsrc\tgene\t10\t30\t.\t+\t.\tID=gene-one;gene=one;locus_tag=L1
+chrA\tsrc\tgene\t40\t60\t.\t-\t.\tID=gene-two;gene=two;locus_tag=L2
+chrB\tsrc\tgene\t100\t200\t.\t+\t.\tID=gene-three;gene=three;locus_tag=L3
+chrB\tsrc\tCDS\t100\t200\t.\t+\t.\tID=cds-one
+";
+        let path = unique_temp_path("get_mnv_preload", "gff3");
+        fs::write(&path, gff).expect("failed to write temp gff");
+
+        let default_features = vec!["gene".to_string(), "pseudogene".to_string()];
+        let result = preload_gff_genes(path.to_string_lossy().as_ref(), &default_features)
+            .expect("should preload genes");
+        assert_eq!(result.len(), 2);
+        assert_eq!(result["chrA"].len(), 2);
+        assert_eq!(result["chrB"].len(), 1);
+        assert_eq!(result["chrB"][0].name, "three_L3");
+        let _ = fs::remove_file(path);
+    }
+
+    // ---- gff feature type filtering tests ----
+
+    #[test]
+    fn test_parse_gff_gene_records_filters_by_feature_type() {
+        let gff = "\
+##gff-version 3
+chrA\tsrc\tgene\t10\t30\t.\t+\t.\tID=gene-one;gene=one;locus_tag=L1
+chrA\tsrc\tCDS\t10\t30\t.\t+\t0\tID=cds-one;gene=one;locus_tag=L1
+chrA\tsrc\ttRNA\t50\t80\t.\t-\t.\tID=trna-one;gene=trn1;locus_tag=L2
+chrA\tsrc\tpseudogene\t100\t200\t.\t+\t.\tID=gene-pg;gene=pg1;locus_tag=L3
+";
+        let path = unique_temp_path("get_mnv_ft_filter", "gff3");
+        fs::write(&path, gff).expect("failed to write temp gff");
+        let path_str = path.to_string_lossy();
+
+        // Default: gene + pseudogene
+        let default_ft = vec!["gene".to_string(), "pseudogene".to_string()];
+        let records = parse_gff_gene_records(&path_str, &default_ft).unwrap();
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].gene.name, "one_L1");
+        assert_eq!(records[1].gene.name, "pg1_L3");
+
+        // Only CDS
+        let cds_ft = vec!["CDS".to_string()];
+        let records = parse_gff_gene_records(&path_str, &cds_ft).unwrap();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].gene.start, 10);
+
+        // Multiple custom types
+        let multi_ft = vec!["CDS".to_string(), "tRNA".to_string()];
+        let records = parse_gff_gene_records(&path_str, &multi_ft).unwrap();
+        assert_eq!(records.len(), 2);
+
+        let _ = fs::remove_file(path);
     }
 
     fn next_u64(seed: &mut u64) -> u64 {
@@ -1205,12 +1575,18 @@ chrB\tsrc\tgene\t10\t30\t.\t+\t.\tID=gene-two;gene=two;locus_tag=L2
         )
         .expect("failed to write temp vcf");
 
-        let err = load_vcf_positions_by_contig(path.to_string_lossy().as_ref(), None, false, false)
-            .expect_err("multiallelic should fail without split mode");
+        let err = load_vcf_positions_by_contig(
+            path.to_string_lossy().as_ref(),
+            None,
+            false,
+            false,
+            false,
+        )
+        .expect_err("multiallelic should fail without split mode");
         assert!(err.to_string().contains("Multiallelic"));
 
         let parsed =
-            load_vcf_positions_by_contig(path.to_string_lossy().as_ref(), None, true, false)
+            load_vcf_positions_by_contig(path.to_string_lossy().as_ref(), None, true, false, false)
                 .expect("split mode should parse");
         let positions = parsed.get("chr1").expect("missing chr1");
         assert_eq!(positions.len(), 2);
