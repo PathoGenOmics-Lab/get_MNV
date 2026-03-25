@@ -1,3 +1,6 @@
+//! Shared output utilities: INFO string building, Fisher exact strand-bias
+//! test, VCF entry formatting, variant shape validation, and header generation.
+
 use crate::error::AppResult;
 use crate::variants::VariantInfo;
 use std::io::Write;

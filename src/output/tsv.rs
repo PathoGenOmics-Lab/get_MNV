@@ -1,3 +1,6 @@
+//! TSV output writer: generates tab-delimited variant tables with optional
+//! BAM-derived read support columns.
+
 use crate::error::AppResult;
 use crate::variants::{VariantInfo, VariantType};
 use csv::WriterBuilder;

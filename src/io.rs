@@ -1,3 +1,6 @@
+//! Input parsing: VCF loading, FASTA reference reading, GFF/TSV gene
+//! annotation, allele validation, and original metrics extraction.
+
 use crate::error::AppResult;
 use crate::variants::Gene;
 use bio::io::fasta;

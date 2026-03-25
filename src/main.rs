@@ -1,3 +1,5 @@
+//! CLI entry point for get_MNV.
+
 use env_logger::Env;
 use get_mnv::cli;
 use get_mnv::{error, pipeline};

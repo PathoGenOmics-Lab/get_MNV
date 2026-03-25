@@ -1,3 +1,6 @@
+//! Variant data types (SNP, MNV, Indel), codon processing, and amino acid
+//! change classification.
+
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter, Result as FmtResult};

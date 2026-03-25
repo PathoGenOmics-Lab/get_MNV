@@ -1,3 +1,5 @@
+//! Output writers for TSV and VCF/BCF formats.
+
 mod common;
 mod tsv;
 mod vcf;

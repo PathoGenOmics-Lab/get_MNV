@@ -1,3 +1,6 @@
+//! BAM read counting: region observation cache, per-position and MNV
+//! haplotype read support with strand-specific metrics.
+
 use crate::error::{AppError, AppResult};
 use rust_htslib::bam::{IndexedReader, Read as BamReadTrait, Record as BamRecord};
 use std::collections::{HashMap, HashSet};

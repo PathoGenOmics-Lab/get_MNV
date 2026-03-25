@@ -1,3 +1,6 @@
+//! Pipeline orchestration: input validation, per-contig parallel processing,
+//! variant emission, summary/manifest generation, and progress reporting.
+
 use crate::cli::Args;
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::io::{self, AnnotationFormat, ReferenceMap, VcfPosition};

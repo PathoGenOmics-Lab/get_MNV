@@ -1,3 +1,6 @@
+//! Utility functions: amino acid change classification, IUPAC three-letter
+//! conversion, reverse complement, and codon translation.
+
 use protein_translate::translate;
 
 pub fn determine_change_type(aa_change: &str) -> String {

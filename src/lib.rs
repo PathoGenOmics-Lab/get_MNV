@@ -1,3 +1,9 @@
+//! **get_MNV** — Multi-Nucleotide Variant detection in genomic sequences.
+//!
+//! This crate identifies codon-level MNVs from VCF + reference + gene
+//! annotation, recalculates amino acid changes considering all SNVs together,
+//! and optionally quantifies read support from BAM files.
+
 pub mod cli;
 pub mod error;
 pub mod io;

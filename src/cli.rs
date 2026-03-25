@@ -1,3 +1,5 @@
+//! Command-line argument parsing and validation.
+
 use clap::{value_parser, Arg, ArgGroup, Command};
 
 #[derive(Debug, Clone)]

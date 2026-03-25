@@ -1,3 +1,6 @@
+//! VCF/BCF output writer: generates VCF (plain or BGZF-compressed) with
+//! INFO fields, FILTER tags, Tabix indexing, and BCF conversion.
+
 use crate::error::AppResult;
 use crate::io::ReferenceMap;
 use crate::variants::{VariantInfo, VariantType};

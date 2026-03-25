@@ -1,3 +1,5 @@
+//! Structured error types with categorised exit codes.
+
 use serde::Serialize;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::fs::File;
