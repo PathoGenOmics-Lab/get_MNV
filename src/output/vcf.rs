@@ -45,6 +45,7 @@ impl VcfWriter {
         min_strand_bias_p: f64,
         emit_filtered: bool,
         include_strand_bias_info: bool,
+        original_info_headers: &[String],
     ) -> AppResult<Self> {
         let out_file = if bgzf_output {
             format!("{}.MNV.vcf.gz", filename)
@@ -85,7 +86,12 @@ impl VcfWriter {
         for contig in contigs {
             writeln!(writer, "##contig=<ID={}>", contig)?;
         }
-        write_info_header(&mut writer, bam_provided, include_strand_bias_info)?;
+        write_info_header(
+            &mut writer,
+            bam_provided,
+            include_strand_bias_info,
+            original_info_headers,
+        )?;
         if emit_filtered {
             writeln!(
                 writer,
@@ -294,6 +300,7 @@ impl VcfWriter {
                 None
             },
             None,
+            variant.original_info.as_deref(),
         );
         let filter = filter_value(&filters);
         Ok(Some((
@@ -356,6 +363,7 @@ impl VcfWriter {
             } else {
                 None
             },
+            variant.original_info.as_deref(),
         );
         let filter = filter_value(&filters);
         Ok(Some((
@@ -387,6 +395,7 @@ impl VcfWriter {
             None,
             None,
             None,
+            variant.original_info.as_deref(),
         );
         self.write_variant_line(&variant.chrom, pos, ref_base, alt_base, "PASS", &info)
     }
@@ -419,6 +428,7 @@ impl VcfWriter {
                     None,
                     None,
                     None,
+                    variant.original_info.as_deref(),
                 );
                 self.write_variant_line(&variant.chrom, pos, ref_base, alt_base, "PASS", &info)?;
             }
@@ -469,6 +479,7 @@ impl VcfWriter {
                 None,
                 None,
                 None,
+                variant.original_info.as_deref(),
             );
             self.write_variant_line(
                 &variant.chrom,
@@ -523,6 +534,7 @@ impl VcfWriter {
                     None,
                     None,
                     None,
+                    variant.original_info.as_deref(),
                 );
                 entries.push((
                     pos,
@@ -559,6 +571,7 @@ impl VcfWriter {
                 None,
                 None,
                 None,
+                variant.original_info.as_deref(),
             );
             entries.push((
                 min_pos,
@@ -576,12 +589,48 @@ impl VcfWriter {
         write_sorted_vcf_entries(&mut self.writer, entries)
     }
 
+    fn write_intergenic(&mut self, variant: &VariantInfo) -> AppResult<()> {
+        validate_variant_shape(variant)?;
+        // When BAM-based filters are active, intergenic variants have no read
+        // support so they are subject to the same thresholds (support=0).
+        let filters = if self.bam_provided {
+            self.build_support_filters(0, self.min_snp_reads, 0, 0, self.min_snp_strand_reads, None)
+        } else {
+            Vec::new()
+        };
+        if !self.should_emit_record(&filters) {
+            return Ok(());
+        }
+        let ref_base = get_required(&variant.ref_bases, 0, "ref_bases", variant)?;
+        let alt_base = get_required(&variant.base_changes, 0, "base_changes", variant)?;
+        let pos = *get_required(&variant.positions, 0, "positions", variant)?;
+        let info = build_info_string(
+            variant,
+            None,
+            variant.variant_type.as_str(),
+            None,
+            None,
+            Some(0),
+            None,
+            None,
+            None,
+            None,
+            variant.original_info.as_deref(),
+        );
+        let filter = filter_value(&filters);
+        self.write_variant_line(&variant.chrom, pos, ref_base, alt_base, &filter, &info)
+    }
+
     pub fn write_variants(
         &mut self,
         variants: &[VariantInfo],
         references: &ReferenceMap,
     ) -> AppResult<()> {
         for variant in variants {
+            if variant.gene == "intergenic" {
+                self.write_intergenic(variant)?;
+                continue;
+            }
             match variant.variant_type {
                 VariantType::Indel => self.write_indel(variant)?,
                 VariantType::Snp => self.write_snp(variant)?,

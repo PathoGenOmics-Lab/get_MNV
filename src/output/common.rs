@@ -2,6 +2,31 @@ use crate::error::AppResult;
 use crate::variants::VariantInfo;
 use std::io::Write;
 
+/// INFO keys emitted by get_mnv itself. Original VCF fields with these names
+/// are silently skipped when `--keep-original-info` is active to prevent
+/// duplicate INFO keys in the output VCF.
+fn is_reserved_info_key(key: &str) -> bool {
+    matches!(
+        key,
+        "GENE"
+            | "AA"
+            | "CT"
+            | "TYPE"
+            | "SR"
+            | "SRF"
+            | "SRR"
+            | "MR"
+            | "MRF"
+            | "MRR"
+            | "SBP"
+            | "MSBP"
+            | "ODP"
+            | "OFREQ"
+            | "DP"
+            | "FREQ"
+    )
+}
+
 #[derive(Default)]
 struct InfoBuilder {
     fields: Vec<(String, String)>,
@@ -15,7 +40,13 @@ impl InfoBuilder {
     fn build(self) -> String {
         self.fields
             .into_iter()
-            .map(|(key, value)| format!("{}={}", key, value))
+            .map(|(key, value)| {
+                if value.is_empty() {
+                    key
+                } else {
+                    format!("{}={}", key, value)
+                }
+            })
             .collect::<Vec<_>>()
             .join(";")
     }
@@ -97,6 +128,7 @@ pub(crate) fn build_info_string(
     support_reads: Option<usize>,
     snp_strand_bias_p: Option<f64>,
     mnv_strand_bias_p: Option<f64>,
+    original_info: Option<&str>,
 ) -> String {
     let mut builder = InfoBuilder::default();
     builder.push("GENE", &variant.gene);
@@ -133,6 +165,24 @@ pub(crate) fn build_info_string(
         };
         builder.push("DP", dp);
         builder.push("FREQ", format_freq(freq));
+    }
+
+    // Append original INFO fields from the input VCF (if --keep-original-info).
+    // Skip keys that collide with get_mnv's own INFO fields to avoid duplicate
+    // INFO keys (which violate the VCF spec and confuse downstream tools).
+    if let Some(orig) = original_info {
+        for part in orig.split(';') {
+            let key = part.split('=').next().unwrap_or(part);
+            if is_reserved_info_key(key) {
+                continue;
+            }
+            if let Some(eq_pos) = part.find('=') {
+                builder.push(&part[..eq_pos], &part[eq_pos + 1..]);
+            } else {
+                // Flag field (no value)
+                builder.push(part, "");
+            }
+        }
     }
 
     builder.build()
@@ -474,6 +524,7 @@ pub(crate) fn write_info_header(
     writer: &mut dyn Write,
     bam_provided: bool,
     include_strand_bias_info: bool,
+    original_info_headers: &[String],
 ) -> AppResult<()> {
     writeln!(
         writer,
@@ -539,6 +590,9 @@ pub(crate) fn write_info_header(
                 "##INFO=<ID=MSBP,Number=1,Type=Float,Description=\"MNV strand bias Fisher exact two-tailed p-value\">"
             )?;
         }
+    }
+    for header_line in original_info_headers {
+        writeln!(writer, "{}", header_line)?;
     }
     Ok(())
 }

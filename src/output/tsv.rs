@@ -7,30 +7,34 @@ use super::common::{
     format_freq, get_mnv_depth_from_variant, snp_bam_vectors, validate_variant_shape,
 };
 
+fn is_intergenic(variant: &VariantInfo) -> bool {
+    variant.gene == "intergenic"
+}
+
 fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
     validate_variant_shape(variant)?;
-    if variant.variant_type == VariantType::Indel {
+    if variant.variant_type == VariantType::Indel || is_intergenic(variant) {
         let pos_str = variant
             .positions
             .iter()
             .map(|p| p.to_string())
             .collect::<Vec<_>>()
-            .join(",");
-        let ref_base_str = variant.ref_bases.join(",");
-        let base_str = variant.base_changes.join(",");
+            .join(", ");
+        let ref_base_str = variant.ref_bases.join(", ");
+        let base_str = variant.base_changes.join(", ");
         return Ok(vec![
             variant.chrom.clone(),
             variant.gene.clone(),
             pos_str,
             ref_base_str,
             base_str,
-            "-".to_string(),
-            "-".to_string(),
-            VariantType::Indel.to_string(),
+            variant.aa_changes.join(", "),
+            variant.snp_aa_changes.join(", "),
+            variant.variant_type.to_string(),
             variant.change_type.to_string(),
-            "-".to_string(),
-            "-".to_string(),
-            "-".to_string(),
+            variant.ref_codon.clone().unwrap_or_else(|| "-".to_string()),
+            variant.snp_codon.clone().unwrap_or_else(|| "-".to_string()),
+            variant.mnv_codon.clone().unwrap_or_else(|| "-".to_string()),
             "-".to_string(),
             "-".to_string(),
             "-".to_string(),
@@ -95,26 +99,26 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
         .iter()
         .map(|p| p.to_string())
         .collect::<Vec<_>>()
-        .join(",");
-    let ref_base_str = variant.ref_bases.join(",");
-    let base_str = variant.base_changes.join(",");
-    let aa_str = variant.aa_changes.join("; ");
-    let snp_aa_str = variant.snp_aa_changes.join("; ");
+        .join(", ");
+    let ref_base_str = variant.ref_bases.join(", ");
+    let base_str = variant.base_changes.join(", ");
+    let aa_str = variant.aa_changes.join(", ");
+    let snp_aa_str = variant.snp_aa_changes.join(", ");
     let snp_reads_str = snp_counts
         .iter()
         .map(|c| c.to_string())
         .collect::<Vec<_>>()
-        .join(",");
+        .join(", ");
     let snp_forward_reads_str = snp_forward_counts
         .iter()
         .map(|c| c.to_string())
         .collect::<Vec<_>>()
-        .join(",");
+        .join(", ");
     let snp_reverse_reads_str = snp_reverse_counts
         .iter()
         .map(|c| c.to_string())
         .collect::<Vec<_>>()
-        .join(",");
+        .join(", ");
     let mnv_reads_str = variant.mnv_reads.unwrap_or(0).to_string();
     let mnv_forward_reads_str = variant.mnv_forward_reads.unwrap_or(0).to_string();
     let mnv_reverse_reads_str = variant.mnv_reverse_reads.unwrap_or(0).to_string();
@@ -139,35 +143,35 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
         mnv_forward_reads_str,
         mnv_reverse_reads_str,
         total_str,
-        snp_freq.join(","),
+        snp_freq.join(", "),
         mnv_freq_str,
     ])
 }
 
 fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
     validate_variant_shape(variant)?;
-    if variant.variant_type == VariantType::Indel {
+    if variant.variant_type == VariantType::Indel || is_intergenic(variant) {
         let pos_str = variant
             .positions
             .iter()
             .map(|p| p.to_string())
             .collect::<Vec<_>>()
-            .join(",");
-        let ref_base_str = variant.ref_bases.join(",");
-        let base_str = variant.base_changes.join(",");
+            .join(", ");
+        let ref_base_str = variant.ref_bases.join(", ");
+        let base_str = variant.base_changes.join(", ");
         return Ok(vec![
             variant.chrom.clone(),
             variant.gene.clone(),
             pos_str,
             ref_base_str,
             base_str,
-            "-".to_string(),
-            "-".to_string(),
-            VariantType::Indel.to_string(),
+            variant.aa_changes.join(", "),
+            variant.snp_aa_changes.join(", "),
+            variant.variant_type.to_string(),
             variant.change_type.to_string(),
-            "-".to_string(),
-            "-".to_string(),
-            "-".to_string(),
+            variant.ref_codon.clone().unwrap_or_else(|| "-".to_string()),
+            variant.snp_codon.clone().unwrap_or_else(|| "-".to_string()),
+            variant.mnv_codon.clone().unwrap_or_else(|| "-".to_string()),
         ]);
     }
 
@@ -176,11 +180,11 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
         .iter()
         .map(|p| p.to_string())
         .collect::<Vec<_>>()
-        .join(",");
-    let ref_base_str = variant.ref_bases.join(",");
-    let base_str = variant.base_changes.join(",");
-    let aa_str = variant.aa_changes.join("; ");
-    let snp_aa_str = variant.snp_aa_changes.join("; ");
+        .join(", ");
+    let ref_base_str = variant.ref_bases.join(", ");
+    let base_str = variant.base_changes.join(", ");
+    let aa_str = variant.aa_changes.join(", ");
+    let snp_aa_str = variant.snp_aa_changes.join(", ");
     Ok(vec![
         variant.chrom.clone(),
         variant.gene.clone(),
@@ -299,10 +303,11 @@ mod tests {
             mnv_total_forward_reads: Some(3),
             mnv_total_reverse_reads: Some(1),
             ref_codon: Some("ACC".to_string()),
-            snp_codon: Some("TCC ; AGC".to_string()),
+            snp_codon: Some("TCC, AGC".to_string()),
             mnv_codon: Some("TGC".to_string()),
             original_dp: None,
             original_freq: None,
+            original_info: None,
         }
     }
 
