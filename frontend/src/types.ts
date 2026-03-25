@@ -79,6 +79,7 @@ export interface ContigSummary {
   mnv_variants: number;
   snp_mnv_variants: number;
   indel_variants: number;
+  intergenic_variants: number;
   region_cache_hits: number;
   region_cache_misses: number;
 }
@@ -92,6 +93,7 @@ export interface GlobalSummary {
   mnv_variants: number;
   snp_mnv_variants: number;
   indel_variants: number;
+  intergenic_variants: number;
   region_cache_hits: number;
   region_cache_misses: number;
 }

@@ -834,7 +834,7 @@ function App() {
                         <div className="batch-progress-bar">
                           <div
                             className="batch-progress-fill"
-                            style={{ width: `${Math.round(((batchProgress.current - 1) / batchProgress.total) * 100)}%` }}
+                            style={{ width: `${Math.round((batchProgress.current / batchProgress.total) * 100)}%` }}
                           />
                         </div>
                       )}

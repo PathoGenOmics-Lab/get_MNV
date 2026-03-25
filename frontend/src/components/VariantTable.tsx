@@ -209,8 +209,8 @@ export default function VariantTable({ data }: VariantTableProps) {
     const col = sortCol;
     const isNum = isNumericCol(headers[col]);
     return [...filtered].sort((a, b) => {
-      const va = a[col] ?? "";
-      const vb = b[col] ?? "";
+      const va = effectiveCellValue(a, col);
+      const vb = effectiveCellValue(b, col);
       if (isNum) {
         const na = parseFloat(va) || 0;
         const nb = parseFloat(vb) || 0;
@@ -218,7 +218,7 @@ export default function VariantTable({ data }: VariantTableProps) {
       }
       return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
     });
-  }, [filtered, sortCol, sortAsc, headers]);
+  }, [filtered, sortCol, sortAsc, headers, effectiveCellValue]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
