@@ -103,6 +103,17 @@ export default function Summary({ result }: SummaryProps) {
                   </span>
                 </td>
               </tr>
+              {g.intergenic_variants > 0 && (
+                <tr>
+                  <td>Intergenic</td>
+                  <td>
+                    <span className="stat-with-pct">
+                      {fmtN(g.intergenic_variants)}
+                      <span className="stat-pct">{pct(g.intergenic_variants, g.produced_variants)}</span>
+                    </span>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -223,6 +234,7 @@ export default function Summary({ result }: SummaryProps) {
                   <th>MNV</th>
                   <th>SNP/MNV</th>
                   <th>Indel</th>
+                  <th>Intergenic</th>
                 </tr>
               </thead>
               <tbody>
@@ -236,6 +248,7 @@ export default function Summary({ result }: SummaryProps) {
                     <td>{fmtN(c.mnv_variants)}</td>
                     <td>{fmtN(c.snp_mnv_variants)}</td>
                     <td>{fmtN(c.indel_variants)}</td>
+                    <td>{fmtN(c.intergenic_variants)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -250,6 +263,7 @@ export default function Summary({ result }: SummaryProps) {
                     <td><strong>{fmtN(g.mnv_variants)}</strong></td>
                     <td><strong>{fmtN(g.snp_mnv_variants)}</strong></td>
                     <td><strong>{fmtN(g.indel_variants)}</strong></td>
+                    <td><strong>{fmtN(g.intergenic_variants)}</strong></td>
                   </tr>
                 </tfoot>
               )}

@@ -246,7 +246,9 @@ export default function VariantTable({ data }: VariantTableProps) {
     const sep = filePath.toLowerCase().endsWith(".csv") ? "," : "\t";
     const lines = [
       headers.join(sep),
-      ...sorted.map((row) => row.join(sep)),
+      ...sorted.map((row) =>
+        headers.map((_, ci) => effectiveCellValue(row, ci)).join(sep)
+      ),
     ];
     await invoke("write_text_file", { path: filePath, content: lines.join("\n") });
   };
