@@ -1,0 +1,214 @@
+// TypeScript types matching Rust structs from get_mnv
+
+export interface AnalysisConfig {
+  vcfFile: string;
+  bamFile?: string;
+  fastaFile: string;
+  genesFile: string;
+  gffFeatures: string[];
+  sample?: string;
+  chrom?: string;
+  minQuality: number;
+  minMapq: number;
+  threads?: number;
+  minSnpReads: number;
+  minMnvReads: number;
+  minSnpStrandReads: number;
+  minMnvStrandReads: number;
+  minStrandBiasP: number;
+  normalizeAlleles: boolean;
+  splitMultiallelic: boolean;
+  strict: boolean;
+  emitFiltered: boolean;
+  strandBiasInfo: boolean;
+  keepOriginalInfo: boolean;
+  excludeIntergenic: boolean;
+  outputTsv: boolean;
+  outputVcf: boolean;
+  outputDir?: string;
+  outputPrefix?: string;
+}
+
+export interface TsvData {
+  headers: string[];
+  rows: string[][];
+}
+
+export interface BamVariantSite {
+  position: number;
+  referenceBase: string;
+  altBase: string;
+}
+
+export interface BamReadView {
+  name: string;
+  strand: string;
+  support: "mnv" | "partial" | "reference" | "other";
+  start: number;
+  end: number;
+  mapq: number;
+  bases: string[];
+}
+
+export interface BamSupportCounts {
+  total: number;
+  mnv: number;
+  partial: number;
+  reference: number;
+  other: number;
+}
+
+export interface BamViewResponse {
+  chrom: string;
+  displayStart: number;
+  displayEnd: number;
+  reference: string;
+  sites: BamVariantSite[];
+  reads: BamReadView[];
+  counts: BamSupportCounts;
+  totalReads: number;
+  truncated: boolean;
+}
+
+export interface ContigSummary {
+  contig: string;
+  snp_records_in_vcf: number;
+  mapped_genes: number;
+  produced_variants: number;
+  snp_variants: number;
+  mnv_variants: number;
+  snp_mnv_variants: number;
+  indel_variants: number;
+  region_cache_hits: number;
+  region_cache_misses: number;
+}
+
+export interface GlobalSummary {
+  contig_count: number;
+  snp_records_in_vcf: number;
+  mapped_genes: number;
+  produced_variants: number;
+  snp_variants: number;
+  mnv_variants: number;
+  snp_mnv_variants: number;
+  indel_variants: number;
+  region_cache_hits: number;
+  region_cache_misses: number;
+}
+
+export interface RunTimings {
+  parse_inputs_ms: number;
+  process_ms: number;
+  emit_ms: number;
+  total_ms: number;
+}
+
+export interface RunInputs {
+  vcf: string;
+  fasta: string;
+  annotation: string;
+  bam?: string;
+  checksums: InputChecksums;
+}
+
+export interface InputChecksums {
+  vcf_sha256: string;
+  fasta_sha256: string;
+  annotation_sha256: string;
+  bam_sha256?: string;
+}
+
+export interface RunSummary {
+  schema_version: string;
+  sample?: string;
+  dry_run: boolean;
+  bam_provided: boolean;
+  inputs: RunInputs;
+  output_tsv?: string;
+  output_vcf?: string;
+  output_bcf?: string;
+  contigs: ContigSummary[];
+  timings: RunTimings;
+  global: GlobalSummary;
+}
+
+export interface SampleEntry {
+  id: string;
+  name: string;
+  vcfPath: string;
+  bamPath?: string;
+  result?: RunSummary;
+  tsvData?: TsvData;
+  status: "pending" | "running" | "done" | "error";
+  error?: string;
+  runConfig?: AnalysisConfig;
+}
+
+export type VariantType = "Snp" | "Mnv" | "SnpMnv" | "Indel";
+
+export type ChangeType =
+  | "Unknown"
+  | "Synonymous"
+  | "NonSynonymous"
+  | "StopGained"
+  | "StopLost"
+  | "IndelOverlap"
+  | "FrameshiftSynonymous"
+  | "FrameshiftNonSynonymous"
+  | "FrameshiftStopGained"
+  | "FrameshiftStopLost"
+  | "FrameshiftUnknown"
+  | "FrameshiftIndel"
+  | "InFrameIndel";
+
+export const DEFAULT_CONFIG: AnalysisConfig = {
+  vcfFile: "",
+  fastaFile: "",
+  genesFile: "",
+  gffFeatures: ["gene", "pseudogene"],
+  minQuality: 20,
+  minMapq: 20,
+  minSnpReads: 2,
+  minMnvReads: 2,
+  minSnpStrandReads: 0,
+  minMnvStrandReads: 0,
+  minStrandBiasP: 0,
+  normalizeAlleles: true,
+  splitMultiallelic: true,
+  strict: false,
+  emitFiltered: false,
+  strandBiasInfo: false,
+  keepOriginalInfo: false,
+  excludeIntergenic: false,
+  outputTsv: true,
+  outputVcf: false,
+};
+
+export interface ConfigPreset {
+  name: string;
+  description: string;
+  config: Partial<AnalysisConfig>;
+}
+
+export const BUILT_IN_PRESETS: ConfigPreset[] = [
+  {
+    name: "Default",
+    description: "Balanced sensitivity and specificity",
+    config: {},
+  },
+  {
+    name: "Strict",
+    description: "High confidence MNVs only",
+    config: { minQuality: 30, minMapq: 30, minMnvReads: 4, minSnpReads: 4, strict: true },
+  },
+  {
+    name: "Exploratory",
+    description: "Maximally sensitive, more false positives",
+    config: { minQuality: 10, minMapq: 10, minSnpReads: 1, minMnvReads: 1, emitFiltered: true },
+  },
+  {
+    name: "Publication",
+    description: "Strict + strand bias + VCF output",
+    config: { minQuality: 30, minMapq: 30, minMnvReads: 4, minSnpReads: 4, strict: true, strandBiasInfo: true, outputVcf: true },
+  },
+];
