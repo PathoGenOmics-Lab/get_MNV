@@ -70,7 +70,7 @@ impl Display for AppError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "[{}] {}", self.code, self.message)?;
         if let Some(ref cause) = self.source {
-            write!(f, ": {}", cause)?;
+            write!(f, ": {cause}")?;
         }
         Ok(())
     }
@@ -159,7 +159,7 @@ impl AppError {
         let mut lines = vec![self.to_string()];
         let mut current: &dyn std::error::Error = self;
         while let Some(cause) = current.source() {
-            lines.push(format!("  caused by: {}", cause));
+            lines.push(format!("  caused by: {cause}"));
             current = cause;
         }
         lines.join("\n")
@@ -182,63 +182,63 @@ impl From<String> for AppError {
 
 impl From<std::io::Error> for AppError {
     fn from(value: std::io::Error) -> Self {
-        let msg = format!("I/O error: {}", value);
+        let msg = format!("I/O error: {value}");
         AppError::new(ErrorCode::Io, msg).with_source(value)
     }
 }
 
 impl From<csv::Error> for AppError {
     fn from(value: csv::Error) -> Self {
-        let msg = format!("CSV error: {}", value);
+        let msg = format!("CSV error: {value}");
         AppError::new(ErrorCode::Csv, msg).with_source(value)
     }
 }
 
 impl From<rust_htslib::errors::Error> for AppError {
     fn from(value: rust_htslib::errors::Error) -> Self {
-        let msg = format!("HTSlib error: {}", value);
+        let msg = format!("HTSlib error: {value}");
         AppError::new(ErrorCode::Htslib, msg).with_source(value)
     }
 }
 
 impl From<std::str::Utf8Error> for AppError {
     fn from(value: std::str::Utf8Error) -> Self {
-        let msg = format!("UTF-8 error: {}", value);
+        let msg = format!("UTF-8 error: {value}");
         AppError::new(ErrorCode::Utf8, msg).with_source(value)
     }
 }
 
 impl From<std::string::FromUtf8Error> for AppError {
     fn from(value: std::string::FromUtf8Error) -> Self {
-        let msg = format!("UTF-8 conversion error: {}", value);
+        let msg = format!("UTF-8 conversion error: {value}");
         AppError::new(ErrorCode::Utf8, msg).with_source(value)
     }
 }
 
 impl From<std::num::ParseIntError> for AppError {
     fn from(value: std::num::ParseIntError) -> Self {
-        let msg = format!("Integer parsing error: {}", value);
+        let msg = format!("Integer parsing error: {value}");
         AppError::new(ErrorCode::ParseInt, msg).with_source(value)
     }
 }
 
 impl From<std::num::ParseFloatError> for AppError {
     fn from(value: std::num::ParseFloatError) -> Self {
-        let msg = format!("Float parsing error: {}", value);
+        let msg = format!("Float parsing error: {value}");
         AppError::new(ErrorCode::ParseFloat, msg).with_source(value)
     }
 }
 
 impl From<serde_json::Error> for AppError {
     fn from(value: serde_json::Error) -> Self {
-        let msg = format!("JSON error: {}", value);
+        let msg = format!("JSON error: {value}");
         AppError::new(ErrorCode::Json, msg).with_source(value)
     }
 }
 
 impl From<std::time::SystemTimeError> for AppError {
     fn from(value: std::time::SystemTimeError) -> Self {
-        let msg = format!("System time error: {}", value);
+        let msg = format!("System time error: {value}");
         AppError::new(ErrorCode::Generic, msg).with_source(value)
     }
 }
@@ -254,7 +254,7 @@ pub trait IoResultExt<T> {
 impl<T> IoResultExt<T> for std::io::Result<T> {
     fn with_path(self, path: &str) -> AppResult<T> {
         self.map_err(|e| {
-            let msg = format!("I/O error on '{}': {}", path, e);
+            let msg = format!("I/O error on '{path}': {e}");
             AppError::new(ErrorCode::Io, msg).with_source(e)
         })
     }
@@ -285,7 +285,7 @@ struct ErrorJson<'a> {
 }
 
 pub fn error_to_json(error: &AppError) -> String {
-    let cause = error.source.as_ref().map(|s| s.to_string());
+    let cause = error.source.as_ref().map(std::string::ToString::to_string);
     let payload = ErrorJson {
         schema_version: "1.0.0",
         code: error.code.as_str(),
@@ -300,7 +300,7 @@ pub fn error_to_json(error: &AppError) -> String {
 
 pub fn write_error_json(path: &str, error: &AppError) -> std::io::Result<()> {
     let mut file = File::create(path)?;
-    let cause = error.source.as_ref().map(|s| s.to_string());
+    let cause = error.source.as_ref().map(std::string::ToString::to_string);
     let payload = ErrorJson {
         schema_version: "1.0.0",
         code: error.code.as_str(),

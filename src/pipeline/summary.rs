@@ -134,10 +134,7 @@ pub fn update_global_summary(global: &mut GlobalSummary, contig_summary: &Contig
 #[cfg(test)]
 pub(crate) fn summary_to_json(summary: &RunSummary) -> String {
     serde_json::to_string_pretty(summary).unwrap_or_else(|e| {
-        format!(
-            "{{\"schema_version\":\"1.0.0\",\"error\":\"Failed to serialize summary: {}\"}}",
-            e
-        )
+        format!("{{\"schema_version\":\"1.0.0\",\"error\":\"Failed to serialize summary: {e}\"}}")
     }) + "\n"
 }
 

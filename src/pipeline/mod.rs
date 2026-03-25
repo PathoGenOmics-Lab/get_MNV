@@ -69,7 +69,7 @@ fn run_single(
     let output_tsv = if args.dry_run {
         None
     } else if args.both || !args.convert {
-        Some(format!("{}.MNV.tsv", output_stem))
+        Some(format!("{output_stem}.MNV.tsv"))
     } else {
         None
     };
@@ -77,9 +77,9 @@ fn run_single(
         None
     } else if args.both || args.convert {
         Some(if args.vcf_gz {
-            format!("{}.MNV.vcf.gz", output_stem)
+            format!("{output_stem}.MNV.vcf.gz")
         } else {
-            format!("{}.MNV.vcf", output_stem)
+            format!("{output_stem}.MNV.vcf")
         })
     } else {
         None
@@ -87,7 +87,7 @@ fn run_single(
     let output_bcf = if args.dry_run || !args.bcf {
         None
     } else {
-        Some(format!("{}.MNV.bcf", output_stem))
+        Some(format!("{output_stem}.MNV.bcf"))
     };
 
     let mut tsv_writer = if output_tsv.is_some() {
@@ -124,7 +124,7 @@ fn run_single(
     let mut emit_ms = 0.0f64;
     let mut summary = RunSummary {
         schema_version: "1.0.0".to_string(),
-        sample: sample_override.map(|sample| sample.to_string()),
+        sample: sample_override.map(std::string::ToString::to_string),
         dry_run: args.dry_run,
         bam_provided: args.bam_file.is_some(),
         inputs,
@@ -203,14 +203,14 @@ fn run_single(
     if args.index_vcf_gz {
         if let Some(vcf_path) = summary.output_vcf.as_deref() {
             output::build_tabix_index(vcf_path)?;
-            info!("Built Tabix index for {}", vcf_path);
+            info!("Built Tabix index for {vcf_path}");
         }
     }
     if let (Some(vcf_path), Some(bcf_path)) =
         (summary.output_vcf.as_deref(), summary.output_bcf.as_deref())
     {
         output::convert_vcf_to_bcf(vcf_path, bcf_path)?;
-        info!("Converted {} to {}", vcf_path, bcf_path);
+        info!("Converted {vcf_path} to {bcf_path}");
     }
 
     info!(
@@ -235,12 +235,12 @@ fn run_single(
     if write_reports {
         if let Some(summary_json_path) = args.summary_json.as_deref() {
             write_summary_json(summary_json_path, &summary)?;
-            info!("Summary JSON written to {}", summary_json_path);
+            info!("Summary JSON written to {summary_json_path}");
         }
         if let Some(run_manifest_path) = args.run_manifest.as_deref() {
             let manifest = build_run_manifest_value(&summary, &parsed.command_line)?;
             write_json_value(run_manifest_path, &manifest)?;
-            info!("Run manifest written to {}", run_manifest_path);
+            info!("Run manifest written to {run_manifest_path}");
         }
     }
 
@@ -299,7 +299,7 @@ pub fn run_with_progress(
 
     let mut sample_summaries = Vec::new();
     for sample in &sample_names {
-        info!("Processing sample '{}' in --sample all mode", sample);
+        info!("Processing sample '{sample}' in --sample all mode");
         sample_summaries.push(run_single(
             args,
             Some(sample),
@@ -349,7 +349,7 @@ pub fn run_with_progress(
             "samples": sample_summaries
         });
         write_json_value(summary_json_path, &payload)?;
-        info!("Summary JSON written to {}", summary_json_path);
+        info!("Summary JSON written to {summary_json_path}");
     }
     if let Some(run_manifest_path) = args.run_manifest.as_deref() {
         let timestamp_unix = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
@@ -364,7 +364,7 @@ pub fn run_with_progress(
             "samples": sample_summaries
         });
         write_json_value(run_manifest_path, &payload)?;
-        info!("Run manifest written to {}", run_manifest_path);
+        info!("Run manifest written to {run_manifest_path}");
     }
 
     Ok(aggregate)

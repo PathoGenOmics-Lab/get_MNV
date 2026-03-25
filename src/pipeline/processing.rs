@@ -283,7 +283,7 @@ pub(crate) fn process_contig(
         io::reference_for_chrom(references, contig).map_err(reclassify_generic_as_validation)?;
     let snp_list = snp_by_contig
         .get(contig)
-        .ok_or_else(|| AppError::validation(format!("Missing VCF data for contig '{}'", contig)))?;
+        .ok_or_else(|| AppError::validation(format!("Missing VCF data for contig '{contig}'")))?;
     io::validate_vcf_reference_alleles(contig, snp_list, &reference)
         .map_err(reclassify_generic_as_validation)?;
 
@@ -319,8 +319,7 @@ pub(crate) fn process_contig(
                     if let Some(path) = bam_path.as_ref() {
                         Some(IndexedReader::from_path(path).map_err(|e| {
                             AppError::validation(format!(
-                                "Failed to open BAM '{}' in worker thread: {}",
-                                path, e
+                                "Failed to open BAM '{path}' in worker thread: {e}"
                             ))
                         })?)
                     } else {
@@ -357,7 +356,7 @@ pub(crate) fn process_contig(
     let mut cache_hits = 0usize;
     let mut cache_misses = 0usize;
     for result in worker_results.map_err(|e| {
-        AppError::validation(format!("Error while processing contig '{}': {}", contig, e))
+        AppError::validation(format!("Error while processing contig '{contig}': {e}"))
     })? {
         cache_hits += result.region_cache_hits;
         cache_misses += result.region_cache_misses;
@@ -382,10 +381,7 @@ pub(crate) fn process_contig(
             }
         }
         if intergenic_count > 0 {
-            info!(
-                "Contig '{}' -> {} intergenic variant(s) added",
-                contig, intergenic_count
-            );
+            info!("Contig '{contig}' -> {intergenic_count} intergenic variant(s) added");
         }
     }
 

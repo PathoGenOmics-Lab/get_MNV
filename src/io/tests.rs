@@ -11,7 +11,7 @@ fn unique_temp_path(prefix: &str, suffix: &str) -> std::path::PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system time before UNIX_EPOCH")
         .as_nanos();
-    std::env::temp_dir().join(format!("{}_{}_{}", prefix, nanos, suffix))
+    std::env::temp_dir().join(format!("{prefix}_{nanos}_{suffix}"))
 }
 
 #[test]

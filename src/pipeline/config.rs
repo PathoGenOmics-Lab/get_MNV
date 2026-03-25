@@ -169,7 +169,7 @@ pub(crate) fn log_toggle(label: &str, enabled: bool) {
 pub(crate) fn log_run_configuration(args: &Args, sample_override: Option<&str>) {
     info!("VCF file: {}", args.vcf_file);
     if let Some(ref bam) = args.bam_file {
-        info!("BAM file: {}", bam);
+        info!("BAM file: {bam}");
     } else {
         info!("No BAM file provided. Output will be generated without read count fields.");
     }
@@ -183,17 +183,17 @@ pub(crate) fn log_run_configuration(args: &Args, sample_override: Option<&str>) 
         }
     }
     if let Some(sample) = sample_override {
-        info!("Target sample for original FORMAT metrics: {}", sample);
+        info!("Target sample for original FORMAT metrics: {sample}");
     } else {
         info!("Target sample for original FORMAT metrics: first sample");
     }
     if let Some(chrom) = args.chrom.as_ref() {
-        info!("Target chromosome(s): {}", chrom);
+        info!("Target chromosome(s): {chrom}");
     } else {
         info!("Target chromosome(s): all contigs in input VCF");
     }
     if let Some(threads) = args.threads {
-        info!("Threads: {}", threads);
+        info!("Threads: {threads}");
     } else {
         info!("Threads: Rayon default");
     }
@@ -273,7 +273,7 @@ mod tests {
     #[test]
     fn test_selected_contigs_empty_is_error() {
         let mut args = default_test_args();
-        args.chrom = Some("".to_string());
+        args.chrom = Some(String::new());
         let snps: HashMap<String, Vec<VcfPosition>> = HashMap::new();
         let result = selected_contigs(&args, &snps);
         assert!(result.is_err());

@@ -14,7 +14,7 @@ pub struct Reference {
 pub type ReferenceMap = HashMap<String, String>;
 
 pub fn load_references(fasta_file: &str) -> AppResult<ReferenceMap> {
-    log::info!("Loading reference FASTA: {}", fasta_file);
+    log::info!("Loading reference FASTA: {fasta_file}");
     let reader = fasta::Reader::new(File::open(fasta_file)?);
     let mut references: ReferenceMap = HashMap::new();
     for (record_idx, record_result) in reader.records().enumerate() {
@@ -60,7 +60,7 @@ pub fn load_references(fasta_file: &str) -> AppResult<ReferenceMap> {
         }
     }
     if references.is_empty() {
-        return Err(format!("No FASTA records found in '{}'", fasta_file).into());
+        return Err(format!("No FASTA records found in '{fasta_file}'").into());
     }
     Ok(references)
 }
@@ -90,8 +90,7 @@ pub fn validate_vcf_reference_alleles(
     for site in snp_list {
         if site.position == 0 {
             return Err(format!(
-                "Invalid VCF position 0 found at contig '{}' (positions must be 1-based)",
-                chrom
+                "Invalid VCF position 0 found at contig '{chrom}' (positions must be 1-based)"
             )
             .into());
         }

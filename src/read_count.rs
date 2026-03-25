@@ -145,8 +145,7 @@ pub fn build_region_observation_cache(
 ) -> AppResult<RegionObservationCache> {
     if region_start == 0 || region_end == 0 || region_start > region_end {
         return Err(AppError::validation(format!(
-            "Invalid region bounds for cache: start={}, end={}",
-            region_start, region_end
+            "Invalid region bounds for cache: start={region_start}, end={region_end}"
         )));
     }
 
@@ -156,8 +155,7 @@ pub fn build_region_observation_cache(
         .any(|pos| *pos < region_start || *pos > region_end)
     {
         return Err(AppError::validation(format!(
-            "Some target positions are outside region {}:{}-{}",
-            chrom, region_start, region_end
+            "Some target positions are outside region {chrom}:{region_start}-{region_end}"
         )));
     }
 
@@ -224,7 +222,7 @@ fn resolve_requested_indices(
         .copied()
         .map(|pos| {
             cache.index_by_position.get(&pos).copied().ok_or_else(|| {
-                AppError::validation(format!("Position {} missing from observation cache", pos))
+                AppError::validation(format!("Position {pos} missing from observation cache"))
             })
         })
         .collect()
@@ -257,8 +255,7 @@ pub fn count_reads_from_cache(
         .map(|(pos, alt)| {
             alt.chars().next().ok_or_else(|| {
                 AppError::validation(format!(
-                    "Empty ALT allele provided for read counting at position {}",
-                    pos
+                    "Empty ALT allele provided for read counting at position {pos}"
                 ))
             })
         })

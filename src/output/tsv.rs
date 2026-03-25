@@ -20,7 +20,7 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
         let pos_str = variant
             .positions
             .iter()
-            .map(|p| p.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join(", ");
         let ref_base_str = variant.ref_bases.join(", ");
@@ -87,7 +87,7 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
         (
             variant.ref_codon.clone().unwrap_or_default(),
             variant.snp_codon.clone().unwrap_or_default(),
-            "".to_string(),
+            String::new(),
         )
     } else {
         (
@@ -100,7 +100,7 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
     let pos_str = variant
         .positions
         .iter()
-        .map(|p| p.to_string())
+        .map(std::string::ToString::to_string)
         .collect::<Vec<_>>()
         .join(", ");
     let ref_base_str = variant.ref_bases.join(", ");
@@ -109,17 +109,17 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
     let snp_aa_str = variant.snp_aa_changes.join(", ");
     let snp_reads_str = snp_counts
         .iter()
-        .map(|c| c.to_string())
+        .map(std::string::ToString::to_string)
         .collect::<Vec<_>>()
         .join(", ");
     let snp_forward_reads_str = snp_forward_counts
         .iter()
-        .map(|c| c.to_string())
+        .map(std::string::ToString::to_string)
         .collect::<Vec<_>>()
         .join(", ");
     let snp_reverse_reads_str = snp_reverse_counts
         .iter()
-        .map(|c| c.to_string())
+        .map(std::string::ToString::to_string)
         .collect::<Vec<_>>()
         .join(", ");
     let mnv_reads_str = variant.mnv_reads.unwrap_or(0).to_string();
@@ -157,7 +157,7 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
         let pos_str = variant
             .positions
             .iter()
-            .map(|p| p.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join(", ");
         let ref_base_str = variant.ref_bases.join(", ");
@@ -181,7 +181,7 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
     let pos_str = variant
         .positions
         .iter()
-        .map(|p| p.to_string())
+        .map(std::string::ToString::to_string)
         .collect::<Vec<_>>()
         .join(", ");
     let ref_base_str = variant.ref_bases.join(", ");
@@ -211,7 +211,7 @@ pub struct TsvWriter {
 
 impl TsvWriter {
     pub fn new(filename: &str, bam_provided: bool) -> AppResult<Self> {
-        let out_file = format!("{}.MNV.tsv", filename);
+        let out_file = format!("{filename}.MNV.tsv");
         let mut writer = WriterBuilder::new().delimiter(b'\t').from_path(&out_file)?;
 
         let header = if bam_provided {

@@ -47,7 +47,7 @@ impl InfoBuilder {
                 if value.is_empty() {
                     key
                 } else {
-                    format!("{}={}", key, value)
+                    format!("{key}={value}")
                 }
             })
             .collect::<Vec<_>>()
@@ -65,7 +65,7 @@ pub(crate) fn snp_aa_for_index(variant: &VariantInfo, index: usize) -> String {
 }
 
 pub(crate) fn format_freq(value: f64) -> String {
-    format!("{:.4}", value)
+    format!("{value:.4}")
 }
 
 fn original_dp_for_index(variant: &VariantInfo, index: usize) -> Option<usize> {
@@ -81,7 +81,7 @@ fn original_dp_list(variant: &VariantInfo) -> Option<String> {
     Some(
         values
             .iter()
-            .map(|v| v.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join(","),
     )
@@ -152,10 +152,10 @@ pub(crate) fn build_info_string(
         builder.push("MRR", mrr);
     }
     if let Some(sbp) = snp_strand_bias_p {
-        builder.push("SBP", format!("{:.6}", sbp));
+        builder.push("SBP", format!("{sbp:.6}"));
     }
     if let Some(msbp) = mnv_strand_bias_p {
-        builder.push("MSBP", format!("{:.6}", msbp));
+        builder.push("MSBP", format!("{msbp:.6}"));
     }
 
     push_original_metrics(&mut builder, variant, original_index);
@@ -197,7 +197,7 @@ pub(crate) fn write_sorted_vcf_entries(
 ) -> AppResult<()> {
     entries.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
     for (_, line) in entries {
-        writeln!(writer, "{}", line)?;
+        writeln!(writer, "{line}")?;
     }
     Ok(())
 }
@@ -415,10 +415,7 @@ pub(crate) fn vcf_entry_line(
     filter: &str,
     info: &str,
 ) -> String {
-    format!(
-        "{}\t{}\t.\t{}\t{}\t.\t{}\t{}",
-        chrom, pos, ref_allele, alt_allele, filter, info
-    )
+    format!("{chrom}\t{pos}\t.\t{ref_allele}\t{alt_allele}\t.\t{filter}\t{info}")
 }
 
 pub(crate) fn snp_bam_vectors(variant: &VariantInfo) -> AppResult<SnpBamVectors<'_>> {
@@ -595,7 +592,7 @@ pub(crate) fn write_info_header(
         }
     }
     for header_line in original_info_headers {
-        writeln!(writer, "{}", header_line)?;
+        writeln!(writer, "{header_line}")?;
     }
     Ok(())
 }
@@ -676,12 +673,7 @@ mod tests {
                         let p = fisher_exact_two_tailed(a, b, c, d);
                         assert!(
                             (0.0..=1.0 + 1e-10).contains(&p),
-                            "p={} for ({},{},{},{})",
-                            p,
-                            a,
-                            b,
-                            c,
-                            d
+                            "p={p} for ({a},{b},{c},{d})"
                         );
                     }
                 }

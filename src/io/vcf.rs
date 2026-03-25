@@ -176,9 +176,7 @@ fn resolve_sample_index(
 
     if let Some(name) = sample_name {
         if samples.is_empty() {
-            return Err(
-                format!("Requested sample '{}' but VCF has no sample columns", name).into(),
-            );
+            return Err(format!("Requested sample '{name}' but VCF has no sample columns").into());
         }
         if let Some(index) = samples.iter().position(|value| value == name) {
             return Ok(Some(index));
@@ -383,15 +381,15 @@ fn info_header_line(values: &linear_map::LinearMap<String, String>) -> String {
     for key in &["ID", "Number", "Type", "Description"] {
         if let Some(val) = values.get(*key) {
             if *key == "Description" {
-                parts.push(format!("{}=\"{}\"", key, val));
+                parts.push(format!("{key}=\"{val}\""));
             } else {
-                parts.push(format!("{}={}", key, val));
+                parts.push(format!("{key}={val}"));
             }
         }
     }
     for (key, val) in values.iter() {
         if !["ID", "Number", "Type", "Description"].contains(&key.as_str()) {
-            parts.push(format!("{}={}", key, val));
+            parts.push(format!("{key}={val}"));
         }
     }
     format!("##INFO=<{}>", parts.join(","))
@@ -430,7 +428,7 @@ fn extract_original_info(rec: &bcf::Record, tags: &[(String, TagType)]) -> Optio
                     let formatted: Vec<String> = values
                         .iter()
                         .filter(|&&v| v != i32::missing())
-                        .map(|v| v.to_string())
+                        .map(std::string::ToString::to_string)
                         .collect();
                     if !formatted.is_empty() {
                         parts.push(format!("{}={}", id, formatted.join(",")));
@@ -442,7 +440,7 @@ fn extract_original_info(rec: &bcf::Record, tags: &[(String, TagType)]) -> Optio
                     let formatted: Vec<String> = values
                         .iter()
                         .filter(|&&v| !v.is_nan() && v != f32::missing())
-                        .map(|v| format!("{}", v))
+                        .map(|v| format!("{v}"))
                         .collect();
                     if !formatted.is_empty() {
                         parts.push(format!("{}={}", id, formatted.join(",")));
@@ -451,7 +449,7 @@ fn extract_original_info(rec: &bcf::Record, tags: &[(String, TagType)]) -> Optio
             }
             TagType::Flag => {
                 if let Ok(true) = rec.info(tag).flag() {
-                    parts.push(id.to_string());
+                    parts.push(id.clone());
                 }
             }
             // TagType::String and anything else
@@ -490,7 +488,7 @@ pub fn load_vcf_positions_by_contig(
     normalize_alleles: bool,
     keep_original_info: bool,
 ) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
-    log::info!("Loading VCF: {}", vcf_file);
+    log::info!("Loading VCF: {vcf_file}");
     let mut vcf = bcf::Reader::from_path(vcf_file)?;
     let sample_index = resolve_sample_index(vcf.header(), sample_name)?;
     // Pre-compute the list of original INFO tags before the records loop
@@ -646,10 +644,7 @@ Add matching ##contig lines to the VCF header.",
     }
 
     if split_multiallelic && split_count > 0 {
-        log::info!(
-            "Split {} additional ALT alleles from multiallelic VCF records",
-            split_count
-        );
+        log::info!("Split {split_count} additional ALT alleles from multiallelic VCF records");
     }
 
     Ok(positions_by_contig)

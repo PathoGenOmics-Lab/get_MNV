@@ -130,39 +130,27 @@ pub(crate) fn has_snp_in_interval(snp_list: &[VcfPosition], start: usize, end: u
 
 fn parse_strand(raw: &str, line_number: usize) -> AppResult<crate::variants::Strand> {
     raw.parse::<crate::variants::Strand>().map_err(|_| {
-        format!(
-            "Invalid strand at line {} ('{}'). Expected '+' or '-'",
-            line_number, raw
-        )
-        .into()
+        format!("Invalid strand at line {line_number} ('{raw}'). Expected '+' or '-'").into()
     })
 }
 
 fn parse_interval(start_raw: &str, end_raw: &str, line_number: usize) -> AppResult<(usize, usize)> {
     let start = start_raw.parse::<usize>().map_err(|e| {
-        format!(
-            "Invalid start coordinate at line {} ('{}'): {}",
-            line_number, start_raw, e
-        )
+        format!("Invalid start coordinate at line {line_number} ('{start_raw}'): {e}")
     })?;
-    let end = end_raw.parse::<usize>().map_err(|e| {
-        format!(
-            "Invalid end coordinate at line {} ('{}'): {}",
-            line_number, end_raw, e
-        )
-    })?;
+    let end = end_raw
+        .parse::<usize>()
+        .map_err(|e| format!("Invalid end coordinate at line {line_number} ('{end_raw}'): {e}"))?;
 
     if start > end {
         return Err(format!(
-            "Invalid gene interval at line {}: start ({}) is greater than end ({})",
-            line_number, start, end
+            "Invalid gene interval at line {line_number}: start ({start}) is greater than end ({end})"
         )
         .into());
     }
     if start == 0 || end == 0 {
         return Err(format!(
-            "Invalid gene interval at line {}: coordinates must be 1-based positive integers (start={}, end={})",
-            line_number, start, end
+            "Invalid gene interval at line {line_number}: coordinates must be 1-based positive integers (start={start}, end={end})"
         )
         .into());
     }
@@ -181,14 +169,14 @@ pub(crate) fn gene_name_from_gff(attrs: &HashMap<String, String>) -> String {
 
     let suffix = attrs
         .get("locus_tag")
-        .map(|value| value.to_string())
+        .map(std::string::ToString::to_string)
         .unwrap_or_else(|| primary.clone());
 
-    format!("{}_{}", primary, suffix)
+    format!("{primary}_{suffix}")
 }
 
 fn load_genes_from_tsv(genes_file: &str, snp_list: &[VcfPosition]) -> AppResult<Vec<Gene>> {
-    log::info!("Loading TSV gene file: {}", genes_file);
+    log::info!("Loading TSV gene file: {genes_file}");
     let file = File::open(genes_file)?;
     let reader = BufReader::new(file);
     let mut genes: Vec<Gene> = Vec::new();
@@ -199,7 +187,7 @@ fn load_genes_from_tsv(genes_file: &str, snp_list: &[VcfPosition]) -> AppResult<
     for (line_idx, line) in reader.lines().enumerate() {
         let line_number = line_idx + 1;
         let entry =
-            line.map_err(|e| format!("Failed to read line {} in genes file: {}", line_number, e))?;
+            line.map_err(|e| format!("Failed to read line {line_number} in genes file: {e}"))?;
         let trimmed = entry.trim();
 
         if trimmed.is_empty() || trimmed.starts_with('#') {
@@ -234,10 +222,7 @@ fn load_genes_from_tsv(genes_file: &str, snp_list: &[VcfPosition]) -> AppResult<
     }
 
     log::info!(
-        "TSV gene entries parsed: {} | mapped to SNPs: {} | without SNPs: {}",
-        parsed_entries,
-        genes_with_snps,
-        genes_without_snps
+        "TSV gene entries parsed: {parsed_entries} | mapped to SNPs: {genes_with_snps} | without SNPs: {genes_without_snps}"
     );
 
     Ok(genes)
@@ -261,10 +246,7 @@ pub(crate) fn parse_gff_gene_records(
     for (line_idx, line) in reader.lines().enumerate() {
         let line_number = line_idx + 1;
         let entry = line.map_err(|e| {
-            format!(
-                "Failed to read line {} in GFF/GFF3 annotation file: {}",
-                line_number, e
-            )
+            format!("Failed to read line {line_number} in GFF/GFF3 annotation file: {e}")
         })?;
         let trimmed = entry.trim();
 
@@ -312,7 +294,7 @@ pub(crate) fn load_genes_from_gff(
     expected_chrom: Option<&str>,
     feature_types: &[String],
 ) -> AppResult<Vec<Gene>> {
-    log::info!("Loading GFF/GFF3 annotation file: {}", genes_file);
+    log::info!("Loading GFF/GFF3 annotation file: {genes_file}");
     let records = parse_gff_gene_records(genes_file, feature_types)?;
 
     let mut genes: Vec<Gene> = Vec::new();
@@ -379,7 +361,7 @@ pub fn preload_gff_genes(
     genes_file: &str,
     feature_types: &[String],
 ) -> AppResult<HashMap<String, Vec<Gene>>> {
-    log::info!("Pre-loading GFF/GFF3 annotation file: {}", genes_file);
+    log::info!("Pre-loading GFF/GFF3 annotation file: {genes_file}");
     let records = parse_gff_gene_records(genes_file, feature_types)?;
     let total_entries = records.len();
 
@@ -392,11 +374,7 @@ pub fn preload_gff_genes(
     }
 
     let contig_count = genes_by_contig.len();
-    log::info!(
-        "GFF/GFF3 pre-loaded: {} gene entries across {} contigs",
-        total_entries,
-        contig_count
-    );
+    log::info!("GFF/GFF3 pre-loaded: {total_entries} gene entries across {contig_count} contigs");
     Ok(genes_by_contig)
 }
 

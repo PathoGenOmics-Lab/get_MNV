@@ -14,7 +14,7 @@ fn is_iupac_dna_base(base: char) -> bool {
 
 pub(crate) fn validate_iupac_sequence(value: &str, context: &str) -> AppResult<()> {
     if value.is_empty() {
-        return Err(format!("Empty sequence found for {}", context).into());
+        return Err(format!("Empty sequence found for {context}").into());
     }
     if let Some(invalid_base) = value
         .chars()
@@ -22,8 +22,7 @@ pub(crate) fn validate_iupac_sequence(value: &str, context: &str) -> AppResult<(
         .find(|base| !is_iupac_dna_base(*base))
     {
         return Err(format!(
-            "Invalid base '{}' in {}. Allowed IUPAC DNA bases: A,C,G,T,R,Y,S,W,K,M,B,D,H,V,N",
-            invalid_base, context
+            "Invalid base '{invalid_base}' in {context}. Allowed IUPAC DNA bases: A,C,G,T,R,Y,S,W,K,M,B,D,H,V,N"
         )
         .into());
     }
@@ -39,8 +38,7 @@ pub(crate) fn validate_vcf_allele(
 ) -> AppResult<()> {
     if allele == "*" {
         return Err(format!(
-            "Unsupported '{}' allele '*' at VCF record {} ({}:{}). Use normalized VCF without spanning-deletion alleles.",
-            allele_kind, record_idx, chrom, pos
+            "Unsupported '{allele_kind}' allele '*' at VCF record {record_idx} ({chrom}:{pos}). Use normalized VCF without spanning-deletion alleles."
         )
         .into());
     }
@@ -49,8 +47,7 @@ pub(crate) fn validate_vcf_allele(
     if is_symbolic {
         if allele_kind == "REF" {
             return Err(format!(
-                "Unsupported symbolic REF allele '{}' at VCF record {} ({}:{})",
-                allele, record_idx, chrom, pos
+                "Unsupported symbolic REF allele '{allele}' at VCF record {record_idx} ({chrom}:{pos})"
             )
             .into());
         }
@@ -59,10 +56,7 @@ pub(crate) fn validate_vcf_allele(
 
     validate_iupac_sequence(
         allele,
-        &format!(
-            "{} allele at VCF record {} ({}:{})",
-            allele_kind, record_idx, chrom, pos
-        ),
+        &format!("{allele_kind} allele at VCF record {record_idx} ({chrom}:{pos})"),
     )
 }
 
@@ -79,16 +73,13 @@ pub fn get_base_name(file_path: &str) -> AppResult<String> {
     let stem = path.file_stem().ok_or_else(|| {
         IoError::new(
             ErrorKind::InvalidInput,
-            format!("Invalid input VCF path '{}': missing file stem", file_path),
+            format!("Invalid input VCF path '{file_path}': missing file stem"),
         )
     })?;
     let stem_utf8 = stem.to_str().ok_or_else(|| {
         IoError::new(
             ErrorKind::InvalidInput,
-            format!(
-                "Invalid input VCF path '{}': file name is not valid UTF-8",
-                file_path
-            ),
+            format!("Invalid input VCF path '{file_path}': file name is not valid UTF-8"),
         )
     })?;
     Ok(stem_utf8.to_string())

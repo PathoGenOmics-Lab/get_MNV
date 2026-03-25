@@ -233,7 +233,7 @@ pub fn parse_args() -> Args {
         .get_one::<String>("gff")
         .or_else(|| matches.get_one::<String>("genes"))
         .expect("Critical error: either --genes or --gff must be provided.")
-        .to_string();
+        .clone();
 
     let gff_features = matches
         .get_one::<String>("gff_features")
@@ -249,12 +249,12 @@ pub fn parse_args() -> Args {
         vcf_file: matches
             .get_one::<String>("vcf")
             .expect("--vcf is required")
-            .to_string(),
+            .clone(),
         bam_file: matches.get_one::<String>("bam").cloned(),
         fasta_file: matches
             .get_one::<String>("fasta")
             .expect("--fasta is required")
-            .to_string(),
+            .clone(),
         genes_file,
         sample: matches.get_one::<String>("sample").cloned(),
         chrom: matches.get_one::<String>("chrom").cloned(),

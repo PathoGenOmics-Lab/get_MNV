@@ -51,9 +51,9 @@ impl VcfWriter {
         original_info_headers: &[String],
     ) -> AppResult<Self> {
         let out_file = if bgzf_output {
-            format!("{}.MNV.vcf.gz", filename)
+            format!("{filename}.MNV.vcf.gz")
         } else {
-            format!("{}.MNV.vcf", filename)
+            format!("{filename}.MNV.vcf")
         };
         let mut writer: Box<dyn Write> = if bgzf_output {
             Box::new(bgzf::Writer::from_path(&out_file)?)
@@ -64,30 +64,28 @@ impl VcfWriter {
         writeln!(writer, "##fileformat=VCFv4.2")?;
         writeln!(writer, "##source=get_mnv")?;
         writeln!(writer, "##get_mnv_version={}", env!("CARGO_PKG_VERSION"))?;
-        writeln!(writer, "##get_mnv_command={}", command_line)?;
-        writeln!(writer, "##get_mnv_min_quality={}", min_quality)?;
-        writeln!(writer, "##get_mnv_min_mapq={}", min_mapq)?;
-        writeln!(writer, "##get_mnv_min_snp_reads={}", min_snp_reads)?;
-        writeln!(writer, "##get_mnv_min_mnv_reads={}", min_mnv_reads)?;
+        writeln!(writer, "##get_mnv_command={command_line}")?;
+        writeln!(writer, "##get_mnv_min_quality={min_quality}")?;
+        writeln!(writer, "##get_mnv_min_mapq={min_mapq}")?;
+        writeln!(writer, "##get_mnv_min_snp_reads={min_snp_reads}")?;
+        writeln!(writer, "##get_mnv_min_mnv_reads={min_mnv_reads}")?;
         if min_snp_strand_reads > 0 {
             writeln!(
                 writer,
-                "##get_mnv_min_snp_strand_reads={}",
-                min_snp_strand_reads
+                "##get_mnv_min_snp_strand_reads={min_snp_strand_reads}"
             )?;
         }
         if min_mnv_strand_reads > 0 {
             writeln!(
                 writer,
-                "##get_mnv_min_mnv_strand_reads={}",
-                min_mnv_strand_reads
+                "##get_mnv_min_mnv_strand_reads={min_mnv_strand_reads}"
             )?;
         }
         if min_strand_bias_p > 0.0 {
-            writeln!(writer, "##get_mnv_min_strand_bias_p={}", min_strand_bias_p)?;
+            writeln!(writer, "##get_mnv_min_strand_bias_p={min_strand_bias_p}")?;
         }
         for contig in contigs {
-            writeln!(writer, "##contig=<ID={}>", contig)?;
+            writeln!(writer, "##contig=<ID={contig}>")?;
         }
         write_info_header(
             &mut writer,
@@ -135,8 +133,7 @@ impl VcfWriter {
     ) -> AppResult<()> {
         writeln!(
             self.writer,
-            "{}\t{}\t.\t{}\t{}\t.\t{}\t{}",
-            chrom, pos, ref_allele, alt_allele, filter, info
+            "{chrom}\t{pos}\t.\t{ref_allele}\t{alt_allele}\t.\t{filter}\t{info}"
         )?;
         Ok(())
     }
@@ -148,7 +145,7 @@ impl VcfWriter {
     ) -> AppResult<&'a str> {
         references
             .get(&variant.chrom)
-            .map(|s| s.as_str())
+            .map(std::string::String::as_str)
             .ok_or_else(|| {
                 format!(
                     "Missing reference sequence for contig '{}' ({})",
@@ -411,7 +408,7 @@ impl VcfWriter {
                 let metrics = self.snp_metrics_at(variant, &bam_vectors, i)?;
                 let aa = variant.aa_changes.join(",");
                 if let Some((_, line)) = self.build_snp_entry(variant, i, &aa, metrics)? {
-                    writeln!(self.writer, "{}", line)?;
+                    writeln!(self.writer, "{line}")?;
                 }
             }
             Ok(())
@@ -450,7 +447,7 @@ impl VcfWriter {
             if let Some((_, line)) =
                 self.build_mnv_entry(variant, reference_sequence, &aa, metrics)?
             {
-                writeln!(self.writer, "{}", line)?;
+                writeln!(self.writer, "{line}")?;
             }
             Ok(())
         } else {
@@ -655,30 +652,22 @@ impl VcfWriter {
 
 pub fn build_tabix_index(vcf_gz_path: &str) -> AppResult<()> {
     if !vcf_gz_path.ends_with(".vcf.gz") {
-        return Err(format!(
-            "Tabix indexing requires a .vcf.gz file, got '{}'",
-            vcf_gz_path
-        )
-        .into());
+        return Err(format!("Tabix indexing requires a .vcf.gz file, got '{vcf_gz_path}'").into());
     }
     if !Path::new(vcf_gz_path).exists() {
-        return Err(format!(
-            "Cannot build Tabix index: file '{}' does not exist",
-            vcf_gz_path
-        )
-        .into());
+        return Err(
+            format!("Cannot build Tabix index: file '{vcf_gz_path}' does not exist").into(),
+        );
     }
     bcf::index::build(vcf_gz_path, None, 1, bcf::index::Type::Tbx)
-        .map_err(|e| format!("Failed to build Tabix index for '{}': {}", vcf_gz_path, e).into())
+        .map_err(|e| format!("Failed to build Tabix index for '{vcf_gz_path}': {e}").into())
 }
 
 pub fn convert_vcf_to_bcf(input_vcf_path: &str, output_bcf_path: &str) -> AppResult<()> {
     if !Path::new(input_vcf_path).exists() {
-        return Err(format!(
-            "Cannot convert to BCF: input VCF '{}' does not exist",
-            input_vcf_path
-        )
-        .into());
+        return Err(
+            format!("Cannot convert to BCF: input VCF '{input_vcf_path}' does not exist").into(),
+        );
     }
     let mut reader = bcf::Reader::from_path(input_vcf_path)?;
     let header = bcf::Header::from_template(reader.header());
@@ -702,7 +691,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time before UNIX_EPOCH")
             .as_nanos();
-        std::env::temp_dir().join(format!("{}_{}_{}", prefix, nanos, suffix))
+        std::env::temp_dir().join(format!("{prefix}_{nanos}_{suffix}"))
     }
 
     #[test]

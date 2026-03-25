@@ -273,7 +273,7 @@ pub fn process_codon(codon_info: CodonInfo, strand: Strand, chrom: &str) -> Vari
         Strand::Minus => (codon_info.gene_end - codon_info.codon_list[0].position) / 3 + 1,
     };
 
-    let combined_change = format!("{}{}{}", orig_aa, aa_pos, mut_aa);
+    let combined_change = format!("{orig_aa}{aa_pos}{mut_aa}");
     let combined_aa = iupac_aa(&combined_change);
     let change_type = ChangeType::from_label(&determine_change_type(&combined_change));
 
@@ -287,7 +287,7 @@ pub fn process_codon(codon_info: CodonInfo, strand: Strand, chrom: &str) -> Vari
                 Strand::Plus => single_codon,
             };
             let single_aa = process_translate(single.as_bytes());
-            iupac_aa(&format!("{}{}{}", orig_aa, aa_pos, single_aa))
+            iupac_aa(&format!("{orig_aa}{aa_pos}{single_aa}"))
         })
         .collect();
 
@@ -478,12 +478,12 @@ pub fn get_mnv_variants_for_gene(
             var_info.aa_changes = var_info
                 .aa_changes
                 .into_iter()
-                .map(|s| format!("{} (fs)", s))
+                .map(|s| format!("{s} (fs)"))
                 .collect();
             var_info.snp_aa_changes = var_info
                 .snp_aa_changes
                 .into_iter()
-                .map(|s| format!("{} (fs)", s))
+                .map(|s| format!("{s} (fs)"))
                 .collect();
         }
 

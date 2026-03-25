@@ -62,15 +62,14 @@ pub fn iupac_aa(aa_change_1_letter: &str) -> String {
 
     let position = &aa_change_1_letter[1..aa_change_1_letter.len() - 1];
 
-    format!("{}{}{}", first, position, last)
+    format!("{first}{position}{last}")
 }
 
 pub fn reverse_complement(seq: &str) -> String {
     let rc = bio::alphabets::dna::revcomp(seq.as_bytes());
     String::from_utf8(rc).unwrap_or_else(|e| {
         log::warn!(
-            "reverse_complement produced invalid UTF-8 for input '{}': {}. Falling back to lossy conversion.",
-            seq, e
+            "reverse_complement produced invalid UTF-8 for input '{seq}': {e}. Falling back to lossy conversion."
         );
         String::from_utf8_lossy(e.as_bytes()).into_owned()
     })

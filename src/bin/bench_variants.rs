@@ -80,7 +80,7 @@ fn build_thread_pool(threads: Option<usize>) -> AppResult<Option<ThreadPool>> {
             .build()
             .map(Some)
             .map_err(|e| {
-                AppError::config(format!("Failed to configure benchmark thread pool: {}", e))
+                AppError::config(format!("Failed to configure benchmark thread pool: {e}"))
             }),
     }
 }
@@ -107,7 +107,7 @@ fn append_csv(path: &Path, result: &BenchResult) -> AppResult<()> {
     }
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_err(|e| AppError::msg(format!("System time error: {}", e)))?
+        .map_err(|e| AppError::msg(format!("System time error: {e}")))?
         .as_secs();
     writeln!(
         file,
@@ -166,7 +166,7 @@ fn run_synthetic(
     let produced = produced_per_iteration.last().copied().unwrap_or(0);
 
     BenchResult {
-        mode: format!("synthetic:scale={}", scale),
+        mode: format!("synthetic:scale={scale}"),
         warmup: config.warmup,
         iterations: config.iterations,
         threads,
@@ -239,7 +239,7 @@ fn run_dataset(
         let snp_list = snp_by_contig
             .get(contig)
             .ok_or_else(|| {
-                AppError::validation(format!("Dataset missing contig '{}' in VCF", contig))
+                AppError::validation(format!("Dataset missing contig '{contig}' in VCF"))
             })?
             .clone();
         let default_features = vec!["gene".to_string(), "pseudogene".to_string()];
@@ -300,7 +300,7 @@ fn run() -> AppResult<()> {
     let thread_pool = build_thread_pool(config.threads)?;
     let threads = thread_pool
         .as_ref()
-        .map_or(1, |pool| pool.current_num_threads());
+        .map_or(1, rayon::ThreadPool::current_num_threads);
 
     let result = if let Some(dataset_dir) = config.dataset.as_ref() {
         run_dataset(&config, dataset_dir, thread_pool.as_ref(), threads)?
@@ -331,7 +331,7 @@ fn run() -> AppResult<()> {
 
 fn main() {
     if let Err(err) = run() {
-        eprintln!("ERROR: {}", err);
+        eprintln!("ERROR: {err}");
         std::process::exit(1);
     }
 }
