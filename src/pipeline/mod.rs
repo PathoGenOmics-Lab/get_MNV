@@ -351,8 +351,7 @@ pub fn run_with_progress(
     }
     if let Some(run_manifest_path) = args.run_manifest.as_deref() {
         let timestamp_unix = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|e| AppError::msg(format!("Failed to compute current time: {}", e)))?
+            .duration_since(UNIX_EPOCH)?
             .as_secs();
         let payload = json!({
             "schema_version": "1.0.0",

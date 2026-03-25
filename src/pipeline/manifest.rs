@@ -2,7 +2,7 @@
 
 use super::summary::{InputChecksums, RunInputs, RunSummary};
 use crate::cli::Args;
-use crate::error::{AppError, AppResult};
+use crate::error::{AppError, AppResult, IoResultExt};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::fs::File;
@@ -10,16 +10,12 @@ use std::io::{BufReader, Read as IoRead, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) fn compute_sha256(path: &str) -> AppResult<String> {
-    let file = File::open(path).map_err(|e| {
-        AppError::validation(format!("Failed to open '{}' for checksum: {}", path, e))
-    })?;
+    let file = File::open(path).with_path(path)?;
     let mut reader = BufReader::new(file);
     let mut hasher = Sha256::new();
     let mut buffer = [0u8; 8192];
     loop {
-        let read_bytes = reader.read(&mut buffer).map_err(|e| {
-            AppError::validation(format!("Failed reading '{}' for checksum: {}", path, e))
-        })?;
+        let read_bytes = reader.read(&mut buffer).with_path(path)?;
         if read_bytes == 0 {
             break;
         }
@@ -48,8 +44,7 @@ pub(crate) fn build_input_metadata(args: &Args) -> AppResult<RunInputs> {
 
 pub(crate) fn build_run_manifest_value(summary: &RunSummary, command_line: &str) -> AppResult<Value> {
     let timestamp_unix = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| AppError::msg(format!("Failed to compute current time: {}", e)))?
+        .duration_since(UNIX_EPOCH)?
         .as_secs();
 
     let output_checksums = json!({
@@ -69,9 +64,8 @@ pub(crate) fn build_run_manifest_value(summary: &RunSummary, command_line: &str)
 }
 
 pub(crate) fn write_json_value(path: &str, value: &Value) -> AppResult<()> {
-    let mut file = File::create(path)?;
-    serde_json::to_writer_pretty(&mut file, value)
-        .map_err(|e| AppError::msg(format!("Failed to serialize JSON to '{}': {}", path, e)))?;
-    file.write_all(b"\n")?;
+    let mut file = File::create(path).with_path(path)?;
+    serde_json::to_writer_pretty(&mut file, value)?;
+    file.write_all(b"\n").with_path(path)?;
     Ok(())
 }

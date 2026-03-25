@@ -1,6 +1,6 @@
 //! Run summary data types and aggregation logic.
 
-use crate::error::AppResult;
+use crate::error::{AppResult, IoResultExt};
 use crate::variants::{VariantInfo, VariantType};
 use serde::Serialize;
 use std::fs::File;
@@ -142,9 +142,8 @@ pub(crate) fn summary_to_json(summary: &RunSummary) -> String {
 }
 
 pub fn write_summary_json(path: &str, summary: &RunSummary) -> AppResult<()> {
-    let mut file = File::create(path)?;
-    serde_json::to_writer_pretty(&mut file, summary)
-        .map_err(|e| crate::error::AppError::msg(format!("Failed to serialize summary JSON: {}", e)))?;
-    file.write_all(b"\n")?;
+    let mut file = File::create(path).with_path(path)?;
+    serde_json::to_writer_pretty(&mut file, summary)?;
+    file.write_all(b"\n").with_path(path)?;
     Ok(())
 }
