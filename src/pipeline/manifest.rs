@@ -42,10 +42,11 @@ pub(crate) fn build_input_metadata(args: &Args) -> AppResult<RunInputs> {
     })
 }
 
-pub(crate) fn build_run_manifest_value(summary: &RunSummary, command_line: &str) -> AppResult<Value> {
-    let timestamp_unix = SystemTime::now()
-        .duration_since(UNIX_EPOCH)?
-        .as_secs();
+pub(crate) fn build_run_manifest_value(
+    summary: &RunSummary,
+    command_line: &str,
+) -> AppResult<Value> {
+    let timestamp_unix = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
 
     let output_checksums = json!({
         "output_tsv_sha256": summary.output_tsv.as_deref().map(compute_sha256).transpose()?,

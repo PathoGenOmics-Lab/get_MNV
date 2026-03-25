@@ -729,14 +729,34 @@ mod tests {
         };
 
         let snps = vec![
-            VcfPosition { position: 2, ref_allele: "T".to_string(), alt_allele: "C".to_string(), original_dp: None, original_freq: None, original_info: None },
-            VcfPosition { position: 5, ref_allele: "TG".to_string(), alt_allele: "T".to_string(), original_dp: None, original_freq: None, original_info: None },
+            VcfPosition {
+                position: 2,
+                ref_allele: "T".to_string(),
+                alt_allele: "C".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
+            VcfPosition {
+                position: 5,
+                ref_allele: "TG".to_string(),
+                alt_allele: "T".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
         ];
 
         let variants = get_mnv_variants_for_gene(&gene, &snps, &reference, "chr1");
-        assert!(variants.len() >= 2, "expected SNP + indel, got {}", variants.len());
+        assert!(
+            variants.len() >= 2,
+            "expected SNP + indel, got {}",
+            variants.len()
+        );
         let has_snp = variants.iter().any(|v| v.variant_type == VariantType::Snp);
-        let has_indel = variants.iter().any(|v| v.variant_type == VariantType::Indel);
+        let has_indel = variants
+            .iter()
+            .any(|v| v.variant_type == VariantType::Indel);
         assert!(has_snp, "missing SNP variant");
         assert!(has_indel, "missing indel variant");
     }
@@ -746,7 +766,14 @@ mod tests {
         use super::build_intergenic_variant;
         use crate::io::VcfPosition;
 
-        let pos = VcfPosition { position: 42, ref_allele: "A".to_string(), alt_allele: "G".to_string(), original_dp: Some(30), original_freq: Some(0.8), original_info: None };
+        let pos = VcfPosition {
+            position: 42,
+            ref_allele: "A".to_string(),
+            alt_allele: "G".to_string(),
+            original_dp: Some(30),
+            original_freq: Some(0.8),
+            original_info: None,
+        };
         let v = build_intergenic_variant("chrX", &pos);
         assert_eq!(v.gene, "intergenic");
         assert_eq!(v.variant_type, VariantType::Snp);
@@ -759,7 +786,14 @@ mod tests {
         use super::build_intergenic_variant;
         use crate::io::VcfPosition;
 
-        let pos = VcfPosition { position: 10, ref_allele: "AT".to_string(), alt_allele: "A".to_string(), original_dp: None, original_freq: None, original_info: None };
+        let pos = VcfPosition {
+            position: 10,
+            ref_allele: "AT".to_string(),
+            alt_allele: "A".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        };
         let v = build_intergenic_variant("chr1", &pos);
         assert_eq!(v.variant_type, VariantType::Indel);
     }
@@ -768,8 +802,24 @@ mod tests {
     fn test_process_codon_mnv_two_snps_in_codon() {
         let codon_info = CodonInfo {
             codon_list: vec![
-                Snp { index: 100, position: 100, ref_base: "A".to_string(), base: "T".to_string(), original_dp: None, original_freq: None, original_info: None },
-                Snp { index: 101, position: 101, ref_base: "T".to_string(), base: "C".to_string(), original_dp: None, original_freq: None, original_info: None },
+                Snp {
+                    index: 100,
+                    position: 100,
+                    ref_base: "A".to_string(),
+                    base: "T".to_string(),
+                    original_dp: None,
+                    original_freq: None,
+                    original_info: None,
+                },
+                Snp {
+                    index: 101,
+                    position: 101,
+                    ref_base: "T".to_string(),
+                    base: "C".to_string(),
+                    original_dp: None,
+                    original_freq: None,
+                    original_info: None,
+                },
             ],
             original_codon: "ATG".to_string(),
             gene_name: "gene1".to_string(),

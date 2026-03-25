@@ -354,7 +354,6 @@ fn normalize_ref_alt(pos: usize, ref_allele: &str, alt_allele: &str) -> (usize, 
     )
 }
 
-
 /// Collect the IDs and types of original INFO fields (those not defined by
 /// get_mnv itself) from a VCF header.
 fn original_info_tags(header: &bcf::header::HeaderView) -> Vec<(String, TagType)> {
@@ -655,4 +654,3 @@ Add matching ##contig lines to the VCF header.",
 
     Ok(positions_by_contig)
 }
-

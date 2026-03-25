@@ -297,15 +297,16 @@ mod tests {
     #[test]
     fn test_validate_contig_inputs_tsv_multi_contig_error() {
         let contigs = vec!["chr1".to_string(), "chr2".to_string()];
-        let refs: ReferenceMap = [("chr1".into(), "ACGT".into()), ("chr2".into(), "TTTT".into())]
-            .into_iter()
-            .collect();
-        let snps: HashMap<String, Vec<VcfPosition>> = [
-            ("chr1".into(), vec![]),
-            ("chr2".into(), vec![]),
+        let refs: ReferenceMap = [
+            ("chr1".into(), "ACGT".into()),
+            ("chr2".into(), "TTTT".into()),
         ]
         .into_iter()
         .collect();
+        let snps: HashMap<String, Vec<VcfPosition>> =
+            [("chr1".into(), vec![]), ("chr2".into(), vec![])]
+                .into_iter()
+                .collect();
         let result = validate_contig_inputs(&contigs, &refs, &snps, AnnotationFormat::Tsv);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("TSV annotation"));

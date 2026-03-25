@@ -8,15 +8,17 @@ pub mod summary;
 
 // Re-export public types.
 pub use summary::{
-    ContigSummary, GlobalSummary, InputChecksums, ProgressEvent, RunInputs, RunSummary,
-    RunTimings, write_summary_json,
+    write_summary_json, ContigSummary, GlobalSummary, InputChecksums, ProgressEvent, RunInputs,
+    RunSummary, RunTimings,
 };
 
 use config::{
     append_sample_suffix, configure_threads, log_run_configuration, sanitized_command_line,
 };
 use manifest::{build_input_metadata, build_run_manifest_value, write_json_value};
-use processing::{emit_contig_variants, parse_inputs, process_contig, reclassify_generic_as_validation};
+use processing::{
+    emit_contig_variants, parse_inputs, process_contig, reclassify_generic_as_validation,
+};
 use summary::update_global_summary;
 
 use crate::cli::Args;
@@ -350,9 +352,7 @@ pub fn run_with_progress(
         info!("Summary JSON written to {}", summary_json_path);
     }
     if let Some(run_manifest_path) = args.run_manifest.as_deref() {
-        let timestamp_unix = SystemTime::now()
-            .duration_since(UNIX_EPOCH)?
-            .as_secs();
+        let timestamp_unix = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         let payload = json!({
             "schema_version": "1.0.0",
             "mode": "sample_all",
@@ -370,14 +370,10 @@ pub fn run_with_progress(
     Ok(aggregate)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::summary::summary_to_json;
-    use super::{
-        ContigSummary, GlobalSummary, InputChecksums, RunInputs, RunSummary,
-        RunTimings,
-    };
+    use super::{ContigSummary, GlobalSummary, InputChecksums, RunInputs, RunSummary, RunTimings};
 
     #[test]
     fn test_summary_to_json_contains_expected_keys() {

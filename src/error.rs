@@ -110,10 +110,7 @@ impl AppError {
     /// let err = AppError::io("open failed").with_source(io_err);
     /// assert!(err.to_string().contains("gone"));
     /// ```
-    pub fn with_source(
-        mut self,
-        source: impl std::error::Error + Send + Sync + 'static,
-    ) -> Self {
+    pub fn with_source(mut self, source: impl std::error::Error + Send + Sync + 'static) -> Self {
         self.source = Some(Box::new(source));
         self
     }
@@ -288,10 +285,7 @@ struct ErrorJson<'a> {
 }
 
 pub fn error_to_json(error: &AppError) -> String {
-    let cause = error
-        .source
-        .as_ref()
-        .map(|s| s.to_string());
+    let cause = error.source.as_ref().map(|s| s.to_string());
     let payload = ErrorJson {
         schema_version: "1.0.0",
         code: error.code.as_str(),
@@ -306,10 +300,7 @@ pub fn error_to_json(error: &AppError) -> String {
 
 pub fn write_error_json(path: &str, error: &AppError) -> std::io::Result<()> {
     let mut file = File::create(path)?;
-    let cause = error
-        .source
-        .as_ref()
-        .map(|s| s.to_string());
+    let cause = error.source.as_ref().map(|s| s.to_string());
     let payload = ErrorJson {
         schema_version: "1.0.0",
         code: error.code.as_str(),
@@ -447,7 +438,11 @@ mod tests {
         let mut unique_strs = strs.clone();
         unique_strs.sort();
         unique_strs.dedup();
-        assert_eq!(strs.len(), unique_strs.len(), "duplicate error code strings");
+        assert_eq!(
+            strs.len(),
+            unique_strs.len(),
+            "duplicate error code strings"
+        );
         let mut unique_exits = exits.clone();
         unique_exits.sort();
         unique_exits.dedup();

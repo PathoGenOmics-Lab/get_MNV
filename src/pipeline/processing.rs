@@ -7,8 +7,8 @@ use super::config::{
 };
 // build_input_metadata used by mod.rs, not here
 use super::summary::{summarize_contig_variants, ContigSummary};
-use crate::error::ErrorCode;
 use crate::cli::Args;
+use crate::error::ErrorCode;
 use crate::error::{AppError, AppResult};
 use crate::io::{self, AnnotationFormat, ReferenceMap, VcfPosition};
 use crate::output;
@@ -111,7 +111,6 @@ pub(crate) fn sort_variants(variants: &mut [VariantInfo]) {
     });
 }
 
-
 pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppResult<ParsedInputs> {
     let base_name = io::get_base_name(&args.vcf_file).map_err(reclassify_generic_as_validation)?;
     let references =
@@ -164,7 +163,6 @@ pub(crate) fn reclassify_generic_as_validation(error: AppError) -> AppError {
         error
     }
 }
-
 
 fn apply_read_summary(variant: &mut VariantInfo, summary: &ReadCountSummary) {
     variant.snp_reads = Some(summary.snp_counts.clone());
@@ -227,7 +225,11 @@ fn count_gene_variant_reads(
         } else {
             let bam = match state.bam.as_mut() {
                 Some(b) => b,
-                None => return Err(AppError::validation("BAM reader unavailable in worker thread")),
+                None => {
+                    return Err(AppError::validation(
+                        "BAM reader unavailable in worker thread",
+                    ))
+                }
             };
             let built = read_count::build_region_observation_cache(
                 bam,
@@ -269,7 +271,6 @@ fn count_gene_variant_reads(
 
     Ok((cache_hits, cache_misses))
 }
-
 
 pub(crate) fn process_contig(
     args: &Args,

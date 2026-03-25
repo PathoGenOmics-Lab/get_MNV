@@ -107,8 +107,7 @@ fn test_load_references_multiple_contigs() {
     let fasta_content = ">chr1\nACTG\n>chr2\nTTAA\n";
     let path = unique_temp_path("get_mnv_fasta_multi", "fas");
     fs::write(&path, fasta_content).expect("failed to write temp fasta");
-    let refs =
-        load_references(path.to_string_lossy().as_ref()).expect("should load references");
+    let refs = load_references(path.to_string_lossy().as_ref()).expect("should load references");
     assert_eq!(refs.get("chr1"), Some(&"ACTG".to_string()));
     assert_eq!(refs.get("chr2"), Some(&"TTAA".to_string()));
     let _ = fs::remove_file(path);
@@ -328,14 +327,9 @@ fn test_load_vcf_positions_multiallelic_split_mode() {
     )
     .expect("failed to write temp vcf");
 
-    let err = load_vcf_positions_by_contig(
-        path.to_string_lossy().as_ref(),
-        None,
-        false,
-        false,
-        false,
-    )
-    .expect_err("multiallelic should fail without split mode");
+    let err =
+        load_vcf_positions_by_contig(path.to_string_lossy().as_ref(), None, false, false, false)
+            .expect_err("multiallelic should fail without split mode");
     assert!(err.to_string().contains("Multiallelic"));
 
     let parsed =

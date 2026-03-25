@@ -674,8 +674,15 @@ mod tests {
                 for c in 0..=5 {
                     for d in 0..=5 {
                         let p = fisher_exact_two_tailed(a, b, c, d);
-                        assert!(p >= 0.0 && p <= 1.0 + 1e-10,
-                            "p={} for ({},{},{},{})", p, a, b, c, d);
+                        assert!(
+                            (0.0..=1.0 + 1e-10).contains(&p),
+                            "p={} for ({},{},{},{})",
+                            p,
+                            a,
+                            b,
+                            c,
+                            d
+                        );
                     }
                 }
             }
@@ -725,22 +732,16 @@ mod tests {
     fn test_build_alt_region_two_snps() {
         let ref_seq = "ACGTACGT";
         // positions 2 and 4 (1-based): C->T, T->A
-        let result = build_alt_region(
-            ref_seq,
-            &[2, 4],
-            &["T".to_string(), "A".to_string()],
-        ).unwrap();
+        let result =
+            build_alt_region(ref_seq, &[2, 4], &["T".to_string(), "A".to_string()]).unwrap();
         assert_eq!(result, "TGA");
     }
 
     #[test]
     fn test_build_alt_region_adjacent_snps() {
         let ref_seq = "ACGTACGT";
-        let result = build_alt_region(
-            ref_seq,
-            &[1, 2],
-            &["T".to_string(), "G".to_string()],
-        ).unwrap();
+        let result =
+            build_alt_region(ref_seq, &[1, 2], &["T".to_string(), "G".to_string()]).unwrap();
         assert_eq!(result, "TG");
     }
 

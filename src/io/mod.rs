@@ -15,7 +15,9 @@ pub use fasta::{
     load_references, reference_for_chrom, validate_vcf_reference_alleles, Reference, ReferenceMap,
 };
 pub use validation::get_base_name;
-pub use vcf::{extract_original_info_headers, list_vcf_samples, load_vcf_positions_by_contig, VcfPosition};
+pub use vcf::{
+    extract_original_info_headers, list_vcf_samples, load_vcf_positions_by_contig, VcfPosition,
+};
 
 #[cfg(test)]
 mod tests;
