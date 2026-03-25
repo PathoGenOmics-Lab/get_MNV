@@ -345,11 +345,17 @@ fn normalize_ref_alt(pos: usize, ref_allele: &str, alt_allele: &str) -> (usize, 
         start += 1;
     }
 
-    (
-        pos + start,
-        ref_chars[start..ref_end].iter().collect(),
-        alt_chars[start..alt_end].iter().collect(),
-    )
+    let norm_ref: String = ref_chars[start..ref_end].iter().collect();
+    let norm_alt: String = alt_chars[start..alt_end].iter().collect();
+
+    // Guard: normalization must never produce empty alleles.  If input was
+    // already minimal (e.g. single-base SNP) or identical REF/ALT, fall back
+    // to the original alleles.
+    if norm_ref.is_empty() || norm_alt.is_empty() {
+        return (pos, ref_allele.to_string(), alt_allele.to_string());
+    }
+
+    (pos + start, norm_ref, norm_alt)
 }
 
 /// Collect the IDs and types of original INFO fields (those not defined by
