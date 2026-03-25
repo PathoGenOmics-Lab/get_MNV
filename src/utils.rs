@@ -60,7 +60,11 @@ pub fn iupac_aa(aa_change_1_letter: &str) -> String {
     let first = aa_three_letter(first_char);
     let last = aa_three_letter(last_char);
 
-    let position = &aa_change_1_letter[1..aa_change_1_letter.len() - 1];
+    let position = if aa_change_1_letter.len() > 2 {
+        &aa_change_1_letter[1..aa_change_1_letter.len() - 1]
+    } else {
+        "?"
+    };
 
     format!("{first}{position}{last}")
 }

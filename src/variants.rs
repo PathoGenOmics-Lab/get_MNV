@@ -429,6 +429,9 @@ pub fn get_mnv_variants_for_gene(
         let mut codon_snps = codon_snps;
         codon_snps.sort_by_key(|s| s.position);
 
+        if codon_start == 0 {
+            continue;
+        }
         let codon_seq = &reference.sequence[(codon_start - 1)..codon_end];
 
         let overlaps_indel = indels.iter().any(|indel| {
