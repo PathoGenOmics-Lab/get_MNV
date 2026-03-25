@@ -63,6 +63,7 @@ get_mnv [OPTIONS] --vcf <VCF_FILE> --fasta <FASTA_FILE> (--genes <GENES_FILE> | 
 - -f, --fasta <FASTA_FILE>: FASTA file with the reference sequence. (Required)
 - -g, --genes <GENES_FILE>: Gene annotation file in TSV format. (Required if `--gff` is not used)
 - --gff <GFF_FILE>: Gene annotation file in GFF/GFF3 format. (Required if `--genes` is not used)
+- --gff-features <FEATURES>: Comma-separated GFF feature types to analyze (default: `gene,pseudogene`). Example: `--gff-features CDS,tRNA`.
 - --sample <SAMPLE>: Sample name used to read original FORMAT metrics (`DP`/`AF`/`FREQ`) from multi-sample VCF. Default: first sample.
   - Use `--sample all` to process every sample in the VCF and write one output per sample.
 - --chrom <CHROM>: Optional contig selection. Accepts one or multiple comma-separated contigs (e.g. `--chrom chr1,chr2`). Default: all contigs in VCF.
@@ -81,6 +82,8 @@ get_mnv [OPTIONS] --vcf <VCF_FILE> --fasta <FASTA_FILE> (--genes <GENES_FILE> | 
 - --min-strand-bias-p <P>: Filter variants with Fisher exact strand-bias p-value `< P` (`0 <= P <= 1`).
 - --emit-filtered: Keep threshold-failing variants in VCF and mark them with FILTER tags instead of skipping them.
 - --strand-bias-info: Add Fisher exact strand-bias p-values (`SBP` for SNP, `MSBP` for MNV) to VCF INFO.
+- --keep-original-info: Preserve all original INFO fields from the input VCF in the output VCF (e.g. SnpEff `ANN`, VEP `CSQ`). Requires `--convert` or `--both`.
+- --exclude-intergenic: Exclude intergenic SNPs (variants outside annotated genes) from the output. By default, intergenic variants are included with gene = `intergenic` and change type = `Unknown`.
 - --summary-json <JSON_FILE>: Write structured run summary in JSON format.
 - --error-json <JSON_FILE>: Write structured JSON error details when the command fails.
 - --run-manifest <JSON_FILE>: Write reproducibility manifest with command line, summary and checksums.
@@ -103,7 +106,7 @@ get_mnv \
 - FASTA File: Reference genomic sequence.
 - Gene annotation file:
   - TSV: tab-delimited text file with one entry per line `(GeneName, GeneStart, GeneEnd, Strand)`.
-  - GFF/GFF3: features of type `gene` are used (columns 4/5/7 for start/end/strand).
+  - GFF/GFF3: features of type `gene` and `pseudogene` are used by default (columns 4/5/7 for start/end/strand). Use `--gff-features` to customize which feature types are analyzed.
 
 Contig naming contract:
 - VCF contigs, FASTA record IDs, and GFF sequence IDs must match exactly (case-sensitive).
@@ -172,6 +175,8 @@ Notes:
 - TSV annotation files do not contain contig information, so for multi-contig VCF inputs use `--gff` or restrict with `--chrom`.
 - `--strict` is useful for QC pipelines that require original depth/frequency traceability in every output record.
 - Multiallelic records can be processed with `--split-multiallelic`; default behavior remains strict fail.
+- Intergenic variants (positions outside all annotated genes) are included by default with gene = `intergenic`, no codon/AA data, and change type = `Unknown`. Use `--exclude-intergenic` to omit them.
+- `--keep-original-info` carries through all non-get_mnv INFO fields from the input VCF header and records.
 
 Example:
 ```

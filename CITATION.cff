@@ -13,7 +13,7 @@ authors:
       Institute for Integrative Systems Biology (I2SysBio,
       University of Valencia - CSIC), FISABIO Joint Research
       Unit “Infection and Public Health”, Paterna, Spain
-    email: paula.ruiz.rodriguez@csic.es
+    email: paula.ruiz-rodriguez@uv.es
   - family-names: Coscolla
     given-names: Mireia
     orcid: 'https://orcid.org/0000-0003-0752-0538'
@@ -24,6 +24,6 @@ authors:
     email: mireia.coscolla@csic.es
 url: 'https://github.com/PathoGenOmics-Lab/get_MNV'
 license: GPL-3.0
-version: 1.0.1
-date-released: '2026-02-21'
+version: 1.0.0
+date-released: '2024-10-05'
 doi: 10.5281/zenodo.13907423
