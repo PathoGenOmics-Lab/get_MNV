@@ -115,10 +115,14 @@ struct RegionCacheKey {
     min_mapq: u8,
 }
 
+/// Simple LRU cache backed by a `Vec` of entries sorted by access order.
+/// Eviction is O(1) (pop front) instead of O(n) scan. Lookup is O(n) which
+/// is acceptable for small capacities (e.g. 64). For larger sizes, consider
+/// the `lru` crate.
 struct SimpleLruCache<K, V> {
     capacity: usize,
-    tick: u64,
-    entries: HashMap<K, (V, u64)>,
+    /// Entries ordered from least-recently-used (front) to most-recently-used (back).
+    entries: Vec<(K, V)>,
 }
 
 impl<K, V> SimpleLruCache<K, V>
@@ -129,35 +133,32 @@ where
     fn new(capacity: usize) -> Self {
         Self {
             capacity: capacity.max(1),
-            tick: 0,
-            entries: HashMap::new(),
+            entries: Vec::with_capacity(capacity.max(1)),
         }
     }
 
     fn get_cloned(&mut self, key: &K) -> Option<V> {
-        if let Some((value, last_used)) = self.entries.get_mut(key) {
-            self.tick = self.tick.wrapping_add(1);
-            *last_used = self.tick;
-            return Some(value.clone());
+        if let Some(idx) = self.entries.iter().position(|(k, _)| k == key) {
+            // Move to back (most recently used)
+            let entry = self.entries.remove(idx);
+            let value = entry.1.clone();
+            self.entries.push(entry);
+            Some(value)
+        } else {
+            None
         }
-        None
     }
 
     fn insert(&mut self, key: K, value: V) {
-        self.tick = self.tick.wrapping_add(1);
-        self.entries.insert(key, (value, self.tick));
-
-        if self.entries.len() <= self.capacity {
-            return;
+        // If key exists, remove old entry first
+        if let Some(idx) = self.entries.iter().position(|(k, _)| *k == key) {
+            self.entries.remove(idx);
         }
-        if let Some(oldest_key) = self
-            .entries
-            .iter()
-            .min_by_key(|(_, (_, last_used))| *last_used)
-            .map(|(key, _)| key.clone())
-        {
-            self.entries.remove(&oldest_key);
+        // Evict LRU (front) if at capacity
+        if self.entries.len() >= self.capacity {
+            self.entries.remove(0);
         }
+        self.entries.push((key, value));
     }
 }
 
