@@ -225,7 +225,10 @@ fn count_gene_variant_reads(
         if let Some(cached) = state.region_cache.get_cloned(&cache_key) {
             (cached, 1, 0)
         } else {
-            let bam = state.bam.as_mut().expect("checked Some above; qed");
+            let bam = match state.bam.as_mut() {
+                Some(b) => b,
+                None => return Err(AppError::validation("BAM reader unavailable in worker thread")),
+            };
             let built = read_count::build_region_observation_cache(
                 bam,
                 contig,
