@@ -596,3 +596,292 @@ pub(crate) fn write_info_header(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::variants::{ChangeType, VariantInfo, VariantType};
+
+    fn make_snp_variant() -> VariantInfo {
+        VariantInfo {
+            chrom: "chr1".to_string(),
+            gene: "geneA".to_string(),
+            positions: vec![100],
+            ref_bases: vec!["A".to_string()],
+            base_changes: vec!["T".to_string()],
+            aa_changes: vec!["Ala10Val".to_string()],
+            snp_aa_changes: vec!["Ala10Val".to_string()],
+            variant_type: VariantType::Snp,
+            change_type: ChangeType::NonSynonymous,
+            snp_reads: Some(vec![5]),
+            snp_forward_reads: Some(vec![3]),
+            snp_reverse_reads: Some(vec![2]),
+            mnv_reads: None,
+            mnv_forward_reads: None,
+            mnv_reverse_reads: None,
+            mnv_total_reads: None,
+            total_reads: Some(vec![20]),
+            total_forward_reads: Some(vec![12]),
+            total_reverse_reads: Some(vec![8]),
+            mnv_total_forward_reads: None,
+            mnv_total_reverse_reads: None,
+            ref_codon: Some("ACG".to_string()),
+            snp_codon: Some("TCG".to_string()),
+            mnv_codon: None,
+            original_dp: Some(vec![30]),
+            original_freq: Some(vec![0.25]),
+            original_info: None,
+        }
+    }
+
+    // ---- Fisher exact test ----
+
+    #[test]
+    fn test_fisher_exact_all_zeros() {
+        let p = fisher_exact_two_tailed(0, 0, 0, 0);
+        assert!((p - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_fisher_exact_symmetric() {
+        let p1 = fisher_exact_two_tailed(5, 5, 5, 5);
+        let p2 = fisher_exact_two_tailed(5, 5, 5, 5);
+        assert!((p1 - p2).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_fisher_exact_extreme_bias() {
+        // All alt on forward, all ref on reverse — strong bias
+        let p = fisher_exact_two_tailed(10, 0, 0, 10);
+        assert!(p < 0.01);
+    }
+
+    #[test]
+    fn test_fisher_exact_no_bias() {
+        // Equal distribution
+        let p = fisher_exact_two_tailed(5, 5, 5, 5);
+        assert!(p > 0.5);
+    }
+
+    #[test]
+    fn test_fisher_exact_p_value_bounded() {
+        // p-value should always be in [0, 1]
+        for a in 0..=5 {
+            for b in 0..=5 {
+                for c in 0..=5 {
+                    for d in 0..=5 {
+                        let p = fisher_exact_two_tailed(a, b, c, d);
+                        assert!(p >= 0.0 && p <= 1.0 + 1e-10,
+                            "p={} for ({},{},{},{})", p, a, b, c, d);
+                    }
+                }
+            }
+        }
+    }
+
+    // ---- format_freq ----
+
+    #[test]
+    fn test_format_freq_precision() {
+        assert_eq!(format_freq(0.5), "0.5000");
+        assert_eq!(format_freq(1.0), "1.0000");
+        assert_eq!(format_freq(0.0), "0.0000");
+        assert_eq!(format_freq(0.12345), "0.1235");
+    }
+
+    // ---- filter_value ----
+
+    #[test]
+    fn test_filter_value_pass_when_empty() {
+        assert_eq!(filter_value(&[]), "PASS");
+    }
+
+    #[test]
+    fn test_filter_value_single() {
+        assert_eq!(filter_value(&["LowSupport"]), "LowSupport");
+    }
+
+    #[test]
+    fn test_filter_value_multiple() {
+        assert_eq!(
+            filter_value(&["LowSupport", "StrandBias"]),
+            "LowSupport;StrandBias"
+        );
+    }
+
+    // ---- build_alt_region ----
+
+    #[test]
+    fn test_build_alt_region_single_snp() {
+        let ref_seq = "ACGTACGT";
+        let result = build_alt_region(ref_seq, &[3], &["T".to_string()]).unwrap();
+        assert_eq!(result, "T");
+    }
+
+    #[test]
+    fn test_build_alt_region_two_snps() {
+        let ref_seq = "ACGTACGT";
+        // positions 2 and 4 (1-based): C->T, T->A
+        let result = build_alt_region(
+            ref_seq,
+            &[2, 4],
+            &["T".to_string(), "A".to_string()],
+        ).unwrap();
+        assert_eq!(result, "TGA");
+    }
+
+    #[test]
+    fn test_build_alt_region_adjacent_snps() {
+        let ref_seq = "ACGTACGT";
+        let result = build_alt_region(
+            ref_seq,
+            &[1, 2],
+            &["T".to_string(), "G".to_string()],
+        ).unwrap();
+        assert_eq!(result, "TG");
+    }
+
+    #[test]
+    fn test_build_alt_region_empty_positions_fails() {
+        let result = build_alt_region("ACGT", &[], &[]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_build_alt_region_mismatch_lengths_fails() {
+        let result = build_alt_region("ACGT", &[1, 2], &["T".to_string()]);
+        assert!(result.is_err());
+    }
+
+    // ---- build_info_string ----
+
+    #[test]
+    fn test_build_info_string_basic() {
+        let variant = make_snp_variant();
+        let info = build_info_string(
+            &variant,
+            Some("Ala10Val"),
+            "SNP",
+            Some((5, 3, 2)),
+            None,
+            Some(0),
+            Some(20),
+            Some(5),
+            None,
+            None,
+            None,
+        );
+        assert!(info.contains("GENE=geneA"));
+        assert!(info.contains("AA=Ala10Val"));
+        assert!(info.contains("TYPE=SNP"));
+        assert!(info.contains("SR=5"));
+        assert!(info.contains("SRF=3"));
+        assert!(info.contains("SRR=2"));
+        assert!(info.contains("DP=20"));
+        assert!(info.contains("FREQ=0.2500"));
+        assert!(info.contains("ODP=30"));
+        assert!(info.contains("OFREQ=0.2500"));
+    }
+
+    #[test]
+    fn test_build_info_string_with_original_info() {
+        let variant = make_snp_variant();
+        let info = build_info_string(
+            &variant,
+            Some("Ala10Val"),
+            "SNP",
+            None,
+            None,
+            Some(0),
+            None,
+            None,
+            None,
+            None,
+            Some("ANN=missense;CLNSIG=pathogenic"),
+        );
+        assert!(info.contains("ANN=missense"));
+        assert!(info.contains("CLNSIG=pathogenic"));
+    }
+
+    #[test]
+    fn test_build_info_string_skips_reserved_original_keys() {
+        let variant = make_snp_variant();
+        // DP and FREQ are reserved — should NOT appear from original_info
+        let info = build_info_string(
+            &variant,
+            None,
+            "SNP",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some("DP=99;CUSTOM=yes"),
+        );
+        assert!(info.contains("CUSTOM=yes"));
+        // DP from original should be skipped (it's reserved)
+        assert!(!info.contains("DP=99"));
+    }
+
+    // ---- validate_variant_shape ----
+
+    #[test]
+    fn test_validate_variant_shape_ok() {
+        let variant = make_snp_variant();
+        assert!(validate_variant_shape(&variant).is_ok());
+    }
+
+    #[test]
+    fn test_validate_variant_shape_empty_positions() {
+        let mut variant = make_snp_variant();
+        variant.positions = vec![];
+        assert!(validate_variant_shape(&variant).is_err());
+    }
+
+    #[test]
+    fn test_validate_variant_shape_mismatched_lengths() {
+        let mut variant = make_snp_variant();
+        variant.ref_bases = vec!["A".to_string(), "C".to_string()];
+        assert!(validate_variant_shape(&variant).is_err());
+    }
+
+    // ---- snp_aa_for_index ----
+
+    #[test]
+    fn test_snp_aa_for_index_valid() {
+        let variant = make_snp_variant();
+        assert_eq!(snp_aa_for_index(&variant, 0), "Ala10Val");
+    }
+
+    #[test]
+    fn test_snp_aa_for_index_out_of_range_falls_back() {
+        let variant = make_snp_variant();
+        // Index 5 doesn't exist, falls back to aa_changes[0]
+        assert_eq!(snp_aa_for_index(&variant, 5), "Ala10Val");
+    }
+
+    // ---- reference_subsequence ----
+
+    #[test]
+    fn test_reference_subsequence_valid() {
+        let variant = make_snp_variant();
+        let seq = reference_subsequence("ACGTACGT", 2, 5, &variant).unwrap();
+        assert_eq!(seq, "CGTA");
+    }
+
+    #[test]
+    fn test_reference_subsequence_out_of_bounds() {
+        let variant = make_snp_variant();
+        let result = reference_subsequence("ACGT", 1, 10, &variant);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_reference_subsequence_zero_start() {
+        let variant = make_snp_variant();
+        let result = reference_subsequence("ACGT", 0, 2, &variant);
+        assert!(result.is_err());
+    }
+}
