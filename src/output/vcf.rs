@@ -19,6 +19,25 @@ use super::common::{
     VcfEntry,
 };
 
+/// Configuration for constructing a VCF writer.
+pub struct VcfWriterConfig<'a> {
+    pub filename: &'a str,
+    pub bam_provided: bool,
+    pub min_snp_reads: usize,
+    pub min_mnv_reads: usize,
+    pub min_quality: u8,
+    pub min_mapq: u8,
+    pub command_line: &'a str,
+    pub contigs: &'a [String],
+    pub bgzf_output: bool,
+    pub min_snp_strand_reads: usize,
+    pub min_mnv_strand_reads: usize,
+    pub min_strand_bias_p: f64,
+    pub emit_filtered: bool,
+    pub include_strand_bias_info: bool,
+    pub original_info_headers: &'a [String],
+}
+
 pub struct VcfWriter {
     writer: Box<dyn Write>,
     bam_provided: bool,
@@ -32,24 +51,22 @@ pub struct VcfWriter {
 }
 
 impl VcfWriter {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        filename: &str,
-        bam_provided: bool,
-        min_snp_reads: usize,
-        min_mnv_reads: usize,
-        min_quality: u8,
-        min_mapq: u8,
-        command_line: &str,
-        contigs: &[String],
-        bgzf_output: bool,
-        min_snp_strand_reads: usize,
-        min_mnv_strand_reads: usize,
-        min_strand_bias_p: f64,
-        emit_filtered: bool,
-        include_strand_bias_info: bool,
-        original_info_headers: &[String],
-    ) -> AppResult<Self> {
+    pub fn new(cfg: VcfWriterConfig<'_>) -> AppResult<Self> {
+        let filename = cfg.filename;
+        let bam_provided = cfg.bam_provided;
+        let min_snp_reads = cfg.min_snp_reads;
+        let min_mnv_reads = cfg.min_mnv_reads;
+        let min_quality = cfg.min_quality;
+        let min_mapq = cfg.min_mapq;
+        let command_line = cfg.command_line;
+        let contigs = cfg.contigs;
+        let bgzf_output = cfg.bgzf_output;
+        let min_snp_strand_reads = cfg.min_snp_strand_reads;
+        let min_mnv_strand_reads = cfg.min_mnv_strand_reads;
+        let min_strand_bias_p = cfg.min_strand_bias_p;
+        let emit_filtered = cfg.emit_filtered;
+        let include_strand_bias_info = cfg.include_strand_bias_info;
+        let original_info_headers = cfg.original_info_headers;
         let out_file = if bgzf_output {
             format!("{filename}.MNV.vcf.gz")
         } else {

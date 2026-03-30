@@ -79,14 +79,14 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
     )
     .map_err(reclassify_generic_as_validation)?;
     let annotation_format =
-        io::detect_annotation_format(&args.genes_file).map_err(reclassify_generic_as_validation)?;
+        io::detect_annotation_format(args.genes_file()).map_err(reclassify_generic_as_validation)?;
     let contigs = selected_contigs(args, &snp_by_contig)?;
     validate_strict_original_metrics(&contigs, &snp_by_contig, args.strict)?;
     validate_contig_inputs(&contigs, &references, &snp_by_contig, annotation_format)?;
 
     let preloaded_gff = if annotation_format == AnnotationFormat::Gff {
         Some(
-            io::preload_gff_genes(&args.genes_file, &args.gff_features)
+            io::preload_gff_genes(args.genes_file(), &args.gff_features())
                 .map_err(reclassify_generic_as_validation)?,
         )
     } else {
@@ -255,7 +255,7 @@ pub(crate) fn process_contig(
         );
         filtered
     } else {
-        io::load_genes(&args.genes_file, snp_list, Some(contig), &args.gff_features)
+        io::load_genes(args.genes_file(), snp_list, Some(contig), &args.gff_features())
             .map_err(reclassify_generic_as_validation)?
     };
     info!(

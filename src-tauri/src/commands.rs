@@ -64,11 +64,26 @@ pub struct AnalysisConfig {
 impl AnalysisConfig {
     /// Convert the GUI config into the core library's `Args` struct.
     fn into_args(self) -> get_mnv::cli::Args {
+        // Route genes_file to the correct field based on file extension.
+        let is_gff = self.genes_file.ends_with(".gff")
+            || self.genes_file.ends_with(".gff3")
+            || self.genes_file.ends_with(".GFF")
+            || self.genes_file.ends_with(".GFF3");
+        let (gff_file, genes_file_tsv) = if is_gff {
+            (Some(self.genes_file), None)
+        } else {
+            (None, Some(self.genes_file))
+        };
+
         get_mnv::cli::Args {
             vcf_file: self.vcf_file,
             bam_file: self.bam_file,
             fasta_file: self.fasta_file,
-            genes_file: self.genes_file,
+            genes_file_tsv,
+            gff_file,
+            gff_features_raw: self
+                .gff_features
+                .map(|v| v.join(",")),
             sample: self.sample,
             chrom: self.chrom,
             normalize_alleles: self.normalize_alleles.unwrap_or(false),
@@ -92,9 +107,6 @@ impl AnalysisConfig {
             summary_json: self.summary_json,
             error_json: self.error_json,
             run_manifest: self.run_manifest,
-            gff_features: self
-                .gff_features
-                .unwrap_or_else(|| vec!["gene".to_string(), "pseudogene".to_string()]),
             exclude_intergenic: self.exclude_intergenic.unwrap_or(false),
             // Map GUI's outputTsv/outputVcf booleans to CLI's convert/both flags.
             // Default: TSV only (convert=false, both=false).

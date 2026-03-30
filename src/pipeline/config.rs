@@ -176,11 +176,11 @@ pub(crate) fn log_run_configuration(args: &Args, sample_override: Option<&str>) 
         info!("No BAM file provided. Output will be generated without read count fields.");
     }
     info!("FASTA file: {}", args.fasta_file);
-    info!("Gene annotation file: {}", args.genes_file);
-    info!("GFF feature types: {}", args.gff_features.join(", "));
-    if let Ok(AnnotationFormat::Tsv) = io::detect_annotation_format(&args.genes_file) {
+    info!("Gene annotation file: {}", args.genes_file());
+    info!("GFF feature types: {}", args.gff_features().join(", "));
+    if let Ok(AnnotationFormat::Tsv) = io::detect_annotation_format(args.genes_file()) {
         let default_features = vec!["gene".to_string(), "pseudogene".to_string()];
-        if args.gff_features != default_features {
+        if args.gff_features() != default_features {
             log::warn!("--gff-features is ignored when using TSV annotation format (--genes)");
         }
     }
@@ -359,7 +359,9 @@ mod tests {
             vcf_file: String::new(),
             bam_file: None,
             fasta_file: String::new(),
-            genes_file: String::new(),
+            genes_file_tsv: Some(String::new()),
+            gff_file: None,
+            gff_features_raw: None,
             sample: None,
             chrom: None,
             normalize_alleles: false,
@@ -384,7 +386,6 @@ mod tests {
             summary_json: None,
             error_json: None,
             run_manifest: None,
-            gff_features: vec!["gene".to_string(), "pseudogene".to_string()],
             convert: false,
             both: false,
             output_dir: None,

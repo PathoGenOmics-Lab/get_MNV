@@ -28,12 +28,12 @@ pub(crate) fn build_input_metadata(args: &Args) -> AppResult<RunInputs> {
     Ok(RunInputs {
         vcf: args.vcf_file.clone(),
         fasta: args.fasta_file.clone(),
-        annotation: args.genes_file.clone(),
+        annotation: args.genes_file().to_string(),
         bam: args.bam_file.clone(),
         checksums: InputChecksums {
             vcf_sha256: compute_sha256(&args.vcf_file)?,
             fasta_sha256: compute_sha256(&args.fasta_file)?,
-            annotation_sha256: compute_sha256(&args.genes_file)?,
+            annotation_sha256: compute_sha256(args.genes_file())?,
             bam_sha256: match args.bam_file.as_ref() {
                 Some(path) => Some(compute_sha256(path)?),
                 None => None,

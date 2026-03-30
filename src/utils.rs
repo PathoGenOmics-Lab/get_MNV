@@ -1,7 +1,35 @@
 //! Utility functions: amino acid change classification, IUPAC three-letter
 //! conversion, reverse complement, and codon translation.
 
-use protein_translate::translate;
+/// Translate a DNA codon (3 bytes) to a single-character amino acid.
+/// Uses the standard genetic code (NCBI table 1). Returns 'X' for
+/// unknown/ambiguous codons.
+fn translate_codon(codon: &[u8; 3]) -> char {
+    match codon {
+        b"TTT" | b"TTC" => 'F',
+        b"TTA" | b"TTG" | b"CTT" | b"CTC" | b"CTA" | b"CTG" => 'L',
+        b"ATT" | b"ATC" | b"ATA" => 'I',
+        b"ATG" => 'M',
+        b"GTT" | b"GTC" | b"GTA" | b"GTG" => 'V',
+        b"TCT" | b"TCC" | b"TCA" | b"TCG" | b"AGT" | b"AGC" => 'S',
+        b"CCT" | b"CCC" | b"CCA" | b"CCG" => 'P',
+        b"ACT" | b"ACC" | b"ACA" | b"ACG" => 'T',
+        b"GCT" | b"GCC" | b"GCA" | b"GCG" => 'A',
+        b"TAT" | b"TAC" => 'Y',
+        b"TAA" | b"TAG" | b"TGA" => '*',
+        b"CAT" | b"CAC" => 'H',
+        b"CAA" | b"CAG" => 'Q',
+        b"AAT" | b"AAC" => 'N',
+        b"AAA" | b"AAG" => 'K',
+        b"GAT" | b"GAC" => 'D',
+        b"GAA" | b"GAG" => 'E',
+        b"TGT" | b"TGC" => 'C',
+        b"TGG" => 'W',
+        b"CGT" | b"CGC" | b"CGA" | b"CGG" | b"AGA" | b"AGG" => 'R',
+        b"GGT" | b"GGC" | b"GGA" | b"GGG" => 'G',
+        _ => 'X',
+    }
+}
 
 pub fn determine_change_type(aa_change: &str) -> String {
     if aa_change.is_empty() {
@@ -79,8 +107,19 @@ pub fn reverse_complement(seq: &str) -> String {
     })
 }
 
+/// Translate a DNA sequence to a protein string. Only the first codon
+/// (3 bases) is translated — matching the original single-codon usage
+/// throughout the codebase.
 pub fn process_translate(seq: &[u8]) -> String {
-    translate(seq)
+    if seq.len() < 3 {
+        return "X".to_string();
+    }
+    let codon: [u8; 3] = [
+        seq[0].to_ascii_uppercase(),
+        seq[1].to_ascii_uppercase(),
+        seq[2].to_ascii_uppercase(),
+    ];
+    translate_codon(&codon).to_string()
 }
 
 // ==========================================

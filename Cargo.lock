@@ -1428,7 +1428,6 @@ dependencies = [
  "linear-map",
  "log",
  "lru",
- "protein-translate",
  "rayon",
  "rust-htslib",
  "serde",
@@ -3249,12 +3248,6 @@ checksum = "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934"
 dependencies = [
  "unicode-ident",
 ]
-
-[[package]]
-name = "protein-translate"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afa70b854979006e13b65c68f17beb74d9b7505e22a584b4418dc360f55a0f88"
 
 [[package]]
 name = "quick-error"

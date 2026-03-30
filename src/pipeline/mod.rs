@@ -99,23 +99,23 @@ fn run_single(
         None
     };
     let mut vcf_writer = if output_vcf.is_some() {
-        Some(output::VcfWriter::new(
-            &output_stem,
-            args.bam_file.is_some(),
-            args.min_snp_reads,
-            args.min_mnv_reads,
-            args.min_quality,
-            args.min_mapq,
-            &parsed.command_line,
-            &parsed.contigs,
-            args.vcf_gz,
-            args.min_snp_strand_reads,
-            args.min_mnv_strand_reads,
-            args.min_strand_bias_p,
-            args.emit_filtered,
-            args.strand_bias_info,
-            &parsed.original_info_headers,
-        )?)
+        Some(output::VcfWriter::new(output::VcfWriterConfig {
+            filename: &output_stem,
+            bam_provided: args.bam_file.is_some(),
+            min_snp_reads: args.min_snp_reads,
+            min_mnv_reads: args.min_mnv_reads,
+            min_quality: args.min_quality,
+            min_mapq: args.min_mapq,
+            command_line: &parsed.command_line,
+            contigs: &parsed.contigs,
+            bgzf_output: args.vcf_gz,
+            min_snp_strand_reads: args.min_snp_strand_reads,
+            min_mnv_strand_reads: args.min_mnv_strand_reads,
+            min_strand_bias_p: args.min_strand_bias_p,
+            emit_filtered: args.emit_filtered,
+            include_strand_bias_info: args.strand_bias_info,
+            original_info_headers: &parsed.original_info_headers,
+        })?)
     } else {
         None
     };
