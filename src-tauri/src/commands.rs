@@ -5,7 +5,6 @@ use std::io::{BufRead, BufReader};
 
 use noodles::bam;
 use noodles::sam::alignment::record::cigar::op::Kind;
-use noodles::sam::Header;
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
@@ -25,7 +24,7 @@ pub fn get_core_version() -> String {
 /// Analysis configuration sent from the frontend (camelCase).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
+#[allow(dead_code)] // `convert` and `both` are computed in into_args(), not read directly
 pub struct AnalysisConfig {
     pub vcf_file: String,
     pub bam_file: Option<String>,
@@ -50,161 +49,89 @@ pub struct AnalysisConfig {
     pub index_vcf_gz: Option<bool>,
     pub strand_bias_info: Option<bool>,
     pub keep_original_info: Option<bool>,
+    pub bcf: Option<bool>,
+    pub summary_json: Option<String>,
+    pub error_json: Option<String>,
+    pub run_manifest: Option<String>,
+    pub gff_features: Option<Vec<String>>,
     pub exclude_intergenic: Option<bool>,
-    pub gff_features: Option<String>,
-    pub output_dir: Option<String>,
-    pub convert: Option<bool>,
-    pub both: Option<bool>,
-    pub summary_json: Option<bool>,
-    pub run_manifest: Option<bool>,
-    pub error_json: Option<bool>,
     pub translation_table: Option<u8>,
-    pub output_prefix: Option<String>,
     pub output_tsv: Option<bool>,
     pub output_vcf: Option<bool>,
+    pub convert: Option<bool>,
+    pub both: Option<bool>,
+    pub output_dir: Option<String>,
+    pub output_prefix: Option<String>,
 }
 
 impl AnalysisConfig {
-    pub fn into_args(self) -> Vec<String> {
-        let mut args = vec![
-            "get_mnv".to_string(),
-            "--vcf".to_string(),
-            self.vcf_file,
-            "--fasta".to_string(),
-            self.fasta_file,
-        ];
-
-        // Determine annotation type by extension
+    /// Convert the GUI config into the core library's `Args` struct.
+    fn into_args(self) -> get_mnv::cli::Args {
+        // Route genes_file to the correct field based on file extension.
         let genes_lower = self.genes_file.to_lowercase();
-        if genes_lower.ends_with(".gff")
+        let is_gff = genes_lower.ends_with(".gff")
             || genes_lower.ends_with(".gff3")
             || genes_lower.ends_with(".gtf")
-        {
-            args.push("--gff".to_string());
+            || genes_lower.ends_with(".gff.gz")
+            || genes_lower.ends_with(".gff3.gz")
+            || genes_lower.ends_with(".gtf.gz");
+        let (gff_file, genes_file_tsv) = if is_gff {
+            (Some(self.genes_file), None)
         } else {
-            args.push("--tsv-genes".to_string());
-        }
-        args.push(self.genes_file);
+            (None, Some(self.genes_file))
+        };
 
-        if let Some(bam) = self.bam_file {
-            args.push("--bam".to_string());
-            args.push(bam);
+        get_mnv::cli::Args {
+            vcf_file: self.vcf_file,
+            bam_file: self.bam_file,
+            fasta_file: self.fasta_file,
+            genes_file_tsv,
+            gff_file,
+            gff_features_raw: self
+                .gff_features
+                .map(|v| v.join(",")),
+            sample: self.sample,
+            chrom: self.chrom,
+            normalize_alleles: self.normalize_alleles.unwrap_or(false),
+            min_quality: self.min_quality.unwrap_or(20),
+            min_mapq: self.min_mapq.unwrap_or(0),
+            threads: self.threads,
+            min_snp_reads: self.min_snp_reads.unwrap_or(0),
+            min_mnv_reads: self.min_mnv_reads.unwrap_or(0),
+            min_snp_strand_reads: self.min_snp_strand_reads.unwrap_or(0),
+            min_mnv_strand_reads: self.min_mnv_strand_reads.unwrap_or(0),
+            min_strand_bias_p: self.min_strand_bias_p.unwrap_or(0.0),
+            dry_run: self.dry_run.unwrap_or(false),
+            strict: self.strict.unwrap_or(false),
+            split_multiallelic: self.split_multiallelic.unwrap_or(false),
+            emit_filtered: self.emit_filtered.unwrap_or(false),
+            vcf_gz: self.vcf_gz.unwrap_or(false),
+            index_vcf_gz: self.index_vcf_gz.unwrap_or(self.vcf_gz.unwrap_or(false)),
+            strand_bias_info: self.strand_bias_info.unwrap_or(false),
+            keep_original_info: self.keep_original_info.unwrap_or(false),
+            bcf: self.bcf.unwrap_or(false),
+            summary_json: self.summary_json,
+            error_json: self.error_json,
+            run_manifest: self.run_manifest,
+            exclude_intergenic: self.exclude_intergenic.unwrap_or(false),
+            translation_table: self.translation_table.unwrap_or(11),
+            // Map GUI's outputTsv/outputVcf booleans to CLI's convert/both flags.
+            // Default: TSV only (convert=false, both=false).
+            // outputTsv + outputVcf → both=true
+            // outputVcf only → convert=true
+            convert: {
+                let tsv = self.output_tsv.unwrap_or(true);
+                let vcf = self.output_vcf.unwrap_or(false);
+                !tsv && vcf
+            },
+            both: {
+                let tsv = self.output_tsv.unwrap_or(true);
+                let vcf = self.output_vcf.unwrap_or(false);
+                tsv && vcf
+            },
+            output_dir: self.output_dir,
+            output_prefix: self.output_prefix,
         }
-        if let Some(sample) = self.sample {
-            if !sample.is_empty() {
-                args.push("--sample".to_string());
-                args.push(sample);
-            }
-        }
-        if let Some(chrom) = self.chrom {
-            if !chrom.is_empty() {
-                args.push("--chrom".to_string());
-                args.push(chrom);
-            }
-        }
-        if let Some(true) = self.normalize_alleles {
-            args.push("--normalize-alleles".to_string());
-        }
-        if let Some(q) = self.min_quality {
-            args.push("--quality".to_string());
-            args.push(q.to_string());
-        }
-        if let Some(m) = self.min_mapq {
-            args.push("--mapq".to_string());
-            args.push(m.to_string());
-        }
-        if let Some(t) = self.threads {
-            args.push("--threads".to_string());
-            args.push(t.to_string());
-        }
-        if let Some(r) = self.min_snp_reads {
-            args.push("--min-snp-reads".to_string());
-            args.push(r.to_string());
-        }
-        if let Some(r) = self.min_mnv_reads {
-            args.push("--min-mnv-reads".to_string());
-            args.push(r.to_string());
-        }
-        if let Some(s) = self.min_snp_strand_reads {
-            args.push("--min-snp-strand".to_string());
-            args.push(s.to_string());
-        }
-        if let Some(s) = self.min_mnv_strand_reads {
-            args.push("--min-mnv-strand".to_string());
-            args.push(s.to_string());
-        }
-        if let Some(p) = self.min_strand_bias_p {
-            if p > 0.0 {
-                args.push("--min-strand-bias-p".to_string());
-                args.push(p.to_string());
-            }
-        }
-        if let Some(true) = self.dry_run {
-            args.push("--dry-run".to_string());
-        }
-        if let Some(true) = self.strict {
-            args.push("--strict".to_string());
-        }
-        if let Some(true) = self.split_multiallelic {
-            args.push("--split-multiallelic".to_string());
-        }
-        if let Some(true) = self.emit_filtered {
-            args.push("--emit-filtered".to_string());
-        }
-        if let Some(true) = self.vcf_gz {
-            args.push("--vcf-gz".to_string());
-        }
-        if let Some(true) = self.index_vcf_gz {
-            args.push("--index-vcf-gz".to_string());
-        }
-        if let Some(true) = self.strand_bias_info {
-            args.push("--strand-bias-info".to_string());
-        }
-        if let Some(true) = self.keep_original_info {
-            args.push("--keep-original-info".to_string());
-        }
-        if let Some(true) = self.exclude_intergenic {
-            args.push("--exclude-intergenic".to_string());
-        }
-        if let Some(ref features) = self.gff_features {
-            if !features.is_empty() {
-                args.push("--gff-features".to_string());
-                args.push(features.clone());
-            }
-        }
-        if let Some(ref dir) = self.output_dir {
-            if !dir.is_empty() {
-                args.push("--output-dir".to_string());
-                args.push(dir.clone());
-            }
-        }
-
-        // Output mode: --both or --convert
-        let both = self.both.unwrap_or(false);
-        let convert = self.convert.unwrap_or(false);
-        if both {
-            args.push("--both".to_string());
-        } else if convert {
-            args.push("--convert".to_string());
-        }
-
-        if let Some(true) = self.summary_json {
-            args.push("--summary-json".to_string());
-        }
-        if let Some(true) = self.run_manifest {
-            args.push("--run-manifest".to_string());
-        }
-        if let Some(true) = self.error_json {
-            args.push("--error-json".to_string());
-        }
-        if let Some(t) = self.translation_table {
-            if t != 11 {
-                args.push("--translation-table".to_string());
-                args.push(t.to_string());
-            }
-        }
-
-        args
     }
 }
 
@@ -229,6 +156,7 @@ pub fn run_analysis(
 // check_output_conflicts
 // ---------------------------------------------------------------------------
 
+/// Check if any output files already exist. Returns paths that would be overwritten.
 #[tauri::command]
 pub fn check_output_conflicts(config: AnalysisConfig) -> Vec<String> {
     let vcf_path = std::path::Path::new(&config.vcf_file);
@@ -264,6 +192,9 @@ pub fn check_output_conflicts(config: AnalysisConfig) -> Vec<String> {
 // ensure_fasta_index
 // ---------------------------------------------------------------------------
 
+/// Create a .fai index for a FASTA file if it doesn't already exist.
+/// Parses the FASTA to compute name, length, byte offset, line bases, line width.
+/// Returns the path to the .fai file.
 #[tauri::command]
 pub fn ensure_fasta_index(fasta_path: String) -> Result<String, String> {
     let fai_path = format!("{}.fai", fasta_path);
@@ -271,6 +202,7 @@ pub fn ensure_fasta_index(fasta_path: String) -> Result<String, String> {
         return Ok(fai_path);
     }
 
+    // Cannot index gzipped FASTA — byte offsets would be meaningless
     if fasta_path.ends_with(".gz") || fasta_path.ends_with(".bgz") {
         return Err("Cannot create .fai index for gzipped FASTA. Please decompress first.".to_string());
     }
@@ -288,20 +220,23 @@ pub fn ensure_fasta_index(fasta_path: String) -> Result<String, String> {
 
     let mut pos: usize = 0;
     while pos < bytes.len() {
+        // Find end of line
         let line_start = pos;
         while pos < bytes.len() && bytes[pos] != b'\n' {
             pos += 1;
         }
-        let line_end = pos;
+        let line_end = pos; // exclusive, before \n
         let has_newline = pos < bytes.len();
         if has_newline {
-            pos += 1;
+            pos += 1; // skip \n
         }
 
         if line_start < bytes.len() && bytes[line_start] == b'>' {
+            // Flush previous sequence
             if !name.is_empty() {
                 entries.push(format!("{}\t{}\t{}\t{}\t{}", name, seq_len, seq_offset, line_bases, line_width));
             }
+            // Parse header
             let header = &bytes[line_start + 1..line_end];
             name = std::str::from_utf8(header)
                 .unwrap_or("")
@@ -310,10 +245,12 @@ pub fn ensure_fasta_index(fasta_path: String) -> Result<String, String> {
                 .unwrap_or("")
                 .to_string();
             seq_len = 0;
-            seq_offset = pos;
+            seq_offset = pos; // first base starts after header \n
             first_seq_line = true;
         } else if !name.is_empty() && line_end > line_start {
+            // Sequence line
             let raw_len = line_end - line_start;
+            // Trim trailing \r if present
             let base_len = if raw_len > 0 && bytes[line_end - 1] == b'\r' {
                 raw_len - 1
             } else {
@@ -322,15 +259,17 @@ pub fn ensure_fasta_index(fasta_path: String) -> Result<String, String> {
             seq_len += base_len;
             if first_seq_line && has_newline {
                 line_bases = base_len;
-                line_width = pos - line_start;
+                line_width = pos - line_start; // includes \n
                 first_seq_line = false;
             } else if first_seq_line {
+                // Last line without trailing newline
                 line_bases = base_len;
-                line_width = base_len + 1;
+                line_width = base_len + 1; // assume standard line width
                 first_seq_line = false;
             }
         }
     }
+    // Flush last sequence
     if !name.is_empty() {
         entries.push(format!("{}\t{}\t{}\t{}\t{}", name, seq_len, seq_offset, line_bases, line_width));
     }
@@ -389,6 +328,7 @@ pub fn read_tsv_file(path: String) -> Result<TsvData, String> {
         .ok_or_else(|| "TSV file is empty".to_string())?
         .map_err(|e| format!("Read error: {}", e))?;
 
+    // Strip trailing \r (Windows CRLF)
     let header_clean = header_line.trim_end_matches('\r');
     let headers: Vec<String> = header_clean.split('\t').map(|s| s.to_string()).collect();
     let mut rows = Vec::new();
@@ -406,7 +346,7 @@ pub fn read_tsv_file(path: String) -> Result<TsvData, String> {
 }
 
 // ---------------------------------------------------------------------------
-// BAM Viewer
+// get_bam_view
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Deserialize)]
@@ -415,14 +355,14 @@ pub struct BamViewRequest {
     pub bam_path: String,
     pub fasta_path: String,
     pub chrom: String,
-    pub window_start: u64,
-    pub window_end: u64,
     pub positions: Vec<u64>,
     pub ref_bases: Vec<String>,
     pub alt_bases: Vec<String>,
     pub min_mapq: Option<u8>,
     pub min_base_quality: Option<u8>,
     pub max_reads: Option<usize>,
+    pub window_start: u64,
+    pub window_end: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -437,6 +377,7 @@ pub struct BamViewResponse {
     pub counts: BamSupportCounts,
     pub total_reads: usize,
     pub truncated: bool,
+    /// Per-position depth from ALL reads (not just the displayed subset).
     pub coverage: Vec<u32>,
 }
 
@@ -471,14 +412,14 @@ pub struct BamSupportCounts {
 }
 
 /// Extract the base a read contributes at a given reference position (0-based).
-fn base_at_ref_pos_noodles(
+fn base_at_ref_pos(
     record: &bam::Record,
     ref_pos: u64,
     min_bq: u8,
 ) -> Option<String> {
     let read_start = record.alignment_start()
         .and_then(|p| p.ok())
-        .map(|p| { let v: usize = p.into(); v as u64 - 1 }) // 0-based
+        .map(|p| { let v: usize = p.into(); v as u64 - 1 })
         .unwrap_or(0);
 
     let seq = record.sequence();
@@ -528,7 +469,6 @@ fn base_at_ref_pos_noodles(
 
 /// Read reference sequence from an indexed FASTA file.
 fn read_fasta_region(fasta_path: &str, chrom: &str, start: u64, end: u64) -> Result<String, String> {
-    // Read .fai index to find the sequence
     let fai_path = format!("{}.fai", fasta_path);
     let fai_file = std::fs::File::open(&fai_path)
         .map_err(|e| format!("Cannot open FASTA index '{}': {}", fai_path, e))?;
@@ -559,13 +499,10 @@ fn read_fasta_region(fasta_path: &str, chrom: &str, start: u64, end: u64) -> Res
     let actual_end = end.min(seq_len);
     let window_len = (actual_end - start) as usize;
 
-    // Calculate byte offsets
     let start_line = start / line_bases;
     let start_byte = offset + start_line * line_width + (start % line_bases);
-
     let end_line = actual_end / line_bases;
     let end_byte = offset + end_line * line_width + (actual_end % line_bases);
-
     let bytes_to_read = (end_byte - start_byte) as usize;
 
     use std::io::{Read, Seek, SeekFrom};
@@ -573,19 +510,15 @@ fn read_fasta_region(fasta_path: &str, chrom: &str, start: u64, end: u64) -> Res
         .map_err(|e| format!("Cannot open FASTA: {}", e))?;
     fasta_file.seek(SeekFrom::Start(start_byte))
         .map_err(|e| format!("FASTA seek error: {}", e))?;
-
-    let mut buf = vec![0u8; bytes_to_read + 100]; // extra for newlines
+    let mut buf = vec![0u8; bytes_to_read + 100];
     let n = fasta_file.read(&mut buf)
         .map_err(|e| format!("FASTA read error: {}", e))?;
 
-    let seq: String = buf[..n].iter()
+    let mut result: String = buf[..n].iter()
         .filter(|&&b| b != b'\n' && b != b'\r')
         .map(|&b| b.to_ascii_uppercase() as char)
         .take(window_len)
         .collect();
-
-    // Pad if needed
-    let mut result = seq;
     while result.len() < window_len {
         result.push('N');
     }
@@ -598,7 +531,6 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
     let min_bq = request.min_base_quality.unwrap_or(0);
     let max_reads = request.max_reads.unwrap_or(500);
 
-    // Build variant site lookup
     let mut site_map: HashMap<u64, (String, String)> = HashMap::new();
     let mut sites: Vec<BamVariantSite> = Vec::new();
     for i in 0..request.positions.len() {
@@ -606,30 +538,18 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         let rb = request.ref_bases[i].clone();
         let ab = request.alt_bases[i].clone();
         site_map.insert(pos, (rb.clone(), ab.clone()));
-        sites.push(BamVariantSite {
-            position: pos,
-            reference_base: rb,
-            alt_base: ab,
-        });
+        sites.push(BamVariantSite { position: pos, reference_base: rb, alt_base: ab });
     }
 
-    // Read reference sequence
     let window_len = (request.window_end - request.window_start) as usize;
-    let reference = read_fasta_region(
-        &request.fasta_path,
-        &request.chrom,
-        request.window_start,
-        request.window_end,
-    )?;
+    let reference = read_fasta_region(&request.fasta_path, &request.chrom, request.window_start, request.window_end)?;
 
-    // Open BAM with noodles
     let mut bam_reader = bam::io::indexed_reader::Builder::default()
         .build_from_path(&request.bam_path)
         .map_err(|e| format!("Cannot open BAM: {}", e))?;
-    let header: Header = bam_reader.read_header()
+    let header = bam_reader.read_header()
         .map_err(|e| format!("Cannot read BAM header: {}", e))?;
 
-    // Query region (1-based inclusive)
     let region_str = format!("{}:{}-{}", request.chrom, request.window_start + 1, request.window_end);
     let region: noodles::core::Region = region_str.parse()
         .map_err(|e| format!("Invalid region '{}': {}", region_str, e))?;
@@ -643,72 +563,49 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
     let mut record = bam::Record::default();
     while query.read_record(&mut record).map_err(|e| format!("BAM read error: {}", e))? != 0 {
         let flags = record.flags();
-        if flags.is_unmapped()
-            || flags.is_secondary()
-            || flags.is_supplementary()
-            || flags.is_qc_fail()
-            || flags.is_duplicate()
-        {
-            continue;
-        }
+        if flags.is_unmapped() || flags.is_secondary() || flags.is_supplementary()
+            || flags.is_qc_fail() || flags.is_duplicate()
+        { continue; }
 
         let mapq = record.mapping_quality()
             .map(|q: noodles::sam::alignment::record::MappingQuality| q.get())
             .unwrap_or(255);
-        if mapq < min_mapq {
-            continue;
-        }
+        if mapq < min_mapq { continue; }
 
         total_reads += 1;
 
-        // Extract bases at each window position
         let mut bases: Vec<String> = Vec::with_capacity(window_len);
-        for offset in 0..window_len {
-            let rp = request.window_start + offset as u64;
-            match base_at_ref_pos_noodles(&record, rp, min_bq) {
+        for off in 0..window_len {
+            let rp = request.window_start + off as u64;
+            match base_at_ref_pos(&record, rp, min_bq) {
                 Some(b) => bases.push(b),
                 None => bases.push(" ".to_string()),
             }
         }
 
-        // Classify read support
         let mut matches_alt = 0usize;
         let mut matches_ref = 0usize;
         let mut covered_sites = 0usize;
-
         for &pos in &request.positions {
-            if pos < request.window_start || pos >= request.window_end {
-                continue;
-            }
-            let offset = (pos - request.window_start) as usize;
-            if offset < bases.len() {
-                let base = &bases[offset];
-                if base == " " || base == "-" {
-                    continue;
-                }
+            if pos < request.window_start || pos >= request.window_end { continue; }
+            let off = (pos - request.window_start) as usize;
+            if off < bases.len() {
+                let base = &bases[off];
+                if base == " " || base == "-" { continue; }
                 covered_sites += 1;
                 if let Some((rb, ab)) = site_map.get(&pos) {
-                    if base.eq_ignore_ascii_case(ab) {
-                        matches_alt += 1;
-                    } else if base.eq_ignore_ascii_case(rb) {
-                        matches_ref += 1;
-                    }
+                    if base.eq_ignore_ascii_case(ab) { matches_alt += 1; }
+                    else if base.eq_ignore_ascii_case(rb) { matches_ref += 1; }
                 }
             }
         }
 
         let n_sites = request.positions.len();
-        let support = if covered_sites == 0 {
-            "other".to_string()
-        } else if matches_alt == n_sites {
-            "mnv".to_string()
-        } else if matches_alt > 0 && matches_alt < n_sites {
-            "partial".to_string()
-        } else if matches_ref == n_sites {
-            "reference".to_string()
-        } else {
-            "other".to_string()
-        };
+        let support = if covered_sites == 0 { "other" }
+            else if matches_alt == n_sites { "mnv" }
+            else if matches_alt > 0 && matches_alt < n_sites { "partial" }
+            else if matches_ref == n_sites { "reference" }
+            else { "other" }.to_string();
 
         match support.as_str() {
             "mnv" => counts.mnv += 1,
@@ -718,12 +615,10 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         }
 
         let strand = if flags.is_reverse_complemented() { "-" } else { "+" }.to_string();
-
         let read_name = record.name()
             .map(|n| String::from_utf8_lossy(<_ as AsRef<[u8]>>::as_ref(&n)).to_string())
             .unwrap_or_else(|| "?".to_string());
 
-        // Compute read end from alignment start + aligned length
         let read_start = record.alignment_start()
             .and_then(|p| p.ok())
             .map(|p| { let v: usize = p.into(); v as u64 - 1 })
@@ -736,44 +631,28 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
                 _ => 0,
             })
             .sum();
-        let read_end = read_start + aligned_len;
 
         all_reads.push(BamReadView {
-            name: read_name,
-            strand,
-            support,
-            start: read_start,
-            end: read_end,
-            mapq,
-            bases,
+            name: read_name, strand, support,
+            start: read_start, end: read_start + aligned_len,
+            mapq, bases,
         });
     }
 
     counts.total = total_reads;
 
-    // Per-position coverage from ALL reads
     let coverage: Vec<u32> = {
         let mut depths = vec![0u32; window_len];
         for read in &all_reads {
             for (i, base) in read.bases.iter().enumerate() {
-                if base != " " {
-                    depths[i] += 1;
-                }
+                if base != " " { depths[i] += 1; }
             }
         }
         depths
     };
 
-    // Sort: MNV first, then partial, reference, other
     all_reads.sort_by(|a, b| {
-        let order = |s: &str| -> u8 {
-            match s {
-                "mnv" => 0,
-                "partial" => 1,
-                "reference" => 2,
-                _ => 3,
-            }
-        };
+        let order = |s: &str| -> u8 { match s { "mnv" => 0, "partial" => 1, "reference" => 2, _ => 3 } };
         order(&a.support).cmp(&order(&b.support))
     });
 
@@ -781,16 +660,8 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
     all_reads.truncate(max_reads);
 
     Ok(BamViewResponse {
-        chrom: request.chrom,
-        display_start: request.window_start,
-        display_end: request.window_end,
-        reference,
-        sites,
-        reads: all_reads,
-        counts,
-        total_reads,
-        truncated,
-        coverage,
+        chrom: request.chrom, display_start: request.window_start, display_end: request.window_end,
+        reference, sites, reads: all_reads, counts, total_reads, truncated, coverage,
     })
 }
 
