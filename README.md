@@ -57,7 +57,6 @@ Download the latest release for your platform:
 | 🍎 macOS (Apple Silicon) | [**get_MNV_1.1.1_aarch64.dmg**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
 | 🍎 macOS (Intel) | [**get_MNV_1.1.1_x64.dmg**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
 | 🐧 Linux | [**Releases page**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
-| 🪟 Windows | [**Releases page**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
 
 > [!NOTE]
 > **macOS users**: The app is not signed with an Apple Developer certificate. On first launch, right-click the app → **Open** → click **Open** in the dialog. See [Apple support](https://support.apple.com/en-us/HT202491) for details.
