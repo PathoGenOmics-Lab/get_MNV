@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/get_mnv.png" alt="get_MNV logo" width="350" />
+  <img src="images/get_mnv.png" alt="get_MNV logo" width="800" />
 </p>
 
 <div align="center">
