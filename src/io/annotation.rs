@@ -387,3 +387,156 @@ pub fn filter_genes_with_snps(genes: &[Gene], snp_list: &[VcfPosition]) -> Vec<G
         .cloned()
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ---- decode_percent_encoded ----
+
+    #[test]
+    fn test_decode_percent_plain() {
+        assert_eq!(decode_percent_encoded("hello"), "hello");
+    }
+
+    #[test]
+    fn test_decode_percent_space() {
+        assert_eq!(decode_percent_encoded("hello%20world"), "hello world");
+    }
+
+    #[test]
+    fn test_decode_percent_multiple() {
+        assert_eq!(decode_percent_encoded("%2C%3B"), ",;");
+    }
+
+    #[test]
+    fn test_decode_percent_trailing_incomplete() {
+        // Incomplete percent sequence at end preserved literally
+        assert_eq!(decode_percent_encoded("a%2"), "a%2");
+        assert_eq!(decode_percent_encoded("a%"), "a%");
+    }
+
+    #[test]
+    fn test_decode_percent_invalid_hex() {
+        // Invalid hex digits preserved literally
+        assert_eq!(decode_percent_encoded("%ZZ"), "%ZZ");
+    }
+
+    // ---- split_attribute_fields ----
+
+    #[test]
+    fn test_split_simple() {
+        let fields = split_attribute_fields("ID=gene1;Name=rpoB");
+        assert_eq!(fields, vec!["ID=gene1", "Name=rpoB"]);
+    }
+
+    #[test]
+    fn test_split_quoted_semicolon() {
+        // Semicolons inside quotes should not split
+        let fields = split_attribute_fields("Note=\"a;b\";ID=gene1");
+        assert_eq!(fields, vec!["Note=\"a;b\"", "ID=gene1"]);
+    }
+
+    #[test]
+    fn test_split_trailing_semicolon() {
+        let fields = split_attribute_fields("ID=gene1;");
+        assert_eq!(fields, vec!["ID=gene1"]);
+    }
+
+    #[test]
+    fn test_split_empty() {
+        let fields = split_attribute_fields("");
+        assert!(fields.is_empty());
+    }
+
+    // ---- parse_gff_attributes ----
+
+    #[test]
+    fn test_parse_gff_key_value() {
+        let attrs = parse_gff_attributes("ID=gene1;Name=rpoB;locus_tag=Rv0667");
+        assert_eq!(attrs.get("ID").unwrap(), "gene1");
+        assert_eq!(attrs.get("Name").unwrap(), "rpoB");
+        assert_eq!(attrs.get("locus_tag").unwrap(), "Rv0667");
+    }
+
+    #[test]
+    fn test_parse_gff_space_separated() {
+        // GTF-style: key "value"
+        let attrs = parse_gff_attributes("gene_id \"ENSG001\"; gene_name \"TP53\"");
+        assert_eq!(attrs.get("gene_id").unwrap(), "ENSG001");
+        assert_eq!(attrs.get("gene_name").unwrap(), "TP53");
+    }
+
+    #[test]
+    fn test_parse_gff_percent_encoded() {
+        let attrs = parse_gff_attributes("Name=rpoB%20gene");
+        assert_eq!(attrs.get("Name").unwrap(), "rpoB gene");
+    }
+
+    // ---- has_snp_in_interval ----
+
+    #[test]
+    fn test_has_snp_in_interval_found() {
+        let snps = vec![
+            VcfPosition { position: 100, ref_allele: "A".into(), alt_allele: "T".into(), original_dp: None, original_freq: None, original_info: None },
+            VcfPosition { position: 200, ref_allele: "G".into(), alt_allele: "C".into(), original_dp: None, original_freq: None, original_info: None },
+        ];
+        assert!(has_snp_in_interval(&snps, 50, 150));
+        assert!(has_snp_in_interval(&snps, 100, 100)); // exact match
+        assert!(has_snp_in_interval(&snps, 150, 250));
+    }
+
+    #[test]
+    fn test_has_snp_in_interval_not_found() {
+        let snps = vec![
+            VcfPosition { position: 100, ref_allele: "A".into(), alt_allele: "T".into(), original_dp: None, original_freq: None, original_info: None },
+        ];
+        assert!(!has_snp_in_interval(&snps, 200, 300));
+        assert!(!has_snp_in_interval(&snps, 50, 99));
+    }
+
+    #[test]
+    fn test_has_snp_in_interval_empty() {
+        assert!(!has_snp_in_interval(&[], 1, 1000));
+    }
+
+    // ---- gene_name_from_gff ----
+
+    #[test]
+    fn test_gene_name_from_gff_full() {
+        let mut attrs = HashMap::new();
+        attrs.insert("gene".to_string(), "rpoB".to_string());
+        attrs.insert("locus_tag".to_string(), "Rv0667".to_string());
+        assert_eq!(gene_name_from_gff(&attrs), "rpoB_Rv0667");
+    }
+
+    #[test]
+    fn test_gene_name_from_gff_no_gene_uses_name() {
+        let mut attrs = HashMap::new();
+        attrs.insert("Name".to_string(), "gene-katG".to_string());
+        // "gene-" prefix should be stripped
+        assert_eq!(gene_name_from_gff(&attrs), "katG_katG");
+    }
+
+    #[test]
+    fn test_gene_name_from_gff_empty() {
+        let attrs = HashMap::new();
+        assert_eq!(gene_name_from_gff(&attrs), "unknown_gene_unknown_gene");
+    }
+
+    // ---- filter_genes_with_snps ----
+
+    #[test]
+    fn test_filter_genes_with_snps() {
+        let genes = vec![
+            Gene { name: "gene1".into(), start: 100, end: 200, strand: crate::variants::Strand::Plus },
+            Gene { name: "gene2".into(), start: 500, end: 600, strand: crate::variants::Strand::Minus },
+        ];
+        let snps = vec![
+            VcfPosition { position: 150, ref_allele: "A".into(), alt_allele: "T".into(), original_dp: None, original_freq: None, original_info: None },
+        ];
+        let filtered = filter_genes_with_snps(&genes, &snps);
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].name, "gene1");
+    }
+}

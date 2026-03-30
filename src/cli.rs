@@ -181,3 +181,74 @@ impl Args {
 pub fn parse_args() -> Args {
     Args::parse()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn test_default_gff_features() {
+        let args = Args::try_parse_from([
+            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--genes", "genes.txt",
+        ]).unwrap();
+        assert_eq!(args.gff_features(), vec!["gene", "pseudogene"]);
+    }
+
+    #[test]
+    fn test_custom_gff_features() {
+        let args = Args::try_parse_from([
+            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--gff", "ann.gff",
+            "--gff-features", "CDS,mRNA",
+        ]).unwrap();
+        assert_eq!(args.gff_features(), vec!["CDS", "mRNA"]);
+    }
+
+    #[test]
+    fn test_translation_table_default() {
+        let args = Args::try_parse_from([
+            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--genes", "genes.txt",
+        ]).unwrap();
+        assert_eq!(args.translation_table, 11);
+    }
+
+    #[test]
+    fn test_translation_table_custom() {
+        let args = Args::try_parse_from([
+            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--genes", "genes.txt",
+            "--translation-table", "2",
+        ]).unwrap();
+        assert_eq!(args.translation_table, 2);
+    }
+
+    #[test]
+    fn test_genes_or_gff_required() {
+        // Neither --genes nor --gff → should fail
+        let result = Args::try_parse_from([
+            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa",
+        ]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_convert_and_both_conflict() {
+        let result = Args::try_parse_from([
+            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--genes", "g.txt",
+            "--convert", "--both",
+        ]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_genes_file_accessor() {
+        let args = Args::try_parse_from([
+            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--genes", "genes.txt",
+        ]).unwrap();
+        assert_eq!(args.genes_file(), "genes.txt");
+
+        let args_gff = Args::try_parse_from([
+            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--gff", "ann.gff",
+        ]).unwrap();
+        assert_eq!(args_gff.genes_file(), "ann.gff");
+    }
+}

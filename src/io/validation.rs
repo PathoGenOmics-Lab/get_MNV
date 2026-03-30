@@ -110,3 +110,81 @@ pub fn get_base_name(file_path: &str) -> AppResult<String> {
 
     Ok(stem.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ---- validate_iupac_sequence ----
+
+    #[test]
+    fn test_iupac_valid() {
+        assert!(validate_iupac_sequence("ACGTRYWSKMBDHVN", "test").is_ok());
+    }
+
+    #[test]
+    fn test_iupac_lowercase_valid() {
+        assert!(validate_iupac_sequence("acgt", "test").is_ok());
+    }
+
+    #[test]
+    fn test_iupac_invalid_base() {
+        let err = validate_iupac_sequence("ACGX", "test");
+        assert!(err.is_err());
+        assert!(err.unwrap_err().to_string().contains("Invalid base 'X'"));
+    }
+
+    #[test]
+    fn test_iupac_empty_rejected() {
+        assert!(validate_iupac_sequence("", "test").is_err());
+    }
+
+    // ---- validate_vcf_allele ----
+
+    #[test]
+    fn test_vcf_allele_valid_snp() {
+        assert!(validate_vcf_allele("A", 1, "chr1", 100, "ALT").is_ok());
+    }
+
+    #[test]
+    fn test_vcf_allele_symbolic_alt_ok() {
+        assert!(validate_vcf_allele("<DEL>", 1, "chr1", 100, "ALT").is_ok());
+    }
+
+    #[test]
+    fn test_vcf_allele_symbolic_ref_rejected() {
+        assert!(validate_vcf_allele("<DEL>", 1, "chr1", 100, "REF").is_err());
+    }
+
+    #[test]
+    fn test_vcf_allele_star_rejected() {
+        assert!(validate_vcf_allele("*", 1, "chr1", 100, "ALT").is_err());
+    }
+
+    // ---- get_base_name ----
+
+    #[test]
+    fn test_base_name_vcf() {
+        assert_eq!(get_base_name("sample.vcf").unwrap(), "sample");
+    }
+
+    #[test]
+    fn test_base_name_vcf_gz() {
+        assert_eq!(get_base_name("/data/run.vcf.gz").unwrap(), "run");
+    }
+
+    #[test]
+    fn test_base_name_plain_gz() {
+        assert_eq!(get_base_name("data.gz").unwrap(), "data");
+    }
+
+    #[test]
+    fn test_base_name_no_extension() {
+        assert_eq!(get_base_name("noext").unwrap(), "noext");
+    }
+
+    #[test]
+    fn test_base_name_other_extension() {
+        assert_eq!(get_base_name("file.bam").unwrap(), "file");
+    }
+}

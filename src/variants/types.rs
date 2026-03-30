@@ -211,3 +211,89 @@ pub struct VariantInfo {
     pub original_info: Option<String>,
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ---- VariantType ----
+
+    #[test]
+    fn test_variant_type_display() {
+        assert_eq!(VariantType::Snp.to_string(), "SNP");
+        assert_eq!(VariantType::Mnv.to_string(), "MNV");
+        assert_eq!(VariantType::SnpMnv.to_string(), "SNP/MNV");
+        assert_eq!(VariantType::Indel.to_string(), "INDEL");
+    }
+
+    #[test]
+    fn test_variant_type_as_str() {
+        assert_eq!(VariantType::Snp.as_str(), "SNP");
+    }
+
+    // ---- ChangeType ----
+
+    #[test]
+    fn test_change_type_display_roundtrip() {
+        let types = [
+            ChangeType::Synonymous,
+            ChangeType::NonSynonymous,
+            ChangeType::StopGained,
+            ChangeType::StopLost,
+            ChangeType::Unknown,
+            ChangeType::IndelOverlap,
+            ChangeType::FrameshiftSynonymous,
+            ChangeType::FrameshiftNonSynonymous,
+            ChangeType::FrameshiftStopGained,
+            ChangeType::FrameshiftStopLost,
+            ChangeType::FrameshiftUnknown,
+            ChangeType::FrameshiftIndel,
+            ChangeType::InFrameIndel,
+        ];
+        for ct in &types {
+            let label = ct.to_string();
+            assert_eq!(ChangeType::from_label(&label), *ct, "roundtrip failed for {label}");
+        }
+    }
+
+    #[test]
+    fn test_change_type_from_unknown_label() {
+        assert_eq!(ChangeType::from_label("garbage"), ChangeType::Unknown);
+    }
+
+    #[test]
+    fn test_with_frameshift() {
+        assert_eq!(ChangeType::Synonymous.with_frameshift(), ChangeType::FrameshiftSynonymous);
+        assert_eq!(ChangeType::NonSynonymous.with_frameshift(), ChangeType::FrameshiftNonSynonymous);
+        assert_eq!(ChangeType::StopGained.with_frameshift(), ChangeType::FrameshiftStopGained);
+        assert_eq!(ChangeType::StopLost.with_frameshift(), ChangeType::FrameshiftStopLost);
+        assert_eq!(ChangeType::Unknown.with_frameshift(), ChangeType::FrameshiftUnknown);
+        // Frameshift of frameshift returns same
+        assert_eq!(ChangeType::FrameshiftSynonymous.with_frameshift(), ChangeType::FrameshiftSynonymous);
+    }
+
+    // ---- Strand ----
+
+    #[test]
+    fn test_strand_from_str() {
+        assert_eq!("+".parse::<Strand>().unwrap(), Strand::Plus);
+        assert_eq!("-".parse::<Strand>().unwrap(), Strand::Minus);
+        assert!("x".parse::<Strand>().is_err());
+        assert!("".parse::<Strand>().is_err());
+    }
+
+    // ---- ChangeType ordering ----
+
+    #[test]
+    fn test_change_type_ord() {
+        // PartialOrd is derived, verify it doesn't panic
+        assert!(ChangeType::Synonymous < ChangeType::NonSynonymous);
+    }
+
+    // ---- VariantType ordering ----
+
+    #[test]
+    fn test_variant_type_ord() {
+        assert!(VariantType::Snp < VariantType::Mnv);
+    }
+}

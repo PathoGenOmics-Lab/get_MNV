@@ -163,3 +163,135 @@ pub fn validate_vcf_reference_alleles(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    fn write_temp_fasta(content: &str) -> String {
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "test_fasta_{}_{n}.fa",
+            std::process::id()
+        ));
+        let mut f = std::fs::File::create(&path).unwrap();
+        f.write_all(content.as_bytes()).unwrap();
+        path.to_string_lossy().to_string()
+    }
+
+    #[test]
+    fn test_load_single_contig() {
+        let path = write_temp_fasta(">chr1\nACGT\nTTGG\n");
+        let refs = load_references(&path).unwrap();
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs["chr1"], "ACGTTTGG");
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_load_multi_contig() {
+        let path = write_temp_fasta(">chr1\nACGT\n>chr2\nNNNN\n");
+        let refs = load_references(&path).unwrap();
+        assert_eq!(refs.len(), 2);
+        assert_eq!(refs["chr1"], "ACGT");
+        assert_eq!(refs["chr2"], "NNNN");
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_load_lowercase_uppercased() {
+        let path = write_temp_fasta(">c\nacgt\n");
+        let refs = load_references(&path).unwrap();
+        assert_eq!(refs["c"], "ACGT");
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_load_iupac_ambiguity() {
+        let path = write_temp_fasta(">c\nACGTRYSWKMBDHVN\n");
+        let refs = load_references(&path).unwrap();
+        assert_eq!(refs["c"], "ACGTRYSWKMBDHVN");
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_load_invalid_base_rejected() {
+        let path = write_temp_fasta(">c\nACGTX\n");
+        assert!(load_references(&path).is_err());
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_load_empty_file_rejected() {
+        let path = write_temp_fasta("");
+        assert!(load_references(&path).is_err());
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_load_duplicate_contig_rejected() {
+        let path = write_temp_fasta(">c\nACGT\n>c\nTTTT\n");
+        assert!(load_references(&path).is_err());
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_load_header_description_stripped() {
+        let path = write_temp_fasta(">chr1 some description here\nACGT\n");
+        let refs = load_references(&path).unwrap();
+        assert!(refs.contains_key("chr1"));
+        assert!(!refs.contains_key("chr1 some description here"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_reference_for_chrom_found() {
+        let mut refs = ReferenceMap::new();
+        refs.insert("chr1".to_string(), "ACGT".to_string());
+        let r = reference_for_chrom(&refs, "chr1").unwrap();
+        assert_eq!(r.sequence, "ACGT");
+    }
+
+    #[test]
+    fn test_reference_for_chrom_missing() {
+        let refs = ReferenceMap::new();
+        assert!(reference_for_chrom(&refs, "chr1").is_err());
+    }
+
+    #[test]
+    fn test_validate_vcf_ref_alleles_ok() {
+        let refs = ReferenceMap::from([("c".to_string(), "ACGT".to_string())]);
+        let r = reference_for_chrom(&refs, "c").unwrap();
+        let snps = vec![VcfPosition {
+            position: 1, ref_allele: "A".into(), alt_allele: "T".into(),
+            original_dp: None, original_freq: None, original_info: None,
+        }];
+        assert!(validate_vcf_reference_alleles("c", &snps, &r).is_ok());
+    }
+
+    #[test]
+    fn test_validate_vcf_ref_mismatch() {
+        let refs = ReferenceMap::from([("c".to_string(), "ACGT".to_string())]);
+        let r = reference_for_chrom(&refs, "c").unwrap();
+        let snps = vec![VcfPosition {
+            position: 1, ref_allele: "T".into(), alt_allele: "A".into(),
+            original_dp: None, original_freq: None, original_info: None,
+        }];
+        assert!(validate_vcf_reference_alleles("c", &snps, &r).is_err());
+    }
+
+    #[test]
+    fn test_validate_vcf_ref_out_of_bounds() {
+        let refs = ReferenceMap::from([("c".to_string(), "AC".to_string())]);
+        let r = reference_for_chrom(&refs, "c").unwrap();
+        let snps = vec![VcfPosition {
+            position: 2, ref_allele: "CG".into(), alt_allele: "TT".into(),
+            original_dp: None, original_freq: None, original_info: None,
+        }];
+        assert!(validate_vcf_reference_alleles("c", &snps, &r).is_err());
+    }
+}

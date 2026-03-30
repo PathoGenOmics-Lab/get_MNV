@@ -411,3 +411,57 @@ pub fn extract_text_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
     }
     Ok(headers)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_use_fast_parser_vcf() {
+        assert!(use_fast_parser("sample.vcf"));
+        assert!(use_fast_parser("/path/to/DATA.VCF"));
+    }
+
+    #[test]
+    fn test_use_fast_parser_not_vcf_gz() {
+        assert!(!use_fast_parser("sample.vcf.gz"));
+        assert!(!use_fast_parser("sample.bcf"));
+    }
+
+    #[test]
+    fn test_use_fast_parser_edge_cases() {
+        assert!(!use_fast_parser("sample.vcf.gz"));
+        assert!(use_fast_parser("sample.VCF"));
+        assert!(!use_fast_parser("sample.BCF"));
+    }
+
+    #[test]
+    fn test_load_vcf_text_example() {
+        // Use the bundled example VCF
+        let vcf = concat!(env!("CARGO_MANIFEST_DIR"), "/example/G35894.var.snp.vcf");
+        let result = load_vcf_text(vcf, None, false, false, false).unwrap();
+        // Should have at least one contig
+        assert!(!result.is_empty());
+        // Total positions should be substantial
+        let total: usize = result.values().map(|v| v.len()).sum();
+        assert!(total > 700, "Expected >700 positions, got {total}");
+    }
+
+    #[test]
+    fn test_list_samples_example() {
+        let vcf = concat!(env!("CARGO_MANIFEST_DIR"), "/example/G35894.var.snp.vcf");
+        let samples = list_text_vcf_samples(vcf).unwrap();
+        // Example VCF has at least one sample
+        assert!(!samples.is_empty());
+    }
+
+    #[test]
+    fn test_extract_info_headers_example() {
+        let vcf = concat!(env!("CARGO_MANIFEST_DIR"), "/example/G35894.var.snp.vcf");
+        let headers = extract_text_info_headers(vcf).unwrap();
+        // VCF should have some INFO headers
+        for h in &headers {
+            assert!(h.starts_with("##INFO="), "Expected INFO header, got: {h}");
+        }
+    }
+}
