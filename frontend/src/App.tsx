@@ -602,18 +602,25 @@ function App() {
   const runnableCount = samples.filter((s) => s.status === "pending" || s.status === "error").length;
 
   // Ctrl+Enter / Cmd+Enter shortcut to run analysis
+  // Use a ref to always capture the latest handleRunAll without re-registering the listener
+  const handleRunAllRef = useRef(handleRunAll);
+  handleRunAllRef.current = handleRunAll;
+  const runStateRef = useRef({ running, filesReady, runnableCount });
+  runStateRef.current = { running, filesReady, runnableCount };
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
-        if (!running && filesReady && runnableCount > 0) {
-          handleRunAll();
+        const { running: r, filesReady: f, runnableCount: rc } = runStateRef.current;
+        if (!r && f && rc > 0) {
+          handleRunAllRef.current();
         }
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [running, filesReady, runnableCount, handleRunAll]);
+  }, []);
 
   return (
     <div className="app">
