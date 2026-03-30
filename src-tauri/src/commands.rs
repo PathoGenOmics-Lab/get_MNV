@@ -23,6 +23,7 @@ pub fn get_core_version() -> String {
 /// Analysis configuration sent from the frontend (camelCase).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)] // `convert` and `both` are computed in into_args(), not read directly
 pub struct AnalysisConfig {
     pub vcf_file: String,
     pub bam_file: Option<String>,
