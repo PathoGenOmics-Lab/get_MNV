@@ -15,9 +15,11 @@ use crate::output;
 use crate::read_count::{self, ReadCountSummary, RegionObservationCache};
 use crate::variants::{self, Gene, VariantInfo, VariantType};
 use log::info;
+use lru::LruCache;
 use rayon::prelude::*;
 use rust_htslib::bam::IndexedReader;
 use std::collections::{HashMap, HashSet};
+use std::num::NonZeroUsize;
 
 #[derive(Debug)]
 pub(crate) struct ParsedInputs {
@@ -39,56 +41,9 @@ struct RegionCacheKey {
     min_mapq: u8,
 }
 
-/// Simple LRU cache backed by a `Vec` of entries sorted by access order.
-/// Eviction is O(1) (pop front) instead of O(n) scan. Lookup is O(n) which
-/// is acceptable for small capacities (e.g. 64). For larger sizes, consider
-/// the `lru` crate.
-struct SimpleLruCache<K, V> {
-    capacity: usize,
-    /// Entries ordered from least-recently-used (front) to most-recently-used (back).
-    entries: Vec<(K, V)>,
-}
-
-impl<K, V> SimpleLruCache<K, V>
-where
-    K: Eq + std::hash::Hash + Clone,
-    V: Clone,
-{
-    fn new(capacity: usize) -> Self {
-        Self {
-            capacity: capacity.max(1),
-            entries: Vec::with_capacity(capacity.max(1)),
-        }
-    }
-
-    fn get_cloned(&mut self, key: &K) -> Option<V> {
-        if let Some(idx) = self.entries.iter().position(|(k, _)| k == key) {
-            // Move to back (most recently used)
-            let entry = self.entries.remove(idx);
-            let value = entry.1.clone();
-            self.entries.push(entry);
-            Some(value)
-        } else {
-            None
-        }
-    }
-
-    fn insert(&mut self, key: K, value: V) {
-        // If key exists, remove old entry first
-        if let Some(idx) = self.entries.iter().position(|(k, _)| *k == key) {
-            self.entries.remove(idx);
-        }
-        // Evict LRU (front) if at capacity
-        if self.entries.len() >= self.capacity {
-            self.entries.remove(0);
-        }
-        self.entries.push((key, value));
-    }
-}
-
 struct WorkerState {
     bam: Option<IndexedReader>,
-    region_cache: SimpleLruCache<RegionCacheKey, RegionObservationCache>,
+    region_cache: LruCache<RegionCacheKey, RegionObservationCache>,
 }
 
 #[derive(Default)]
@@ -164,17 +119,17 @@ pub(crate) fn reclassify_generic_as_validation(error: AppError) -> AppError {
     }
 }
 
-fn apply_read_summary(variant: &mut VariantInfo, summary: &ReadCountSummary) {
-    variant.snp_reads = Some(summary.snp_counts.clone());
-    variant.snp_forward_reads = Some(summary.snp_forward_counts.clone());
-    variant.snp_reverse_reads = Some(summary.snp_reverse_counts.clone());
+fn apply_read_summary(variant: &mut VariantInfo, summary: ReadCountSummary) {
+    variant.snp_reads = Some(summary.snp_counts);
+    variant.snp_forward_reads = Some(summary.snp_forward_counts);
+    variant.snp_reverse_reads = Some(summary.snp_reverse_counts);
     variant.mnv_reads = Some(summary.mnv_count);
     variant.mnv_forward_reads = Some(summary.mnv_forward_count);
     variant.mnv_reverse_reads = Some(summary.mnv_reverse_count);
     variant.mnv_total_reads = Some(summary.mnv_total_reads);
-    variant.total_reads = Some(summary.total_reads.clone());
-    variant.total_forward_reads = Some(summary.total_forward_reads.clone());
-    variant.total_reverse_reads = Some(summary.total_reverse_reads.clone());
+    variant.total_reads = Some(summary.total_reads);
+    variant.total_forward_reads = Some(summary.total_forward_reads);
+    variant.total_reverse_reads = Some(summary.total_reverse_reads);
     variant.mnv_total_forward_reads = Some(summary.mnv_total_forward_reads);
     variant.mnv_total_reverse_reads = Some(summary.mnv_total_reverse_reads);
 }
@@ -220,8 +175,8 @@ fn count_gene_variant_reads(
     };
 
     let (cache, cache_hits, cache_misses) =
-        if let Some(cached) = state.region_cache.get_cloned(&cache_key) {
-            (cached, 1, 0)
+        if let Some(cached) = state.region_cache.get(&cache_key) {
+            (cached.clone(), 1, 0)
         } else {
             let bam = match state.bam.as_mut() {
                 Some(b) => b,
@@ -246,8 +201,9 @@ fn count_gene_variant_reads(
                 ))
             })?;
 
-            state.region_cache.insert(cache_key, built.clone());
-            (built, 0, 1)
+            let result = built.clone();
+            state.region_cache.put(cache_key, built);
+            (result, 0, 1)
         };
 
     for variant in variants {
@@ -266,7 +222,7 @@ fn count_gene_variant_reads(
                 contig, gene.name, variant.positions, e
             ))
         })?;
-        apply_read_summary(variant, &summary);
+        apply_read_summary(variant, summary);
     }
 
     Ok((cache_hits, cache_misses))
@@ -330,7 +286,7 @@ pub(crate) fn process_contig(
                 };
                 Ok(WorkerState {
                     bam,
-                    region_cache: SimpleLruCache::new(64),
+                    region_cache: LruCache::new(NonZeroUsize::new(64).expect("64 > 0")),
                 })
             },
             |state_result, gene| -> AppResult<WorkerResult> {

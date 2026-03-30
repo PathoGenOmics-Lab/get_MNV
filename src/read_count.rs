@@ -4,6 +4,7 @@
 use crate::error::{AppError, AppResult};
 use rust_htslib::bam::{IndexedReader, Read as BamReadTrait, Record as BamRecord};
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct ReadCountSummary {
@@ -29,7 +30,7 @@ pub struct RegionObservationCache {
 
 #[derive(Debug, Clone)]
 struct CachedReadObservation {
-    key: ReadKey,
+    key: Rc<ReadKey>,
     is_reverse: bool,
     observations: Vec<Option<(char, u8)>>,
 }
@@ -201,7 +202,7 @@ pub fn build_region_observation_cache(
         }
 
         reads.push(CachedReadObservation {
-            key: build_read_key(&rec),
+            key: Rc::new(build_read_key(&rec)),
             is_reverse: rec.is_reverse(),
             observations,
         });
@@ -270,19 +271,19 @@ pub fn count_reads_from_cache(
     let mut mnv_count = 0usize;
     let mut mnv_forward_count = 0usize;
     let mut mnv_reverse_count = 0usize;
-    let mut unique_mnv_total: HashSet<ReadKey> = HashSet::new();
-    let mut unique_mnv_total_forward: HashSet<ReadKey> = HashSet::new();
-    let mut unique_mnv_total_reverse: HashSet<ReadKey> = HashSet::new();
+    let mut unique_mnv_total: HashSet<Rc<ReadKey>> = HashSet::new();
+    let mut unique_mnv_total_forward: HashSet<Rc<ReadKey>> = HashSet::new();
+    let mut unique_mnv_total_reverse: HashSet<Rc<ReadKey>> = HashSet::new();
 
-    let mut unique_snp: Vec<HashSet<ReadKey>> =
+    let mut unique_snp: Vec<HashSet<Rc<ReadKey>>> =
         (0..positions.len()).map(|_| HashSet::new()).collect();
-    let mut unique_total: Vec<HashSet<ReadKey>> =
+    let mut unique_total: Vec<HashSet<Rc<ReadKey>>> =
         (0..positions.len()).map(|_| HashSet::new()).collect();
-    let mut unique_total_forward: Vec<HashSet<ReadKey>> =
+    let mut unique_total_forward: Vec<HashSet<Rc<ReadKey>>> =
         (0..positions.len()).map(|_| HashSet::new()).collect();
-    let mut unique_total_reverse: Vec<HashSet<ReadKey>> =
+    let mut unique_total_reverse: Vec<HashSet<Rc<ReadKey>>> =
         (0..positions.len()).map(|_| HashSet::new()).collect();
-    let mut per_read_multi_support: HashMap<ReadKey, MultiReadSupport> = HashMap::new();
+    let mut per_read_multi_support: HashMap<Rc<ReadKey>, MultiReadSupport> = HashMap::new();
 
     for cached_read in &cache.reads {
         let observations = requested_indices
