@@ -21,6 +21,7 @@ function Tip({ text }: { text: string }) {
   const handleEnter = useCallback(() => {
     if (iconRef.current) {
       const rect = iconRef.current.getBoundingClientRect();
+      // getBoundingClientRect is viewport-relative, which is correct for position:fixed tooltips
       setPos({ x: rect.left + rect.width / 2, y: rect.top });
     }
     setShow(true);
@@ -221,6 +222,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
     onChange({
       ...DEFAULT_CONFIG,
       ...preset.config,
+      // Preserve user-selected files and environment settings
       vcfFile: config.vcfFile,
       fastaFile: config.fastaFile,
       genesFile: config.genesFile,
@@ -231,6 +233,8 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
       threads: config.threads,
       keepOriginalInfo: config.keepOriginalInfo,
       translationTable: config.translationTable,
+      excludeIntergenic: config.excludeIntergenic,
+      vcfGz: config.vcfGz,
       outputDir: config.outputDir,
       outputPrefix: config.outputPrefix,
     });
@@ -517,13 +521,26 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
             label="TSV output"
             tip="Generate a tab-separated file with annotated variants, amino acid changes, and MNV classifications."
             checked={config.outputTsv}
-            onChange={(v) => update("outputTsv", v)}
+            onChange={(v) => {
+              // Prevent disabling both outputs — at least one must be active
+              if (!v && !config.outputVcf) return;
+              update("outputTsv", v);
+            }}
           />
           <ToggleField
             label="VCF output"
             tip="Generate a VCF file with MNV annotations in INFO fields. Compatible with downstream VCF tools."
             checked={config.outputVcf}
-            onChange={(v) => update("outputVcf", v)}
+            onChange={(v) => {
+              // Prevent disabling both outputs — at least one must be active
+              if (!v && !config.outputTsv) return;
+              if (!v && config.vcfGz) {
+                // Disable both VCF and VCF-GZ in one update
+                onChange({ ...config, outputVcf: false, vcfGz: false });
+              } else {
+                update("outputVcf", v);
+              }
+            }}
           />
           {config.outputVcf && (
             <ToggleField
@@ -588,7 +605,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
               }
               placeholder={
                 config.vcfFile
-                  ? config.vcfFile.split(/[\\/]/).pop()?.replace(/\.(vcf|vcf\.gz)$/i, "") ?? "auto"
+                  ? config.vcfFile.split(/[\\/]/).pop()?.replace(/\.(vcf\.gz|vcf)$/i, "") ?? "auto"
                   : "Derived from VCF"
               }
             />
