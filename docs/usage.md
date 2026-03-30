@@ -25,6 +25,7 @@ get_mnv --vcf <VCF_FILE> --fasta <FASTA_FILE> (--genes <GENES_FILE> | --gff <GFF
 | `--sample <SAMPLE>` | Sample name for FORMAT metrics (default: first sample). Use `all` to process every sample |
 | `--chrom <CHROM>` | Comma-separated contig selection (default: all contigs in VCF) |
 | `--gff-features <FEATURES>` | Comma-separated GFF feature types (default: `gene,pseudogene`) |
+| `--translation-table <N>` | NCBI genetic code table for codon translation (default: 11). Supported: 1, 2, 3, 4, 5, 6, 11, 12, 25 |
 
 ### Quality filters
 

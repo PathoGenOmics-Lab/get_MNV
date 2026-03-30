@@ -76,6 +76,13 @@ get_mnv \
   --gff genes.gff3 \
   --both --vcf-gz --emit-filtered \
   --min-strand-bias-p 0.05
+
+# Mitochondrial genome with vertebrate genetic code
+get_mnv \
+  --vcf mito.vcf \
+  --fasta mito.fasta \
+  --gff mito.gff3 \
+  --translation-table 2
 ```
 
 ## Features
@@ -89,6 +96,7 @@ get_mnv \
 | ⚡ Parallel | Multi-threaded processing with Rayon |
 | 🔍 Strand bias | Fisher exact test with configurable filtering |
 | 🧩 Flexible input | GFF3 or TSV annotations, multi-contig, multi-sample |
+| 🧪 Genetic codes | 9 NCBI translation tables (bacterial, mitochondrial, etc.) |
 | ✅ Validation | Dry-run mode, strict metrics, input checksums |
 
 ## Documentation

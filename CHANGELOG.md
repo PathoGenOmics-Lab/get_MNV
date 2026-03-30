@@ -2,6 +2,46 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.1.1] - 2026-03-30
+
+### Added
+- `--translation-table <N>` flag to select NCBI genetic code tables for codon translation (default: 11 — Bacterial/Archaeal/Plant Plastid). Supported tables: 1 (Standard), 2 (Vertebrate Mitochondrial), 3 (Yeast Mitochondrial), 4 (Mold/Protozoan Mitochondrial), 5 (Invertebrate Mitochondrial), 6 (Ciliate), 11 (Bacterial), 12 (Alternative Yeast Nuclear), 25 (SR1/Gracilibacteria).
+- New `genetic_code` module with `GeneticCode` struct and full NCBI table support.
+- 82 new tests (+58%): unit tests for 6 previously untested modules (`io/annotation`, `io/fasta`, `io/validation`, `io/vcf_fast`, `variants/types`, `cli`), plus integration tests for malformed inputs (empty VCF, truncated records, missing headers, error JSON).
+- Integration tests for edge-case VCF inputs (empty, truncated, no header).
+
+### Changed
+- **Performance: 6.2× faster** (111ms → 18ms on example dataset):
+  - Fast text VCF parser bypassing htslib for plain `.vcf` files (9.2× faster parsing).
+  - Zero-copy FASTA loading with hand-rolled parser (removed `bio` crate dependency).
+  - Lazy SHA-256 checksums: only computed when `--summary-json` or `--run-manifest` is used.
+  - O(1) LRU cache (replaced linear `SimpleLruCache` with `lru` crate).
+  - `Rc<ReadKey>` shared ownership eliminates per-read qname clones.
+- **Architecture: modular split** (max file 901 → 761 LOC):
+  - `variants.rs` → `variants/types.rs` (domain types) + `variants/codon.rs` (MNV logic).
+  - `output/common.rs` → + `output/stats.rs` (Fisher exact strand bias).
+  - `pipeline/mod.rs` → + `pipeline/output_paths.rs` (path resolution).
+- CLI migrated from clap builder API (301 LOC) to derive macros (~170 LOC).
+- `VcfWriter::new()` 15 positional args replaced with `VcfWriterConfig` builder struct.
+- Removed `protein-translate` dependency: inline `translate_codon()` lookup table.
+- Overflow-safe arithmetic: `saturating_sub` for amino acid position calculation.
+- Bounds check: skip codons exceeding reference sequence length.
+
+### Fixed
+- **Scientific**: ambiguous codon (`X`) was classified as "Synonymous" instead of "Unknown".
+- **Scientific**: lowercase ALT alleles produced unknown amino acid `X` (now uppercased before translation).
+- **Scientific**: duplicate same-position SNPs from `--split-multiallelic` caused incorrect codon grouping.
+- Incomplete codon (gene length not multiple of 3) now logs a debug warning instead of silently skipping.
+- MNV `original_info` now merges INFO from all SNPs in a codon group (deduplicated, pipe-separated).
+- `get_base_name()` strips `.vcf.gz` as compound extension for clean output filenames.
+- `sanitized_command_line()` escapes tab/newline/CR to prevent VCF header corruption.
+- VCF contig headers: control characters replaced with underscore.
+- Clap derive: fixed `required_unless_present = "gff"` → `"gff_file"` (was crashing `--help`).
+
+### Removed
+- `bio` crate dependency (replaced with hand-rolled FASTA parser).
+- `protein-translate` crate dependency (replaced with inline lookup table).
+
 ## [1.1.0] - 2026-03-12
 
 ### Added
