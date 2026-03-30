@@ -3,13 +3,6 @@ name: Build & Test GUI (branch)
 on:
   push:
     branches: [v1.1.1]
-    paths:
-      - "frontend/**"
-      - "src-tauri/**"
-      - "src/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - ".github/workflows/build-gui-branch.yml"
   workflow_dispatch:
 
 jobs:
