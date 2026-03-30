@@ -275,19 +275,13 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
   );
   const gridWrapRef = useRef<HTMLDivElement>(null);
   const prevCellSizeRef = useRef(DEFAULT_CELL_SIZE);
-  const [emptyLoci, setEmptyLoci] = useState<Set<string>>(() => new Set());
-
   /* ── Loci ── */
   const loci = useMemo(() => buildLoci(data), [data]);
 
-  // Reset emptyLoci when input data changes
-  useEffect(() => { setEmptyLoci(new Set()); }, [data, minMapq, minBaseQuality]);
-
   const filteredLoci = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const base = loci.filter((l) => !emptyLoci.has(l.id));
-    if (!q) return base;
-    return base.filter((l) =>
+    if (!q) return loci;
+    return loci.filter((l) =>
       [l.chrom, l.gene, l.variantType, l.aaChanges, l.positions.join(","),
        l.refCodon, l.mnvCodon, l.snpAaChanges, l.changeType].join(" ").toLowerCase().includes(q),
     );
@@ -385,12 +379,6 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
     })
       .then((r) => {
         if (cancelled) return;
-        // If no MNV reads found in the BAM, exclude this locus from the sidebar
-        if (r.counts.mnv === 0 && locus) {
-          setEmptyLoci((prev) => { const next = new Set(prev); next.add(locus.id); return next; });
-          setLoading(false);
-          return;
-        }
         setView(r);
         setLoading(false);
       })
