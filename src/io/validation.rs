@@ -60,27 +60,53 @@ pub(crate) fn validate_vcf_allele(
     )
 }
 
-/// Extract the file stem from a path, stripping `.vcf` / `.vcf.gz` suffixes.
+/// Extract the file stem from a path, stripping `.vcf`, `.vcf.gz`, and `.gz`
+/// suffixes so that output files get clean names (e.g. `sample.MNV.tsv`
+/// instead of `sample.vcf.MNV.tsv`).
 ///
 /// # Examples
 /// ```
 /// use get_mnv::io::get_base_name;
 /// assert_eq!(get_base_name("sample.vcf").unwrap(), "sample");
-/// assert_eq!(get_base_name("/data/run.vcf.gz").unwrap(), "run.vcf");
+/// assert_eq!(get_base_name("/data/run.vcf.gz").unwrap(), "run");
+/// assert_eq!(get_base_name("plain.gz").unwrap(), "plain");
+/// assert_eq!(get_base_name("noext").unwrap(), "noext");
 /// ```
 pub fn get_base_name(file_path: &str) -> AppResult<String> {
     let path = Path::new(file_path);
-    let stem = path.file_stem().ok_or_else(|| {
+    let file_name = path.file_name().ok_or_else(|| {
         IoError::new(
             ErrorKind::InvalidInput,
-            format!("Invalid input VCF path '{file_path}': missing file stem"),
+            format!("Invalid input VCF path '{file_path}': missing file name"),
         )
     })?;
-    let stem_utf8 = stem.to_str().ok_or_else(|| {
+    let name = file_name.to_str().ok_or_else(|| {
         IoError::new(
             ErrorKind::InvalidInput,
             format!("Invalid input VCF path '{file_path}': file name is not valid UTF-8"),
         )
     })?;
-    Ok(stem_utf8.to_string())
+
+    // Strip compound extensions: .vcf.gz, .vcf, .gz
+    let stem = if let Some(base) = name.strip_suffix(".vcf.gz") {
+        base
+    } else if let Some(base) = name.strip_suffix(".vcf") {
+        base
+    } else if let Some(base) = name.strip_suffix(".gz") {
+        base
+    } else {
+        // Fallback: use Path::file_stem for any other extension
+        path.file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(name)
+    };
+
+    if stem.is_empty() {
+        return Err(IoError::new(
+            ErrorKind::InvalidInput,
+            format!("Invalid input VCF path '{file_path}': empty file stem after stripping extensions"),
+        ).into());
+    }
+
+    Ok(stem.to_string())
 }

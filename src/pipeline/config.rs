@@ -91,7 +91,7 @@ pub(crate) fn sanitized_command_line() -> String {
     let command_line_args = std::env::args()
         .skip(1)
         .map(|arg| {
-            if arg.contains('/') {
+            let cleaned = if arg.contains('/') {
                 Path::new(&arg)
                     .file_name()
                     .and_then(|value| value.to_str())
@@ -99,7 +99,9 @@ pub(crate) fn sanitized_command_line() -> String {
                     .unwrap_or(arg)
             } else {
                 arg
-            }
+            };
+            // Escape control characters that could corrupt VCF header lines
+            cleaned.replace('\t', "\\t").replace('\n', "\\n").replace('\r', "\\r")
         })
         .collect::<Vec<_>>();
     format!("get_mnv {}", command_line_args.join(" "))

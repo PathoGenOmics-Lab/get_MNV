@@ -215,6 +215,27 @@ pub struct VariantInfo {
 
 use crate::utils::{determine_change_type, iupac_aa, process_translate, reverse_complement};
 
+/// Merge `original_info` from all SNPs in a codon group.
+/// When all SNPs share the same info string, return that single string.
+/// When they differ, concatenate unique info strings with `|` as separator
+/// so no original INFO data is lost for MNV records.
+fn merge_original_info(snps: &[Snp]) -> Option<String> {
+    let infos: Vec<&str> = snps
+        .iter()
+        .filter_map(|s| s.original_info.as_deref())
+        .collect();
+    if infos.is_empty() {
+        return None;
+    }
+    // Deduplicate while preserving order
+    let mut seen = std::collections::HashSet::new();
+    let unique: Vec<&str> = infos
+        .into_iter()
+        .filter(|s| seen.insert(*s))
+        .collect();
+    Some(unique.join("|"))
+}
+
 fn collect_all_usize(values: impl Iterator<Item = Option<usize>>) -> Option<Vec<usize>> {
     let mut out = Vec::new();
     for value in values {
@@ -330,10 +351,7 @@ pub fn process_codon(codon_info: CodonInfo, strand: Strand, chrom: &str) -> Vari
         mnv_codon: Some(mnv_codon),
         original_dp: collect_all_usize(codon_info.codon_list.iter().map(|s| s.original_dp)),
         original_freq: collect_all_f64(codon_info.codon_list.iter().map(|s| s.original_freq)),
-        original_info: codon_info
-            .codon_list
-            .first()
-            .and_then(|s| s.original_info.clone()),
+        original_info: merge_original_info(&codon_info.codon_list),
     }
 }
 
@@ -350,6 +368,10 @@ fn codon_bounds_for_position(gene: &Gene, position: usize) -> Option<(usize, usi
             if codon_end <= gene.end {
                 Some((codon_start, codon_end))
             } else {
+                log::debug!(
+                    "SNP at position {} in gene '{}' falls in incomplete codon (gene length {} not multiple of 3)",
+                    position, gene.name, gene.end - gene.start + 1
+                );
                 None
             }
         }
@@ -357,12 +379,20 @@ fn codon_bounds_for_position(gene: &Gene, position: usize) -> Option<(usize, usi
             let offset = gene.end - position;
             let codon_end = gene.end.saturating_sub((offset / 3) * 3);
             if codon_end < gene.start + 2 {
+                log::debug!(
+                    "SNP at position {} in gene '{}' falls in incomplete codon (gene length {} not multiple of 3)",
+                    position, gene.name, gene.end - gene.start + 1
+                );
                 return None;
             }
             let codon_start = codon_end - 2;
             if codon_start >= gene.start {
                 Some((codon_start, codon_end))
             } else {
+                log::debug!(
+                    "SNP at position {} in gene '{}' falls in incomplete codon (gene length {} not multiple of 3)",
+                    position, gene.name, gene.end - gene.start + 1
+                );
                 None
             }
         }
