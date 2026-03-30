@@ -38,6 +38,11 @@ fn run_single(
     on_progress: &dyn Fn(ProgressEvent),
 ) -> AppResult<RunSummary> {
     let total_start = Instant::now();
+    let genetic_code = crate::genetic_code::GeneticCode::new(args.translation_table)
+        .ok_or_else(|| AppError::config(format!(
+            "Unsupported translation table: {}", args.translation_table
+        )))?;
+    info!("Using genetic code: {genetic_code}");
     log_run_configuration(args, sample_override);
 
     on_progress(ProgressEvent {
@@ -116,6 +121,7 @@ fn run_single(
             &parsed.references,
             &parsed.snp_by_contig,
             parsed.preloaded_gff.as_ref(),
+            genetic_code,
         )?;
         process_ms += process_start.elapsed().as_secs_f64() * 1000.0;
 
@@ -247,6 +253,13 @@ pub fn run_with_progress(
         return Err(AppError::config(
             "--min-strand-bias-p must be between 0 and 1",
         ));
+    }
+    if crate::genetic_code::GeneticCode::new(args.translation_table).is_none() {
+        return Err(AppError::config(format!(
+            "--translation-table {} is not supported. Supported tables: {:?}",
+            args.translation_table,
+            crate::genetic_code::SUPPORTED_TABLES
+        )));
     }
 
     configure_threads(args.threads)?;

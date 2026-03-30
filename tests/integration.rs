@@ -59,6 +59,7 @@ fn base_args() -> Args {
         convert: false,
         both: false,
         output_dir: None,
+        translation_table: 11,
         output_prefix: None,
     }
 }
@@ -459,6 +460,7 @@ chr1\t300\t.\tG\tA\t.\tPASS\t.\tGT:DP\t1/1:25\t1/1:30
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
+        translation_table: 11,
         output_prefix: None,
     };
 
@@ -534,6 +536,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT:DP\t1/1:20\t0/0:15
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
+        translation_table: 11,
         output_prefix: Some("selected".to_string()),
     };
 
@@ -600,6 +603,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT\t1/1
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
+        translation_table: 11,
         output_prefix: None,
     };
 
@@ -667,6 +671,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
+        translation_table: 11,
         output_prefix: None,
     };
 
@@ -798,4 +803,109 @@ fn test_fast_parser_keep_info_matches_htslib() {
             );
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// T7: --translation-table support
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_invalid_translation_table_fails() {
+    let ex = example_dir();
+    let out = std::env::temp_dir().join("get_mnv_test_invalid_tt");
+
+    let args = Args {
+        vcf_file: ex.join("G35894.var.snp.vcf").to_string_lossy().to_string(),
+        bam_file: None,
+        fasta_file: ex.join("MTB_ancestor.fas").to_string_lossy().to_string(),
+        genes_file_tsv: Some(ex.join("anot_genes.txt").to_string_lossy().to_string()),
+        gff_file: None,
+        gff_features_raw: None,
+        sample: None,
+        chrom: None,
+        normalize_alleles: false,
+        min_quality: 20,
+        min_mapq: 0,
+        threads: Some(1),
+        min_snp_reads: 0,
+        min_mnv_reads: 0,
+        min_snp_strand_reads: 0,
+        min_mnv_strand_reads: 0,
+        min_strand_bias_p: 0.0,
+        dry_run: true,
+        strict: false,
+        split_multiallelic: false,
+        emit_filtered: false,
+        vcf_gz: false,
+        index_vcf_gz: false,
+        strand_bias_info: false,
+        keep_original_info: false,
+        exclude_intergenic: false,
+        bcf: false,
+        summary_json: None,
+        error_json: None,
+        run_manifest: None,
+        convert: false,
+        both: false,
+        translation_table: 99,  // invalid
+        output_dir: Some(out.to_string_lossy().to_string()),
+        output_prefix: None,
+    };
+
+    let result = pipeline::run(&args);
+    assert!(result.is_err(), "invalid translation table should fail");
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("translation-table") || err_msg.contains("not supported"),
+        "Error should mention translation table: {err_msg}"
+    );
+}
+
+#[test]
+fn test_translation_table_1_standard() {
+    // Table 1 (Standard) should produce valid results — same as default for MTB
+    let ex = example_dir();
+    let out = std::env::temp_dir().join("get_mnv_test_table1");
+
+    let args = Args {
+        vcf_file: ex.join("G35894.var.snp.vcf").to_string_lossy().to_string(),
+        bam_file: None,
+        fasta_file: ex.join("MTB_ancestor.fas").to_string_lossy().to_string(),
+        genes_file_tsv: Some(ex.join("anot_genes.txt").to_string_lossy().to_string()),
+        gff_file: None,
+        gff_features_raw: None,
+        sample: None,
+        chrom: None,
+        normalize_alleles: false,
+        min_quality: 20,
+        min_mapq: 0,
+        threads: Some(1),
+        min_snp_reads: 0,
+        min_mnv_reads: 0,
+        min_snp_strand_reads: 0,
+        min_mnv_strand_reads: 0,
+        min_strand_bias_p: 0.0,
+        dry_run: true,
+        strict: false,
+        split_multiallelic: false,
+        emit_filtered: false,
+        vcf_gz: false,
+        index_vcf_gz: false,
+        strand_bias_info: false,
+        keep_original_info: false,
+        exclude_intergenic: false,
+        bcf: false,
+        summary_json: None,
+        error_json: None,
+        run_manifest: None,
+        convert: false,
+        both: false,
+        translation_table: 1,  // Standard
+        output_dir: Some(out.to_string_lossy().to_string()),
+        output_prefix: None,
+    };
+
+    let summary = pipeline::run(&args).expect("table 1 should succeed");
+    // Tables 1 and 11 produce identical results for standard sense codons
+    assert!(summary.global.produced_variants > 0);
 }

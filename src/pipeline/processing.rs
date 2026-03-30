@@ -156,8 +156,9 @@ fn annotate_variants_for_gene(
     snp_list: &[VcfPosition],
     reference: &io::Reference,
     contig: &str,
+    genetic_code: crate::genetic_code::GeneticCode,
 ) -> Vec<VariantInfo> {
-    variants::get_mnv_variants_for_gene(gene, snp_list, reference, contig)
+    variants::get_mnv_variants_for_gene(gene, snp_list, reference, contig, genetic_code)
 }
 
 fn count_gene_variant_reads(
@@ -251,6 +252,7 @@ pub(crate) fn process_contig(
     references: &ReferenceMap,
     snp_by_contig: &HashMap<String, Vec<VcfPosition>>,
     preloaded_gff: Option<&HashMap<String, Vec<Gene>>>,
+    genetic_code: crate::genetic_code::GeneticCode,
 ) -> AppResult<(Vec<VariantInfo>, ContigSummary)> {
     let reference =
         io::reference_for_chrom(references, contig).map_err(reclassify_generic_as_validation)?;
@@ -310,7 +312,7 @@ pub(crate) fn process_contig(
                 let state = state_result
                     .as_mut()
                     .map_err(|err| AppError::validation(err.to_string()))?;
-                let mut variants = annotate_variants_for_gene(gene, snp_list, &reference, contig);
+                let mut variants = annotate_variants_for_gene(gene, snp_list, &reference, contig, genetic_code);
                 if variants.is_empty() {
                     return Ok(WorkerResult::default());
                 }

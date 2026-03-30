@@ -2,7 +2,7 @@
 //! acid change calculation.
 
 use super::types::*;
-use crate::utils::{determine_change_type, iupac_aa, process_translate, reverse_complement};
+use crate::utils::{determine_change_type, iupac_aa, reverse_complement};
 use std::collections::BTreeMap;
 
 /// Merge `original_info` from all SNPs in a codon group.
@@ -59,7 +59,12 @@ fn construct_codon(codon_info: &CodonInfo, target_snps: &[&Snp]) -> String {
     codon
 }
 
-pub fn process_codon(codon_info: CodonInfo, strand: Strand, chrom: &str) -> VariantInfo {
+pub fn process_codon(
+    codon_info: CodonInfo,
+    strand: Strand,
+    chrom: &str,
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> VariantInfo {
     let ref_codon = codon_info.original_codon.clone();
 
     let mnv_snps: Vec<&Snp> = codon_info.codon_list.iter().collect();
@@ -74,12 +79,12 @@ pub fn process_codon(codon_info: CodonInfo, strand: Strand, chrom: &str) -> Vari
 
     let (orig_aa, mut_aa) = match strand {
         Strand::Minus => (
-            process_translate(reverse_complement(&ref_codon).as_bytes()),
-            process_translate(reverse_complement(&mnv_codon).as_bytes()),
+            genetic_code.translate_seq(reverse_complement(&ref_codon).as_bytes()),
+            genetic_code.translate_seq(reverse_complement(&mnv_codon).as_bytes()),
         ),
         Strand::Plus => (
-            process_translate(ref_codon.as_bytes()),
-            process_translate(mnv_codon.as_bytes()),
+            genetic_code.translate_seq(ref_codon.as_bytes()),
+            genetic_code.translate_seq(mnv_codon.as_bytes()),
         ),
     };
 
@@ -101,7 +106,7 @@ pub fn process_codon(codon_info: CodonInfo, strand: Strand, chrom: &str) -> Vari
                 Strand::Minus => reverse_complement(&single_codon),
                 Strand::Plus => single_codon,
             };
-            let single_aa = process_translate(single.as_bytes());
+            let single_aa = genetic_code.translate_seq(single.as_bytes());
             iupac_aa(&format!("{orig_aa}{aa_pos}{single_aa}"))
         })
         .collect();
@@ -198,6 +203,7 @@ pub fn get_mnv_variants_for_gene(
     snp_list: &[crate::io::VcfPosition],
     reference: &crate::io::Reference,
     chrom: &str,
+    genetic_code: crate::genetic_code::GeneticCode,
 ) -> Vec<VariantInfo> {
     let mut variants = Vec::new();
 
@@ -305,7 +311,7 @@ pub fn get_mnv_variants_for_gene(
             codon_end,
         };
 
-        let mut var_info = process_codon(codon_info, gene.strand, chrom);
+        let mut var_info = process_codon(codon_info, gene.strand, chrom, genetic_code);
 
         if overlaps_indel {
             var_info.change_type = ChangeType::IndelOverlap;
@@ -587,7 +593,7 @@ mod tests {
             },
         ];
 
-        let variants = get_mnv_variants_for_gene(&gene, &snps, &reference, "chr1");
+        let variants = get_mnv_variants_for_gene(&gene, &snps, &reference, "chr1", crate::genetic_code::GeneticCode::default());
         assert!(
             variants.len() >= 2,
             "expected SNP + indel, got {}",
@@ -668,7 +674,7 @@ mod tests {
             codon_start: 100,
             codon_end: 102,
         };
-        let result = process_codon(codon_info, Strand::Plus, "chr1");
+        let result = process_codon(codon_info, Strand::Plus, "chr1", crate::genetic_code::GeneticCode::default());
         assert_eq!(result.variant_type, VariantType::SnpMnv);
         assert_eq!(result.positions.len(), 2);
         assert!(result.mnv_codon.is_some());
@@ -694,7 +700,7 @@ mod tests {
             codon_end: 102,
         };
 
-        let result = process_codon(codon_info, Strand::Plus, "chr1");
+        let result = process_codon(codon_info, Strand::Plus, "chr1", crate::genetic_code::GeneticCode::default());
         assert_eq!(result.variant_type, VariantType::Snp);
         assert!(matches!(
             result.change_type,
@@ -726,7 +732,7 @@ mod tests {
             codon_start: 100,
             codon_end: 102,
         };
-        let result = process_codon(codon_info, Strand::Plus, "chr1");
+        let result = process_codon(codon_info, Strand::Plus, "chr1", crate::genetic_code::GeneticCode::default());
         // Position 101 is the 2nd base (index 1). ATG → ATG with pos 101 T→t
         // The codon becomes "ATt" → uppercased to "ATT" → Ile (I), not X.
         assert_ne!(
@@ -769,7 +775,7 @@ mod tests {
         ];
         let seq = "N".repeat(99) + "ATGATGATGATG";
         let reference = Reference { sequence: &seq };
-        let variants = get_mnv_variants_for_gene(&gene, &snps, &reference, "chr1");
+        let variants = get_mnv_variants_for_gene(&gene, &snps, &reference, "chr1", crate::genetic_code::GeneticCode::default());
         // Should produce exactly 1 variant (first ALT wins, duplicate skipped)
         assert_eq!(variants.len(), 1, "Duplicate position should be deduplicated");
         assert_eq!(variants[0].positions.len(), 1);

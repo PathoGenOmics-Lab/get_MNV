@@ -6,6 +6,7 @@
 
 pub mod cli;
 pub mod error;
+pub mod genetic_code;
 pub mod io;
 pub mod output;
 pub mod pipeline;

@@ -130,9 +130,11 @@ pub fn reverse_complement(seq: &str) -> String {
         .collect()
 }
 
-/// Translate a DNA sequence to a protein string. Only the first codon
-/// (3 bases) is translated — matching the original single-codon usage
-/// throughout the codebase.
+/// Translate a DNA sequence to a protein string using the standard genetic
+/// code (NCBI table 1/11). Only the first codon (3 bases) is translated.
+///
+/// **Prefer [`GeneticCode::translate_seq`](crate::genetic_code::GeneticCode::translate_seq)**
+/// which supports all NCBI translation tables via `--translation-table`.
 pub fn process_translate(seq: &[u8]) -> String {
     if seq.len() < 3 {
         return "X".to_string();

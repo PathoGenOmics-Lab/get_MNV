@@ -23,7 +23,7 @@ pub struct Args {
     pub fasta_file: String,
 
     /// Gene annotation file in TSV format (gene,start,end,strand)
-    #[arg(short = 'g', long = "genes", required_unless_present = "gff", conflicts_with = "gff")]
+    #[arg(short = 'g', long = "genes", required_unless_present = "gff_file", conflicts_with = "gff_file")]
     pub genes_file_tsv: Option<String>,
 
     /// Gene annotation file in GFF/GFF3 format
@@ -125,6 +125,14 @@ pub struct Args {
     /// Write a reproducibility manifest (inputs, outputs, checksums, runtime metadata)
     #[arg(long = "run-manifest")]
     pub run_manifest: Option<String>,
+
+    /// NCBI translation table number for codon-to-amino-acid mapping
+    /// (default: 11 = Bacterial/Archaeal/Plant Plastid).
+    /// Supported: 1 (Standard), 2 (Vertebrate Mito), 3 (Yeast Mito),
+    /// 4 (Mold/Protozoan Mito), 5 (Invertebrate Mito), 6 (Ciliate),
+    /// 11 (Bacterial), 12 (Alt Yeast Nuclear), 25 (SR1/Gracilibacteria).
+    #[arg(long = "translation-table", default_value_t = 11)]
+    pub translation_table: u8,
 
     /// Exclude intergenic SNPs (variants outside annotated genes) from the output
     #[arg(long = "exclude-intergenic")]

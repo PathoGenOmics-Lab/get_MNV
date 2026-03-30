@@ -388,6 +388,7 @@ mod tests {
             run_manifest: None,
             convert: false,
             both: false,
+            translation_table: 11,
             output_dir: None,
             output_prefix: None,
         }
