@@ -800,7 +800,10 @@ function App() {
                     validationError={showValidation && !config.genesFile}
                   />
                   <FileSelector
-                    label="BAM alignment"
+                    label={(() => {
+                      const bamCount = samples.filter((s) => s.bamPath).length;
+                      return bamCount > 1 ? `BAM alignment (${bamCount})` : "BAM alignment";
+                    })()}
                     value={config.bamFile ?? ""}
                     onChange={(path) =>
                       setConfig((prev) => ({
