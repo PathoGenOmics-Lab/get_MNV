@@ -285,7 +285,7 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
       [l.chrom, l.gene, l.variantType, l.aaChanges, l.positions.join(","),
        l.refCodon, l.mnvCodon, l.snpAaChanges, l.changeType].join(" ").toLowerCase().includes(q),
     );
-  }, [loci, search, emptyLoci]);
+  }, [loci, search]);
 
   // Auto-select first locus
   useEffect(() => {
