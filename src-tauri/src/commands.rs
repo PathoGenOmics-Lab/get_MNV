@@ -67,10 +67,13 @@ impl AnalysisConfig {
     /// Convert the GUI config into the core library's `Args` struct.
     fn into_args(self) -> get_mnv::cli::Args {
         // Route genes_file to the correct field based on file extension.
-        let is_gff = self.genes_file.ends_with(".gff")
-            || self.genes_file.ends_with(".gff3")
-            || self.genes_file.ends_with(".GFF")
-            || self.genes_file.ends_with(".GFF3");
+        let genes_lower = self.genes_file.to_lowercase();
+        let is_gff = genes_lower.ends_with(".gff")
+            || genes_lower.ends_with(".gff3")
+            || genes_lower.ends_with(".gtf")
+            || genes_lower.ends_with(".gff.gz")
+            || genes_lower.ends_with(".gff3.gz")
+            || genes_lower.ends_with(".gtf.gz");
         let (gff_file, genes_file_tsv) = if is_gff {
             (Some(self.genes_file), None)
         } else {
@@ -324,15 +327,18 @@ pub fn read_tsv_file(path: String) -> Result<TsvData, String> {
         .ok_or_else(|| "TSV file is empty".to_string())?
         .map_err(|e| format!("Read error: {}", e))?;
 
-    let headers: Vec<String> = header_line.split('\t').map(|s| s.to_string()).collect();
+    // Strip trailing \r (Windows CRLF)
+    let header_clean = header_line.trim_end_matches('\r');
+    let headers: Vec<String> = header_clean.split('\t').map(|s| s.to_string()).collect();
     let mut rows = Vec::new();
 
     for line in lines {
         let line = line.map_err(|e| format!("Read error: {}", e))?;
-        if line.trim().is_empty() {
+        let clean = line.trim_end_matches('\r');
+        if clean.trim().is_empty() {
             continue;
         }
-        rows.push(line.split('\t').map(|s| s.to_string()).collect());
+        rows.push(clean.split('\t').map(|s| s.to_string()).collect());
     }
 
     Ok(TsvData { headers, rows })
@@ -486,13 +492,15 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         .map_err(|e| format!("Cannot open FASTA: {}", e))?;
     let mut fasta = fasta_reader;
     let window_len = (request.window_end - request.window_start) as usize;
-    let mut ref_seq = vec![0u8; window_len];
+    let mut ref_seq = Vec::new();
     fasta
         .fetch(&request.chrom, request.window_start, request.window_end)
         .map_err(|e| format!("FASTA fetch error: {}", e))?;
     fasta
         .read(&mut ref_seq)
         .map_err(|e| format!("FASTA read error: {}", e))?;
+    // Pad to window_len if fetch returned fewer bases (e.g., near contig end)
+    ref_seq.resize(window_len, b'N');
     let reference: String = ref_seq.iter().map(|&b| b as char).collect();
 
     // Open BAM
