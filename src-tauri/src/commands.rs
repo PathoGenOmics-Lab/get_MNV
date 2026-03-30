@@ -499,6 +499,10 @@ fn read_fasta_region(fasta_path: &str, chrom: &str, start: u64, end: u64) -> Res
     let actual_end = end.min(seq_len);
     let window_len = (actual_end - start) as usize;
 
+    if line_bases == 0 || line_width == 0 {
+        return Err(format!("Invalid FASTA index for '{}': line_bases={}, line_width={}", chrom, line_bases, line_width));
+    }
+
     let start_line = start / line_bases;
     let start_byte = offset + start_line * line_width + (start % line_bases);
     let end_line = actual_end / line_bases;
