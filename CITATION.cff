@@ -23,7 +23,7 @@ authors:
       Unit “Infection and Public Health”, Paterna, Spain
     email: mireia.coscolla@csic.es
 url: 'https://github.com/PathoGenOmics-Lab/get_MNV'
-license: GPL-3.0
+license: AGPL-3.0
 version: 1.1.1
 date-released: '2026-03-30'
 doi: 10.5281/zenodo.13907423

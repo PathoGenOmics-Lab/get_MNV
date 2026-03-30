@@ -4,7 +4,7 @@
 
 <div align="center">
 
-[![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-%23af64d1?style=flat-square)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL%20v3-%23af64d1?style=flat-square)](LICENSE)
 [![Bioconda](https://img.shields.io/conda/dn/bioconda/get_mnv.svg?style=flat-square&label=bioconda)](https://anaconda.org/bioconda/get_mnv)
 [![Version](https://img.shields.io/badge/version-1.1.1-%23149389?style=flat-square)](https://github.com/PathoGenOmics-Lab/get_MNV/releases)
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13907423-%23ff0077?style=flat-square)](https://doi.org/10.5281/zenodo.13907423)
@@ -247,13 +247,13 @@ If you use get_MNV in your research, please cite:
   doi       = {10.5281/zenodo.13907423},
   url       = {https://github.com/PathoGenOmics-Lab/get_MNV},
   version   = {1.1.1},
-  license   = {GPL-3.0}
+  license   = {AGPL-3.0}
 }
 ```
 
 ## License
 
-[GNU General Public License v3.0](LICENSE)
+[GNU Affero General Public License v3.0](LICENSE)
 
 ## Fun
 
