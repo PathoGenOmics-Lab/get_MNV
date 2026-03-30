@@ -136,28 +136,7 @@ pub fn run_analysis(
     app_handle: tauri::AppHandle,
     config: AnalysisConfig,
 ) -> Result<serde_json::Value, String> {
-    let mut args = config.into_args();
-
-    // If no explicit output dir, default to VCF's parent directory.
-    // If that's not writable (e.g., read-only volume, .dmg), fall back to ~/Desktop.
-    if args.output_dir.is_none() {
-        let vcf_dir = std::path::Path::new(&args.vcf_file)
-            .parent()
-            .unwrap_or(std::path::Path::new("."));
-        let test_file = vcf_dir.join(".get_mnv_write_test");
-        let writable = std::fs::write(&test_file, b"").is_ok();
-        if writable {
-            let _ = std::fs::remove_file(&test_file);
-        } else if let Ok(home) = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
-            let home_path = std::path::PathBuf::from(&home);
-            let desktop = home_path.join("Desktop");
-            if desktop.is_dir() {
-                args.output_dir = Some(desktop.to_string_lossy().into_owned());
-            } else {
-                args.output_dir = Some(home);
-            }
-        }
-    }
+    let args = config.into_args();
 
     let progress_callback = move |evt: get_mnv::pipeline::ProgressEvent| {
         let _ = app_handle.emit("analysis-progress", &evt);
@@ -167,6 +146,42 @@ pub fn run_analysis(
         .map_err(|e| format!("{}", e))?;
 
     serde_json::to_value(&summary).map_err(|e| format!("Failed to serialize summary: {}", e))
+}
+
+// ---------------------------------------------------------------------------
+// check_output_conflicts
+// ---------------------------------------------------------------------------
+
+/// Check if any output files already exist. Returns paths that would be overwritten.
+#[tauri::command]
+pub fn check_output_conflicts(config: AnalysisConfig) -> Vec<String> {
+    let vcf_path = std::path::Path::new(&config.vcf_file);
+
+    let base_name = vcf_path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .replace(".vcf.gz", "")
+        .replace(".vcf", "");
+
+    let stem = config.output_prefix.as_deref().unwrap_or(&base_name);
+    let dir = config.output_dir.as_deref().map(std::path::Path::new)
+        .unwrap_or_else(|| vcf_path.parent().unwrap_or(std::path::Path::new(".")));
+    let base = dir.join(stem);
+
+    let mut paths = Vec::new();
+    if config.output_tsv.unwrap_or(true) {
+        paths.push(format!("{}.MNV.tsv", base.display()));
+    }
+    if config.output_vcf.unwrap_or(false) {
+        if config.vcf_gz.unwrap_or(false) {
+            paths.push(format!("{}.MNV.vcf.gz", base.display()));
+        } else {
+            paths.push(format!("{}.MNV.vcf", base.display()));
+        }
+    }
+
+    paths.into_iter().filter(|p| std::path::Path::new(p).exists()).collect()
 }
 
 // ---------------------------------------------------------------------------

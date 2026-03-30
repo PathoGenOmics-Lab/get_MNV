@@ -834,13 +834,31 @@ function App() {
                   <button
                     className={`run-button${justFinished ? " run-button--success" : ""}`}
                     disabled={running}
-                    onClick={() => {
+                    onClick={async () => {
                       if (!filesReady || samples.length === 0) {
                         setShowValidation(true);
                         return;
                       }
                       setShowValidation(false);
-                      (runnableCount > 0 ? handleRunAll : handleRerunAll)();
+
+                      // Check for existing output files before running
+                      if (runnableCount > 0) {
+                        try {
+                          const conflicts = await invoke<string[]>("check_output_conflicts", { config });
+                          if (conflicts.length > 0) {
+                            const names = conflicts.map((p) => p.split(/[\\/]/).pop()).join(", ");
+                            const ok = window.confirm(
+                              `The following output files already exist and will be overwritten:\n\n${names}\n\nContinue?`
+                            );
+                            if (!ok) return;
+                          }
+                        } catch {
+                          // If check fails, proceed anyway
+                        }
+                        handleRunAll();
+                      } else {
+                        handleRerunAll();
+                      }
                     }}
                   >
                     {justFinished ? (
