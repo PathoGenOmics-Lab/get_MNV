@@ -464,4 +464,73 @@ mod tests {
             assert!(h.starts_with("##INFO="), "Expected INFO header, got: {h}");
         }
     }
+
+    #[test]
+    fn test_parse_freq_token_percent() {
+        assert!((parse_freq_token("50%").unwrap() - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_parse_freq_token_decimal() {
+        assert!((parse_freq_token("0.25").unwrap() - 0.25).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_parse_freq_token_missing() {
+        assert!(parse_freq_token(".").is_none());
+        assert!(parse_freq_token("").is_none());
+    }
+
+    #[test]
+    fn test_parse_freq_indexed_multiallelic() {
+        assert!((parse_freq_indexed("0.1,0.2,0.3", 1).unwrap() - 0.2).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_parse_freq_indexed_out_of_bounds_single() {
+        // If only one value and index is beyond, use that single value
+        assert!(parse_freq_indexed("0.5", 3).is_some());
+    }
+
+    #[test]
+    fn test_derive_freq_from_ad() {
+        // REF=10, ALT1=5, ALT2=3 → alt_index=0 → 5/18
+        let freq = derive_freq_from_text_ad("10,5,3", 0).unwrap();
+        assert!((freq - 5.0 / 18.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_derive_freq_from_ad_zero_total() {
+        assert!(derive_freq_from_text_ad("0,0", 0).is_none());
+    }
+
+    #[test]
+    fn test_derive_freq_from_ad_missing_values() {
+        assert!(derive_freq_from_text_ad(".,.", 0).is_none());
+    }
+
+    #[test]
+    fn test_find_info_tag() {
+        assert_eq!(find_info_tag("DP=100;AF=0.5;MQ=60", "AF"), Some("0.5"));
+        assert_eq!(find_info_tag("DP=100;AF=0.5", "MQ"), None);
+        assert_eq!(find_info_tag(".", "DP"), None);
+    }
+
+    #[test]
+    fn test_extract_original_info_filters_tags() {
+        let get_mnv_tags = &["GENE", "AA", "DP"];
+        let result = extract_text_original_info("GENE=rpoB;CUSTOM=yes;DP=100", get_mnv_tags);
+        assert_eq!(result.as_deref(), Some("CUSTOM=yes"));
+    }
+
+    #[test]
+    fn test_extract_original_info_all_filtered() {
+        let get_mnv_tags = &["GENE"];
+        assert!(extract_text_original_info("GENE=x", get_mnv_tags).is_none());
+    }
+
+    #[test]
+    fn test_extract_original_info_dot() {
+        assert!(extract_text_original_info(".", &["GENE"]).is_none());
+    }
 }

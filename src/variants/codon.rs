@@ -89,8 +89,8 @@ pub fn process_codon(
     };
 
     let aa_pos = match strand {
-        Strand::Plus => (codon_info.codon_list[0].position - codon_info.gene_start) / 3 + 1,
-        Strand::Minus => (codon_info.gene_end - codon_info.codon_list[0].position) / 3 + 1,
+        Strand::Plus => codon_info.codon_list[0].position.saturating_sub(codon_info.gene_start) / 3 + 1,
+        Strand::Minus => codon_info.gene_end.saturating_sub(codon_info.codon_list[0].position) / 3 + 1,
     };
 
     let combined_change = format!("{orig_aa}{aa_pos}{mut_aa}");
@@ -270,7 +270,7 @@ pub fn get_mnv_variants_for_gene(
         let mut codon_snps = codon_snps;
         codon_snps.sort_by_key(|s| s.position);
 
-        if codon_start == 0 {
+        if codon_start == 0 || codon_end > reference.sequence.len() {
             continue;
         }
         let codon_seq = &reference.sequence[(codon_start - 1)..codon_end];

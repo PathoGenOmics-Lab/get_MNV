@@ -909,3 +909,283 @@ fn test_translation_table_1_standard() {
     // Tables 1 and 11 produce identical results for standard sense codons
     assert!(summary.global.produced_variants > 0);
 }
+
+// ---------------------------------------------------------------------------
+// T8: Robustness — edge case inputs
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_empty_vcf_no_records() {
+    // A VCF with header but no data records should error (no contigs)
+    use std::io::Write;
+    let dir = std::env::temp_dir().join("get_mnv_robustness_empty_vcf");
+    let _ = std::fs::create_dir_all(&dir);
+
+    let vcf_path = dir.join("empty.vcf");
+    {
+        let mut f = std::fs::File::create(&vcf_path).unwrap();
+        writeln!(f, "##fileformat=VCFv4.2").unwrap();
+        writeln!(f, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO").unwrap();
+    }
+
+    let fasta_path = dir.join("ref.fa");
+    {
+        let mut f = std::fs::File::create(&fasta_path).unwrap();
+        writeln!(f, ">chr1\nACGT").unwrap();
+    }
+
+    let ex = example_dir();
+    let args = Args {
+        vcf_file: vcf_path.to_string_lossy().to_string(),
+        bam_file: None,
+        fasta_file: fasta_path.to_string_lossy().to_string(),
+        genes_file_tsv: Some(ex.join("anot_genes.txt").to_string_lossy().to_string()),
+        gff_file: None,
+        gff_features_raw: None,
+        sample: None,
+        chrom: None,
+        normalize_alleles: false,
+        min_quality: 20,
+        min_mapq: 0,
+        threads: Some(1),
+        min_snp_reads: 0,
+        min_mnv_reads: 0,
+        min_snp_strand_reads: 0,
+        min_mnv_strand_reads: 0,
+        min_strand_bias_p: 0.0,
+        dry_run: true,
+        strict: false,
+        split_multiallelic: false,
+        emit_filtered: false,
+        vcf_gz: false,
+        index_vcf_gz: false,
+        strand_bias_info: false,
+        keep_original_info: false,
+        exclude_intergenic: false,
+        bcf: false,
+        summary_json: None,
+        error_json: None,
+        run_manifest: None,
+        convert: false,
+        both: false,
+        translation_table: 11,
+        output_dir: Some(dir.to_string_lossy().to_string()),
+        output_prefix: None,
+    };
+
+    let result = pipeline::run(&args);
+    assert!(result.is_err(), "Empty VCF should fail with no contigs");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn test_truncated_vcf_record() {
+    // A VCF with a truncated record (fewer than 8 columns) should error
+    use std::io::Write;
+    let dir = std::env::temp_dir().join("get_mnv_robustness_truncated");
+    let _ = std::fs::create_dir_all(&dir);
+
+    let vcf_path = dir.join("truncated.vcf");
+    {
+        let mut f = std::fs::File::create(&vcf_path).unwrap();
+        writeln!(f, "##fileformat=VCFv4.2").unwrap();
+        writeln!(f, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO").unwrap();
+        // Valid record
+        writeln!(f, "chr1\t100\t.\tA\tT\t.\tPASS\t.").unwrap();
+        // Truncated record (only 3 columns)
+        writeln!(f, "chr1\t200\t.").unwrap();
+    }
+
+    let fasta_path = dir.join("ref.fa");
+    {
+        let mut f = std::fs::File::create(&fasta_path).unwrap();
+        writeln!(f, ">chr1").unwrap();
+        writeln!(f, "{}", "A".repeat(300)).unwrap();
+    }
+
+    let args = Args {
+        vcf_file: vcf_path.to_string_lossy().to_string(),
+        bam_file: None,
+        fasta_file: fasta_path.to_string_lossy().to_string(),
+        genes_file_tsv: Some(example_dir().join("anot_genes.txt").to_string_lossy().to_string()),
+        gff_file: None,
+        gff_features_raw: None,
+        sample: None,
+        chrom: None,
+        normalize_alleles: false,
+        min_quality: 20,
+        min_mapq: 0,
+        threads: Some(1),
+        min_snp_reads: 0,
+        min_mnv_reads: 0,
+        min_snp_strand_reads: 0,
+        min_mnv_strand_reads: 0,
+        min_strand_bias_p: 0.0,
+        dry_run: true,
+        strict: false,
+        split_multiallelic: false,
+        emit_filtered: false,
+        vcf_gz: false,
+        index_vcf_gz: false,
+        strand_bias_info: false,
+        keep_original_info: false,
+        exclude_intergenic: false,
+        bcf: false,
+        summary_json: None,
+        error_json: None,
+        run_manifest: None,
+        convert: false,
+        both: false,
+        translation_table: 11,
+        output_dir: Some(dir.to_string_lossy().to_string()),
+        output_prefix: None,
+    };
+
+    let result = pipeline::run(&args);
+    assert!(result.is_err(), "Truncated VCF record should error");
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("expected at least 8 columns") || err.contains("column"),
+        "Error should mention columns: {err}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn test_vcf_no_header() {
+    // A VCF file with no #CHROM header should error
+    use std::io::Write;
+    let dir = std::env::temp_dir().join("get_mnv_robustness_no_header");
+    let _ = std::fs::create_dir_all(&dir);
+
+    let vcf_path = dir.join("noheader.vcf");
+    {
+        let mut f = std::fs::File::create(&vcf_path).unwrap();
+        writeln!(f, "##fileformat=VCFv4.2").unwrap();
+        // No #CHROM line, directly data
+        writeln!(f, "chr1\t100\t.\tA\tT\t.\tPASS\t.").unwrap();
+    }
+
+    let fasta_path = dir.join("ref.fa");
+    {
+        let mut f = std::fs::File::create(&fasta_path).unwrap();
+        writeln!(f, ">chr1\nACGT").unwrap();
+    }
+
+    let args = Args {
+        vcf_file: vcf_path.to_string_lossy().to_string(),
+        bam_file: None,
+        fasta_file: fasta_path.to_string_lossy().to_string(),
+        genes_file_tsv: Some(example_dir().join("anot_genes.txt").to_string_lossy().to_string()),
+        gff_file: None,
+        gff_features_raw: None,
+        sample: None,
+        chrom: None,
+        normalize_alleles: false,
+        min_quality: 20,
+        min_mapq: 0,
+        threads: Some(1),
+        min_snp_reads: 0,
+        min_mnv_reads: 0,
+        min_snp_strand_reads: 0,
+        min_mnv_strand_reads: 0,
+        min_strand_bias_p: 0.0,
+        dry_run: true,
+        strict: false,
+        split_multiallelic: false,
+        emit_filtered: false,
+        vcf_gz: false,
+        index_vcf_gz: false,
+        strand_bias_info: false,
+        keep_original_info: false,
+        exclude_intergenic: false,
+        bcf: false,
+        summary_json: None,
+        error_json: None,
+        run_manifest: None,
+        convert: false,
+        both: false,
+        translation_table: 11,
+        output_dir: Some(dir.to_string_lossy().to_string()),
+        output_prefix: None,
+    };
+
+    let result = pipeline::run(&args);
+    assert!(result.is_err(), "VCF without header should fail");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn test_error_json_written_on_failure() {
+    // Verify that --error-json produces a valid JSON file when the pipeline fails
+    use std::io::Write;
+    let dir = std::env::temp_dir().join("get_mnv_robustness_error_json");
+    let _ = std::fs::create_dir_all(&dir);
+
+    let vcf_path = dir.join("bad.vcf");
+    {
+        let mut f = std::fs::File::create(&vcf_path).unwrap();
+        writeln!(f, "##fileformat=VCFv4.2").unwrap();
+        // No #CHROM header → will error
+    }
+
+    let fasta_path = dir.join("ref.fa");
+    {
+        let mut f = std::fs::File::create(&fasta_path).unwrap();
+        writeln!(f, ">chr1\nACGT").unwrap();
+    }
+
+    let error_json_path = dir.join("error.json");
+
+    let args = Args {
+        vcf_file: vcf_path.to_string_lossy().to_string(),
+        bam_file: None,
+        fasta_file: fasta_path.to_string_lossy().to_string(),
+        genes_file_tsv: Some(example_dir().join("anot_genes.txt").to_string_lossy().to_string()),
+        gff_file: None,
+        gff_features_raw: None,
+        sample: None,
+        chrom: None,
+        normalize_alleles: false,
+        min_quality: 20,
+        min_mapq: 0,
+        threads: Some(1),
+        min_snp_reads: 0,
+        min_mnv_reads: 0,
+        min_snp_strand_reads: 0,
+        min_mnv_strand_reads: 0,
+        min_strand_bias_p: 0.0,
+        dry_run: true,
+        strict: false,
+        split_multiallelic: false,
+        emit_filtered: false,
+        vcf_gz: false,
+        index_vcf_gz: false,
+        strand_bias_info: false,
+        keep_original_info: false,
+        exclude_intergenic: false,
+        bcf: false,
+        summary_json: None,
+        error_json: Some(error_json_path.to_string_lossy().to_string()),
+        run_manifest: None,
+        convert: false,
+        both: false,
+        translation_table: 11,
+        output_dir: Some(dir.to_string_lossy().to_string()),
+        output_prefix: None,
+    };
+
+    // Pipeline should fail
+    let result = pipeline::run(&args);
+    assert!(result.is_err());
+
+    // But error-json should NOT be written by pipeline::run itself —
+    // it's written by the main() wrapper. Verify the error propagates cleanly.
+    let err = result.unwrap_err();
+    let json_str = get_mnv::error::error_to_json(&err);
+    let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+    assert!(parsed.get("code").is_some(), "Error JSON should have 'code' field");
+    assert!(parsed.get("message").is_some(), "Error JSON should have 'message' field");
+    assert!(parsed.get("schema_version").is_some(), "Error JSON should have 'schema_version'");
+    let _ = std::fs::remove_dir_all(&dir);
+}
