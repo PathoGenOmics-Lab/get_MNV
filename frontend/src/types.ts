@@ -70,6 +70,8 @@ export interface BamViewResponse {
   counts: BamSupportCounts;
   totalReads: number;
   truncated: boolean;
+  /** Per-position depth from ALL reads (not just displayed subset). */
+  coverage: number[];
 }
 
 export interface ContigSummary {

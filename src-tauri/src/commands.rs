@@ -365,6 +365,8 @@ pub struct BamViewResponse {
     pub counts: BamSupportCounts,
     pub total_reads: usize,
     pub truncated: bool,
+    /// Per-position depth from ALL reads (not just the displayed subset).
+    pub coverage: Vec<u32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -612,6 +614,19 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
 
     counts.total = total_reads;
 
+    // Compute per-position coverage from ALL reads before truncation
+    let coverage: Vec<u32> = {
+        let mut depths = vec![0u32; window_len];
+        for read in &all_reads {
+            for (i, base) in read.bases.iter().enumerate() {
+                if base != " " {
+                    depths[i] += 1;
+                }
+            }
+        }
+        depths
+    };
+
     // Sort: MNV first, then partial, reference, other
     all_reads.sort_by(|a, b| {
         let order = |s: &str| -> u8 {
@@ -638,6 +653,7 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         counts,
         total_reads,
         truncated,
+        coverage,
     })
 }
 

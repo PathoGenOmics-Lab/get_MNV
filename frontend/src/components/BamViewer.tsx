@@ -500,16 +500,10 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
   const tickStep = tickStepForCellSize(cellSize);
   const trackStyle = { "--bam-cell-size": `${cellSize}px` } as CSSProperties;
 
-  // Coverage
+  // Coverage — use real per-position depth from backend (all reads, not just displayed)
   const coverageData = useMemo(() => {
     if (!view) return [];
-    const depths = new Array<number>(view.reference.length).fill(0);
-    for (const read of view.reads) {
-      for (let i = 0; i < read.bases.length; i++) {
-        if (read.bases[i] && read.bases[i] !== "") depths[i]++;
-      }
-    }
-    return depths;
+    return view.coverage ?? [];
   }, [view]);
   const maxCoverage = useMemo(() => Math.max(1, ...coverageData), [coverageData]);
 
