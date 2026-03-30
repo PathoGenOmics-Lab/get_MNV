@@ -164,10 +164,17 @@ function tickStepForCellSize(cellSize: number): number {
   return [1, 2, 5, 10, 15, 20, 25, 50].find((s) => s >= rawStep) ?? rawStep;
 }
 
+/** Reverse complement a short DNA string */
+function reverseComplement(seq: string): string {
+  const comp: Record<string, string> = { A: "T", T: "A", G: "C", C: "G", N: "N" };
+  return seq.split("").reverse().map((b) => comp[b.toUpperCase()] ?? "N").join("");
+}
+
 /**
  * Find the 0-based index in the reference array where the codon starts.
  * Tries 3 candidate offsets from min(positions) and verifies the extracted
- * triplet matches refCodon (genomic orientation). Returns -1 if not found.
+ * triplet matches refCodon — first in forward orientation, then reverse
+ * complement (for genes on the minus strand). Returns -1 if not found.
  */
 function findCodonStartIndex(
   refCodon: string,
@@ -178,14 +185,17 @@ function findCodonStartIndex(
   if (!refCodon || refCodon.length !== 3 || positions.length === 0) return -1;
   const minPos = Math.min(...positions);
   const maxPos = Math.max(...positions);
+  const rcCodon = reverseComplement(refCodon);
+
   for (const offset of [0, -1, -2]) {
     const candidateStart = minPos + offset;
     const candidateEnd = candidateStart + 2;
     if (candidateEnd < maxPos) continue;
     const idx = candidateStart - displayStart;
     if (idx < 0 || idx + 3 > reference.length) continue;
-    const extracted = reference.substring(idx, idx + 3);
-    if (extracted.toUpperCase() !== refCodon.toUpperCase()) continue;
+    const extracted = reference.substring(idx, idx + 3).toUpperCase();
+    const matches = extracted === refCodon.toUpperCase() || extracted === rcCodon.toUpperCase();
+    if (!matches) continue;
     const allWithin = positions.every(
       (p) => p >= candidateStart && p <= candidateEnd,
     );
