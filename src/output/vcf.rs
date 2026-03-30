@@ -102,7 +102,10 @@ impl VcfWriter {
             writeln!(writer, "##get_mnv_min_strand_bias_p={min_strand_bias_p}")?;
         }
         for contig in contigs {
-            writeln!(writer, "##contig=<ID={contig}>")?;
+            // Sanitize contig names to prevent VCF header corruption from
+            // control characters in FASTA sequence identifiers
+            let safe_id: String = contig.chars().map(|c| if c.is_control() { '_' } else { c }).collect();
+            writeln!(writer, "##contig=<ID={safe_id}>")?;
         }
         write_info_header(
             &mut writer,

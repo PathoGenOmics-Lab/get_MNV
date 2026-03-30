@@ -394,3 +394,316 @@ fn test_e2e_split_multiallelic_flag() {
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+// ---------------------------------------------------------------------------
+// T3: --sample all with multi-sample VCF
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_sample_all_multisample_vcf() {
+    let tmp = temp_dir("e2e_sample_all");
+
+    // Create a minimal multi-sample VCF
+    // Reference has A at pos 100, C at pos 200, G at pos 300 (1-based)
+    let vcf_content = "\
+##fileformat=VCFv4.2
+##contig=<ID=chr1>
+##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE_A\tSAMPLE_B
+chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT:DP\t1/1:20\t0/0:15
+chr1\t200\t.\tC\tG\t.\tPASS\t.\tGT:DP\t0/0:18\t1/1:22
+chr1\t300\t.\tG\tA\t.\tPASS\t.\tGT:DP\t1/1:25\t1/1:30
+";
+    let ref_content = ">chr1\nACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGAACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGCACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGGACGTACGTACGTACGTACGT\n";
+    let genes_content = "gene1\t98\t302\t+\n";
+
+    let vcf_path = tmp.join("test.vcf");
+    let ref_path = tmp.join("ref.fas");
+    let genes_path = tmp.join("genes.txt");
+    fs::write(&vcf_path, vcf_content).unwrap();
+    fs::write(&ref_path, ref_content).unwrap();
+    fs::write(&genes_path, genes_content).unwrap();
+
+    let args = Args {
+        vcf_file: vcf_path.to_string_lossy().into(),
+        bam_file: None,
+        fasta_file: ref_path.to_string_lossy().into(),
+        genes_file_tsv: Some(genes_path.to_string_lossy().into()),
+        gff_file: None,
+        gff_features_raw: None,
+        sample: Some("all".to_string()),
+        chrom: None,
+        normalize_alleles: false,
+        min_quality: 20,
+        min_mapq: 0,
+        threads: None,
+        min_snp_reads: 0,
+        min_mnv_reads: 0,
+        min_snp_strand_reads: 0,
+        min_mnv_strand_reads: 0,
+        min_strand_bias_p: 0.0,
+        dry_run: false,
+        strict: false,
+        split_multiallelic: false,
+        emit_filtered: false,
+        vcf_gz: false,
+        index_vcf_gz: false,
+        strand_bias_info: false,
+        keep_original_info: false,
+        exclude_intergenic: false,
+        bcf: false,
+        summary_json: None,
+        error_json: None,
+        run_manifest: None,
+        convert: false,
+        both: false,
+        output_dir: Some(tmp.to_string_lossy().into()),
+        output_prefix: None,
+    };
+
+    let summary = pipeline::run(&args).expect("--sample all should succeed");
+    assert_eq!(summary.sample.as_deref(), Some("all"));
+
+    // Should produce per-sample output files
+    let sample_a_tsv = tmp.join("test.sample_SAMPLE_A.MNV.tsv");
+    let sample_b_tsv = tmp.join("test.sample_SAMPLE_B.MNV.tsv");
+    assert!(sample_a_tsv.exists(), "SAMPLE_A TSV should exist");
+    assert!(sample_b_tsv.exists(), "SAMPLE_B TSV should exist");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// T3b: Single sample selection
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_sample_selection() {
+    let tmp = temp_dir("e2e_sample_select");
+
+    let vcf_content = "\
+##fileformat=VCFv4.2
+##contig=<ID=chr1>
+##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE_A\tSAMPLE_B
+chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT:DP\t1/1:20\t0/0:15
+";
+    let ref_content = ">chr1\nACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGAACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGCACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGGACGTACGTACGTACGTACGT\n";
+    let genes_content = "gene1\t98\t102\t+\n";
+
+    let vcf_path = tmp.join("test.vcf");
+    let ref_path = tmp.join("ref.fas");
+    let genes_path = tmp.join("genes.txt");
+    fs::write(&vcf_path, vcf_content).unwrap();
+    fs::write(&ref_path, ref_content).unwrap();
+    fs::write(&genes_path, genes_content).unwrap();
+
+    let args = Args {
+        vcf_file: vcf_path.to_string_lossy().into(),
+        bam_file: None,
+        fasta_file: ref_path.to_string_lossy().into(),
+        genes_file_tsv: Some(genes_path.to_string_lossy().into()),
+        gff_file: None,
+        gff_features_raw: None,
+        sample: Some("SAMPLE_B".to_string()),
+        chrom: None,
+        normalize_alleles: false,
+        min_quality: 20,
+        min_mapq: 0,
+        threads: None,
+        min_snp_reads: 0,
+        min_mnv_reads: 0,
+        min_snp_strand_reads: 0,
+        min_mnv_strand_reads: 0,
+        min_strand_bias_p: 0.0,
+        dry_run: false,
+        strict: false,
+        split_multiallelic: false,
+        emit_filtered: false,
+        vcf_gz: false,
+        index_vcf_gz: false,
+        strand_bias_info: false,
+        keep_original_info: false,
+        exclude_intergenic: false,
+        bcf: false,
+        summary_json: None,
+        error_json: None,
+        run_manifest: None,
+        convert: false,
+        both: false,
+        output_dir: Some(tmp.to_string_lossy().into()),
+        output_prefix: Some("selected".to_string()),
+    };
+
+    let summary = pipeline::run(&args).expect("--sample SAMPLE_B should succeed");
+    assert_eq!(summary.sample.as_deref(), Some("SAMPLE_B"));
+    assert!(tmp.join("selected.MNV.tsv").exists());
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// T3c: Invalid sample name should error
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_invalid_sample_errors() {
+    let tmp = temp_dir("e2e_bad_sample");
+
+    let vcf_content = "\
+##fileformat=VCFv4.2
+##contig=<ID=chr1>
+##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE_A
+chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT\t1/1
+";
+    let ref_content = ">chr1\nACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGAACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGCACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGGACGTACGTACGTACGTACGT\n";
+    let genes_content = "gene1\t98\t102\t+\n";
+
+    fs::write(tmp.join("test.vcf"), vcf_content).unwrap();
+    fs::write(tmp.join("ref.fas"), ref_content).unwrap();
+    fs::write(tmp.join("genes.txt"), genes_content).unwrap();
+
+    let args = Args {
+        vcf_file: tmp.join("test.vcf").to_string_lossy().into(),
+        bam_file: None,
+        fasta_file: tmp.join("ref.fas").to_string_lossy().into(),
+        genes_file_tsv: Some(tmp.join("genes.txt").to_string_lossy().into()),
+        gff_file: None,
+        gff_features_raw: None,
+        sample: Some("NONEXISTENT".to_string()),
+        chrom: None,
+        normalize_alleles: false,
+        min_quality: 20,
+        min_mapq: 0,
+        threads: None,
+        min_snp_reads: 0,
+        min_mnv_reads: 0,
+        min_snp_strand_reads: 0,
+        min_mnv_strand_reads: 0,
+        min_strand_bias_p: 0.0,
+        dry_run: false,
+        strict: false,
+        split_multiallelic: false,
+        emit_filtered: false,
+        vcf_gz: false,
+        index_vcf_gz: false,
+        strand_bias_info: false,
+        keep_original_info: false,
+        exclude_intergenic: false,
+        bcf: false,
+        summary_json: None,
+        error_json: None,
+        run_manifest: None,
+        convert: false,
+        both: false,
+        output_dir: Some(tmp.to_string_lossy().into()),
+        output_prefix: None,
+    };
+
+    let result = pipeline::run(&args);
+    assert!(result.is_err(), "nonexistent sample should fail");
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("NONEXISTENT") || err.contains("not found"), "error should mention sample name: {err}");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// T4: Strict mode rejects missing ODP/OFREQ
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_strict_mode_with_minimal_vcf() {
+    let tmp = temp_dir("e2e_strict");
+
+    // Create a VCF without any depth/frequency fields — strict should reject it
+    let vcf_content = "\
+##fileformat=VCFv4.2
+##contig=<ID=chr1>
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
+chr1\t100\t.\tA\tT\t.\tPASS\t.
+";
+    let ref_content = ">chr1\nACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGAACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGCACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGGACGTACGTACGTACGTACGT\n";
+    let genes_content = "gene1\t98\t102\t+\n";
+
+    fs::write(tmp.join("test.vcf"), vcf_content).unwrap();
+    fs::write(tmp.join("ref.fas"), ref_content).unwrap();
+    fs::write(tmp.join("genes.txt"), genes_content).unwrap();
+
+    let args = Args {
+        vcf_file: tmp.join("test.vcf").to_string_lossy().into(),
+        bam_file: None,
+        fasta_file: tmp.join("ref.fas").to_string_lossy().into(),
+        genes_file_tsv: Some(tmp.join("genes.txt").to_string_lossy().into()),
+        gff_file: None,
+        gff_features_raw: None,
+        sample: None,
+        chrom: None,
+        normalize_alleles: false,
+        min_quality: 20,
+        min_mapq: 0,
+        threads: None,
+        min_snp_reads: 0,
+        min_mnv_reads: 0,
+        min_snp_strand_reads: 0,
+        min_mnv_strand_reads: 0,
+        min_strand_bias_p: 0.0,
+        dry_run: false,
+        strict: true,
+        split_multiallelic: false,
+        emit_filtered: false,
+        vcf_gz: false,
+        index_vcf_gz: false,
+        strand_bias_info: false,
+        keep_original_info: false,
+        exclude_intergenic: false,
+        bcf: false,
+        summary_json: None,
+        error_json: None,
+        run_manifest: None,
+        convert: false,
+        both: false,
+        output_dir: Some(tmp.to_string_lossy().into()),
+        output_prefix: None,
+    };
+
+    let result = pipeline::run(&args);
+    assert!(result.is_err(), "strict mode should fail when DP/FREQ missing");
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("strict") || err.contains("ODP") || err.contains("missing"),
+        "error should mention strict/metrics: {err}");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// T5: Pipeline config validation
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_vcf_gz_without_convert_errors() {
+    let mut args = base_args();
+    args.vcf_gz = true;
+    // vcf_gz without convert or both should error
+    let result = pipeline::run(&args);
+    assert!(result.is_err(), "--vcf-gz without --convert should fail");
+}
+
+#[test]
+fn test_e2e_index_without_vcf_gz_errors() {
+    let mut args = base_args();
+    args.index_vcf_gz = true;
+    let result = pipeline::run(&args);
+    assert!(result.is_err(), "--index-vcf-gz without --vcf-gz should fail");
+}
+
+#[test]
+fn test_e2e_bcf_without_convert_errors() {
+    let mut args = base_args();
+    args.bcf = true;
+    let result = pipeline::run(&args);
+    assert!(result.is_err(), "--bcf without --convert should fail");
+}
