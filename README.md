@@ -11,6 +11,7 @@
 [![PGO](https://img.shields.io/badge/PathoGenOmics-lab-%23E52421?style=flat-square)](https://github.com/PathoGenOmics-Lab)
 
 **Multi-Nucleotide Variant detection — accurate codon-level annotation from VCF + BAM.**
+**Pure Rust · no C dependencies · cross-platform (macOS, Linux, Windows)**
 
 [Quick Start](#quick-start) · [GUI](#desktop-gui) · [Features](#features) · [Docs](docs/) · [Citation](#citation)
 

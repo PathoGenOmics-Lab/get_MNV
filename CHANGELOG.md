@@ -9,6 +9,9 @@ All notable changes to this project are documented in this file.
 - New `genetic_code` module with `GeneticCode` struct and full NCBI table support.
 - 82 new tests (+58%): unit tests for 6 previously untested modules (`io/annotation`, `io/fasta`, `io/validation`, `io/vcf_fast`, `variants/types`, `cli`), plus integration tests for malformed inputs (empty VCF, truncated records, missing headers, error JSON).
 - Integration tests for edge-case VCF inputs (empty, truncated, no header).
+- **Desktop GUI**: native app (Tauri) with drag-and-drop, parameter presets, genomic track viewer (BAM pileup with codon annotation, IGV-style colors, per-position coverage), and multi-sample batch analysis.
+- **Build & Release** GitHub Actions workflow for macOS (ARM + Intel), Linux, and Windows.
+- AGPL-3.0 license (previously GPL-3.0).
 
 ### Changed
 - **Performance: 6.2× faster** (111ms → 18ms on example dataset):
@@ -39,8 +42,10 @@ All notable changes to this project are documented in this file.
 - Clap derive: fixed `required_unless_present = "gff"` → `"gff_file"` (was crashing `--help`).
 
 ### Removed
+- **`rust-htslib` dependency**: migrated to [noodles](https://github.com/zaeleus/noodles) (pure Rust). Eliminates all C compilation requirements, enabling native Windows builds without POSIX toolchains.
 - `bio` crate dependency (replaced with hand-rolled FASTA parser).
 - `protein-translate` crate dependency (replaced with inline lookup table).
+- BCF as input format (use `bcftools view input.bcf > input.vcf` to convert). BCF output is still supported via external `bcftools`.
 
 ## [1.1.0] - 2026-03-12
 
