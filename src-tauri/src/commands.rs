@@ -198,6 +198,11 @@ pub fn ensure_fasta_index(fasta_path: String) -> Result<String, String> {
         return Ok(fai_path);
     }
 
+    // Cannot index gzipped FASTA — byte offsets would be meaningless
+    if fasta_path.ends_with(".gz") || fasta_path.ends_with(".bgz") {
+        return Err("Cannot create .fai index for gzipped FASTA. Please decompress first.".to_string());
+    }
+
     let bytes = std::fs::read(&fasta_path)
         .map_err(|e| format!("Cannot read FASTA: {}", e))?;
 

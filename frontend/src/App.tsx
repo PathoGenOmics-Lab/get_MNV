@@ -609,10 +609,36 @@ function App() {
   // Count pending + error samples (runnable)
   const runnableCount = samples.filter((s) => s.status === "pending" || s.status === "error").length;
 
+  // Shared run trigger — checks for overwrite conflicts before launching
+  const triggerRun = useCallback(async () => {
+    if (!filesReady || samples.length === 0) {
+      setShowValidation(true);
+      return;
+    }
+    setShowValidation(false);
+
+    if (runnableCount > 0) {
+      try {
+        const conflicts = await invoke<string[]>("check_output_conflicts", { config: configRef.current });
+        if (conflicts.length > 0) {
+          const names = conflicts.map((p: string) => p.split(/[\\/]/).pop()).join(", ");
+          const ok = window.confirm(
+            `The following output files already exist and will be overwritten:\n\n${names}\n\nContinue?`
+          );
+          if (!ok) return;
+        }
+      } catch {
+        // If check fails, proceed anyway
+      }
+      handleRunAll();
+    } else {
+      handleRerunAll();
+    }
+  }, [filesReady, samples.length, runnableCount, handleRunAll, handleRerunAll]);
+
   // Ctrl+Enter / Cmd+Enter shortcut to run analysis
-  // Use a ref to always capture the latest handleRunAll without re-registering the listener
-  const handleRunAllRef = useRef(handleRunAll);
-  handleRunAllRef.current = handleRunAll;
+  const triggerRunRef = useRef(triggerRun);
+  triggerRunRef.current = triggerRun;
   const runStateRef = useRef({ running, filesReady, runnableCount });
   runStateRef.current = { running, filesReady, runnableCount };
 
@@ -620,9 +646,9 @@ function App() {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
-        const { running: r, filesReady: f, runnableCount: rc } = runStateRef.current;
-        if (!r && f && rc > 0) {
-          handleRunAllRef.current();
+        const { running: r } = runStateRef.current;
+        if (!r) {
+          triggerRunRef.current();
         }
       }
     };
@@ -834,32 +860,7 @@ function App() {
                   <button
                     className={`run-button${justFinished ? " run-button--success" : ""}`}
                     disabled={running}
-                    onClick={async () => {
-                      if (!filesReady || samples.length === 0) {
-                        setShowValidation(true);
-                        return;
-                      }
-                      setShowValidation(false);
-
-                      // Check for existing output files before running
-                      if (runnableCount > 0) {
-                        try {
-                          const conflicts = await invoke<string[]>("check_output_conflicts", { config });
-                          if (conflicts.length > 0) {
-                            const names = conflicts.map((p) => p.split(/[\\/]/).pop()).join(", ");
-                            const ok = window.confirm(
-                              `The following output files already exist and will be overwritten:\n\n${names}\n\nContinue?`
-                            );
-                            if (!ok) return;
-                          }
-                        } catch {
-                          // If check fails, proceed anyway
-                        }
-                        handleRunAll();
-                      } else {
-                        handleRerunAll();
-                      }
-                    }}
+                    onClick={() => triggerRun()}
                   >
                     {justFinished ? (
                       <>

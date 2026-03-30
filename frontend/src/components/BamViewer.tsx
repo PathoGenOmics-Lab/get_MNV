@@ -233,17 +233,18 @@ function BamCell({ value, position, referenceBase, site }: {
   const cls = ["bam-cell"];
   let text = value || "";
 
+  const uc = value?.toUpperCase() ?? "";
   if (!value) {
     cls.push("bam-cell--empty");
   } else if (site) {
     cls.push("bam-cell--focus");
-    if (value === site.altBase) cls.push("bam-cell--focus-alt");
-    else if (value === site.referenceBase) cls.push("bam-cell--focus-ref");
+    if (uc === site.altBase.toUpperCase()) cls.push("bam-cell--focus-alt");
+    else if (uc === site.referenceBase.toUpperCase()) cls.push("bam-cell--focus-ref");
     else if (value === "-") cls.push("bam-cell--focus-gap");
     else cls.push("bam-cell--focus-other");
   } else if (value === "-") {
     cls.push("bam-cell--gap");
-  } else if (value === referenceBase) {
+  } else if (uc === referenceBase.toUpperCase()) {
     cls.push("bam-cell--match");
     text = ""; // IGV-style: match = colored bar, no text
   } else {
@@ -507,14 +508,15 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
   }, [view]);
   const maxCoverage = useMemo(() => Math.max(1, ...coverageData), [coverageData]);
 
-  // Counts from the returned (truncated) reads — matches what's actually visible
+  // Use real counts from ALL reads (backend computes before truncation)
   const displayCounts = useMemo(() => {
     if (!view) return { mnv: 0, partial: 0, reference: 0, other: 0 };
-    const c = { mnv: 0, partial: 0, reference: 0, other: 0 };
-    for (const read of view.reads) {
-      if (read.support in c) c[read.support as keyof typeof c]++;
-    }
-    return c;
+    return {
+      mnv: view.counts.mnv,
+      partial: view.counts.partial,
+      reference: view.counts.reference,
+      other: view.counts.other,
+    };
   }, [view]);
 
   // Filtered reads by support type
