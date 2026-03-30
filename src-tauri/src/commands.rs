@@ -1,6 +1,6 @@
 //! Tauri commands for the get_MNV desktop application.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::io::{BufRead, BufReader};
 
 use noodles::bam;
@@ -59,6 +59,9 @@ pub struct AnalysisConfig {
     pub run_manifest: Option<bool>,
     pub error_json: Option<bool>,
     pub translation_table: Option<u8>,
+    pub output_prefix: Option<String>,
+    pub output_tsv: Option<bool>,
+    pub output_vcf: Option<bool>,
 }
 
 impl AnalysisConfig {
@@ -205,93 +208,201 @@ impl AnalysisConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AnalysisResult {
-    pub success: bool,
-    pub message: String,
-    pub output_tsv: Option<String>,
-    pub output_vcf: Option<String>,
-    pub output_bcf: Option<String>,
-    pub summary_json: Option<String>,
-    pub run_manifest: Option<String>,
-    pub error_json: Option<String>,
+#[tauri::command]
+pub fn run_analysis(
+    app_handle: tauri::AppHandle,
+    config: AnalysisConfig,
+) -> Result<serde_json::Value, String> {
+    let args = config.into_args();
+
+    let progress_callback = move |evt: get_mnv::pipeline::ProgressEvent| {
+        let _ = app_handle.emit("analysis-progress", &evt);
+    };
+
+    let summary = get_mnv::pipeline::run_with_progress(&args, &progress_callback)
+        .map_err(|e| format!("{}", e))?;
+
+    serde_json::to_value(&summary).map_err(|e| format!("Failed to serialize summary: {}", e))
 }
 
-/// Progress event payload.
+// ---------------------------------------------------------------------------
+// check_output_conflicts
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn check_output_conflicts(config: AnalysisConfig) -> Vec<String> {
+    let vcf_path = std::path::Path::new(&config.vcf_file);
+
+    let base_name = vcf_path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .replace(".vcf.gz", "")
+        .replace(".vcf", "");
+
+    let stem = config.output_prefix.as_deref().unwrap_or(&base_name);
+    let dir = config.output_dir.as_deref().map(std::path::Path::new)
+        .unwrap_or_else(|| vcf_path.parent().unwrap_or(std::path::Path::new(".")));
+    let base = dir.join(stem);
+
+    let mut paths = Vec::new();
+    if config.output_tsv.unwrap_or(true) {
+        paths.push(format!("{}.MNV.tsv", base.display()));
+    }
+    if config.output_vcf.unwrap_or(false) {
+        if config.vcf_gz.unwrap_or(false) {
+            paths.push(format!("{}.MNV.vcf.gz", base.display()));
+        } else {
+            paths.push(format!("{}.MNV.vcf", base.display()));
+        }
+    }
+
+    paths.into_iter().filter(|p| std::path::Path::new(p).exists()).collect()
+}
+
+// ---------------------------------------------------------------------------
+// ensure_fasta_index
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn ensure_fasta_index(fasta_path: String) -> Result<String, String> {
+    let fai_path = format!("{}.fai", fasta_path);
+    if std::path::Path::new(&fai_path).exists() {
+        return Ok(fai_path);
+    }
+
+    if fasta_path.ends_with(".gz") || fasta_path.ends_with(".bgz") {
+        return Err("Cannot create .fai index for gzipped FASTA. Please decompress first.".to_string());
+    }
+
+    let bytes = std::fs::read(&fasta_path)
+        .map_err(|e| format!("Cannot read FASTA: {}", e))?;
+
+    let mut entries: Vec<String> = Vec::new();
+    let mut name = String::new();
+    let mut seq_len: usize = 0;
+    let mut seq_offset: usize = 0;
+    let mut line_bases: usize = 0;
+    let mut line_width: usize = 0;
+    let mut first_seq_line = true;
+
+    let mut pos: usize = 0;
+    while pos < bytes.len() {
+        let line_start = pos;
+        while pos < bytes.len() && bytes[pos] != b'\n' {
+            pos += 1;
+        }
+        let line_end = pos;
+        let has_newline = pos < bytes.len();
+        if has_newline {
+            pos += 1;
+        }
+
+        if line_start < bytes.len() && bytes[line_start] == b'>' {
+            if !name.is_empty() {
+                entries.push(format!("{}\t{}\t{}\t{}\t{}", name, seq_len, seq_offset, line_bases, line_width));
+            }
+            let header = &bytes[line_start + 1..line_end];
+            name = std::str::from_utf8(header)
+                .unwrap_or("")
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .to_string();
+            seq_len = 0;
+            seq_offset = pos;
+            first_seq_line = true;
+        } else if !name.is_empty() && line_end > line_start {
+            let raw_len = line_end - line_start;
+            let base_len = if raw_len > 0 && bytes[line_end - 1] == b'\r' {
+                raw_len - 1
+            } else {
+                raw_len
+            };
+            seq_len += base_len;
+            if first_seq_line && has_newline {
+                line_bases = base_len;
+                line_width = pos - line_start;
+                first_seq_line = false;
+            } else if first_seq_line {
+                line_bases = base_len;
+                line_width = base_len + 1;
+                first_seq_line = false;
+            }
+        }
+    }
+    if !name.is_empty() {
+        entries.push(format!("{}\t{}\t{}\t{}\t{}", name, seq_len, seq_offset, line_bases, line_width));
+    }
+
+    let fai_content = entries.join("\n") + "\n";
+    std::fs::write(&fai_path, &fai_content)
+        .map_err(|e| format!("Cannot write .fai: {}", e))?;
+
+    Ok(fai_path)
+}
+
+// ---------------------------------------------------------------------------
+// get_gff_features
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn get_gff_features(path: String) -> Result<Vec<String>, String> {
+    let file = std::fs::File::open(&path).map_err(|e| format!("Cannot open GFF file: {}", e))?;
+    let reader = BufReader::new(file);
+    let mut features = BTreeSet::new();
+
+    for line in reader.lines() {
+        let line = line.map_err(|e| format!("Read error: {}", e))?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let cols: Vec<&str> = trimmed.split('\t').collect();
+        if cols.len() >= 3 {
+            features.insert(cols[2].to_string());
+        }
+    }
+
+    Ok(features.into_iter().collect())
+}
+
+// ---------------------------------------------------------------------------
+// read_tsv_file
+// ---------------------------------------------------------------------------
+
 #[derive(Debug, Clone, Serialize)]
-pub struct ProgressEvent {
-    pub stage: String,
-    pub message: String,
-    pub percent: Option<f64>,
+#[serde(rename_all = "camelCase")]
+pub struct TsvData {
+    pub headers: Vec<String>,
+    pub rows: Vec<Vec<String>>,
 }
 
 #[tauri::command]
-pub fn run_analysis(
-    config: AnalysisConfig,
-    window: tauri::Window,
-) -> Result<AnalysisResult, String> {
-    let args_vec = config.into_args();
-    let args_str: Vec<&str> = args_vec.iter().map(|s| s.as_str()).collect();
+pub fn read_tsv_file(path: String) -> Result<TsvData, String> {
+    let file = std::fs::File::open(&path).map_err(|e| format!("Cannot open TSV file: {}", e))?;
+    let reader = BufReader::new(file);
+    let mut lines = reader.lines();
 
-    let _ = window.emit("analysis-progress", ProgressEvent {
-        stage: "parsing".to_string(),
-        message: "Parsing command line arguments...".to_string(),
-        percent: Some(5.0),
-    });
+    let header_line = lines
+        .next()
+        .ok_or_else(|| "TSV file is empty".to_string())?
+        .map_err(|e| format!("Read error: {}", e))?;
 
-    let args = get_mnv::cli::Args::try_parse_from(&args_str)
-        .map_err(|e| format!("Invalid arguments: {e}"))?;
+    let header_clean = header_line.trim_end_matches('\r');
+    let headers: Vec<String> = header_clean.split('\t').map(|s| s.to_string()).collect();
+    let mut rows = Vec::new();
 
-    let _ = window.emit("analysis-progress", ProgressEvent {
-        stage: "running".to_string(),
-        message: "Running analysis...".to_string(),
-        percent: Some(10.0),
-    });
-
-    match get_mnv::run_pipeline(args) {
-        Ok(summary) => {
-            let _ = window.emit("analysis-progress", ProgressEvent {
-                stage: "complete".to_string(),
-                message: "Analysis complete!".to_string(),
-                percent: Some(100.0),
-            });
-
-            Ok(AnalysisResult {
-                success: true,
-                message: format!(
-                    "Processed {} contigs: {} variants ({} MNVs)",
-                    summary.contigs_processed,
-                    summary.total_variants,
-                    summary.total_mnvs
-                ),
-                output_tsv: summary.output_tsv,
-                output_vcf: summary.output_vcf,
-                output_bcf: summary.output_bcf,
-                summary_json: summary.summary_json,
-                run_manifest: summary.run_manifest,
-                error_json: None,
-            })
+    for line in lines {
+        let line = line.map_err(|e| format!("Read error: {}", e))?;
+        let clean = line.trim_end_matches('\r');
+        if clean.trim().is_empty() {
+            continue;
         }
-        Err(e) => {
-            let _ = window.emit("analysis-progress", ProgressEvent {
-                stage: "error".to_string(),
-                message: format!("Analysis failed: {e}"),
-                percent: None,
-            });
-
-            Ok(AnalysisResult {
-                success: false,
-                message: format!("Error: {e}"),
-                output_tsv: None,
-                output_vcf: None,
-                output_bcf: None,
-                summary_json: None,
-                run_manifest: None,
-                error_json: None,
-            })
-        }
+        rows.push(clean.split('\t').map(|s| s.to_string()).collect());
     }
+
+    Ok(TsvData { headers, rows })
 }
 
 // ---------------------------------------------------------------------------
