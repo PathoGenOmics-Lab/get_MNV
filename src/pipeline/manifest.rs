@@ -21,7 +21,8 @@ pub(crate) fn compute_sha256(path: &str) -> AppResult<String> {
         }
         hasher.update(&buffer[..read_bytes]);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    let hash = hasher.finalize();
+    Ok(hash.iter().map(|b| format!("{:02x}", b)).collect())
 }
 
 /// Build input metadata. When `compute_checksums` is false, SHA-256 hashes
