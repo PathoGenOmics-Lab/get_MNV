@@ -223,6 +223,7 @@ function App() {
   const [tab, setTab] = useState<Tab>("analysis");
   const [config, setConfig] = useState<AnalysisConfig>(DEFAULT_CONFIG);
   const [running, setRunning] = useState(false);
+  const [justFinished, setJustFinished] = useState(false);
   const [samples, setSamples] = useState<SampleEntry[]>([]);
   const [activeSampleId, setActiveSampleId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -508,6 +509,10 @@ function App() {
       setBatchProgress(null);
       setRunProgress(null);
 
+      // Brief success flash on the run button
+      setJustFinished(true);
+      setTimeout(() => setJustFinished(false), 1800);
+
       // Switch to results if any completed
       setSamples((prev) => {
         const firstDone = prev.find((s) => s.status === "done");
@@ -786,16 +791,23 @@ function App() {
               {/* Run */}
               <section className="step-section">
                 <div className="step-header">
-                  <div className="step-badge step-badge-3">2</div>
+                  <div className="step-badge step-badge-2">2</div>
                   <h3 className="step-title">Run Analysis</h3>
                 </div>
                 <div className="analysis-runner">
                   <button
-                    className="run-button"
+                    className={`run-button${justFinished ? " run-button--success" : ""}`}
                     disabled={!filesReady || running || samples.length === 0}
                     onClick={runnableCount > 0 ? handleRunAll : handleRerunAll}
                   >
-                    {running ? (
+                    {justFinished ? (
+                      <>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20 6L9 17l-5-5" />
+                        </svg>
+                        Done!
+                      </>
+                    ) : running ? (
                       <>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 0.8s linear infinite" }}>
                           <defs>
@@ -861,7 +873,7 @@ function App() {
                   )}
                   {filesReady && !running && (
                     <p className="hint hint--shortcut">
-                      <kbd>⌘</kbd>+<kbd>Enter</kbd> to run
+                      <kbd>{navigator.platform?.includes("Mac") ? "⌘" : "Ctrl"}</kbd>+<kbd>Enter</kbd> to run
                     </p>
                   )}
                 </div>
