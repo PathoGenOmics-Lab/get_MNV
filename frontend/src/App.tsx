@@ -664,6 +664,9 @@ function App() {
         >
           <span className="tab-icon"><ChartIcon /></span>
           Results
+          {anyDone && activeTsvData && (
+            <span className="tab-badge">{activeTsvData.rows.length.toLocaleString("en-US")}</span>
+          )}
         </button>
       </nav>
 

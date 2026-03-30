@@ -7,7 +7,8 @@ interface VariantTableProps {
   data: TsvData;
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
+const DEFAULT_PAGE_SIZE = 50;
 const MAX_DROPDOWN_OPTIONS = 30; // columns with ≤ this many unique values get a dropdown
 
 /** Map variant type strings to CSS class for color-coded badges */
@@ -17,6 +18,28 @@ function variantTypeClass(val: string): string {
   if (v === "snpmnv" || v === "snp/mnv") return "vt-badge vt-badge--snpmnv";
   if (v === "snp") return "vt-badge vt-badge--snp";
   if (v === "indel") return "vt-badge vt-badge--indel";
+  return "";
+}
+
+/** Tooltip text for variant type badges */
+function variantTypeTooltip(val: string): string {
+  const v = val.toLowerCase();
+  if (v === "mnv") return "Multi-Nucleotide Variant: ≥2 SNPs in the same codon, on the same read";
+  if (v === "snpmnv" || v === "snp/mnv") return "Both SNP-only and MNV reads support this variant";
+  if (v === "snp") return "Single Nucleotide Polymorphism";
+  if (v === "indel") return "Insertion or deletion";
+  return "";
+}
+
+/** Tooltip text for change type badges */
+function changeTypeTooltip(val: string): string {
+  const v = val.toLowerCase();
+  if (v.includes("synonymous") && !v.includes("non")) return "Silent mutation: amino acid unchanged";
+  if (v.includes("nonsynonymous") || v.includes("non-synonymous") || v.includes("non_synonymous"))
+    return "Missense: amino acid changed";
+  if (v.includes("stopgained") || v.includes("stop_gained")) return "Nonsense: premature stop codon introduced";
+  if (v.includes("stoplost") || v.includes("stop_lost")) return "Stop codon removed — extended reading frame";
+  if (v.includes("frameshift")) return "Reading frame shifted by indel";
   return "";
 }
 
@@ -101,6 +124,7 @@ export default function VariantTable({ data }: VariantTableProps) {
   const [sortCol, setSortCol] = useState<number | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   // Per-column filters: colIdx → filter value
   const [colFilters, setColFilters] = useState<Record<number, string>>({});
   const [expanded, setExpanded] = useState(false);
@@ -221,9 +245,9 @@ export default function VariantTable({ data }: VariantTableProps) {
   }, [filtered, sortCol, sortAsc, headers, effectiveCellValue]);
 
   // Pagination
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, totalPages - 1);
-  const pageRows = sorted.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  const pageRows = sorted.slice(safePage * pageSize, (safePage + 1) * pageSize);
 
   const handleSort = (col: number) => {
     if (sortCol === col) {
@@ -258,11 +282,13 @@ export default function VariantTable({ data }: VariantTableProps) {
     if (isVariantTypeCol(headers[colIdx])) {
       const displayValue = reclassifyVariantType(value, row, snpReadsIdx, mnvReadsIdx);
       const cls = variantTypeClass(displayValue);
-      return cls ? <span className={cls}>{displayValue}</span> : displayValue;
+      const tip = variantTypeTooltip(displayValue);
+      return cls ? <span className={cls} title={tip}>{displayValue}</span> : displayValue;
     }
     if (isChangeTypeCol(headers[colIdx])) {
       const cls = changeTypeClass(value);
-      return cls ? <span className={cls}>{value}</span> : value;
+      const tip = changeTypeTooltip(value);
+      return cls ? <span className={cls} title={tip}>{value}</span> : value;
     }
     const aaType = isAACol(headers[colIdx]);
     if (aaType && value && value !== "-") {
@@ -463,45 +489,57 @@ export default function VariantTable({ data }: VariantTableProps) {
       </div>
 
       {/* ── Pagination ── */}
-      {totalPages > 1 && (
-        <div className="vt-pagination">
-          <button
-            className="vt-page-btn"
-            disabled={safePage === 0}
-            onClick={() => setPage(0)}
-            title="First page"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" /></svg>
-          </button>
-          <button
-            className="vt-page-btn"
-            disabled={safePage === 0}
-            onClick={() => setPage(safePage - 1)}
-            title="Previous page"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
-          </button>
-          <span className="vt-page-info">
-            Page {safePage + 1} of {totalPages}
-          </span>
-          <button
-            className="vt-page-btn"
-            disabled={safePage >= totalPages - 1}
-            onClick={() => setPage(safePage + 1)}
-            title="Next page"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
-          </button>
-          <button
-            className="vt-page-btn"
-            disabled={safePage >= totalPages - 1}
-            onClick={() => setPage(totalPages - 1)}
-            title="Last page"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M13 17l5-5-5-5M6 17l5-5-5-5" /></svg>
-          </button>
-        </div>
-      )}
+      <div className="vt-pagination">
+        <select
+          className="vt-page-size-select"
+          value={pageSize}
+          onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
+          title="Rows per page"
+        >
+          {PAGE_SIZE_OPTIONS.map((n) => (
+            <option key={n} value={n}>{n} rows</option>
+          ))}
+        </select>
+        {totalPages > 1 && (
+          <>
+            <button
+              className="vt-page-btn"
+              disabled={safePage === 0}
+              onClick={() => setPage(0)}
+              title="First page"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" /></svg>
+            </button>
+            <button
+              className="vt-page-btn"
+              disabled={safePage === 0}
+              onClick={() => setPage(safePage - 1)}
+              title="Previous page"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
+            </button>
+            <span className="vt-page-info">
+              Page {safePage + 1} of {totalPages}
+            </span>
+            <button
+              className="vt-page-btn"
+              disabled={safePage >= totalPages - 1}
+              onClick={() => setPage(safePage + 1)}
+              title="Next page"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
+            </button>
+            <button
+              className="vt-page-btn"
+              disabled={safePage >= totalPages - 1}
+              onClick={() => setPage(totalPages - 1)}
+              title="Last page"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M13 17l5-5-5-5M6 17l5-5-5-5" /></svg>
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
