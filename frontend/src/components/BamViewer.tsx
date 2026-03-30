@@ -787,6 +787,16 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                   </button>
                 </div>
 
+                <div className="bam-legend">
+                  <span className="bam-legend-item"><span className="bam-legend-swatch bam-legend-swatch--match" />Match (same as ref)</span>
+                  <span className="bam-legend-item"><span className="bam-legend-swatch bam-legend-swatch--a" />A</span>
+                  <span className="bam-legend-item"><span className="bam-legend-swatch bam-legend-swatch--t" />T</span>
+                  <span className="bam-legend-item"><span className="bam-legend-swatch bam-legend-swatch--g" />G</span>
+                  <span className="bam-legend-item"><span className="bam-legend-swatch bam-legend-swatch--c" />C</span>
+                  <span className="bam-legend-item"><span className="bam-legend-swatch bam-legend-swatch--gap" />Deletion</span>
+                  <span className="bam-legend-item"><span className="bam-legend-swatch bam-legend-swatch--variant" />Variant site</span>
+                </div>
+
                 <div className="bam-grid-wrap" ref={gridWrapRef}>
                   <div className="bam-grid">
                     {/* Ruler */}

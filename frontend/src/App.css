@@ -3148,6 +3148,60 @@
   transition: all 0.14s var(--ease);
 }
 
+/* ── BAM viewer legend ── */
+.bam-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding: 0.4rem 0.25rem;
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+
+.bam-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.bam-legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.bam-legend-swatch--match {
+  background: rgba(139, 149, 168, 0.2);
+  border: 1px solid rgba(139, 149, 168, 0.3);
+}
+
+.bam-legend-swatch--a {
+  background: rgba(102, 179, 46, 0.4);
+}
+
+.bam-legend-swatch--t {
+  background: rgba(229, 36, 33, 0.35);
+}
+
+.bam-legend-swatch--g {
+  background: rgba(212, 199, 0, 0.4);
+}
+
+.bam-legend-swatch--c {
+  background: rgba(52, 96, 170, 0.35);
+}
+
+.bam-legend-swatch--gap {
+  background: var(--chip-bg);
+  border: 1px dashed var(--text-muted);
+}
+
+.bam-legend-swatch--variant {
+  background: rgba(111, 57, 141, 0.25);
+  border: 1px solid rgba(111, 57, 141, 0.4);
+}
+
 .bam-count-card:hover {
   border-color: var(--mnv-m);
   box-shadow: 0 6px 18px rgba(20, 147, 137, 0.12);
