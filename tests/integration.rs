@@ -1,0 +1,396 @@
+//! End-to-end integration tests using the example dataset.
+//!
+//! These tests run the full pipeline (`pipeline::run`) against the bundled
+//! `example/` data and verify output correctness at a structural level.
+
+use get_mnv::cli::Args;
+use get_mnv::pipeline;
+use std::fs;
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn example_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example")
+}
+
+fn temp_dir(prefix: &str) -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("get_mnv_test_{}_{}", prefix, nanos));
+    fs::create_dir_all(&dir).expect("create temp dir");
+    dir
+}
+
+fn base_args() -> Args {
+    let ex = example_dir();
+    Args {
+        vcf_file: ex.join("G35894.var.snp.vcf").to_string_lossy().into(),
+        bam_file: None,
+        fasta_file: ex.join("MTB_ancestor.fas").to_string_lossy().into(),
+        genes_file_tsv: Some(ex.join("anot_genes.txt").to_string_lossy().into()),
+        gff_file: None,
+        gff_features_raw: None,
+        sample: None,
+        chrom: None,
+        normalize_alleles: false,
+        min_quality: 20,
+        min_mapq: 0,
+        threads: None,
+        min_snp_reads: 0,
+        min_mnv_reads: 0,
+        min_snp_strand_reads: 0,
+        min_mnv_strand_reads: 0,
+        min_strand_bias_p: 0.0,
+        dry_run: false,
+        strict: false,
+        split_multiallelic: false,
+        emit_filtered: false,
+        vcf_gz: false,
+        index_vcf_gz: false,
+        strand_bias_info: false,
+        keep_original_info: false,
+        exclude_intergenic: false,
+        bcf: false,
+        summary_json: None,
+        error_json: None,
+        run_manifest: None,
+        convert: false,
+        both: false,
+        output_dir: None,
+        output_prefix: None,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// T1: Full pipeline E2E — TSV output
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_tsv_output_matches_expected_variant_counts() {
+    let tmp = temp_dir("e2e_tsv");
+    let mut args = base_args();
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("test_out".to_string());
+
+    let summary = pipeline::run(&args).expect("pipeline should succeed");
+
+    // The example has 950 VCF records (1 contig: MTB_anc)
+    assert_eq!(summary.global.contig_count, 1, "should process 1 contig");
+    assert!(
+        summary.global.snp_records_in_vcf >= 900,
+        "expected ~950 VCF records, got {}",
+        summary.global.snp_records_in_vcf
+    );
+
+    // Variant counts: 797 SNP + 9 MNV + 1 SNP/MNV = 807 genic + intergenic
+    let total = summary.global.produced_variants;
+    assert!(
+        total >= 800,
+        "expected ≥800 variants, got {total}"
+    );
+    assert!(
+        summary.global.snp_variants >= 700,
+        "expected ≥700 SNPs, got {}",
+        summary.global.snp_variants
+    );
+    // MNVs can be counted as mnv_variants or snp_mnv_variants depending
+    // on whether individual SNP reads were also observed
+    let mnv_total = summary.global.mnv_variants + summary.global.snp_mnv_variants;
+    assert!(
+        mnv_total >= 5,
+        "expected ≥5 MNV+SNP/MNV, got {mnv_total} (mnv={}, snp_mnv={})",
+        summary.global.mnv_variants,
+        summary.global.snp_mnv_variants
+    );
+
+    // TSV file should exist
+    let tsv_path = tmp.join("test_out.MNV.tsv");
+    assert!(tsv_path.exists(), "TSV output file should exist");
+    let tsv_content = fs::read_to_string(&tsv_path).expect("read TSV");
+    let tsv_lines: Vec<&str> = tsv_content.lines().collect();
+    // Header + data lines
+    assert!(
+        tsv_lines.len() >= 800,
+        "TSV should have ≥800 lines (header + data), got {}",
+        tsv_lines.len()
+    );
+
+    // Header should contain expected columns (no BAM)
+    let header = tsv_lines[0];
+    assert!(header.contains("Chromosome"), "header missing Chromosome");
+    assert!(header.contains("Gene"), "header missing Gene");
+    assert!(header.contains("Variant Type"), "header missing Variant Type");
+    assert!(header.contains("Change Type"), "header missing Change Type");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// T1b: Full pipeline E2E — VCF output
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_vcf_output_is_valid() {
+    let tmp = temp_dir("e2e_vcf");
+    let mut args = base_args();
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("test_vcf".to_string());
+    args.convert = true;
+
+    let summary = pipeline::run(&args).expect("pipeline should succeed");
+
+    let vcf_path = tmp.join("test_vcf.MNV.vcf");
+    assert!(vcf_path.exists(), "VCF output file should exist");
+
+    let vcf_content = fs::read_to_string(&vcf_path).expect("read VCF");
+    let lines: Vec<&str> = vcf_content.lines().collect();
+
+    // Check VCF header
+    assert!(lines[0].starts_with("##fileformat=VCFv4"), "missing VCF header");
+    let header_line = lines.iter().find(|l| l.starts_with("#CHROM")).expect("missing #CHROM line");
+    assert!(header_line.contains("INFO"), "header missing INFO column");
+
+    // Data lines (non-header, non-comment)
+    let data_lines: Vec<&&str> = lines.iter().filter(|l| !l.starts_with('#')).collect();
+    assert!(
+        data_lines.len() >= 800,
+        "VCF should have ≥800 data lines, got {}",
+        data_lines.len()
+    );
+
+    // Every data line should have the contig
+    for line in &data_lines {
+        assert!(line.starts_with("MTB_anc\t"), "unexpected contig in VCF line");
+    }
+
+    // Check INFO fields contain expected tags
+    let sample_line = data_lines[0];
+    assert!(sample_line.contains("GENE="), "missing GENE in INFO");
+    assert!(sample_line.contains("TYPE="), "missing TYPE in INFO");
+    assert!(sample_line.contains("CT="), "missing CT in INFO");
+
+    assert!(summary.output_vcf.is_some(), "summary should report VCF output");
+    assert!(summary.output_tsv.is_none(), "should not produce TSV in convert mode");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// T1c: Both TSV + VCF output
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_both_outputs() {
+    let tmp = temp_dir("e2e_both");
+    let mut args = base_args();
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("test_both".to_string());
+    args.both = true;
+
+    let summary = pipeline::run(&args).expect("pipeline should succeed");
+
+    assert!(tmp.join("test_both.MNV.tsv").exists(), "TSV should exist");
+    assert!(tmp.join("test_both.MNV.vcf").exists(), "VCF should exist");
+    assert!(summary.output_tsv.is_some());
+    assert!(summary.output_vcf.is_some());
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// T1d: Dry run produces no output files
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_dry_run_no_files() {
+    let tmp = temp_dir("e2e_dry");
+    let mut args = base_args();
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("test_dry".to_string());
+    args.dry_run = true;
+
+    let summary = pipeline::run(&args).expect("pipeline should succeed");
+
+    assert!(summary.dry_run, "summary should report dry-run");
+    assert!(!tmp.join("test_dry.MNV.tsv").exists(), "TSV should NOT exist in dry-run");
+    assert!(summary.global.produced_variants >= 800, "dry-run should still count variants");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// T1e: Summary JSON output
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_summary_json() {
+    let tmp = temp_dir("e2e_json");
+    let summary_path = tmp.join("summary.json");
+    let mut args = base_args();
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("test_json".to_string());
+    args.summary_json = Some(summary_path.to_string_lossy().into());
+
+    pipeline::run(&args).expect("pipeline should succeed");
+
+    assert!(summary_path.exists(), "summary JSON should exist");
+    let json_str = fs::read_to_string(&summary_path).expect("read JSON");
+    let json: serde_json::Value = serde_json::from_str(&json_str).expect("parse JSON");
+    assert_eq!(json["schema_version"], "1.0.0");
+    assert!(json["global"]["produced_variants"].as_u64().unwrap() >= 800);
+    assert!(json["timings"]["total_ms"].as_f64().unwrap() > 0.0);
+    assert_eq!(json["contigs"].as_array().unwrap().len(), 1);
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// T1f: Exclude intergenic
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_exclude_intergenic() {
+    let tmp = temp_dir("e2e_intergen");
+    let mut args = base_args();
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("test_ig".to_string());
+
+    // First run WITH intergenic
+    let summary_with = pipeline::run(&args).expect("pipeline with intergenic");
+
+    // Second run WITHOUT intergenic
+    args.exclude_intergenic = true;
+    args.output_prefix = Some("test_no_ig".to_string());
+    let summary_without = pipeline::run(&args).expect("pipeline without intergenic");
+
+    assert!(
+        summary_with.global.intergenic_variants > 0,
+        "should have some intergenic variants"
+    );
+    assert_eq!(
+        summary_without.global.intergenic_variants, 0,
+        "should have 0 intergenic when excluded"
+    );
+    assert!(
+        summary_with.global.produced_variants > summary_without.global.produced_variants,
+        "excluding intergenic should reduce total variants"
+    );
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// T1g: Run manifest with checksums
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_run_manifest() {
+    let tmp = temp_dir("e2e_manifest");
+    let manifest_path = tmp.join("manifest.json");
+    let mut args = base_args();
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("test_mf".to_string());
+    args.run_manifest = Some(manifest_path.to_string_lossy().into());
+
+    pipeline::run(&args).expect("pipeline should succeed");
+
+    assert!(manifest_path.exists(), "manifest should exist");
+    let json_str = fs::read_to_string(&manifest_path).expect("read manifest");
+    let json: serde_json::Value = serde_json::from_str(&json_str).expect("parse manifest");
+    assert_eq!(json["schema_version"], "1.0.0");
+    assert!(json["tool_version"].as_str().unwrap().contains('.'));
+    assert!(json["timestamp_unix"].as_u64().unwrap() > 0);
+    // Output checksums
+    let checksums = &json["output_checksums"];
+    assert!(checksums["output_tsv_sha256"].is_string());
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// T1h: Normalize alleles flag
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_normalize_alleles() {
+    let tmp = temp_dir("e2e_normalize");
+    let mut args = base_args();
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("test_norm".to_string());
+    args.normalize_alleles = true;
+
+    let summary = pipeline::run(&args).expect("pipeline with normalize should succeed");
+    assert!(summary.global.produced_variants >= 800);
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// T1i: Error JSON on invalid input
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_error_json_on_bad_input() {
+    let tmp = temp_dir("e2e_error");
+    let error_path = tmp.join("error.json");
+    let mut args = base_args();
+    args.vcf_file = "/nonexistent/file.vcf".to_string();
+    args.error_json = Some(error_path.to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+
+    let result = pipeline::run(&args);
+    assert!(result.is_err(), "should fail with nonexistent VCF");
+
+    // Error JSON is written by main(), not pipeline::run(), so we just
+    // verify the error is returned correctly
+    let err = result.unwrap_err();
+    assert!(!err.to_string().is_empty());
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// T1j: Keep original INFO fields
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_keep_original_info_in_vcf() {
+    let tmp = temp_dir("e2e_keep_info");
+    let mut args = base_args();
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("test_info".to_string());
+    args.convert = true;
+    args.keep_original_info = true;
+
+    pipeline::run(&args).expect("pipeline should succeed");
+
+    let vcf_path = tmp.join("test_info.MNV.vcf");
+    let content = fs::read_to_string(&vcf_path).expect("read VCF");
+
+    // The example VCF has ANN= from SnpEff — should be preserved
+    let data_lines: Vec<&str> = content.lines().filter(|l| !l.starts_with('#')).collect();
+    let has_ann = data_lines.iter().any(|l| l.contains("ANN="));
+    assert!(has_ann, "original ANN= INFO field should be preserved with --keep-original-info");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// T1k: Split multiallelic
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_split_multiallelic_flag() {
+    let tmp = temp_dir("e2e_split");
+    let mut args = base_args();
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("test_split".to_string());
+    args.split_multiallelic = true;
+
+    let summary = pipeline::run(&args).expect("pipeline with split-multiallelic should succeed");
+    assert!(summary.global.produced_variants >= 800);
+
+    fs::remove_dir_all(&tmp).ok();
+}
