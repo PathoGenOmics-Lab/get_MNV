@@ -3,6 +3,7 @@
 
 pub mod config;
 pub mod manifest;
+pub(crate) mod output_paths;
 pub mod processing;
 pub mod summary;
 
@@ -13,7 +14,7 @@ pub use summary::{
 };
 
 use config::{
-    append_sample_suffix, configure_threads, log_run_configuration, sanitized_command_line,
+    configure_threads, log_run_configuration, sanitized_command_line,
 };
 use manifest::{build_input_metadata, build_run_manifest_value, write_json_value};
 use processing::{
@@ -53,57 +54,19 @@ fn run_single(
     // measuring only I/O + validation, not hashing.
     let needs_checksums = args.summary_json.is_some() || args.run_manifest.is_some();
     let inputs = build_input_metadata(args, needs_checksums)?;
-    let base_stem = append_sample_suffix(&parsed.base_name, sample_suffix);
-    // Allow overriding the filename prefix (desktop app).
-    let stem_name = match &args.output_prefix {
-        Some(prefix) => prefix.clone(),
-        None => base_stem,
-    };
-    // When output_dir is set (e.g. desktop app), write output files there
-    // instead of the process CWD.
-    let output_stem = match &args.output_dir {
-        Some(dir) => {
-            let dir_path = std::path::Path::new(dir);
-            dir_path.join(&stem_name).to_string_lossy().into_owned()
-        }
-        None => stem_name,
-    };
+    let paths = output_paths::OutputPaths::resolve(args, &parsed.base_name, sample_suffix);
 
-    let output_tsv = if args.dry_run {
-        None
-    } else if args.both || !args.convert {
-        Some(format!("{output_stem}.MNV.tsv"))
-    } else {
-        None
-    };
-    let output_vcf = if args.dry_run {
-        None
-    } else if args.both || args.convert {
-        Some(if args.vcf_gz {
-            format!("{output_stem}.MNV.vcf.gz")
-        } else {
-            format!("{output_stem}.MNV.vcf")
-        })
-    } else {
-        None
-    };
-    let output_bcf = if args.dry_run || !args.bcf {
-        None
-    } else {
-        Some(format!("{output_stem}.MNV.bcf"))
-    };
-
-    let mut tsv_writer = if output_tsv.is_some() {
+    let mut tsv_writer = if paths.tsv.is_some() {
         Some(output::TsvWriter::new(
-            &output_stem,
+            &paths.output_stem,
             args.bam_file.is_some(),
         )?)
     } else {
         None
     };
-    let mut vcf_writer = if output_vcf.is_some() {
+    let mut vcf_writer = if paths.vcf.is_some() {
         Some(output::VcfWriter::new(output::VcfWriterConfig {
-            filename: &output_stem,
+            filename: &paths.output_stem,
             bam_provided: args.bam_file.is_some(),
             min_snp_reads: args.min_snp_reads,
             min_mnv_reads: args.min_mnv_reads,
@@ -131,9 +94,9 @@ fn run_single(
         dry_run: args.dry_run,
         bam_provided: args.bam_file.is_some(),
         inputs,
-        output_tsv,
-        output_vcf,
-        output_bcf,
+        output_tsv: paths.tsv,
+        output_vcf: paths.vcf,
+        output_bcf: paths.bcf,
         ..RunSummary::default()
     };
 

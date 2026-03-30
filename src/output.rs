@@ -1,6 +1,7 @@
 //! Output writers for TSV and VCF/BCF formats.
 
 mod common;
+pub(crate) mod stats;
 mod tsv;
 mod vcf;
 
