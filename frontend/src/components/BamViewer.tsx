@@ -251,17 +251,20 @@ function layoutVisibleLoci(loci: ViewerLocus[], chrom: string, range: WindowRang
 
 /* ── BamCell ──────────────────────────────────────────── */
 
-function BamCell({ value, position, referenceBase, site }: {
+function BamCell({ value, position, referenceBase, site, isReadStart, isReadEnd, strand }: {
   value: string;
   position: number;
   referenceBase: string;
   site?: BamVariantSite;
+  isReadStart?: boolean;
+  isReadEnd?: boolean;
+  strand?: string;
 }) {
   const cls = ["bam-cell"];
   let text = value || "";
 
   const uc = value?.toUpperCase() ?? "";
-  if (!value) {
+  if (!value || value === " ") {
     cls.push("bam-cell--empty");
   } else if (site) {
     cls.push("bam-cell--focus");
@@ -280,9 +283,18 @@ function BamCell({ value, position, referenceBase, site }: {
     if (nc) cls.push(nc);
   }
 
+  // Read boundary markers
+  if (isReadStart) cls.push("bam-cell--read-start");
+  if (isReadEnd) cls.push("bam-cell--read-end");
+
+  // Arrow direction: forward reads point right (▶ at end), reverse point left (◀ at start)
+  const isFwd = strand === "+";
+  const showArrow = (isFwd && isReadEnd) || (!isFwd && isReadStart);
+
   return (
     <span className={cls.join(" ")} title={`${position}: ${value || "–"}`}>
       {text}
+      {showArrow && <span className={`bam-cell-arrow bam-cell-arrow--${isFwd ? "fwd" : "rev"}`}>{isFwd ? "▸" : "◂"}</span>}
     </span>
   );
 }
@@ -1040,15 +1052,28 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                           <span className="bam-strand-indicator">{read.strand}</span>
                         </div>
                         <div className="bam-track" style={trackStyle}>
-                          {read.bases.map((value, i) => (
-                            <BamCell
-                              key={`${read.name}-${view.displayStart + i}`}
-                              value={value}
-                              position={view.displayStart + i}
-                              referenceBase={referenceBases[i] ?? ""}
-                              site={siteMap.get(view.displayStart + i)}
-                            />
-                          ))}
+                          {(() => {
+                            // Find first and last covered base indices for edge markers
+                            let firstIdx = -1, lastIdx = -1;
+                            for (let j = 0; j < read.bases.length; j++) {
+                              if (read.bases[j] && read.bases[j] !== " ") {
+                                if (firstIdx < 0) firstIdx = j;
+                                lastIdx = j;
+                              }
+                            }
+                            return read.bases.map((value, i) => (
+                              <BamCell
+                                key={`${read.name}-${view.displayStart + i}`}
+                                value={value}
+                                position={view.displayStart + i}
+                                referenceBase={referenceBases[i] ?? ""}
+                                site={siteMap.get(view.displayStart + i)}
+                                isReadStart={i === firstIdx}
+                                isReadEnd={i === lastIdx}
+                                strand={read.strand}
+                              />
+                            ));
+                          })()}
                         </div>
                       </div>
                     ))}

@@ -3202,6 +3202,39 @@
   border: 1px solid rgba(111, 57, 141, 0.4);
 }
 
+/* ── Read boundary markers ── */
+.bam-cell--read-start {
+  border-left: 2px solid var(--text-muted);
+  border-top-left-radius: 3px;
+  border-bottom-left-radius: 3px;
+}
+
+.bam-cell--read-end {
+  border-right: 2px solid var(--text-muted);
+  border-top-right-radius: 3px;
+  border-bottom-right-radius: 3px;
+}
+
+.bam-cell-arrow {
+  position: absolute;
+  font-size: 0.55em;
+  line-height: 1;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.bam-cell-arrow--fwd {
+  right: -1px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.bam-cell-arrow--rev {
+  left: -1px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
 .bam-count-card:hover {
   border-color: var(--mnv-m);
   box-shadow: 0 6px 18px rgba(20, 147, 137, 0.12);
@@ -3339,6 +3372,7 @@
 }
 
 .bam-cell {
+  position: relative;
   width: var(--bam-cell-size, 1.35rem);
   min-width: var(--bam-cell-size, 1.35rem);
   height: 10px;
