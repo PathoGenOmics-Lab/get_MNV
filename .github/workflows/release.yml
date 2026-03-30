@@ -103,10 +103,11 @@ jobs:
           }
           $json | ConvertTo-Json -Depth 100 | Set-Content -Encoding utf8 $confPath
 
-      - name: Install frontend dependencies
+      - name: Install and build frontend
         run: |
           cd frontend
           npm install
+          npm run build
 
       - name: Build and Upload to Release
         uses: tauri-apps/tauri-action@v0
