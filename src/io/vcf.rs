@@ -322,7 +322,7 @@ fn parse_original_metrics(
     (original_dp, original_freq)
 }
 
-fn normalize_ref_alt(pos: usize, ref_allele: &str, alt_allele: &str) -> (usize, String, String) {
+pub(crate) fn normalize_ref_alt(pos: usize, ref_allele: &str, alt_allele: &str) -> (usize, String, String) {
     let is_symbolic = alt_allele.starts_with('<') && alt_allele.ends_with('>');
     if is_symbolic {
         return (pos, ref_allele.to_string(), alt_allele.to_string());

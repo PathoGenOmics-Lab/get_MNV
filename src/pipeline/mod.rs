@@ -291,8 +291,12 @@ pub fn run_with_progress(
         return run_single(args, args.sample.as_deref(), None, true, on_progress);
     }
 
-    let sample_names =
-        io::list_vcf_samples(&args.vcf_file).map_err(reclassify_generic_as_validation)?;
+    let sample_names = if io::vcf_fast::use_fast_parser(&args.vcf_file) {
+        io::vcf_fast::list_text_vcf_samples(&args.vcf_file)
+            .map_err(reclassify_generic_as_validation)?
+    } else {
+        io::list_vcf_samples(&args.vcf_file).map_err(reclassify_generic_as_validation)?
+    };
     if sample_names.is_empty() {
         return Err(AppError::validation(
             "Requested --sample all but input VCF has no sample columns",

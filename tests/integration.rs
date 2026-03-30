@@ -707,3 +707,95 @@ fn test_e2e_bcf_without_convert_errors() {
     let result = pipeline::run(&args);
     assert!(result.is_err(), "--bcf without --convert should fail");
 }
+
+// ---------------------------------------------------------------------------
+// T6: Fast text parser produces same output as htslib
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_fast_parser_matches_htslib() {
+    use get_mnv::io::{vcf, vcf_fast};
+
+    let ex = example_dir();
+    let vcf_file = ex.join("G35894.var.snp.vcf").to_string_lossy().to_string();
+
+    // Fast text parser
+    let fast_result = vcf_fast::load_vcf_text(&vcf_file, None, false, false, false)
+        .expect("fast parser should succeed");
+
+    // htslib parser
+    let htslib_result = vcf::load_vcf_positions_by_contig(&vcf_file, None, false, false, false)
+        .expect("htslib parser should succeed");
+
+    // Same contigs
+    assert_eq!(
+        fast_result.keys().collect::<std::collections::BTreeSet<_>>(),
+        htslib_result.keys().collect::<std::collections::BTreeSet<_>>(),
+        "contigs should match"
+    );
+
+    for contig in fast_result.keys() {
+        let fast_positions = &fast_result[contig];
+        let htslib_positions = &htslib_result[contig];
+        assert_eq!(
+            fast_positions.len(),
+            htslib_positions.len(),
+            "contig '{}': position count mismatch (fast={}, htslib={})",
+            contig,
+            fast_positions.len(),
+            htslib_positions.len()
+        );
+        for (i, (fp, hp)) in fast_positions.iter().zip(htslib_positions.iter()).enumerate() {
+            assert_eq!(fp.position, hp.position, "contig '{}' pos {}: position mismatch", contig, i);
+            assert_eq!(fp.ref_allele, hp.ref_allele, "contig '{}' pos {}: ref mismatch", contig, i);
+            assert_eq!(fp.alt_allele, hp.alt_allele, "contig '{}' pos {}: alt mismatch", contig, i);
+            assert_eq!(fp.original_dp, hp.original_dp, "contig '{}' pos {} ({}): DP mismatch (fast={:?}, htslib={:?})", contig, i, fp.position, fp.original_dp, hp.original_dp);
+            // Compare freq with tolerance for float rounding
+            match (fp.original_freq, hp.original_freq) {
+                (Some(f), Some(h)) => {
+                    assert!(
+                        (f - h).abs() < 1e-6,
+                        "contig '{}' pos {} ({}): FREQ mismatch (fast={}, htslib={})",
+                        contig, i, fp.position, f, h
+                    );
+                }
+                (None, None) => {}
+                _ => panic!(
+                    "contig '{}' pos {} ({}): FREQ presence mismatch (fast={:?}, htslib={:?})",
+                    contig, i, fp.position, fp.original_freq, hp.original_freq
+                ),
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// T6b: Fast parser with --keep-original-info matches htslib
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_fast_parser_keep_info_matches_htslib() {
+    use get_mnv::io::{vcf, vcf_fast};
+
+    let ex = example_dir();
+    let vcf_file = ex.join("G35894.var.snp.vcf").to_string_lossy().to_string();
+
+    let fast_result = vcf_fast::load_vcf_text(&vcf_file, None, false, false, true)
+        .expect("fast parser should succeed");
+    let htslib_result = vcf::load_vcf_positions_by_contig(&vcf_file, None, false, false, true)
+        .expect("htslib parser should succeed");
+
+    for contig in fast_result.keys() {
+        let fast_positions = &fast_result[contig];
+        let htslib_positions = &htslib_result[contig];
+        for (i, (fp, hp)) in fast_positions.iter().zip(htslib_positions.iter()).enumerate() {
+            // Both should have or not have original_info
+            assert_eq!(
+                fp.original_info.is_some(),
+                hp.original_info.is_some(),
+                "contig '{}' pos {} ({}): original_info presence mismatch",
+                contig, i, fp.position
+            );
+        }
+    }
+}

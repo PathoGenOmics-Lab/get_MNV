@@ -5,6 +5,7 @@ pub mod annotation;
 pub mod fasta;
 pub mod validation;
 pub mod vcf;
+pub mod vcf_fast;
 
 // Re-export public types and functions for backward compatibility.
 pub use annotation::{

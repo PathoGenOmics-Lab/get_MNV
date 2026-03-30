@@ -70,14 +70,26 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
     let base_name = io::get_base_name(&args.vcf_file).map_err(reclassify_generic_as_validation)?;
     let references =
         io::load_references(&args.fasta_file).map_err(reclassify_generic_as_validation)?;
-    let snp_by_contig = io::load_vcf_positions_by_contig(
-        &args.vcf_file,
-        sample_override,
-        args.split_multiallelic,
-        args.normalize_alleles,
-        args.keep_original_info,
-    )
-    .map_err(reclassify_generic_as_validation)?;
+    // Use fast text parser for plain .vcf files, htslib for .bcf/.vcf.gz
+    let snp_by_contig = if io::vcf_fast::use_fast_parser(&args.vcf_file) {
+        io::vcf_fast::load_vcf_text(
+            &args.vcf_file,
+            sample_override,
+            args.split_multiallelic,
+            args.normalize_alleles,
+            args.keep_original_info,
+        )
+        .map_err(reclassify_generic_as_validation)?
+    } else {
+        io::load_vcf_positions_by_contig(
+            &args.vcf_file,
+            sample_override,
+            args.split_multiallelic,
+            args.normalize_alleles,
+            args.keep_original_info,
+        )
+        .map_err(reclassify_generic_as_validation)?
+    };
     let annotation_format =
         io::detect_annotation_format(args.genes_file()).map_err(reclassify_generic_as_validation)?;
     let contigs = selected_contigs(args, &snp_by_contig)?;
@@ -94,8 +106,13 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
     };
 
     let original_info_headers = if args.keep_original_info {
-        io::extract_original_info_headers(&args.vcf_file)
-            .map_err(reclassify_generic_as_validation)?
+        if io::vcf_fast::use_fast_parser(&args.vcf_file) {
+            io::vcf_fast::extract_text_info_headers(&args.vcf_file)
+                .map_err(reclassify_generic_as_validation)?
+        } else {
+            io::extract_original_info_headers(&args.vcf_file)
+                .map_err(reclassify_generic_as_validation)?
+        }
     } else {
         Vec::new()
     };
