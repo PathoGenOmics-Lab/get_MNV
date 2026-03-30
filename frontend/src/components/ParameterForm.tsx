@@ -207,6 +207,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
       config.emitFiltered === merged.emitFiltered &&
       config.strandBiasInfo === merged.strandBiasInfo &&
       config.keepOriginalInfo === merged.keepOriginalInfo &&
+      config.translationTable === merged.translationTable &&
       config.outputTsv === merged.outputTsv &&
       config.outputVcf === merged.outputVcf
     );
@@ -228,6 +229,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
       chrom: config.chrom,
       threads: config.threads,
       keepOriginalInfo: config.keepOriginalInfo,
+      translationTable: config.translationTable,
       outputDir: config.outputDir,
       outputPrefix: config.outputPrefix,
     });
@@ -483,6 +485,30 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
             checked={config.excludeIntergenic}
             onChange={(v) => update("excludeIntergenic", v)}
           />
+
+          <div className="param-divider" />
+
+          <div className="param-text-row">
+            <div className="param-slider-label">
+              <span>Genetic code</span>
+              <Tip text="NCBI translation table for codon-to-amino-acid translation. Table 11 (Bacterial/Archaeal) is standard for prokaryotes. Use table 1 for nuclear eukaryotic genes or mitochondrial tables (2–5) for organellar genomes." />
+            </div>
+            <select
+              className="param-select"
+              value={config.translationTable}
+              onChange={(e) => update("translationTable", Number(e.target.value))}
+            >
+              <option value={11}>11 — Bacterial, Archaeal & Plant Plastid</option>
+              <option value={1}>1 — Standard (Eukaryotic Nuclear)</option>
+              <option value={2}>2 — Vertebrate Mitochondrial</option>
+              <option value={3}>3 — Yeast Mitochondrial</option>
+              <option value={4}>4 — Mold, Protozoan & Coelenterate Mito</option>
+              <option value={5}>5 — Invertebrate Mitochondrial</option>
+              <option value={6}>6 — Ciliate, Dasycladacean & Hexamita Nuclear</option>
+              <option value={12}>12 — Alternative Yeast Nuclear</option>
+              <option value={25}>25 — SR1 & Gracilibacteria</option>
+            </select>
+          </div>
         </ParamGroup>
 
         <ParamGroup title="Output & Performance" accent="#E7216A">

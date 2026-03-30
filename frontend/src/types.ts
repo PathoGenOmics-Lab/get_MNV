@@ -23,6 +23,7 @@ export interface AnalysisConfig {
   strandBiasInfo: boolean;
   keepOriginalInfo: boolean;
   excludeIntergenic: boolean;
+  translationTable: number;
   outputTsv: boolean;
   outputVcf: boolean;
   outputDir?: string;
@@ -182,6 +183,7 @@ export const DEFAULT_CONFIG: AnalysisConfig = {
   strandBiasInfo: false,
   keepOriginalInfo: false,
   excludeIntergenic: false,
+  translationTable: 11,
   outputTsv: true,
   outputVcf: false,
 };

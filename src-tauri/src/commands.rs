@@ -53,6 +53,7 @@ pub struct AnalysisConfig {
     pub run_manifest: Option<String>,
     pub gff_features: Option<Vec<String>>,
     pub exclude_intergenic: Option<bool>,
+    pub translation_table: Option<u8>,
     pub output_tsv: Option<bool>,
     pub output_vcf: Option<bool>,
     pub convert: Option<bool>,
@@ -108,6 +109,7 @@ impl AnalysisConfig {
             error_json: self.error_json,
             run_manifest: self.run_manifest,
             exclude_intergenic: self.exclude_intergenic.unwrap_or(false),
+            translation_table: self.translation_table.unwrap_or(11),
             // Map GUI's outputTsv/outputVcf booleans to CLI's convert/both flags.
             // Default: TSV only (convert=false, both=false).
             // outputTsv + outputVcf → both=true

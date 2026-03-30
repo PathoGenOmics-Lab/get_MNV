@@ -1,3 +1,4 @@
 /target/
 G35894.var.snp.MNV.tsv
 *.MNV.tsv
+src-tauri/gen/
