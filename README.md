@@ -181,19 +181,6 @@ MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    MNV           No
 | [Benchmarking](docs/benchmarking.md) | Performance testing |
 | [Changelog](CHANGELOG.md) | Version history |
 
-## Comparison
-
-| | get_MNV | McCortex | MNVista | Manual |
-|---|---|---|---|---|
-| Codon-aware | ✅ | ❌ | ✅ | ✅ |
-| BAM phasing | ✅ | k-mer | ❌ | ✅ |
-| Strand bias | ✅ | ❌ | ❌ | ❌ |
-| Any organism | ✅ | ✅ | ✅ | ✅ |
-| Custom genetic codes | ✅ | ❌ | ❌ | ❌ |
-| Desktop GUI | ✅ | ❌ | Web | ❌ |
-| Multi-sample | ✅ | ❌ | ❌ | ❌ |
-| Speed (per sample) | ~18 ms | seconds | minutes | hours |
-
 ## Project Structure
 
 ```
