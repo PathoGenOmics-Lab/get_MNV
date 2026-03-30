@@ -4,9 +4,6 @@
 use crate::error::AppResult;
 use crate::io::ReferenceMap;
 use crate::variants::{VariantInfo, VariantType};
-use rust_htslib::bcf;
-use rust_htslib::bcf::Read as BcfReadTrait;
-use rust_htslib::bgzf;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
@@ -73,7 +70,7 @@ impl VcfWriter {
             format!("{filename}.MNV.vcf")
         };
         let mut writer: Box<dyn Write> = if bgzf_output {
-            Box::new(bgzf::Writer::from_path(&out_file)?)
+            Box::new(noodles::bgzf::io::Writer::new(File::create(&out_file)?))
         } else {
             Box::new(File::create(&out_file)?)
         };
@@ -679,8 +676,18 @@ pub fn build_tabix_index(vcf_gz_path: &str) -> AppResult<()> {
             format!("Cannot build Tabix index: file '{vcf_gz_path}' does not exist").into(),
         );
     }
-    bcf::index::build(vcf_gz_path, None, 1, bcf::index::Type::Tbx)
-        .map_err(|e| format!("Failed to build Tabix index for '{vcf_gz_path}': {e}").into())
+    // Use external tabix command (from htslib/samtools)
+    let status = std::process::Command::new("tabix")
+        .args(["-p", "vcf", vcf_gz_path])
+        .status();
+    match status {
+        Ok(s) if s.success() => Ok(()),
+        Ok(s) => Err(format!("tabix exited with status {s} for '{vcf_gz_path}'").into()),
+        Err(_) => {
+            log::warn!("tabix not found in PATH. Skipping .tbi index for '{vcf_gz_path}'. Install samtools/htslib for automatic indexing.");
+            Ok(())
+        }
+    }
 }
 
 pub fn convert_vcf_to_bcf(input_vcf_path: &str, output_bcf_path: &str) -> AppResult<()> {
@@ -689,14 +696,18 @@ pub fn convert_vcf_to_bcf(input_vcf_path: &str, output_bcf_path: &str) -> AppRes
             format!("Cannot convert to BCF: input VCF '{input_vcf_path}' does not exist").into(),
         );
     }
-    let mut reader = bcf::Reader::from_path(input_vcf_path)?;
-    let header = bcf::Header::from_template(reader.header());
-    let mut writer = bcf::Writer::from_path(output_bcf_path, &header, false, bcf::Format::Bcf)?;
-    for result in reader.records() {
-        let record = result?;
-        writer.write(&record)?;
+    // Use external bcftools for VCF→BCF conversion
+    let status = std::process::Command::new("bcftools")
+        .args(["view", "-O", "b", "-o", output_bcf_path, input_vcf_path])
+        .status();
+    match status {
+        Ok(s) if s.success() => Ok(()),
+        Ok(s) => Err(format!("bcftools exited with status {s} converting to BCF").into()),
+        Err(_) => {
+            log::warn!("bcftools not found in PATH. Skipping BCF output. Install bcftools for BCF conversion.");
+            Ok(())
+        }
     }
-    Ok(())
 }
 
 #[cfg(test)]

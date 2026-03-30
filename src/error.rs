@@ -194,13 +194,6 @@ impl From<csv::Error> for AppError {
     }
 }
 
-impl From<rust_htslib::errors::Error> for AppError {
-    fn from(value: rust_htslib::errors::Error) -> Self {
-        let msg = format!("HTSlib error: {value}");
-        AppError::new(ErrorCode::Htslib, msg).with_source(value)
-    }
-}
-
 impl From<std::str::Utf8Error> for AppError {
     fn from(value: std::str::Utf8Error) -> Self {
         let msg = format!("UTF-8 error: {value}");

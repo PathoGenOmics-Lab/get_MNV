@@ -2,7 +2,9 @@
 //! haplotype read support with strand-specific metrics.
 
 use crate::error::{AppError, AppResult};
-use rust_htslib::bam::{IndexedReader, Read as BamReadTrait, Record as BamRecord};
+use noodles::bam;
+use noodles::sam::alignment::record::cigar::op::Kind;
+use noodles::sam::Header;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
@@ -55,51 +57,69 @@ impl MultiReadSupport {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 struct ReadKey {
     qname: Vec<u8>,
-    is_first_in_template: bool,
-    is_last_in_template: bool,
+    is_first_segment: bool,
+    is_last_segment: bool,
     start_pos: i64,
 }
 
-fn build_read_key(rec: &BamRecord) -> ReadKey {
+fn build_read_key(rec: &bam::Record) -> ReadKey {
+    let qname = rec.name()
+        .map(|n| <_ as AsRef<[u8]>>::as_ref(&n).to_vec())
+        .unwrap_or_default();
+    let flags = rec.flags();
+    let start_pos = rec.alignment_start()
+        .and_then(|p| p.ok())
+        .map(|p| {
+            let pos: usize = p.into();
+            pos as i64 - 1
+        })
+        .unwrap_or(0);
     ReadKey {
-        qname: rec.qname().to_vec(),
-        is_first_in_template: rec.is_first_in_template(),
-        is_last_in_template: rec.is_last_in_template(),
-        start_pos: rec.pos(),
+        qname,
+        is_first_segment: flags.is_first_segment(),
+        is_last_segment: flags.is_last_segment(),
+        start_pos,
     }
 }
 
-fn get_query_pos(rec: &BamRecord, pos: usize) -> Option<usize> {
-    let target_pos = (pos - 1) as i64;
-    let mut ref_pos = rec.pos();
+fn get_query_pos(rec: &bam::Record, pos: usize) -> Option<usize> {
+    // pos is 1-based
+    let target_pos = (pos - 1) as i64; // 0-based reference position
+    let rec_start: i64 = rec.alignment_start()
+        .and_then(|p| p.ok())
+        .map(|p| { let v: usize = p.into(); v as i64 - 1 })
+        .unwrap_or(0);
+    let mut ref_pos = rec_start;
     let mut query_pos = 0usize;
 
-    for cigar in &rec.cigar() {
-        match cigar {
-            rust_htslib::bam::record::Cigar::Match(len)
-            | rust_htslib::bam::record::Cigar::Equal(len)
-            | rust_htslib::bam::record::Cigar::Diff(len) => {
-                let len_i64 = *len as i64;
+    let cigar = rec.cigar();
+
+    for op_result in cigar.iter() {
+        let op: noodles::sam::alignment::record::cigar::Op = match op_result {
+            Ok(o) => o,
+            Err(_) => return None,
+        };
+        let len = op.len();
+        match op.kind() {
+            Kind::Match | Kind::SequenceMatch | Kind::SequenceMismatch => {
+                let len_i64 = len as i64;
                 if target_pos >= ref_pos && target_pos < ref_pos + len_i64 {
                     return Some(query_pos + (target_pos - ref_pos) as usize);
                 }
                 ref_pos += len_i64;
-                query_pos += *len as usize;
+                query_pos += len;
             }
-            rust_htslib::bam::record::Cigar::Ins(len)
-            | rust_htslib::bam::record::Cigar::SoftClip(len) => {
-                query_pos += *len as usize;
+            Kind::Insertion | Kind::SoftClip => {
+                query_pos += len;
             }
-            rust_htslib::bam::record::Cigar::Del(len)
-            | rust_htslib::bam::record::Cigar::RefSkip(len) => {
-                let len_i64 = *len as i64;
+            Kind::Deletion | Kind::Skip => {
+                let len_i64 = len as i64;
                 if target_pos >= ref_pos && target_pos < ref_pos + len_i64 {
                     return None;
                 }
                 ref_pos += len_i64;
             }
-            rust_htslib::bam::record::Cigar::HardClip(_)
-            | rust_htslib::bam::record::Cigar::Pad(_) => {}
+            Kind::HardClip | Kind::Pad => {}
         }
     }
     None
@@ -137,7 +157,8 @@ fn normalize_positions(positions: &[usize]) -> AppResult<Vec<usize>> {
 }
 
 pub fn build_region_observation_cache(
-    bam: &mut IndexedReader,
+    bam_reader: &mut bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>,
+    header: &Header,
     chrom: &str,
     region_start: usize,
     region_end: usize,
@@ -168,28 +189,45 @@ pub fn build_region_observation_cache(
         .collect::<HashMap<_, _>>();
 
     let mut reads: Vec<CachedReadObservation> = Vec::new();
-    let region_start_i64 = (region_start - 1) as i64;
-    let region_end_i64 = region_end as i64;
-    bam.fetch((chrom, region_start_i64, region_end_i64))?;
 
-    for record in bam.records() {
-        let rec = record?;
+    // Build region query string: chrom:start-end (1-based, inclusive)
+    let region_str = format!("{chrom}:{region_start}-{region_end}");
+    let region: noodles::core::Region = region_str.parse()
+        .map_err(|e| AppError::validation(format!("Invalid region '{region_str}': {e}")))?;
 
-        if rec.is_duplicate()
-            || rec.is_secondary()
-            || rec.is_supplementary()
-            || rec.mapq() < min_mapq
+    let mut query = bam_reader.query(header, &region)
+        .map_err(|e| AppError::validation(format!("BAM query failed for {region_str}: {e}")))?;
+
+    let mut record = bam::Record::default();
+    while query.read_record(&mut record).map_err(|e| AppError::validation(format!("BAM read error: {e}")))? != 0 {
+        let flags = record.flags();
+        if flags.is_duplicate()
+            || flags.is_secondary()
+            || flags.is_supplementary()
         {
             continue;
         }
+        let mapq = record.mapping_quality()
+            .map(|q: noodles::sam::alignment::record::MappingQuality| q.get())
+            .unwrap_or(255);
+        if mapq < min_mapq {
+            continue;
+        }
+
+        let seq = record.sequence();
+        let qual = record.quality_scores();
+        let seq_len = seq.len();
 
         let observations = normalized_positions
             .iter()
             .copied()
             .map(|pos| {
-                get_query_pos(&rec, pos).and_then(|idx| {
-                    if idx < rec.seq().len() {
-                        Some((rec.seq().as_bytes()[idx] as char, rec.qual()[idx]))
+                get_query_pos(&record, pos).and_then(|idx| {
+                    if idx < seq_len {
+                        let base_byte: u8 = seq.iter().nth(idx)?;
+                        let base = base_byte as char;
+                        let q: u8 = qual.iter().nth(idx).unwrap_or(0);
+                        Some((base, q))
                     } else {
                         None
                     }
@@ -202,8 +240,8 @@ pub fn build_region_observation_cache(
         }
 
         reads.push(CachedReadObservation {
-            key: Rc::new(build_read_key(&rec)),
-            is_reverse: rec.is_reverse(),
+            key: Rc::new(build_read_key(&record)),
+            is_reverse: flags.is_reverse_complemented(),
             observations,
         });
     }
@@ -419,7 +457,8 @@ pub fn count_reads_from_cache(
 }
 
 pub fn count_reads_per_position(
-    bam: &mut IndexedReader,
+    bam_reader: &mut bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>,
+    header: &Header,
     chrom: &str,
     positions: &[usize],
     alt_bases: &[String],
@@ -437,7 +476,7 @@ pub fn count_reads_per_position(
         .max()
         .ok_or_else(|| AppError::validation("No positions provided for read counting"))?;
 
-    let cache = build_region_observation_cache(bam, chrom, min_pos, max_pos, positions, min_mapq)?;
+    let cache = build_region_observation_cache(bam_reader, header, chrom, min_pos, max_pos, positions, min_mapq)?;
     count_reads_from_cache(&cache, positions, alt_bases, min_phred_quality)
 }
 

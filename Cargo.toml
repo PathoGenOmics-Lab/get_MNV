@@ -18,12 +18,10 @@ clap = { version = "4.5.30", features = ["derive"] }
 env_logger = "0.11.6"
 log = "0.4.26"
 linear-map = "1.2.0"
-rust-htslib = { version = "1.0.0", default-features = false, features = ["static"] }
+noodles = { version = "0.109", features = ["bam", "bcf", "bgzf", "vcf", "csi", "tabix", "sam", "core"] }
 serde = { version = "1.0.218", features = ["derive"] }
 serde_json = "1.0.140"
 csv = "1.3.1"
-# protein-translate removed: replaced with inline codon table (C3)
 lru = "0.16"
 rayon = "1.8"
-# thiserror removed: AppError now implements std::error::Error manually with source chains
 sha2 = "0.11.0"

@@ -17,7 +17,8 @@ use crate::variants::{self, Gene, VariantInfo, VariantType};
 use log::info;
 use lru::LruCache;
 use rayon::prelude::*;
-use rust_htslib::bam::IndexedReader;
+use noodles::bam;
+use noodles::sam::Header;
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
 
@@ -42,7 +43,8 @@ struct RegionCacheKey {
 }
 
 struct WorkerState {
-    bam: Option<IndexedReader>,
+    bam: Option<bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>>,
+    bam_header: Option<Header>,
     region_cache: LruCache<RegionCacheKey, RegionObservationCache>,
 }
 
@@ -204,8 +206,17 @@ fn count_gene_variant_reads(
                     ))
                 }
             };
+            let bam_header = match state.bam_header.as_ref() {
+                Some(h) => h,
+                None => {
+                    return Err(AppError::validation(
+                        "BAM header unavailable in worker thread",
+                    ))
+                }
+            };
             let built = read_count::build_region_observation_cache(
                 bam,
+                bam_header,
                 contig,
                 gene.start,
                 gene.end,
@@ -290,21 +301,30 @@ pub(crate) fn process_contig(
         .par_iter()
         .map_init(
             || -> AppResult<WorkerState> {
-                let bam = if should_count_reads {
+                let (bam, bam_header) = if should_count_reads {
                     if let Some(path) = bam_path.as_ref() {
-                        Some(IndexedReader::from_path(path).map_err(|e| {
+                        let mut reader = bam::io::indexed_reader::Builder::default()
+                            .build_from_path(path)
+                            .map_err(|e| {
+                                AppError::validation(format!(
+                                    "Failed to open BAM '{path}' in worker thread: {e}"
+                                ))
+                            })?;
+                        let header = reader.read_header().map_err(|e| {
                             AppError::validation(format!(
-                                "Failed to open BAM '{path}' in worker thread: {e}"
+                                "Failed to read BAM header from '{path}': {e}"
                             ))
-                        })?)
+                        })?;
+                        (Some(reader), Some(header))
                     } else {
-                        None
+                        (None, None)
                     }
                 } else {
-                    None
+                    (None, None)
                 };
                 Ok(WorkerState {
                     bam,
+                    bam_header,
                     region_cache: LruCache::new(NonZeroUsize::new(64).expect("64 > 0")),
                 })
             },

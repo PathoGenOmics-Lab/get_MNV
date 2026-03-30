@@ -1,17 +1,16 @@
-//! VCF loading, metrics extraction, allele normalisation, and original INFO
-//! field preservation.
+//! VCF loading via noodles (for .vcf.gz and .bcf files), metrics extraction,
+//! allele normalisation, and original INFO field preservation.
+//!
+//! Plain `.vcf` files use the fast text parser in `vcf_fast.rs`.
 
 use super::validation::validate_vcf_allele;
 use crate::error::AppResult;
-use rust_htslib::bcf;
-use rust_htslib::bcf::header::{HeaderRecord, TagType};
-use rust_htslib::bcf::record::Numeric;
-use rust_htslib::bcf::Read;
 use std::collections::{HashMap, HashSet};
+use std::io::{BufRead, BufReader};
 
-const GET_MNV_INFO_TAGS: &[&[u8]] = &[
-    b"GENE", b"AA", b"CT", b"TYPE", b"ODP", b"OFREQ", b"SR", b"SRF", b"SRR", b"MR", b"MRF", b"MRR",
-    b"DP", b"FREQ", b"SBP", b"MSBP",
+const GET_MNV_INFO_TAGS: &[&str] = &[
+    "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR",
+    "DP", "FREQ", "SBP", "MSBP",
 ];
 
 #[derive(Debug, Clone)]
@@ -21,8 +20,6 @@ pub struct VcfPosition {
     pub alt_allele: String,
     pub original_dp: Option<usize>,
     pub original_freq: Option<f64>,
-    /// Pre-serialised original INFO fields (semicolon-separated) to carry over
-    /// when `--keep-original-info` is active.
     pub original_info: Option<String>,
 }
 
@@ -71,109 +68,217 @@ pub(crate) fn parse_optional_depth(raw: &str) -> Option<usize> {
         .map(|value| value.round() as usize)
 }
 
-fn first_non_missing_i32(values: &[i32]) -> Option<usize> {
-    values
-        .iter()
-        .copied()
-        .find(|value| !value.is_missing() && *value >= 0)
-        .map(|value| value as usize)
-}
-
-fn first_non_missing_f32(values: &[f32]) -> Option<f64> {
-    values
-        .iter()
-        .copied()
-        .find(|value| !value.is_missing())
-        .map(f64::from)
-}
-
-fn non_missing_i32_at(values: &[i32], index: usize) -> Option<usize> {
-    if let Some(value) = values.get(index).copied() {
-        if !value.is_missing() && value >= 0 {
-            return Some(value as usize);
-        }
+pub(crate) fn normalize_ref_alt(pos: usize, ref_allele: &str, alt_allele: &str) -> (usize, String, String) {
+    let is_symbolic = alt_allele.starts_with('<') && alt_allele.ends_with('>');
+    if is_symbolic {
+        return (pos, ref_allele.to_string(), alt_allele.to_string());
     }
-    if values.len() == 1 {
-        return first_non_missing_i32(values);
+
+    let ref_chars: Vec<char> = ref_allele.chars().collect();
+    let alt_chars: Vec<char> = alt_allele.chars().collect();
+    let mut start = 0usize;
+    let mut ref_end = ref_chars.len();
+    let mut alt_end = alt_chars.len();
+
+    while ref_end - start > 1
+        && alt_end - start > 1
+        && ref_chars[ref_end - 1] == alt_chars[alt_end - 1]
+    {
+        ref_end -= 1;
+        alt_end -= 1;
+    }
+    while ref_end - start > 1 && alt_end - start > 1 && ref_chars[start] == alt_chars[start] {
+        start += 1;
+    }
+
+    let norm_ref: String = ref_chars[start..ref_end].iter().collect();
+    let norm_alt: String = alt_chars[start..alt_end].iter().collect();
+
+    if norm_ref.is_empty() || norm_alt.is_empty() {
+        return (pos, ref_allele.to_string(), alt_allele.to_string());
+    }
+
+    (pos + start, norm_ref, norm_alt)
+}
+
+/// Parse a VCF line into fields. Returns None if the line is a header or empty.
+fn parse_vcf_line(line: &str) -> Option<Vec<&str>> {
+    let line = line.trim();
+    if line.is_empty() || line.starts_with('#') {
+        return None;
+    }
+    Some(line.split('\t').collect())
+}
+
+/// Extract INFO field value by key from a raw INFO string.
+fn get_info_value<'a>(info: &'a str, key: &str) -> Option<&'a str> {
+    for field in info.split(';') {
+        if let Some((k, v)) = field.split_once('=') {
+            if k == key {
+                return Some(v);
+            }
+        } else if field == key {
+            return Some("");
+        }
     }
     None
 }
 
-fn non_missing_f32_at(values: &[f32], index: usize) -> Option<f64> {
-    if let Some(value) = values.get(index).copied() {
-        if !value.is_missing() {
-            return Some(f64::from(value));
-        }
-    }
-    if values.len() == 1 {
-        return first_non_missing_f32(values);
-    }
-    None
+/// Extract FORMAT field value for a given sample index.
+fn get_format_value<'a>(format_keys: &[&str], sample_field: &'a str, key: &str) -> Option<&'a str> {
+    let idx = format_keys.iter().position(|k| *k == key)?;
+    let values: Vec<&str> = sample_field.split(':').collect();
+    values.get(idx).copied().filter(|v| !v.is_empty() && *v != ".")
 }
 
-fn derive_freq_from_ad(values: &[i32], alt_index: usize) -> Option<f64> {
-    let alt_count = non_missing_i32_at(values, alt_index + 1)?;
-    let total = values
-        .iter()
-        .copied()
-        .filter(|value| !value.is_missing() && *value >= 0)
-        .map(|value| value as usize)
-        .sum::<usize>();
-    if total == 0 {
-        None
-    } else {
-        Some(alt_count as f64 / total as f64)
-    }
-}
-
-fn derive_freq_from_ao_ro(
-    ao_values: &[i32],
-    ro_values: Option<&[i32]>,
+fn parse_original_metrics_from_fields(
+    info: &str,
+    format_keys: &[&str],
+    sample_field: Option<&str>,
     alt_index: usize,
-    dp: Option<usize>,
-) -> Option<f64> {
-    let alt_count = non_missing_i32_at(ao_values, alt_index)?;
-    let total = if let Some(depth) = dp {
-        depth
-    } else {
-        let ao_sum = ao_values
-            .iter()
-            .copied()
-            .filter(|value| !value.is_missing() && *value >= 0)
-            .map(|value| value as usize)
-            .sum::<usize>();
-        let ro = ro_values.and_then(first_non_missing_i32).unwrap_or(0);
-        ao_sum + ro
-    };
-    if total == 0 {
-        None
-    } else {
-        Some(alt_count as f64 / total as f64)
+) -> (Option<usize>, Option<f64>) {
+    let mut original_dp: Option<usize> = None;
+    let mut original_freq: Option<f64> = None;
+
+    // Try FORMAT fields first (sample-specific)
+    if let Some(sample) = sample_field {
+        // DP
+        if let Some(dp_str) = get_format_value(format_keys, sample, "DP") {
+            original_dp = parse_optional_depth(dp_str);
+        }
+        // FREQ / AF
+        for tag in &["FREQ", "AF"] {
+            if original_freq.is_none() {
+                if let Some(val) = get_format_value(format_keys, sample, tag) {
+                    original_freq = parse_optional_freq_index(val, alt_index);
+                }
+            }
+        }
+        // AD → derive freq
+        if original_freq.is_none() {
+            if let Some(ad_str) = get_format_value(format_keys, sample, "AD") {
+                let values: Vec<i64> = ad_str.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+                if let Some(&alt_count) = values.get(alt_index + 1) {
+                    let total: i64 = values.iter().filter(|v| **v >= 0).sum();
+                    if total > 0 && alt_count >= 0 {
+                        original_freq = Some(alt_count as f64 / total as f64);
+                    }
+                }
+            }
+        }
+        // AO/RO → derive freq
+        if original_freq.is_none() {
+            if let Some(ao_str) = get_format_value(format_keys, sample, "AO") {
+                let ao_values: Vec<i64> = ao_str.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+                if let Some(&alt_count) = ao_values.get(alt_index) {
+                    let ro = get_format_value(format_keys, sample, "RO")
+                        .and_then(|s| s.trim().parse::<i64>().ok())
+                        .unwrap_or(0);
+                    let total = if let Some(dp) = original_dp {
+                        dp as i64
+                    } else {
+                        let ao_sum: i64 = ao_values.iter().filter(|v| **v >= 0).sum();
+                        ao_sum + ro
+                    };
+                    if total > 0 && alt_count >= 0 {
+                        original_freq = Some(alt_count as f64 / total as f64);
+                    }
+                }
+            }
+        }
     }
+
+    // Fall back to INFO fields
+    if original_dp.is_none() {
+        if let Some(dp_str) = get_info_value(info, "DP") {
+            original_dp = parse_optional_depth(dp_str);
+        }
+    }
+    for tag in &["AF", "FREQ"] {
+        if original_freq.is_none() {
+            if let Some(val) = get_info_value(info, tag) {
+                original_freq = parse_optional_freq_index(val, alt_index);
+            }
+        }
+    }
+    if original_freq.is_none() {
+        if let Some(ad_str) = get_info_value(info, "AD") {
+            let values: Vec<i64> = ad_str.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+            if let Some(&alt_count) = values.get(alt_index + 1) {
+                let total: i64 = values.iter().filter(|v| **v >= 0).sum();
+                if total > 0 && alt_count >= 0 {
+                    original_freq = Some(alt_count as f64 / total as f64);
+                }
+            }
+        }
+    }
+    if original_freq.is_none() {
+        if let Some(ao_str) = get_info_value(info, "AO") {
+            let ao_values: Vec<i64> = ao_str.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+            if let Some(&alt_count) = ao_values.get(alt_index) {
+                let ro = get_info_value(info, "RO")
+                    .and_then(|s| s.trim().parse::<i64>().ok())
+                    .unwrap_or(0);
+                let total = if let Some(dp) = original_dp {
+                    dp as i64
+                } else {
+                    let ao_sum: i64 = ao_values.iter().filter(|v| **v >= 0).sum();
+                    ao_sum + ro
+                };
+                if total > 0 && alt_count >= 0 {
+                    original_freq = Some(alt_count as f64 / total as f64);
+                }
+            }
+        }
+    }
+
+    (original_dp, original_freq)
 }
 
-fn parse_sample_names(header: &bcf::header::HeaderView) -> Vec<String> {
-    if header.sample_count() == 0 {
-        return Vec::new();
-    }
-    header
-        .samples()
-        .iter()
-        .map(|raw| String::from_utf8_lossy(raw).to_string())
-        .collect()
+fn extract_original_info_from_line(info: &str, own_tags: &HashSet<&str>) -> Option<String> {
+    let parts: Vec<&str> = info.split(';')
+        .filter(|field| {
+            let key = field.split_once('=').map(|(k, _)| k).unwrap_or(field);
+            !own_tags.contains(key)
+        })
+        .collect();
+    if parts.is_empty() { None } else { Some(parts.join(";")) }
 }
 
 pub fn list_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
-    let vcf = bcf::Reader::from_path(vcf_file)?;
-    Ok(parse_sample_names(vcf.header()))
+    if vcf_file.ends_with(".bcf") {
+        return Err("BCF input is not supported. Convert to VCF first: bcftools view input.bcf > input.vcf".into());
+    }
+    let reader: Box<dyn BufRead> = if vcf_file.ends_with(".gz") {
+        let file = std::fs::File::open(vcf_file)?;
+        let bgzf = noodles::bgzf::io::Reader::new(file);
+        Box::new(BufReader::new(bgzf))
+    } else {
+        let file = std::fs::File::open(vcf_file)?;
+        Box::new(BufReader::new(file))
+    };
+
+    // Parse header to find #CHROM line
+    for line_result in reader.lines() {
+        let line = line_result?;
+        if line.starts_with("#CHROM") {
+            let fields: Vec<&str> = line.split('\t').collect();
+            if fields.len() > 9 {
+                return Ok(fields[9..].iter().map(|s| s.to_string()).collect());
+            }
+            return Ok(Vec::new());
+        }
+        if !line.starts_with('#') {
+            break;
+        }
+    }
+    Ok(Vec::new())
 }
 
 fn resolve_sample_index(
-    header: &bcf::header::HeaderView,
+    samples: &[String],
     sample_name: Option<&str>,
 ) -> AppResult<Option<usize>> {
-    let samples = parse_sample_names(header);
-
     if let Some(name) = sample_name {
         if samples.is_empty() {
             return Err(format!("Requested sample '{name}' but VCF has no sample columns").into());
@@ -202,289 +307,41 @@ fn resolve_sample_index(
     Ok(Some(0))
 }
 
-fn parse_original_metrics(
-    rec: &bcf::Record,
-    sample_index: Option<usize>,
-    alt_index: usize,
-) -> (Option<usize>, Option<f64>) {
-    let mut original_dp: Option<usize> = None;
-    let mut original_freq: Option<f64> = None;
-
-    if let Some(sample_idx) = sample_index {
-        if let Ok(format_dp) = rec.format(b"DP").integer() {
-            if let Some(sample_values) = format_dp.get(sample_idx) {
-                original_dp = first_non_missing_i32(sample_values);
-            }
-        }
-        if original_dp.is_none() {
-            if let Ok(format_dp_str) = rec.format(b"DP").string() {
-                if let Some(sample_values) = format_dp_str.get(sample_idx) {
-                    if let Ok(raw) = std::str::from_utf8(sample_values) {
-                        original_dp = parse_optional_depth(raw);
-                    }
-                }
-            }
-        }
-
-        for tag in [b"FREQ".as_slice(), b"AF".as_slice()] {
-            if original_freq.is_none() {
-                if let Ok(format_freq) = rec.format(tag).float() {
-                    if let Some(sample_values) = format_freq.get(sample_idx) {
-                        original_freq = non_missing_f32_at(sample_values, alt_index);
-                    }
-                }
-            }
-            if original_freq.is_none() {
-                if let Ok(format_freq_str) = rec.format(tag).string() {
-                    if let Some(sample_values) = format_freq_str.get(sample_idx) {
-                        if let Ok(raw) = std::str::from_utf8(sample_values) {
-                            original_freq = parse_optional_freq_index(raw, alt_index);
-                        }
-                    }
-                }
-            }
-        }
-
-        if original_freq.is_none() {
-            if let Ok(format_ad) = rec.format(b"AD").integer() {
-                if let Some(sample_values) = format_ad.get(sample_idx) {
-                    original_freq = derive_freq_from_ad(sample_values, alt_index);
-                }
-            }
-        }
-        if original_freq.is_none() {
-            if let Ok(format_ao) = rec.format(b"AO").integer() {
-                if let Some(ao_values) = format_ao.get(sample_idx) {
-                    let ro_values =
-                        rec.format(b"RO").integer().ok().and_then(|matrix| {
-                            matrix.get(sample_idx).map(|values| values.to_vec())
-                        });
-                    original_freq = derive_freq_from_ao_ro(
-                        ao_values,
-                        ro_values.as_deref(),
-                        alt_index,
-                        original_dp,
-                    );
-                }
-            }
-        }
-    }
-
-    if original_dp.is_none() {
-        if let Ok(Some(info_dp)) = rec.info(b"DP").integer() {
-            original_dp = first_non_missing_i32(&info_dp);
-        }
-    }
-    if original_dp.is_none() {
-        if let Ok(Some(info_dp_str)) = rec.info(b"DP").string() {
-            if let Some(raw) = info_dp_str.first() {
-                if let Ok(value) = std::str::from_utf8(raw) {
-                    original_dp = parse_optional_depth(value);
-                }
-            }
-        }
-    }
-
-    for tag in [b"AF".as_slice(), b"FREQ".as_slice()] {
-        if original_freq.is_none() {
-            if let Ok(Some(info_freq)) = rec.info(tag).float() {
-                original_freq = non_missing_f32_at(&info_freq, alt_index);
-            }
-        }
-        if original_freq.is_none() {
-            if let Ok(Some(info_freq_str)) = rec.info(tag).string() {
-                if let Some(raw) = info_freq_str.first() {
-                    if let Ok(value) = std::str::from_utf8(raw) {
-                        original_freq = parse_optional_freq_index(value, alt_index);
-                    }
-                }
-            }
-        }
-    }
-
-    if original_freq.is_none() {
-        if let Ok(Some(info_ad)) = rec.info(b"AD").integer() {
-            original_freq = derive_freq_from_ad(&info_ad, alt_index);
-        }
-    }
-    if original_freq.is_none() {
-        if let Ok(Some(info_ao)) = rec.info(b"AO").integer() {
-            let info_ro = rec.info(b"RO").integer().ok().flatten();
-            original_freq = derive_freq_from_ao_ro(
-                &info_ao,
-                info_ro.map(|values| &**values),
-                alt_index,
-                original_dp,
-            );
-        }
-    }
-
-    (original_dp, original_freq)
-}
-
-pub(crate) fn normalize_ref_alt(pos: usize, ref_allele: &str, alt_allele: &str) -> (usize, String, String) {
-    let is_symbolic = alt_allele.starts_with('<') && alt_allele.ends_with('>');
-    if is_symbolic {
-        return (pos, ref_allele.to_string(), alt_allele.to_string());
-    }
-
-    let ref_chars: Vec<char> = ref_allele.chars().collect();
-    let alt_chars: Vec<char> = alt_allele.chars().collect();
-    let mut start = 0usize;
-    let mut ref_end = ref_chars.len();
-    let mut alt_end = alt_chars.len();
-
-    while ref_end - start > 1
-        && alt_end - start > 1
-        && ref_chars[ref_end - 1] == alt_chars[alt_end - 1]
-    {
-        ref_end -= 1;
-        alt_end -= 1;
-    }
-    while ref_end - start > 1 && alt_end - start > 1 && ref_chars[start] == alt_chars[start] {
-        start += 1;
-    }
-
-    let norm_ref: String = ref_chars[start..ref_end].iter().collect();
-    let norm_alt: String = alt_chars[start..alt_end].iter().collect();
-
-    // Guard: normalization must never produce empty alleles.  If input was
-    // already minimal (e.g. single-base SNP) or identical REF/ALT, fall back
-    // to the original alleles.
-    if norm_ref.is_empty() || norm_alt.is_empty() {
-        return (pos, ref_allele.to_string(), alt_allele.to_string());
-    }
-
-    (pos + start, norm_ref, norm_alt)
-}
-
-/// Collect the IDs and types of original INFO fields (those not defined by
-/// get_mnv itself) from a VCF header.
-fn original_info_tags(header: &bcf::header::HeaderView) -> Vec<(String, TagType)> {
-    let own: HashSet<&[u8]> = GET_MNV_INFO_TAGS.iter().copied().collect();
-    let mut tags = Vec::new();
-    for rec in header.header_records() {
-        if let HeaderRecord::Info { values, .. } = rec {
-            if let Some(id) = values.get("ID") {
-                if !own.contains(id.as_bytes()) {
-                    let tag_type = header
-                        .info_type(id.as_bytes())
-                        .map(|(t, _)| t)
-                        .unwrap_or(TagType::String);
-                    tags.push((id.clone(), tag_type));
-                }
-            }
-        }
-    }
-    tags
-}
-
-/// Reconstruct the `##INFO=<...>` header line for a given tag from the
-/// structured `HeaderRecord`.
-fn info_header_line(values: &linear_map::LinearMap<String, String>) -> String {
-    let mut parts = Vec::new();
-    // Emit in canonical order: ID, Number, Type, Description, then rest
-    for key in &["ID", "Number", "Type", "Description"] {
-        if let Some(val) = values.get(*key) {
-            if *key == "Description" {
-                parts.push(format!("{key}=\"{val}\""));
-            } else {
-                parts.push(format!("{key}={val}"));
-            }
-        }
-    }
-    for (key, val) in values.iter() {
-        if !["ID", "Number", "Type", "Description"].contains(&key.as_str()) {
-            parts.push(format!("{key}={val}"));
-        }
-    }
-    format!("##INFO=<{}>", parts.join(","))
-}
-
-/// Collect the original `##INFO=` header lines from a VCF whose ID is **not**
-/// one of the tags get_mnv writes itself. Returns the full `##INFO=<...>`
-/// lines ready to be re-emitted in the output VCF header.
 pub fn extract_original_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
-    let vcf = bcf::Reader::from_path(vcf_file)?;
-    let own: HashSet<&[u8]> = GET_MNV_INFO_TAGS.iter().copied().collect();
+    let own: HashSet<&str> = GET_MNV_INFO_TAGS.iter().copied().collect();
     let mut lines = Vec::new();
-    for rec in vcf.header().header_records() {
-        if let HeaderRecord::Info { values, .. } = rec {
-            if let Some(id) = values.get("ID") {
-                if !own.contains(id.as_bytes()) {
-                    lines.push(info_header_line(&values));
+
+    if vcf_file.ends_with(".bcf") {
+        return Err("BCF input is not supported. Convert to VCF first: bcftools view input.bcf > input.vcf".into());
+    }
+    let reader: Box<dyn BufRead> = if vcf_file.ends_with(".gz") {
+        let file = std::fs::File::open(vcf_file)?;
+        let bgzf = noodles::bgzf::io::Reader::new(file);
+        Box::new(BufReader::new(bgzf))
+    } else {
+        let file = std::fs::File::open(vcf_file)?;
+        Box::new(BufReader::new(file))
+    };
+
+    for line_result in reader.lines() {
+        let line = line_result?;
+        if line.starts_with("##INFO=") {
+            // Extract ID from the header line
+            if let Some(id_start) = line.find("ID=") {
+                let rest = &line[id_start + 3..];
+                if let Some(id_end) = rest.find([',', '>']) {
+                    let id = &rest[..id_end];
+                    if !own.contains(id) {
+                        lines.push(line.clone());
+                    }
                 }
             }
+        }
+        if !line.starts_with('#') {
+            break;
         }
     }
     Ok(lines)
-}
-
-/// Build a pre-serialised string of original INFO fields from a single VCF
-/// record, excluding get_mnv's own tags. `tags` is the pre-computed list of
-/// (ID, TagType) pairs obtained from `original_info_tags()`.
-fn extract_original_info(rec: &bcf::Record, tags: &[(String, TagType)]) -> Option<String> {
-    let mut parts: Vec<String> = Vec::new();
-
-    for (id, tag_type) in tags {
-        let tag = id.as_bytes();
-        match tag_type {
-            TagType::Integer => {
-                if let Ok(Some(values)) = rec.info(tag).integer() {
-                    let formatted: Vec<String> = values
-                        .iter()
-                        .filter(|&&v| v != i32::missing())
-                        .map(std::string::ToString::to_string)
-                        .collect();
-                    if !formatted.is_empty() {
-                        parts.push(format!("{}={}", id, formatted.join(",")));
-                    }
-                }
-            }
-            TagType::Float => {
-                if let Ok(Some(values)) = rec.info(tag).float() {
-                    let formatted: Vec<String> = values
-                        .iter()
-                        .filter(|&&v| !v.is_nan() && v != f32::missing())
-                        .map(|v| format!("{v}"))
-                        .collect();
-                    if !formatted.is_empty() {
-                        parts.push(format!("{}={}", id, formatted.join(",")));
-                    }
-                }
-            }
-            TagType::Flag => {
-                if let Ok(true) = rec.info(tag).flag() {
-                    parts.push(id.clone());
-                }
-            }
-            // TagType::String and anything else
-            _ => {
-                if let Ok(Some(values)) = rec.info(tag).string() {
-                    let formatted: Vec<String> = values
-                        .iter()
-                        .filter_map(|v| {
-                            let s = std::str::from_utf8(v).ok()?;
-                            if s == "." {
-                                None
-                            } else {
-                                Some(s.to_string())
-                            }
-                        })
-                        .collect();
-                    if !formatted.is_empty() {
-                        parts.push(format!("{}={}", id, formatted.join(",")));
-                    }
-                }
-            }
-        }
-    }
-
-    if parts.is_empty() {
-        None
-    } else {
-        Some(parts.join(";"))
-    }
 }
 
 pub fn load_vcf_positions_by_contig(
@@ -495,135 +352,94 @@ pub fn load_vcf_positions_by_contig(
     keep_original_info: bool,
 ) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
     log::info!("Loading VCF: {vcf_file}");
-    let mut vcf = bcf::Reader::from_path(vcf_file)?;
-    let sample_index = resolve_sample_index(vcf.header(), sample_name)?;
-    // Pre-compute the list of original INFO tags before the records loop
-    // to avoid a simultaneous mutable+immutable borrow on `vcf`.
-    let orig_info_tags = if keep_original_info {
-        original_info_tags(vcf.header())
+
+    let samples = list_vcf_samples(vcf_file)?;
+    let sample_index = resolve_sample_index(&samples, sample_name)?;
+    let own_tags: HashSet<&str> = GET_MNV_INFO_TAGS.iter().copied().collect();
+
+    if vcf_file.ends_with(".bcf") {
+        return Err("BCF input is not supported. Convert to VCF first: bcftools view input.bcf > input.vcf".into());
+    }
+    let reader: Box<dyn BufRead> = if vcf_file.ends_with(".gz") {
+        let file = std::fs::File::open(vcf_file)?;
+        let bgzf = noodles::bgzf::io::Reader::new(file);
+        Box::new(BufReader::new(bgzf))
     } else {
-        Vec::new()
+        let file = std::fs::File::open(vcf_file)?;
+        Box::new(BufReader::new(file))
     };
+
     let mut positions_by_contig: HashMap<String, Vec<VcfPosition>> = HashMap::new();
     let mut split_count = 0usize;
+    let mut record_idx = 0usize;
 
-    for (record_idx, rec_result) in vcf.records().enumerate() {
-        let rec = rec_result
-            .map_err(|e| format!("Failed to parse VCF record {}: {}", record_idx + 1, e))?;
-        let raw_pos = rec.pos();
-        if raw_pos < 0 {
-            return Err(format!(
-                "Invalid VCF position at record {}: {}",
-                record_idx + 1,
-                raw_pos
-            )
-            .into());
-        }
-        let pos = raw_pos as usize + 1;
-        let alleles = rec.alleles();
-        let rid = rec.rid().ok_or_else(|| {
-            format!(
-                "VCF record {} at position {} has undefined contig in header. \
-Add matching ##contig lines to the VCF header.",
-                record_idx + 1,
-                pos
-            )
-        })?;
-        let chrom_bytes = rec.header().rid2name(rid).map_err(|e| {
-            format!(
-                "Failed to resolve contig name for VCF record {} (RID {}): {}",
-                record_idx + 1,
-                rid,
-                e
-            )
-        })?;
-        let chrom = std::str::from_utf8(chrom_bytes).map_err(|e| {
-            format!(
-                "Invalid UTF-8 in contig name for VCF record {}: {}",
-                record_idx + 1,
-                e
-            )
-        })?;
+    for line_result in reader.lines() {
+        let line = line_result?;
+        let fields = match parse_vcf_line(&line) {
+            Some(f) => f,
+            None => continue,
+        };
+        record_idx += 1;
 
-        if alleles.len() < 2 {
+        if fields.len() < 8 {
             return Err(format!(
-                "Invalid VCF record {} at position {}: expected at least REF and one ALT allele",
-                record_idx + 1,
-                pos
-            )
-            .into());
-        }
-        if alleles.len() > 2 && !split_multiallelic {
-            return Err(format!(
-                "Multiallelic VCF record {} at {}:{} is not supported. Split multiallelic sites first (e.g. bcftools norm -m -).",
-                record_idx + 1,
-                chrom,
-                pos
-            )
-            .into());
+                "VCF record {} has fewer than 8 fields", record_idx
+            ).into());
         }
 
-        let ref_allele = std::str::from_utf8(alleles[0]).map_err(|e| {
-            format!(
-                "Invalid UTF-8 in REF allele at VCF record {} (pos {}): {}",
-                record_idx + 1,
-                pos,
-                e
-            )
+        let chrom = fields[0];
+        let pos: usize = fields[1].parse().map_err(|_| {
+            format!("Invalid VCF position at record {}: {}", record_idx, fields[1])
         })?;
+        let ref_allele = fields[3];
+        let alt_field = fields[4];
+        let info = fields[7];
+
         if ref_allele.is_empty() {
             return Err(format!(
-                "Invalid VCF allele at record {} (pos {}): empty REF",
-                record_idx + 1,
-                pos
-            )
-            .into());
+                "Invalid VCF allele at record {} (pos {}): empty REF", record_idx, pos
+            ).into());
         }
-        validate_vcf_allele(ref_allele, record_idx + 1, chrom, pos, "REF")?;
+        validate_vcf_allele(ref_allele, record_idx, chrom, pos, "REF")?;
 
-        for (alt_idx, alt_raw) in alleles.iter().enumerate().skip(1) {
-            let alt_allele = std::str::from_utf8(alt_raw).map_err(|e| {
-                format!(
-                    "Invalid UTF-8 in ALT allele {} at VCF record {} (pos {}): {}",
-                    alt_idx,
-                    record_idx + 1,
-                    pos,
-                    e
-                )
-            })?;
-            if alt_allele.is_empty() || alt_allele == "." {
+        let alts: Vec<&str> = alt_field.split(',').collect();
+        if alts.len() > 1 && !split_multiallelic {
+            return Err(format!(
+                "Multiallelic VCF record {} at {}:{} is not supported. Split multiallelic sites first (e.g. bcftools norm -m -).",
+                record_idx, chrom, pos
+            ).into());
+        }
+
+        // Get FORMAT and sample fields
+        let format_keys: Vec<&str> = if fields.len() > 8 {
+            fields[8].split(':').collect()
+        } else {
+            Vec::new()
+        };
+        let sample_field = sample_index.and_then(|idx| {
+            fields.get(9 + idx).copied()
+        });
+
+        for (alt_idx, alt_allele) in alts.iter().enumerate() {
+            if alt_allele.is_empty() || *alt_allele == "." {
                 return Err(format!(
                     "Invalid VCF allele at record {} (pos {}): REF='{}' ALT='{}'",
-                    record_idx + 1,
-                    pos,
-                    ref_allele,
-                    alt_allele
-                )
-                .into());
+                    record_idx, pos, ref_allele, alt_allele
+                ).into());
             }
             let (normalized_pos, normalized_ref, normalized_alt) = if normalize_alleles {
                 normalize_ref_alt(pos, ref_allele, alt_allele)
             } else {
                 (pos, ref_allele.to_string(), alt_allele.to_string())
             };
-            validate_vcf_allele(
-                &normalized_ref,
-                record_idx + 1,
-                chrom,
-                normalized_pos,
-                "REF",
-            )?;
-            validate_vcf_allele(
-                &normalized_alt,
-                record_idx + 1,
-                chrom,
-                normalized_pos,
-                "ALT",
-            )?;
-            let (original_dp, original_freq) =
-                parse_original_metrics(&rec, sample_index, alt_idx - 1);
+            validate_vcf_allele(&normalized_ref, record_idx, chrom, normalized_pos, "REF")?;
+            validate_vcf_allele(&normalized_alt, record_idx, chrom, normalized_pos, "ALT")?;
+
+            let (original_dp, original_freq) = parse_original_metrics_from_fields(
+                info, &format_keys, sample_field, alt_idx,
+            );
             let original_info = if keep_original_info {
-                extract_original_info(&rec, &orig_info_tags)
+                extract_original_info_from_line(info, &own_tags)
             } else {
                 None
             };
@@ -640,8 +456,8 @@ Add matching ##contig lines to the VCF header.",
                     original_info,
                 });
         }
-        if alleles.len() > 2 {
-            split_count += alleles.len() - 2;
+        if alts.len() > 1 {
+            split_count += alts.len() - 1;
         }
     }
 
@@ -655,3 +471,6 @@ Add matching ##contig lines to the VCF header.",
 
     Ok(positions_by_contig)
 }
+
+// BCF input is not supported in the pure-Rust build.
+// Use `bcftools view input.bcf > input.vcf` to convert.
