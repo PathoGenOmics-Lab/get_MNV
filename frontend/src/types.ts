@@ -127,6 +127,7 @@ export interface RunSummary {
   sample?: string;
   dry_run: boolean;
   bam_provided: boolean;
+  translation_table: number;
   inputs: RunInputs;
   output_tsv?: string;
   output_vcf?: string;

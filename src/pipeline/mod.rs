@@ -98,6 +98,7 @@ fn run_single(
         sample: sample_override.map(std::string::ToString::to_string),
         dry_run: args.dry_run,
         bam_provided: args.bam_file.is_some(),
+        translation_table: args.translation_table,
         inputs,
         output_tsv: paths.tsv,
         output_vcf: paths.vcf,
@@ -297,6 +298,7 @@ pub fn run_with_progress(
         sample: Some("all".to_string()),
         dry_run: args.dry_run,
         bam_provided: args.bam_file.is_some(),
+        translation_table: args.translation_table,
         inputs: build_input_metadata(args, true)?,
         output_tsv: None,
         output_vcf: None,
@@ -365,6 +367,7 @@ mod tests {
             sample: None,
             dry_run: true,
             bam_provided: false,
+            translation_table: 11,
             inputs: RunInputs {
                 vcf: "in.vcf".to_string(),
                 fasta: "ref.fasta".to_string(),

@@ -18,8 +18,20 @@ function pct(part: number, total: number): string {
   return `${((part / total) * 100).toLocaleString("en-US", { maximumFractionDigits: 1 })}%`;
 }
 
+const GENETIC_CODE_NAMES: Record<number, string> = {
+  1: "Standard",
+  2: "Vertebrate Mito",
+  3: "Yeast Mito",
+  4: "Mold/Protozoan Mito",
+  5: "Invertebrate Mito",
+  6: "Ciliate Nuclear",
+  11: "Bacterial/Archaeal",
+  12: "Alt Yeast Nuclear",
+  25: "SR1/Gracilibacteria",
+};
+
 export default function Summary({ result }: SummaryProps) {
-  const { global: g, timings, contigs, sample, bam_provided } = result;
+  const { global: g, timings, contigs, sample, bam_provided, translation_table } = result;
 
   return (
     <div className="summary">
@@ -149,6 +161,12 @@ export default function Summary({ result }: SummaryProps) {
               <tr>
                 <td>BAM provided</td>
                 <td>{bam_provided ? "Yes" : "No"}</td>
+              </tr>
+              <tr>
+                <td>Genetic code</td>
+                <td className="stat-mono">
+                  {translation_table} — {GENETIC_CODE_NAMES[translation_table] ?? "Custom"}
+                </td>
               </tr>
               <tr>
                 <td>Cache hit rate</td>

@@ -36,12 +36,13 @@ pub struct GlobalSummary {
     pub region_cache_misses: usize,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RunSummary {
     pub schema_version: String,
     pub sample: Option<String>,
     pub dry_run: bool,
     pub bam_provided: bool,
+    pub translation_table: u8,
     pub inputs: RunInputs,
     pub output_tsv: Option<String>,
     pub output_vcf: Option<String>,
@@ -49,6 +50,25 @@ pub struct RunSummary {
     pub contigs: Vec<ContigSummary>,
     pub timings: RunTimings,
     pub global: GlobalSummary,
+}
+
+impl Default for RunSummary {
+    fn default() -> Self {
+        Self {
+            schema_version: String::new(),
+            sample: None,
+            dry_run: false,
+            bam_provided: false,
+            translation_table: 11,
+            inputs: RunInputs::default(),
+            output_tsv: None,
+            output_vcf: None,
+            output_bcf: None,
+            contigs: Vec::new(),
+            timings: RunTimings::default(),
+            global: GlobalSummary::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
