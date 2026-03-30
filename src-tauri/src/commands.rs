@@ -148,6 +148,88 @@ pub fn run_analysis(
 }
 
 // ---------------------------------------------------------------------------
+// ensure_fasta_index
+// ---------------------------------------------------------------------------
+
+/// Create a .fai index for a FASTA file if it doesn't already exist.
+/// Parses the FASTA to compute name, length, byte offset, line bases, line width.
+/// Returns the path to the .fai file.
+#[tauri::command]
+pub fn ensure_fasta_index(fasta_path: String) -> Result<String, String> {
+    let fai_path = format!("{}.fai", fasta_path);
+    if std::path::Path::new(&fai_path).exists() {
+        return Ok(fai_path);
+    }
+
+    let bytes = std::fs::read(&fasta_path)
+        .map_err(|e| format!("Cannot read FASTA: {}", e))?;
+
+    let mut entries: Vec<String> = Vec::new();
+    let mut name = String::new();
+    let mut seq_len: usize = 0;
+    let mut seq_offset: usize = 0;
+    let mut line_bases: usize = 0;
+    let mut line_width: usize = 0;
+    let mut first_seq_line = true;
+
+    let mut pos: usize = 0;
+    while pos < bytes.len() {
+        // Find end of line
+        let line_start = pos;
+        while pos < bytes.len() && bytes[pos] != b'\n' {
+            pos += 1;
+        }
+        let line_end = pos; // exclusive, before \n
+        if pos < bytes.len() {
+            pos += 1; // skip \n
+        }
+
+        if line_start < bytes.len() && bytes[line_start] == b'>' {
+            // Flush previous sequence
+            if !name.is_empty() {
+                entries.push(format!("{}\t{}\t{}\t{}\t{}", name, seq_len, seq_offset, line_bases, line_width));
+            }
+            // Parse header
+            let header = &bytes[line_start + 1..line_end];
+            name = std::str::from_utf8(header)
+                .unwrap_or("")
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .to_string();
+            seq_len = 0;
+            seq_offset = pos; // first base starts after header \n
+            first_seq_line = true;
+        } else if !name.is_empty() && line_end > line_start {
+            // Sequence line
+            let raw_len = line_end - line_start;
+            // Trim trailing \r if present
+            let base_len = if raw_len > 0 && bytes[line_end - 1] == b'\r' {
+                raw_len - 1
+            } else {
+                raw_len
+            };
+            seq_len += base_len;
+            if first_seq_line {
+                line_bases = base_len;
+                line_width = pos - line_start; // includes \n
+                first_seq_line = false;
+            }
+        }
+    }
+    // Flush last sequence
+    if !name.is_empty() {
+        entries.push(format!("{}\t{}\t{}\t{}\t{}", name, seq_len, seq_offset, line_bases, line_width));
+    }
+
+    let fai_content = entries.join("\n") + "\n";
+    std::fs::write(&fai_path, &fai_content)
+        .map_err(|e| format!("Cannot write .fai: {}", e))?;
+
+    Ok(fai_path)
+}
+
+// ---------------------------------------------------------------------------
 // get_gff_features
 // ---------------------------------------------------------------------------
 

@@ -92,6 +92,7 @@ interface FileSelectorProps {
   isDragActive?: boolean;
   justAssigned?: boolean;
   fileType?: string;
+  validationError?: boolean;
 }
 
 /** Extract filename from a full path */
@@ -108,6 +109,7 @@ export default function FileSelector({
   isDragActive,
   justAssigned,
   fileType,
+  validationError,
 }: FileSelectorProps) {
   const [hovering, setHovering] = useState(false);
   const hasFile = value.length > 0;
@@ -134,6 +136,7 @@ export default function FileSelector({
     isDragActive ? "drop-zone--drag-active" : "",
     hovering ? "drop-zone--hover" : "",
     justAssigned ? "drop-zone--just-assigned" : "",
+    validationError && !hasFile ? "drop-zone--error" : "",
   ]
     .filter(Boolean)
     .join(" ");

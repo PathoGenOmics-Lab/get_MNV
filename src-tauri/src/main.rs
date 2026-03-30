@@ -4,8 +4,8 @@
 mod commands;
 
 use commands::{
-    get_bam_view, get_core_version, get_gff_features, read_tsv_file, run_analysis,
-    write_text_file,
+    ensure_fasta_index, get_bam_view, get_core_version, get_gff_features, read_tsv_file,
+    run_analysis, write_text_file,
 };
 
 fn main() {
@@ -18,6 +18,7 @@ fn main() {
             run_analysis,
             get_core_version,
             get_gff_features,
+            ensure_fasta_index,
             read_tsv_file,
             get_bam_view,
             write_text_file,

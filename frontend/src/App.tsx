@@ -227,6 +227,7 @@ function App() {
   const [samples, setSamples] = useState<SampleEntry[]>([]);
   const [activeSampleId, setActiveSampleId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showValidation, setShowValidation] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [justAssigned, setJustAssigned] = useState<Set<string>>(new Set());
   const [gffAvailableFeatures, setGffAvailableFeatures] = useState<string[]>([]);
@@ -291,6 +292,11 @@ function App() {
     samples.length > 0 &&
     config.fastaFile.length > 0 &&
     config.genesFile.length > 0;
+
+  // Clear validation errors once all required fields are filled
+  useEffect(() => {
+    if (filesReady) setShowValidation(false);
+  }, [filesReady]);
 
   const fileCount = [
     samples.length > 0 ? "vcf" : "",
@@ -434,6 +440,10 @@ function App() {
           if (assigned.length > 0) {
             setConfig((prev) => ({ ...prev, ...updates }));
             flashAssigned(assigned);
+            // Auto-generate .fai when FASTA is assigned via drag-and-drop
+            if (updates.fastaFile) {
+              invoke("ensure_fasta_index", { fastaPath: updates.fastaFile }).catch(() => {});
+            }
           }
         }
       })
@@ -719,16 +729,23 @@ function App() {
                     isDragActive={dragActive}
                     justAssigned={justAssigned.has("vcfFile")}
                     fileType="VCF"
+                    validationError={showValidation && samples.length === 0}
                   />
                   <FileSelector
                     label="FASTA reference"
                     value={config.fastaFile}
-                    onChange={(path) => setConfig({ ...config, fastaFile: path })}
+                    onChange={(path) => {
+                      setConfig({ ...config, fastaFile: path });
+                      if (path) {
+                        invoke("ensure_fasta_index", { fastaPath: path }).catch(() => {});
+                      }
+                    }}
                     filters={[{ name: "FASTA", extensions: ["fasta", "fas", "fa", "fna"] }]}
                     required
                     isDragActive={dragActive}
                     justAssigned={justAssigned.has("fastaFile")}
                     fileType="FASTA"
+                    validationError={showValidation && !config.fastaFile}
                   />
                   <FileSelector
                     label="Gene annotation"
@@ -739,6 +756,7 @@ function App() {
                     isDragActive={dragActive}
                     justAssigned={justAssigned.has("genesFile")}
                     fileType="Annotation"
+                    validationError={showValidation && !config.genesFile}
                   />
                   <FileSelector
                     label="BAM alignment"
@@ -800,8 +818,15 @@ function App() {
                 <div className="analysis-runner">
                   <button
                     className={`run-button${justFinished ? " run-button--success" : ""}`}
-                    disabled={!filesReady || running || samples.length === 0}
-                    onClick={runnableCount > 0 ? handleRunAll : handleRerunAll}
+                    disabled={running}
+                    onClick={() => {
+                      if (!filesReady || samples.length === 0) {
+                        setShowValidation(true);
+                        return;
+                      }
+                      setShowValidation(false);
+                      (runnableCount > 0 ? handleRunAll : handleRerunAll)();
+                    }}
                   >
                     {justFinished ? (
                       <>
@@ -870,8 +895,10 @@ function App() {
                     </>
                   )}
                   {!filesReady && !running && (
-                    <p className="hint">
-                      Select VCF, FASTA, and gene annotation files to enable analysis
+                    <p className={`hint${showValidation ? " hint--error" : ""}`}>
+                      {showValidation
+                        ? "⚠ Required files are missing — select them above"
+                        : "Select VCF, FASTA, and gene annotation files to enable analysis"}
                     </p>
                   )}
                   {filesReady && !running && (
