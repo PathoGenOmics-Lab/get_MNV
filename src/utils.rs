@@ -98,13 +98,29 @@ pub fn iupac_aa(aa_change_1_letter: &str) -> String {
 }
 
 pub fn reverse_complement(seq: &str) -> String {
-    let rc = bio::alphabets::dna::revcomp(seq.as_bytes());
-    String::from_utf8(rc).unwrap_or_else(|e| {
-        log::warn!(
-            "reverse_complement produced invalid UTF-8 for input '{seq}': {e}. Falling back to lossy conversion."
-        );
-        String::from_utf8_lossy(e.as_bytes()).into_owned()
-    })
+    seq.bytes()
+        .rev()
+        .map(|b| match b {
+            b'A' | b'a' => b'T',
+            b'T' | b't' => b'A',
+            b'C' | b'c' => b'G',
+            b'G' | b'g' => b'C',
+            b'N' | b'n' => b'N',
+            // IUPAC ambiguity codes
+            b'R' | b'r' => b'Y',
+            b'Y' | b'y' => b'R',
+            b'S' | b's' => b'S',
+            b'W' | b'w' => b'W',
+            b'K' | b'k' => b'M',
+            b'M' | b'm' => b'K',
+            b'B' | b'b' => b'V',
+            b'V' | b'v' => b'B',
+            b'D' | b'd' => b'H',
+            b'H' | b'h' => b'D',
+            other => other,
+        })
+        .map(|b| b as char)
+        .collect()
 }
 
 /// Translate a DNA sequence to a protein string. Only the first codon

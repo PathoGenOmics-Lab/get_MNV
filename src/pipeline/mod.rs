@@ -51,7 +51,8 @@ fn run_single(
     let parse_inputs_ms = parse_start.elapsed().as_secs_f64() * 1000.0;
     // SHA-256 checksums are deferred until after parsing to keep parse_inputs_ms
     // measuring only I/O + validation, not hashing.
-    let inputs = build_input_metadata(args)?;
+    let needs_checksums = args.summary_json.is_some() || args.run_manifest.is_some();
+    let inputs = build_input_metadata(args, needs_checksums)?;
     let base_stem = append_sample_suffix(&parsed.base_name, sample_suffix);
     // Allow overriding the filename prefix (desktop app).
     let stem_name = match &args.output_prefix {
@@ -320,7 +321,7 @@ pub fn run_with_progress(
         sample: Some("all".to_string()),
         dry_run: args.dry_run,
         bam_provided: args.bam_file.is_some(),
-        inputs: build_input_metadata(args)?,
+        inputs: build_input_metadata(args, true)?,
         output_tsv: None,
         output_vcf: None,
         output_bcf: None,

@@ -24,13 +24,12 @@ pub(crate) fn compute_sha256(path: &str) -> AppResult<String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-pub(crate) fn build_input_metadata(args: &Args) -> AppResult<RunInputs> {
-    Ok(RunInputs {
-        vcf: args.vcf_file.clone(),
-        fasta: args.fasta_file.clone(),
-        annotation: args.genes_file().to_string(),
-        bam: args.bam_file.clone(),
-        checksums: InputChecksums {
+/// Build input metadata. When `compute_checksums` is false, SHA-256 hashes
+/// are left empty to avoid ~15ms of I/O on every run. Checksums are only
+/// needed when `--summary-json` or `--run-manifest` is requested.
+pub(crate) fn build_input_metadata(args: &Args, compute_checksums: bool) -> AppResult<RunInputs> {
+    let checksums = if compute_checksums {
+        InputChecksums {
             vcf_sha256: compute_sha256(&args.vcf_file)?,
             fasta_sha256: compute_sha256(&args.fasta_file)?,
             annotation_sha256: compute_sha256(args.genes_file())?,
@@ -38,7 +37,21 @@ pub(crate) fn build_input_metadata(args: &Args) -> AppResult<RunInputs> {
                 Some(path) => Some(compute_sha256(path)?),
                 None => None,
             },
-        },
+        }
+    } else {
+        InputChecksums {
+            vcf_sha256: String::new(),
+            fasta_sha256: String::new(),
+            annotation_sha256: String::new(),
+            bam_sha256: None,
+        }
+    };
+    Ok(RunInputs {
+        vcf: args.vcf_file.clone(),
+        fasta: args.fasta_file.clone(),
+        annotation: args.genes_file().to_string(),
+        bam: args.bam_file.clone(),
+        checksums,
     })
 }
 

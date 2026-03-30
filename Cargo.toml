@@ -13,7 +13,6 @@ name = "get_mnv"
 path = "src/main.rs"
 
 [dependencies]
-bio = "2.0.3"
 clap = { version = "4.5.30", features = ["derive"] }
 env_logger = "0.11.6"
 log = "0.4.26"

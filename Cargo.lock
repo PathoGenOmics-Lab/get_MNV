@@ -1421,7 +1421,6 @@ dependencies = [
 name = "get_mnv"
 version = "1.1.1"
 dependencies = [
- "bio",
  "clap",
  "csv",
  "env_logger",
