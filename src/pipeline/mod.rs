@@ -48,8 +48,10 @@ fn run_single(
 
     let parse_start = Instant::now();
     let parsed = parse_inputs(args, sample_override)?;
-    let inputs = build_input_metadata(args)?;
     let parse_inputs_ms = parse_start.elapsed().as_secs_f64() * 1000.0;
+    // SHA-256 checksums are deferred until after parsing to keep parse_inputs_ms
+    // measuring only I/O + validation, not hashing.
+    let inputs = build_input_metadata(args)?;
     let base_stem = append_sample_suffix(&parsed.base_name, sample_suffix);
     // Allow overriding the filename prefix (desktop app).
     let stem_name = match &args.output_prefix {

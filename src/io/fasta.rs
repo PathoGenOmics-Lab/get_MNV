@@ -1,14 +1,18 @@
 //! FASTA reference loading and validation.
 
-use super::validation::validate_iupac_sequence;
 use super::vcf::VcfPosition;
 use crate::error::AppResult;
 use bio::io::fasta;
 use std::collections::HashMap;
 use std::fs::File;
 
-pub struct Reference {
-    pub sequence: String,
+#[inline]
+fn is_iupac_byte(b: u8) -> bool {
+    matches!(b, b'A' | b'C' | b'G' | b'T' | b'R' | b'Y' | b'S' | b'W' | b'K' | b'M' | b'B' | b'D' | b'H' | b'V' | b'N')
+}
+
+pub struct Reference<'a> {
+    pub sequence: &'a str,
 }
 
 pub type ReferenceMap = HashMap<String, String>;
@@ -34,19 +38,21 @@ pub fn load_references(fasta_file: &str) -> AppResult<ReferenceMap> {
             )
             .into());
         }
-        let sequence = String::from_utf8(record.seq().to_vec()).map_err(|e| {
-            format!(
-                "Invalid UTF-8 sequence for FASTA contig '{}' in '{}': {}",
+        // In-place uppercase: single allocation, no intermediate String
+        let mut seq_bytes = record.seq().to_vec();
+        seq_bytes.make_ascii_uppercase();
+        // Validate IUPAC in-place on the byte slice (avoids second UTF-8 check)
+        if let Some(pos) = seq_bytes.iter().position(|&b| !is_iupac_byte(b)) {
+            return Err(format!(
+                "Invalid base '{}' at position {} in FASTA contig '{}' in '{}'. Allowed IUPAC DNA bases: A,C,G,T,R,Y,S,W,K,M,B,D,H,V,N",
+                seq_bytes[pos] as char,
+                pos + 1,
                 record.id(),
-                fasta_file,
-                e
-            )
-        })?;
-        let sequence_upper = sequence.to_uppercase();
-        validate_iupac_sequence(
-            &sequence_upper,
-            &format!("FASTA contig '{}' in '{}'", record.id(), fasta_file),
-        )?;
+                fasta_file
+            ).into());
+        }
+        // SAFETY: seq_bytes contains only ASCII uppercase IUPAC chars after validation
+        let sequence_upper = unsafe { String::from_utf8_unchecked(seq_bytes) };
         if references
             .insert(record.id().to_string(), sequence_upper)
             .is_some()
@@ -65,7 +71,7 @@ pub fn load_references(fasta_file: &str) -> AppResult<ReferenceMap> {
     Ok(references)
 }
 
-pub fn reference_for_chrom(references: &ReferenceMap, chrom: &str) -> AppResult<Reference> {
+pub fn reference_for_chrom<'a>(references: &'a ReferenceMap, chrom: &str) -> AppResult<Reference<'a>> {
     let sequence = references.get(chrom).ok_or_else(|| {
         format!(
             "Reference contig '{}' is missing in FASTA. Available contigs: {}",
@@ -78,14 +84,14 @@ pub fn reference_for_chrom(references: &ReferenceMap, chrom: &str) -> AppResult<
         )
     })?;
     Ok(Reference {
-        sequence: sequence.clone(),
+        sequence,
     })
 }
 
 pub fn validate_vcf_reference_alleles(
     chrom: &str,
     snp_list: &[VcfPosition],
-    reference: &Reference,
+    reference: &Reference<'_>,
 ) -> AppResult<()> {
     for site in snp_list {
         if site.position == 0 {

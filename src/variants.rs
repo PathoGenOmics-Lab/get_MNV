@@ -758,7 +758,7 @@ mod tests {
             strand: Strand::Plus,
         };
         let reference = Reference {
-            sequence: "ATGATGATG".to_string(),
+            sequence: "ATGATGATG",
         };
 
         let snps = vec![

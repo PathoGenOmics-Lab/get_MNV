@@ -133,8 +133,9 @@ fn run_synthetic(
     let scale = config.synthetic_scale.max(1);
     let codon_repeats = 20_000usize.saturating_mul(scale);
     let gene_end = 60_000usize.saturating_mul(scale);
+    let ref_sequence = "ATG".repeat(codon_repeats);
     let reference = Reference {
-        sequence: "ATG".repeat(codon_repeats),
+        sequence: &ref_sequence,
     };
     let gene = Gene {
         name: "gene1".to_string(),
