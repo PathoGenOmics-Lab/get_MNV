@@ -136,7 +136,28 @@ pub fn run_analysis(
     app_handle: tauri::AppHandle,
     config: AnalysisConfig,
 ) -> Result<serde_json::Value, String> {
-    let args = config.into_args();
+    let mut args = config.into_args();
+
+    // If no explicit output dir, default to VCF's parent directory.
+    // If that's not writable (e.g., read-only volume, .dmg), fall back to ~/Desktop.
+    if args.output_dir.is_none() {
+        let vcf_dir = std::path::Path::new(&args.vcf_file)
+            .parent()
+            .unwrap_or(std::path::Path::new("."));
+        let test_file = vcf_dir.join(".get_mnv_write_test");
+        let writable = std::fs::write(&test_file, b"").is_ok();
+        if writable {
+            let _ = std::fs::remove_file(&test_file);
+        } else if let Ok(home) = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
+            let home_path = std::path::PathBuf::from(&home);
+            let desktop = home_path.join("Desktop");
+            if desktop.is_dir() {
+                args.output_dir = Some(desktop.to_string_lossy().into_owned());
+            } else {
+                args.output_dir = Some(home);
+            }
+        }
+    }
 
     let progress_callback = move |evt: get_mnv::pipeline::ProgressEvent| {
         let _ = app_handle.emit("analysis-progress", &evt);
