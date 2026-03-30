@@ -180,7 +180,8 @@ pub fn ensure_fasta_index(fasta_path: String) -> Result<String, String> {
             pos += 1;
         }
         let line_end = pos; // exclusive, before \n
-        if pos < bytes.len() {
+        let has_newline = pos < bytes.len();
+        if has_newline {
             pos += 1; // skip \n
         }
 
@@ -210,9 +211,14 @@ pub fn ensure_fasta_index(fasta_path: String) -> Result<String, String> {
                 raw_len
             };
             seq_len += base_len;
-            if first_seq_line {
+            if first_seq_line && has_newline {
                 line_bases = base_len;
                 line_width = pos - line_start; // includes \n
+                first_seq_line = false;
+            } else if first_seq_line {
+                // Last line without trailing newline
+                line_bases = base_len;
+                line_width = base_len + 1; // assume standard line width
                 first_seq_line = false;
             }
         }

@@ -519,16 +519,24 @@ function App() {
       setBatchProgress(null);
       setRunProgress(null);
 
-      // Brief success flash on the run button
-      setJustFinished(true);
-      setTimeout(() => setJustFinished(false), 1800);
-
-      // Switch to results if any completed
+      // Switch to results if any completed; success flash only if at least one succeeded
       setSamples((prev) => {
         const firstDone = prev.find((s) => s.status === "done");
         if (firstDone) {
           setActiveSampleId((id) => id ?? firstDone.id);
           setTab("results");
+          setJustFinished(true);
+          setTimeout(() => setJustFinished(false), 1800);
+        } else {
+          // All failed — show global error summary
+          const failed = prev.filter((s) => s.status === "error");
+          if (failed.length > 0) {
+            setError(
+              failed.length === 1
+                ? failed[0].error ?? "Analysis failed"
+                : `${failed.length} samples failed`
+            );
+          }
         }
         return prev;
       });
@@ -742,7 +750,7 @@ function App() {
                     label="FASTA reference"
                     value={config.fastaFile}
                     onChange={(path) => {
-                      setConfig({ ...config, fastaFile: path });
+                      setConfig((prev) => ({ ...prev, fastaFile: path }));
                       if (path) {
                         invoke("ensure_fasta_index", { fastaPath: path }).catch(() => {});
                       }
@@ -757,7 +765,7 @@ function App() {
                   <FileSelector
                     label="Gene annotation"
                     value={config.genesFile}
-                    onChange={(path) => setConfig({ ...config, genesFile: path })}
+                    onChange={(path) => setConfig((prev) => ({ ...prev, genesFile: path }))}
                     filters={[{ name: "Annotation", extensions: ["gff", "gff3", "tsv", "txt"] }]}
                     required
                     isDragActive={dragActive}
@@ -769,10 +777,10 @@ function App() {
                     label="BAM alignment"
                     value={config.bamFile ?? ""}
                     onChange={(path) =>
-                      setConfig({
-                        ...config,
+                      setConfig((prev) => ({
+                        ...prev,
                         bamFile: path.length > 0 ? path : undefined,
-                      })
+                      }))
                     }
                     filters={[{ name: "BAM", extensions: ["bam"] }]}
                     isDragActive={dragActive}
@@ -910,7 +918,7 @@ function App() {
                   )}
                   {filesReady && !running && (
                     <p className="hint hint--shortcut">
-                      <kbd>{navigator.platform?.includes("Mac") ? "⌘" : "Ctrl"}</kbd>+<kbd>Enter</kbd> to run
+                      <kbd>{/mac/i.test(navigator.userAgent) ? "⌘" : "Ctrl"}</kbd>+<kbd>Enter</kbd> to run
                     </p>
                   )}
                 </div>
