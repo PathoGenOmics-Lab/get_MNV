@@ -101,7 +101,7 @@ impl AnalysisConfig {
             split_multiallelic: self.split_multiallelic.unwrap_or(false),
             emit_filtered: self.emit_filtered.unwrap_or(false),
             vcf_gz: self.vcf_gz.unwrap_or(false),
-            index_vcf_gz: self.index_vcf_gz.unwrap_or(false),
+            index_vcf_gz: self.index_vcf_gz.unwrap_or(self.vcf_gz.unwrap_or(false)),
             strand_bias_info: self.strand_bias_info.unwrap_or(false),
             keep_original_info: self.keep_original_info.unwrap_or(false),
             bcf: self.bcf.unwrap_or(false),

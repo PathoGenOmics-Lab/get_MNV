@@ -1724,6 +1724,24 @@
   text-align: center;
 }
 
+.hint--shortcut {
+  margin-top: 0.35rem;
+  opacity: 0.6;
+  font-size: 0.65rem;
+}
+
+.hint--shortcut kbd {
+  display: inline-block;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.6rem;
+  font-family: system-ui, sans-serif;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  box-shadow: 0 1px 0 var(--border-subtle);
+  margin: 0 0.1rem;
+}
+
 /* ═════════════════ Error ═════════════════ */
 
 .error-banner {
@@ -2298,6 +2316,11 @@
 .output-file-badge--vcf {
   color: var(--file-vcf);
   background: var(--danger-light);
+}
+
+.output-file-badge--bcf {
+  color: var(--mnv-v);
+  background: color-mix(in srgb, var(--mnv-v) 12%, transparent);
 }
 
 .output-file-name {

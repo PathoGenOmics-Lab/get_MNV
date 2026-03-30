@@ -231,7 +231,7 @@ function App() {
   const [gffAvailableFeatures, setGffAvailableFeatures] = useState<string[]>([]);
   const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme);
   const [showCrab, setShowCrab] = useState(getInitialCrab);
-  const [appVersion, setAppVersion] = useState("v1.1.0");
+  const [appVersion, setAppVersion] = useState("v1.1.1");
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const [runProgress, setRunProgress] = useState<ProgressEvent | null>(null);
 
@@ -586,6 +586,20 @@ function App() {
   // Count pending + error samples (runnable)
   const runnableCount = samples.filter((s) => s.status === "pending" || s.status === "error").length;
 
+  // Ctrl+Enter / Cmd+Enter shortcut to run analysis
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        if (!running && filesReady && runnableCount > 0) {
+          handleRunAll();
+        }
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [running, filesReady, runnableCount, handleRunAll]);
+
   return (
     <div className="app">
       <header className="app-header" ref={headerRef}>
@@ -845,6 +859,11 @@ function App() {
                       Select VCF, FASTA, and gene annotation files to enable analysis
                     </p>
                   )}
+                  {filesReady && !running && (
+                    <p className="hint hint--shortcut">
+                      <kbd>⌘</kbd>+<kbd>Enter</kbd> to run
+                    </p>
+                  )}
                 </div>
               </section>
 
@@ -923,6 +942,7 @@ function App() {
                 <ResultsTable
                   outputTsv={activeResult.output_tsv}
                   outputVcf={activeResult.output_vcf}
+                  outputBcf={activeResult.output_bcf}
                 />
               </>
             )}

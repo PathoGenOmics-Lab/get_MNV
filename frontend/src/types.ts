@@ -26,6 +26,7 @@ export interface AnalysisConfig {
   translationTable: number;
   outputTsv: boolean;
   outputVcf: boolean;
+  vcfGz: boolean;
   outputDir?: string;
   outputPrefix?: string;
 }
@@ -186,6 +187,7 @@ export const DEFAULT_CONFIG: AnalysisConfig = {
   translationTable: 11,
   outputTsv: true,
   outputVcf: false,
+  vcfGz: false,
 };
 
 export interface ConfigPreset {

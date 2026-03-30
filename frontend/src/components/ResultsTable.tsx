@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-shell";
 interface ResultsTableProps {
   outputTsv?: string;
   outputVcf?: string;
+  outputBcf?: string;
 }
 
 /** Extract just the filename from a full path */
@@ -59,11 +60,21 @@ function RevealIcon() {
   );
 }
 
+function BcfIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+      <rect x="3" y="2" width="26" height="28" rx="3" fill="#f0eaf7" stroke="#6F398D" strokeWidth="1.5" />
+      <text x="16" y="19" textAnchor="middle" fill="#6F398D" fontSize="8" fontWeight="700" fontFamily="system-ui">BCF</text>
+    </svg>
+  );
+}
+
 export default function ResultsTable({
   outputTsv,
   outputVcf,
+  outputBcf,
 }: ResultsTableProps) {
-  if (!outputTsv && !outputVcf) {
+  if (!outputTsv && !outputVcf && !outputBcf) {
     return (
       <div className="results-table">
         <p className="hint">Run an analysis to see results here.</p>
@@ -114,6 +125,28 @@ export default function ResultsTable({
             <button
               className="output-file-reveal"
               onClick={() => revealInFinder(outputVcf)}
+              title="Open containing folder"
+            >
+              <RevealIcon />
+              <span>Reveal</span>
+            </button>
+          </div>
+        )}
+        {outputBcf && (
+          <div className="output-file-card output-file-card--bcf">
+            <div className="output-file-icon">
+              <BcfIcon />
+            </div>
+            <div className="output-file-info">
+              <div className="output-file-top">
+                <span className="output-file-badge output-file-badge--bcf">BCF</span>
+                <span className="output-file-name">{basename(outputBcf)}</span>
+              </div>
+              <span className="output-file-dir">{dirname(outputBcf)}</span>
+            </div>
+            <button
+              className="output-file-reveal"
+              onClick={() => revealInFinder(outputBcf)}
               title="Open containing folder"
             >
               <RevealIcon />

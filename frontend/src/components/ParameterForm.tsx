@@ -209,7 +209,8 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
       config.keepOriginalInfo === merged.keepOriginalInfo &&
       config.translationTable === merged.translationTable &&
       config.outputTsv === merged.outputTsv &&
-      config.outputVcf === merged.outputVcf
+      config.outputVcf === merged.outputVcf &&
+      config.vcfGz === merged.vcfGz
     );
   });
 
@@ -524,6 +525,14 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
             checked={config.outputVcf}
             onChange={(v) => update("outputVcf", v)}
           />
+          {config.outputVcf && (
+            <ToggleField
+              label="Compress VCF (BGZF)"
+              tip="Write BGZF-compressed .vcf.gz output with Tabix index. Recommended for large datasets and IGV compatibility."
+              checked={config.vcfGz}
+              onChange={(v) => update("vcfGz", v)}
+            />
+          )}
 
           <div className="param-divider" />
 
