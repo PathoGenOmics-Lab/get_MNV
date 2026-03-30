@@ -105,7 +105,7 @@ function buildLoci(data: TsvData): ViewerLocus[] {
       return {
         id: `${chrom}:${positions.join("-")}:${altBases.join("")}`,
         chrom,
-        gene: row[gi] ?? "Unknown",
+        gene: (row[gi] && row[gi].trim()) || `${row[ci] ?? "?"}:${parsePositions(row[pi] ?? "").join("-")}`,
         positions,
         refBases,
         altBases,
@@ -172,9 +172,15 @@ function reverseComplement(seq: string): string {
 
 /**
  * Find the 0-based index in the reference array where the codon starts.
- * Tries 3 candidate offsets from min(positions) and verifies the extracted
- * triplet matches refCodon — first in forward orientation, then reverse
- * complement (for genes on the minus strand). Returns -1 if not found.
+ *
+ * Strategy: the SNP positions define which codon positions are mutated.
+ * A codon is 3 consecutive bases. We try all 3 possible reading frames
+ * (offset 0, -1, -2 from min position) that would contain ALL SNP positions.
+ * We then verify by matching against refCodon or its reverse complement
+ * (for minus-strand genes). If no match, we fall back to the first frame
+ * that geometrically contains all positions — the codon info from the TSV
+ * is authoritative, so we show it even if the genomic sequence looks different
+ * (e.g., complex indel context, IUPAC ambiguity).
  */
 function findCodonStartIndex(
   refCodon: string,
@@ -187,21 +193,32 @@ function findCodonStartIndex(
   const maxPos = Math.max(...positions);
   const rcCodon = reverseComplement(refCodon);
 
+  let fallbackIdx = -1;
+
   for (const offset of [0, -1, -2]) {
     const candidateStart = minPos + offset;
     const candidateEnd = candidateStart + 2;
-    if (candidateEnd < maxPos) continue;
+    if (candidateEnd < maxPos) continue; // doesn't span all positions
     const idx = candidateStart - displayStart;
     if (idx < 0 || idx + 3 > reference.length) continue;
-    const extracted = reference.substring(idx, idx + 3).toUpperCase();
-    const matches = extracted === refCodon.toUpperCase() || extracted === rcCodon.toUpperCase();
-    if (!matches) continue;
+
     const allWithin = positions.every(
       (p) => p >= candidateStart && p <= candidateEnd,
     );
-    if (allWithin) return idx;
+    if (!allWithin) continue;
+
+    // Remember first valid frame as fallback
+    if (fallbackIdx < 0) fallbackIdx = idx;
+
+    // Try to verify against reference
+    const extracted = reference.substring(idx, idx + 3).toUpperCase();
+    if (extracted === refCodon.toUpperCase() || extracted === rcCodon.toUpperCase()) {
+      return idx; // verified match
+    }
   }
-  return -1;
+
+  // No exact match found — use geometric fallback (TSV codon is authoritative)
+  return fallbackIdx;
 }
 
 /** Map change type to a CSS class for color-coded annotation */
@@ -527,13 +544,22 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
   // Codon annotation for the selected locus
   const codonAnnotation = useMemo(() => {
     if (!selectedLocus || !view || !selectedLocus.refCodon) return null;
-    const startIdx = findCodonStartIndex(
+    let startIdx = findCodonStartIndex(
       selectedLocus.refCodon,
       selectedLocus.positions,
       view.reference,
       view.displayStart,
     );
-    if (startIdx < 0) return null;
+    // Fallback: center the codon on the first SNP position even if we can't
+    // verify it against the reference (e.g., minus-strand, IUPAC, edge cases).
+    if (startIdx < 0) {
+      const minPos = Math.min(...selectedLocus.positions);
+      startIdx = Math.max(0, minPos - view.displayStart);
+      // Clamp so codon doesn't overflow the reference
+      if (startIdx + 3 > view.reference.length) {
+        startIdx = Math.max(0, view.reference.length - 3);
+      }
+    }
     return {
       startIdx,
       startPos: view.displayStart + startIdx,
