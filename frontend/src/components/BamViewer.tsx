@@ -353,9 +353,10 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
     const locus = loci.find((l) => l.id === selectedId) ?? null;
     if (!locus) { setView(null); setError(null); setLoading(false); return; }
     let cancelled = false;
-    // Only show loading bar on initial load (no existing view).
-    // When switching loci, keep stale data visible for a fluid experience.
-    if (!view) setLoading(true);
+    // Clear previous view immediately to avoid showing stale reads from
+    // a different locus while the new data loads.
+    setView(null);
+    setLoading(true);
     setError(null);
 
     const bounds = locusBounds(locus);
