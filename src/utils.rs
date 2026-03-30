@@ -2,8 +2,10 @@
 //! conversion, reverse complement, and codon translation.
 
 /// Translate a DNA codon (3 bytes) to a single-character amino acid.
-/// Uses the standard genetic code (NCBI table 1). Returns 'X' for
-/// unknown/ambiguous codons.
+/// Uses the standard/bacterial genetic code (NCBI tables 1/11 — identical
+/// for internal sense codons; alternative start codons are not relevant
+/// here since we only translate individual codons, not initiation sites).
+/// Returns 'X' for unknown/ambiguous codons.
 fn translate_codon(codon: &[u8; 3]) -> char {
     match codon {
         b"TTT" | b"TTC" => 'F',
@@ -38,6 +40,11 @@ pub fn determine_change_type(aa_change: &str) -> String {
 
     let original = aa_change.chars().next().unwrap_or('X');
     let mutated = aa_change.chars().last().unwrap_or('X');
+
+    // If either amino acid is unknown/ambiguous, we cannot classify the change.
+    if original == 'X' || mutated == 'X' {
+        return "Unknown".to_string();
+    }
 
     if original == mutated {
         "Synonymous".to_string()
@@ -154,6 +161,15 @@ mod tests {
         assert_eq!(determine_change_type("E112*"), "Stop gained");
         assert_eq!(determine_change_type("*50Q"), "Stop lost");
         assert_eq!(determine_change_type(""), "Unknown");
+    }
+
+    #[test]
+    fn test_determine_change_type_ambiguous_x() {
+        // When either amino acid is X (ambiguous codon), classify as Unknown
+        // rather than accidentally matching first==last.
+        assert_eq!(determine_change_type("X15X"), "Unknown");
+        assert_eq!(determine_change_type("A15X"), "Unknown");
+        assert_eq!(determine_change_type("X15A"), "Unknown");
     }
 
     #[test]

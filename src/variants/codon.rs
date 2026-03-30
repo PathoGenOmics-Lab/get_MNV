@@ -43,11 +43,15 @@ fn collect_all_f64(values: impl Iterator<Item = Option<f64>>) -> Option<Vec<f64>
 }
 
 fn construct_codon(codon_info: &CodonInfo, target_snps: &[&Snp]) -> String {
-    let mut codon = String::new();
+    let mut codon = String::with_capacity(3);
     for i in 0..3 {
         let current_pos = codon_info.codon_start + i;
         if let Some(snp) = target_snps.iter().find(|&&s| s.position == current_pos) {
-            codon.push_str(&snp.base);
+            // Uppercase ALT alleles to match the reference (ensures the codon
+            // lookup table always matches).
+            for c in snp.base.chars() {
+                codon.push(c.to_ascii_uppercase());
+            }
         } else {
             codon.push(codon_info.original_codon.chars().nth(i).unwrap_or('N'));
         }
@@ -209,10 +213,14 @@ pub fn get_mnv_variants_for_gene(
             && !variant.alt_allele.starts_with('<');
         if is_snp {
             if let Some((codon_start, _)) = codon_bounds_for_position(gene, variant.position) {
-                codon_to_snps
-                    .entry(codon_start)
-                    .or_default()
-                    .push(crate::variants::Snp {
+                let group = codon_to_snps.entry(codon_start).or_default();
+                // After --split-multiallelic, two ALT alleles at the same
+                // position produce separate VCF records.  Only keep the first
+                // ALT per position within each codon group — otherwise
+                // construct_codon would overwrite the same base twice, and the
+                // MNV annotation would be incorrect.
+                if !group.iter().any(|s| s.position == variant.position) {
+                    group.push(crate::variants::Snp {
                         index: variant.position,
                         position: variant.position,
                         ref_base: variant.ref_allele.clone(),
@@ -221,6 +229,13 @@ pub fn get_mnv_variants_for_gene(
                         original_freq: variant.original_freq,
                         original_info: variant.original_info.clone(),
                     });
+                } else {
+                    log::debug!(
+                        "Skipping duplicate ALT at position {} in gene '{}' (multi-allelic split)",
+                        variant.position,
+                        gene.name
+                    );
+                }
             }
         } else {
             indels.push(variant.clone());
@@ -689,5 +704,75 @@ mod tests {
                 | ChangeType::StopLost
                 | ChangeType::Unknown
         ));
+    }
+
+    #[test]
+    fn test_construct_codon_uppercase_alt() {
+        // ALT alleles should be uppercased to match the codon lookup table.
+        let codon_info = CodonInfo {
+            codon_list: vec![Snp {
+                index: 101,
+                position: 101,
+                ref_base: "A".to_string(),
+                base: "t".to_string(), // lowercase ALT
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            }],
+            original_codon: "ATG".to_string(),
+            gene_name: "test".to_string(),
+            gene_start: 100,
+            gene_end: 120,
+            codon_start: 100,
+            codon_end: 102,
+        };
+        let result = process_codon(codon_info, Strand::Plus, "chr1");
+        // Position 101 is the 2nd base (index 1). ATG → ATG with pos 101 T→t
+        // The codon becomes "ATt" → uppercased to "ATT" → Ile (I), not X.
+        assert_ne!(
+            result.aa_changes[0], "X",
+            "Lowercase ALT should not produce unknown amino acid"
+        );
+    }
+
+    #[test]
+    fn test_duplicate_position_dedup() {
+        // After --split-multiallelic, two ALTs at the same position should
+        // not both appear in the same codon group.
+        use crate::io::{Reference, VcfPosition};
+        use crate::variants::get_mnv_variants_for_gene;
+
+        let gene = Gene {
+            name: "geneA".to_string(),
+            start: 100,
+            end: 111,
+            strand: Strand::Plus,
+        };
+        // Two VCF records at position 101 with different ALTs
+        let snps = vec![
+            VcfPosition {
+                position: 101,
+                ref_allele: "A".to_string(),
+                alt_allele: "T".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
+            VcfPosition {
+                position: 101,
+                ref_allele: "A".to_string(),
+                alt_allele: "G".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
+        ];
+        let seq = "N".repeat(99) + "ATGATGATGATG";
+        let reference = Reference { sequence: &seq };
+        let variants = get_mnv_variants_for_gene(&gene, &snps, &reference, "chr1");
+        // Should produce exactly 1 variant (first ALT wins, duplicate skipped)
+        assert_eq!(variants.len(), 1, "Duplicate position should be deduplicated");
+        assert_eq!(variants[0].positions.len(), 1);
+        assert_eq!(variants[0].base_changes[0], "T"); // first ALT kept
     }
 }
