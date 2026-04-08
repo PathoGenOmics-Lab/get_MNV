@@ -46,31 +46,40 @@ Standard GFF3 with features of type `gene` and `pseudogene` by default.
 
 ### TSV format
 
-Tab-delimited file with one gene per line. The 4-column form is the legacy
-format and is still fully supported:
+Tab-delimited file with one gene per line.
+
+#### Prokaryote (4 columns)
+
+The legacy 4-column format. Every CDS starts in frame 0, so no phase is
+needed:
 
 ```
 GeneName	GeneStart	GeneEnd	Strand
 ```
 
-Since v1.1.2 an **optional 5th `Phase` column** is accepted for eukaryotic
-inputs where the gene/CDS does not start in frame 0:
+Example:
+```
+Rv0007_Rv0007	9914	10828	+
+ileT_Rvnt01	10887	10960	+
+Rv0008c_Rv0008c	11874	12311	-
+```
+
+#### Eukaryote (5 columns, since v1.1.2)
+
+For eukaryotic CDS exons that do not start in frame 0, add a 5th column with
+the GFF-style phase (`0`, `1`, `2` or `.`):
 
 ```
 GeneName	GeneStart	GeneEnd	Strand	Phase
 ```
 
-Example (mixed: prokaryote rows omit phase, one eukaryote row uses phase=1):
+Example (GRCh38 GNAQ exon 5, minus strand, phase=1):
 ```
-Rv0007_Rv0007	9914	10828	+
-ileT_Rvnt01	10887	10960	+
-Rv0008c_Rv0008c	11874	12311	-
 GNAQ_exon5	77794463	77794592	-	1
 ```
 
 - The phase column is **optional**. When omitted (4-column rows), phase
-  defaults to `0` — i.e. the prokaryote-style behaviour the tool has always
-  had.
+  defaults to `0` — i.e. the prokaryote behaviour above.
 - Valid values: `0`, `1`, `2` or `.` (dot is treated as `0`).
 - 4-column and 5-column rows can be mixed in the same file.
 
