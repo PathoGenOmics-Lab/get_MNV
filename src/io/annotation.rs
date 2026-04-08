@@ -178,20 +178,25 @@ fn parse_interval(start_raw: &str, end_raw: &str, line_number: usize) -> AppResu
 }
 
 pub(crate) fn gene_name_from_gff(attrs: &HashMap<String, String>) -> String {
+    // Prefer human-readable names common in eukaryotic GTF/GFF3
+    // (gene_name, gene) before falling back to Name/locus_tag/ID.
     let primary = attrs
-        .get("gene")
+        .get("gene_name")
+        .or_else(|| attrs.get("gene"))
         .or_else(|| attrs.get("Name"))
         .or_else(|| attrs.get("locus_tag"))
+        .or_else(|| attrs.get("gene_id"))
         .or_else(|| attrs.get("ID"))
         .map(|value| value.trim_start_matches("gene-").to_string())
         .unwrap_or_else(|| "unknown_gene".to_string());
 
-    let suffix = attrs
-        .get("locus_tag")
-        .map(std::string::ToString::to_string)
-        .unwrap_or_else(|| primary.clone());
-
-    format!("{primary}_{suffix}")
+    // Only append a locus_tag suffix when it is actually present and
+    // different from the primary name. This avoids the historical
+    // `primary_primary` duplication when no locus_tag exists.
+    match attrs.get("locus_tag") {
+        Some(locus) if locus != &primary => format!("{primary}_{locus}"),
+        _ => primary,
+    }
 }
 
 fn load_genes_from_tsv(genes_file: &str, snp_list: &[VcfPosition]) -> AppResult<Vec<Gene>> {
@@ -543,14 +548,44 @@ mod tests {
     fn test_gene_name_from_gff_no_gene_uses_name() {
         let mut attrs = HashMap::new();
         attrs.insert("Name".to_string(), "gene-katG".to_string());
-        // "gene-" prefix should be stripped
-        assert_eq!(gene_name_from_gff(&attrs), "katG_katG");
+        // "gene-" prefix should be stripped; no locus_tag → no duplicated suffix
+        assert_eq!(gene_name_from_gff(&attrs), "katG");
     }
 
     #[test]
     fn test_gene_name_from_gff_empty() {
         let attrs = HashMap::new();
-        assert_eq!(gene_name_from_gff(&attrs), "unknown_gene_unknown_gene");
+        assert_eq!(gene_name_from_gff(&attrs), "unknown_gene");
+    }
+
+    #[test]
+    fn test_gene_name_from_gff_prefers_gene_name_over_id() {
+        // Regression: eukaryotic GTF/GFF3 rows often carry gene_name (human
+        // readable) plus an ID coming from annotation tools like agat. We
+        // should prefer gene_name over ID so the TSV shows GNAQ instead of
+        // agat-cds-37838.
+        let mut attrs = HashMap::new();
+        attrs.insert("ID".to_string(), "agat-cds-37838".to_string());
+        attrs.insert("gene_id".to_string(), "ENSG00000156052.11".to_string());
+        attrs.insert("gene_name".to_string(), "GNAQ".to_string());
+        assert_eq!(gene_name_from_gff(&attrs), "GNAQ");
+    }
+
+    #[test]
+    fn test_gene_name_from_gff_uses_gene_id_when_no_name() {
+        let mut attrs = HashMap::new();
+        attrs.insert("ID".to_string(), "agat-cds-1".to_string());
+        attrs.insert("gene_id".to_string(), "ENSG00000156052.11".to_string());
+        assert_eq!(gene_name_from_gff(&attrs), "ENSG00000156052.11");
+    }
+
+    #[test]
+    fn test_gene_name_from_gff_locus_tag_equal_to_primary_not_duplicated() {
+        // When locus_tag is the ONLY name available, primary and locus_tag
+        // are equal so we must not emit `primary_primary`.
+        let mut attrs = HashMap::new();
+        attrs.insert("locus_tag".to_string(), "Rv0007".to_string());
+        assert_eq!(gene_name_from_gff(&attrs), "Rv0007");
     }
 
     // ---- filter_genes_with_snps ----

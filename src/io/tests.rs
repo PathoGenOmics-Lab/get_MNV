@@ -218,7 +218,8 @@ fn test_gene_name_fallback_chain() {
     use super::annotation::gene_name_from_gff;
     let mut attrs = HashMap::new();
     attrs.insert("ID".to_string(), "gene-Rv0001".to_string());
-    assert_eq!(gene_name_from_gff(&attrs), "Rv0001_Rv0001");
+    // No locus_tag and no human name → just the stripped ID, not duplicated.
+    assert_eq!(gene_name_from_gff(&attrs), "Rv0001");
 
     let mut attrs = HashMap::new();
     attrs.insert("Name".to_string(), "dnaA".to_string());
@@ -227,7 +228,7 @@ fn test_gene_name_fallback_chain() {
     assert_eq!(gene_name_from_gff(&attrs), "dnaA_Rv0001");
 
     let attrs = HashMap::new();
-    assert_eq!(gene_name_from_gff(&attrs), "unknown_gene_unknown_gene");
+    assert_eq!(gene_name_from_gff(&attrs), "unknown_gene");
 }
 
 // ---- preload_gff_genes test ----

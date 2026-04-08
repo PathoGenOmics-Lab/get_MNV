@@ -12,6 +12,10 @@ All notable changes to this project are documented in this file.
 - TSV gene annotation files now accept an **optional 5th column** with the phase (`0`, `1`, `2` or `.`). When omitted, phase defaults to `0`, preserving the historical 4-column prokaryote-style format. 4- and 5-column rows can be mixed in the same file.
 - Documentation: `docs/input-formats.md` describes the GFF phase handling and the new optional TSV phase column.
 
+### Changed
+- **Gene name extraction from GFF attributes** is smarter for eukaryotic GTF/GFF3 files. `gene_name_from_gff` now prefers `gene_name` (GTF/Ensembl/GENCODE) and `gene_id` in addition to the existing `gene` / `Name` / `locus_tag` / `ID` fallbacks, so a GNAQ CDS row with `gene_name=GNAQ;ID=agat-cds-37838` now shows up as `GNAQ` in the TSV instead of `agat-cds-37838_agat-cds-37838`.
+- When no `locus_tag` is present, the returned gene name is no longer duplicated with itself (`primary_primary`) — it is just the primary name.
+
 ## [1.1.1] - 2026-03-30
 
 ### Added
