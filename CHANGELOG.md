@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.1.2] - 2026-04-08
+
+### Fixed
+- **GFF phase (column 8) is now honoured for CDS features.** Previously, the parser read all nine GFF fields but silently dropped the phase column, so codon boundaries were computed as if every CDS started in frame 0. For eukaryotic annotations where exons begin at non-zero phase (e.g. GRCh38 Ensembl `GNAQ` CDS with `phase=1`), this caused SNVs to be grouped into the wrong codons on both strands. The GFF parser now reads column 8 (`0`, `1`, `2`, or `.`), stores it in `Gene`, and `codon_bounds_for_position` applies the offset from `gene.start` (plus strand) or `gene.end` (minus strand). TSV gene files and non-CDS features default to `phase = 0`, preserving previous behaviour. Fixes [#12](https://github.com/PathoGenOmics-Lab/get_MNV/issues/12).
+
+### Added
+- Regression tests for phase handling on both strands, including the GNAQ case from issue #12.
+
 ## [1.1.1] - 2026-03-30
 
 ### Added

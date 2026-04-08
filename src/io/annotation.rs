@@ -134,6 +134,25 @@ fn parse_strand(raw: &str, line_number: usize) -> AppResult<crate::variants::Str
     })
 }
 
+/// Parse the GFF phase column (field 8, 0-indexed 7).
+///
+/// Per GFF3 spec, valid values are `0`, `1`, `2` (required for CDS features)
+/// or `.` when not applicable (e.g. gene, exon, UTR). Any `.` or empty value
+/// is normalised to 0 so features that do not carry phase information keep the
+/// historical behaviour of the tool.
+fn parse_gff_phase(raw: &str, line_number: usize) -> AppResult<u8> {
+    match raw.trim() {
+        "." | "" => Ok(0),
+        "0" => Ok(0),
+        "1" => Ok(1),
+        "2" => Ok(2),
+        other => Err(format!(
+            "Invalid GFF phase at line {line_number} ('{other}'). Expected '0', '1', '2' or '.'"
+        )
+        .into()),
+    }
+}
+
 fn parse_interval(start_raw: &str, end_raw: &str, line_number: usize) -> AppResult<(usize, usize)> {
     let start = start_raw.parse::<usize>().map_err(|e| {
         format!("Invalid start coordinate at line {line_number} ('{start_raw}'): {e}")
@@ -215,6 +234,7 @@ fn load_genes_from_tsv(genes_file: &str, snp_list: &[VcfPosition]) -> AppResult<
                 start,
                 end,
                 strand,
+                phase: 0,
             });
         } else {
             genes_without_snps += 1;
@@ -271,6 +291,7 @@ pub(crate) fn parse_gff_gene_records(
 
         let (start, end) = parse_interval(fields[3], fields[4], line_number)?;
         let strand = parse_strand(fields[6], line_number)?;
+        let phase = parse_gff_phase(fields[7], line_number)?;
         let attrs = parse_gff_attributes(fields[8]);
         let gene_name = gene_name_from_gff(&attrs);
 
@@ -281,6 +302,7 @@ pub(crate) fn parse_gff_gene_records(
                 start,
                 end,
                 strand,
+                phase,
             },
         });
     }
@@ -529,8 +551,8 @@ mod tests {
     #[test]
     fn test_filter_genes_with_snps() {
         let genes = vec![
-            Gene { name: "gene1".into(), start: 100, end: 200, strand: crate::variants::Strand::Plus },
-            Gene { name: "gene2".into(), start: 500, end: 600, strand: crate::variants::Strand::Minus },
+            Gene { name: "gene1".into(), start: 100, end: 200, strand: crate::variants::Strand::Plus, phase: 0 },
+            Gene { name: "gene2".into(), start: 500, end: 600, strand: crate::variants::Strand::Minus, phase: 0 },
         ];
         let snps = vec![
             VcfPosition { position: 150, ref_allele: "A".into(), alt_allele: "T".into(), original_dp: None, original_freq: None, original_info: None },

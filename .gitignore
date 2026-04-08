@@ -2,3 +2,5 @@
 G35894.var.snp.MNV.tsv
 *.MNV.tsv
 src-tauri/gen/
+minimal_example.tar.gz
+minimal_example/

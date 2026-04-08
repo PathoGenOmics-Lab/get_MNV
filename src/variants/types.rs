@@ -156,6 +156,12 @@ pub struct Gene {
     pub start: usize,
     pub end: usize,
     pub strand: Strand,
+    /// GFF phase (column 8) for CDS features: 0, 1 or 2.
+    /// Indicates how many bases must be removed from the start of the feature
+    /// (or from the end, for minus strand features) to reach the first base of
+    /// the first complete codon. Defaults to 0 for features without phase
+    /// information (e.g. TSV gene files, gene/exon features).
+    pub phase: u8,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
