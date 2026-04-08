@@ -247,6 +247,7 @@ fn load_genes_from_tsv(genes_file: &str, snp_list: &[VcfPosition]) -> AppResult<
                 end,
                 strand,
                 phase,
+                protein_offset: 0,
             });
         } else {
             genes_without_snps += 1;
@@ -264,6 +265,14 @@ fn load_genes_from_tsv(genes_file: &str, snp_list: &[VcfPosition]) -> AppResult<
 pub(crate) struct GffGeneRecord {
     pub(crate) contig: String,
     pub(crate) gene: Gene,
+    /// Feature type from GFF column 3 (e.g. "gene", "CDS"). Needed to decide
+    /// whether a row participates in the per-transcript CDS aggregation.
+    pub(crate) feature_type: String,
+    /// Transcript identifier (`transcript_id` attribute preferred, falling
+    /// back to `Parent`). Used to group CDS exons belonging to the same
+    /// transcript so we can compute full-protein amino-acid positions.
+    /// `None` means the row does not participate in aggregation.
+    pub(crate) transcript_id: Option<String>,
 }
 
 /// Parse a GFF/GFF3 file, yielding one GffGeneRecord per matching feature type.
@@ -306,6 +315,11 @@ pub(crate) fn parse_gff_gene_records(
         let phase = parse_gff_phase(fields[7], line_number)?;
         let attrs = parse_gff_attributes(fields[8]);
         let gene_name = gene_name_from_gff(&attrs);
+        let feature_type = fields[2].to_string();
+        let transcript_id = attrs
+            .get("transcript_id")
+            .or_else(|| attrs.get("Parent"))
+            .cloned();
 
         records.push(GffGeneRecord {
             contig: fields[0].to_string(),
@@ -315,11 +329,107 @@ pub(crate) fn parse_gff_gene_records(
                 end,
                 strand,
                 phase,
+                protein_offset: 0,
             },
+            feature_type,
+            transcript_id,
         });
     }
 
     Ok(records)
+}
+
+/// Walk all parsed CDS rows of the same transcript and assign each one its
+/// cumulative `protein_offset` such that
+///
+/// ```text
+/// reported_aa = protein_offset + local_aa_pos
+/// ```
+///
+/// where `local_aa_pos == 1` corresponds to the first **complete** codon
+/// inside the current exon (i.e. the codon that starts at exon position
+/// `phase + 1`). Per the GFF3 specification, if `S` is the sum of the
+/// lengths of all prior exons of the same transcript and `phase_i` is the
+/// phase of exon `i`, then `S + phase_i` is divisible by 3 and the first
+/// complete codon of exon `i` is codon
+///
+/// ```text
+/// ((S + phase_i) / 3) + 1
+/// ```
+///
+/// so the offset is `(S + phase_i) / 3`. Counting `(len - phase)/3` per exon
+/// would under-count by exactly one for every exon-crossing split codon
+/// (every non-zero-phase exon).
+///
+/// Rows that are not CDS, or that have no transcript identifier, keep
+/// `protein_offset = 0` and the historical per-feature numbering is
+/// preserved.
+pub(crate) fn assign_cds_protein_offsets(records: &mut [GffGeneRecord]) {
+    use std::collections::BTreeMap;
+    // Group row indices by (contig, transcript_id). Only CDS rows participate.
+    let mut groups: BTreeMap<(String, String), Vec<usize>> = BTreeMap::new();
+    for (idx, rec) in records.iter().enumerate() {
+        if rec.feature_type != "CDS" {
+            continue;
+        }
+        let Some(tid) = rec.transcript_id.clone() else {
+            continue;
+        };
+        groups
+            .entry((rec.contig.clone(), tid))
+            .or_default()
+            .push(idx);
+    }
+
+    for ((_contig, _tid), mut indices) in groups {
+        // Sort exons in transcript order: ascending for plus strand, descending
+        // for minus strand. We take strand from the first exon (all exons of a
+        // transcript share the same strand).
+        let strand = records[indices[0]].gene.strand;
+        indices.sort_by(|&a, &b| {
+            let sa = records[a].gene.start;
+            let sb = records[b].gene.start;
+            match strand {
+                crate::variants::Strand::Plus => sa.cmp(&sb),
+                crate::variants::Strand::Minus => sb.cmp(&sa),
+            }
+        });
+        let mut sum_prior_lengths: usize = 0;
+        for idx in indices {
+            let gene = &mut records[idx].gene;
+            let phase = gene.phase as usize;
+            gene.protein_offset = (sum_prior_lengths + phase) / 3;
+            let len = gene.end.saturating_sub(gene.start) + 1;
+            sum_prior_lengths = sum_prior_lengths.saturating_add(len);
+        }
+    }
+}
+
+/// Scan a GFF file once and report whether it contains any CDS row with a
+/// non-zero phase. Used to warn users that they should pass
+/// `--gff-features CDS` when working with eukaryotic annotations.
+pub(crate) fn gff_has_non_zero_phase_cds(genes_file: &str) -> AppResult<bool> {
+    let file = File::open(genes_file)?;
+    let reader = BufReader::new(file);
+    for line in reader.lines() {
+        let entry = line?;
+        let trimmed = entry.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let fields: Vec<&str> = trimmed.split('\t').collect();
+        if fields.len() != 9 {
+            continue;
+        }
+        if fields[2] != "CDS" {
+            continue;
+        }
+        match fields[7].trim() {
+            "1" | "2" => return Ok(true),
+            _ => {}
+        }
+    }
+    Ok(false)
 }
 
 pub(crate) fn load_genes_from_gff(
@@ -329,7 +439,9 @@ pub(crate) fn load_genes_from_gff(
     feature_types: &[String],
 ) -> AppResult<Vec<Gene>> {
     log::info!("Loading GFF/GFF3 annotation file: {genes_file}");
-    let records = parse_gff_gene_records(genes_file, feature_types)?;
+    warn_if_cds_phase_ignored(genes_file, feature_types)?;
+    let mut records = parse_gff_gene_records(genes_file, feature_types)?;
+    assign_cds_protein_offsets(&mut records);
 
     let mut genes: Vec<Gene> = Vec::new();
     let mut parsed_entries = 0usize;
@@ -396,7 +508,9 @@ pub fn preload_gff_genes(
     feature_types: &[String],
 ) -> AppResult<HashMap<String, Vec<Gene>>> {
     log::info!("Pre-loading GFF/GFF3 annotation file: {genes_file}");
-    let records = parse_gff_gene_records(genes_file, feature_types)?;
+    warn_if_cds_phase_ignored(genes_file, feature_types)?;
+    let mut records = parse_gff_gene_records(genes_file, feature_types)?;
+    assign_cds_protein_offsets(&mut records);
     let total_entries = records.len();
 
     let mut genes_by_contig: HashMap<String, Vec<Gene>> = HashMap::new();
@@ -410,6 +524,29 @@ pub fn preload_gff_genes(
     let contig_count = genes_by_contig.len();
     log::info!("GFF/GFF3 pre-loaded: {total_entries} gene entries across {contig_count} contigs");
     Ok(genes_by_contig)
+}
+
+/// Emit a single warning line if the GFF contains CDS rows with non-zero
+/// phase but the user did not select `CDS` in `--gff-features`. In that
+/// configuration the phase-aware codon grouping introduced in 1.1.2 is
+/// effectively disabled and codon boundaries may be wrong for eukaryotic
+/// annotations.
+fn warn_if_cds_phase_ignored(genes_file: &str, feature_types: &[String]) -> AppResult<()> {
+    let selects_cds = feature_types.iter().any(|f| f == "CDS");
+    if selects_cds {
+        return Ok(());
+    }
+    if gff_has_non_zero_phase_cds(genes_file)? {
+        log::warn!(
+            "GFF/GFF3 file '{genes_file}' contains CDS rows with non-zero phase, \
+             but --gff-features does not include 'CDS' (currently: {}). \
+             Codon grouping will ignore the phase information and may be incorrect \
+             for eukaryotic annotations. Re-run with '--gff-features CDS' to use \
+             phase-aware codon boundaries.",
+            feature_types.join(",")
+        );
+    }
+    Ok(())
 }
 
 /// Filter genes that overlap with at least one SNP position.
@@ -590,11 +727,134 @@ mod tests {
 
     // ---- filter_genes_with_snps ----
 
+    // ---- assign_cds_protein_offsets / multi-exon aggregation ----
+
+    fn record(contig: &str, start: usize, end: usize, strand: crate::variants::Strand, phase: u8, ft: &str, tid: Option<&str>) -> GffGeneRecord {
+        GffGeneRecord {
+            contig: contig.to_string(),
+            gene: Gene {
+                name: "x".into(),
+                start,
+                end,
+                strand,
+                phase,
+                protein_offset: 0,
+            },
+            feature_type: ft.to_string(),
+            transcript_id: tid.map(|s| s.to_string()),
+        }
+    }
+
+    #[test]
+    fn test_assign_protein_offsets_gnaq_minus_strand() {
+        use crate::variants::Strand;
+        // Seven CDS rows of ENST00000286548.9 (GNAQ, minus strand) copied from
+        // the minimal example. On minus strand, the first exon of the
+        // transcript is the one with the HIGHEST genomic coordinate.
+        let mut recs = vec![
+            // (genomic order, not transcript order)
+            record("chr9", 77_721_323, 77_721_513, Strand::Minus, 2, "CDS", Some("ENST00000286548.9")), // exon 7
+            record("chr9", 77_728_514, 77_728_667, Strand::Minus, 0, "CDS", Some("ENST00000286548.9")), // exon 6
+            record("chr9", 77_794_463, 77_794_592, Strand::Minus, 1, "CDS", Some("ENST00000286548.9")), // exon 5
+            record("chr9", 77_797_520, 77_797_648, Strand::Minus, 1, "CDS", Some("ENST00000286548.9")), // exon 4
+            record("chr9", 77_815_616, 77_815_770, Strand::Minus, 0, "CDS", Some("ENST00000286548.9")), // exon 3
+            record("chr9", 77_922_161, 77_922_345, Strand::Minus, 2, "CDS", Some("ENST00000286548.9")), // exon 2
+            record("chr9", 78_031_100, 78_031_235, Strand::Minus, 0, "CDS", Some("ENST00000286548.9")), // exon 1
+        ];
+        assign_cds_protein_offsets(&mut recs);
+        // Build a map (start -> offset) so we don't depend on ordering.
+        let by_start: std::collections::HashMap<usize, usize> = recs
+            .iter()
+            .map(|r| (r.gene.start, r.gene.protein_offset))
+            .collect();
+        // Expected cumulative codon offset before each exon, derived from the
+        // GFF spec formula `(sum_prior_lengths + phase_i) / 3`. Hand-checked
+        // against the canonical Ensembl GNAQ-201 protein numbering: the
+        // famous oncogenic mutation Q209L (chr9:77794572) must end up at
+        // codon 209, which only happens with these offsets.
+        //   exon 1: S=0,    phase=0  → offset = 0      (codons 1..45)
+        //   exon 2: S=136,  phase=2  → offset = 46     (codons 47..107; 46 is split 1↔2)
+        //   exon 3: S=321,  phase=0  → offset = 107    (codons 108..158)
+        //   exon 4: S=476,  phase=1  → offset = 159    (codons 160..201; 159 is split 3↔4)
+        //   exon 5: S=605,  phase=1  → offset = 202    (codons 203..245; 202 is split 4↔5)
+        //   exon 6: S=735,  phase=0  → offset = 245    (codons 246..296)
+        //   exon 7: S=889,  phase=2  → offset = 297    (codons 298..360; 297 is split 6↔7)
+        assert_eq!(by_start[&78_031_100], 0, "exon 1");
+        assert_eq!(by_start[&77_922_161], 46, "exon 2");
+        assert_eq!(by_start[&77_815_616], 107, "exon 3");
+        assert_eq!(by_start[&77_797_520], 159, "exon 4");
+        assert_eq!(by_start[&77_794_463], 202, "exon 5");
+        assert_eq!(by_start[&77_728_514], 245, "exon 6");
+        assert_eq!(by_start[&77_721_323], 297, "exon 7");
+    }
+
+    #[test]
+    fn test_assign_protein_offsets_gnaq_q209l_hotspot() {
+        use crate::variants::Strand;
+        // Hard-coded sanity check: GNAQ Q209L canonical mutation lives at
+        // chr9:77794572 (middle base of codon 209). Verify the chain
+        //   exon-5 effective end → local codon index → +protein_offset
+        // produces codon 209 exactly.
+        let mut recs = vec![
+            record("chr9", 78_031_100, 78_031_235, Strand::Minus, 0, "CDS", Some("ENST00000286548.9")),
+            record("chr9", 77_922_161, 77_922_345, Strand::Minus, 2, "CDS", Some("ENST00000286548.9")),
+            record("chr9", 77_815_616, 77_815_770, Strand::Minus, 0, "CDS", Some("ENST00000286548.9")),
+            record("chr9", 77_797_520, 77_797_648, Strand::Minus, 1, "CDS", Some("ENST00000286548.9")),
+            record("chr9", 77_794_463, 77_794_592, Strand::Minus, 1, "CDS", Some("ENST00000286548.9")),
+            record("chr9", 77_728_514, 77_728_667, Strand::Minus, 0, "CDS", Some("ENST00000286548.9")),
+            record("chr9", 77_721_323, 77_721_513, Strand::Minus, 2, "CDS", Some("ENST00000286548.9")),
+        ];
+        assign_cds_protein_offsets(&mut recs);
+        let exon5 = recs.iter().find(|r| r.gene.start == 77_794_463).unwrap();
+        // The exon-5 effective end (after subtracting phase=1) is 77794591.
+        // For position 77794572: offset = 77794591 - 77794572 = 19,
+        // local codon index = 19/3 = 6, local_aa_pos = 7,
+        // total = protein_offset(202) + 7 = 209.
+        let pos = 77_794_572usize;
+        let eff_end = exon5.gene.end - exon5.gene.phase as usize;
+        let local_aa = (eff_end - pos) / 3 + 1;
+        let aa = exon5.gene.protein_offset + local_aa;
+        assert_eq!(aa, 209, "GNAQ Q209L canonical position must map to codon 209");
+    }
+
+    #[test]
+    fn test_assign_protein_offsets_plus_strand_two_exons() {
+        use crate::variants::Strand;
+        // Plus strand, two exons. exon1 length 12, phase 0 → 4 complete codons
+        // contributed; exon2 starts at protein_offset=4.
+        let mut recs = vec![
+            record("chrX", 100, 111, Strand::Plus, 0, "CDS", Some("T1")),
+            record("chrX", 200, 217, Strand::Plus, 0, "CDS", Some("T1")),
+        ];
+        assign_cds_protein_offsets(&mut recs);
+        let by_start: std::collections::HashMap<usize, usize> = recs
+            .iter()
+            .map(|r| (r.gene.start, r.gene.protein_offset))
+            .collect();
+        assert_eq!(by_start[&100], 0);
+        assert_eq!(by_start[&200], 4);
+    }
+
+    #[test]
+    fn test_assign_protein_offsets_non_cds_untouched() {
+        use crate::variants::Strand;
+        let mut recs = vec![
+            record("chr1", 10, 30, Strand::Plus, 0, "gene", None),
+            record("chr1", 10, 30, Strand::Plus, 0, "exon", Some("T1")),
+        ];
+        assign_cds_protein_offsets(&mut recs);
+        for rec in &recs {
+            assert_eq!(rec.gene.protein_offset, 0);
+        }
+    }
+
+    // ---- filter_genes_with_snps ----
+
     #[test]
     fn test_filter_genes_with_snps() {
         let genes = vec![
-            Gene { name: "gene1".into(), start: 100, end: 200, strand: crate::variants::Strand::Plus, phase: 0 },
-            Gene { name: "gene2".into(), start: 500, end: 600, strand: crate::variants::Strand::Minus, phase: 0 },
+            Gene { name: "gene1".into(), start: 100, end: 200, strand: crate::variants::Strand::Plus, phase: 0, protein_offset: 0 },
+            Gene { name: "gene2".into(), start: 500, end: 600, strand: crate::variants::Strand::Minus, phase: 0, protein_offset: 0 },
         ];
         let snps = vec![
             VcfPosition { position: 150, ref_allele: "A".into(), alt_allele: "T".into(), original_dp: None, original_freq: None, original_info: None },

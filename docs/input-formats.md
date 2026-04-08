@@ -39,8 +39,21 @@ Standard GFF3 with features of type `gene` and `pseudogene` by default.
   correction SNVs were grouped into the wrong codons. Features without phase
   information (`gene`, `exon`, `UTR`, …) implicitly use `phase = 0`, which is
   the historical behaviour.
-- Gene name is extracted from attributes: `gene` > `Name` > `locus_tag` > `ID`
-- Use `--gff-features CDS,tRNA` to customize which feature types are analyzed
+- **Transcript-aware amino-acid numbering for CDS.** Since v1.1.2, when you
+  run with `--gff-features CDS`, get_MNV groups CDS rows by `transcript_id`
+  (falling back to `Parent`), orders the exons in transcript sense, and
+  reports amino-acid positions against the full protein — not against each
+  exon in isolation. For example, a variant in GNAQ exon 5 is now reported
+  at its real protein residue (`Phe225`, `Met224`, …) instead of the
+  per-exon local number (`Val26`, `Met25`, …).
+- Gene name is extracted from attributes: `gene_name` > `gene` > `Name` >
+  `locus_tag` > `gene_id` > `ID`. The `gene_name` and `gene_id` attributes
+  used by Ensembl/GENCODE/GTF are recognised so eukaryotic outputs show
+  `GNAQ` instead of the annotation-tool ID (e.g. `agat-cds-37838`).
+- Use `--gff-features CDS,tRNA` to customize which feature types are analyzed.
+  When the GFF contains CDS rows with non-zero phase and `CDS` is **not**
+  selected, get_MNV logs a `WARN` line recommending you re-run with
+  `--gff-features CDS` so the phase information is honoured.
 - Supports percent-encoded attribute values and quoted semicolons
 - Multi-contig aware — genes are automatically filtered per contig
 

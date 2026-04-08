@@ -88,13 +88,16 @@ pub fn process_codon(
         ),
     };
 
-    let aa_pos = match strand {
+    let local_aa_pos = match strand {
         Strand::Plus => codon_info.codon_list[0].position.saturating_sub(codon_info.gene_start) / 3 + 1,
         Strand::Minus => codon_info.gene_end.saturating_sub(codon_info.codon_list[0].position) / 3 + 1,
     };
+    let aa_pos = codon_info.protein_offset + local_aa_pos;
 
     let combined_change = format!("{orig_aa}{aa_pos}{mut_aa}");
+    let combined_change_local = format!("{orig_aa}{local_aa_pos}{mut_aa}");
     let combined_aa = iupac_aa(&combined_change);
+    let combined_aa_local = iupac_aa(&combined_change_local);
     let change_type = ChangeType::from_label(&determine_change_type(&combined_change));
 
     let snp_changes: Vec<String> = codon_info
@@ -108,6 +111,19 @@ pub fn process_codon(
             };
             let single_aa = genetic_code.translate_seq(single.as_bytes());
             iupac_aa(&format!("{orig_aa}{aa_pos}{single_aa}"))
+        })
+        .collect();
+    let snp_changes_local: Vec<String> = codon_info
+        .codon_list
+        .iter()
+        .map(|snp| {
+            let single_codon = construct_codon(&codon_info, &[snp]);
+            let single = match strand {
+                Strand::Minus => reverse_complement(&single_codon),
+                Strand::Plus => single_codon,
+            };
+            let single_aa = genetic_code.translate_seq(single.as_bytes());
+            iupac_aa(&format!("{orig_aa}{local_aa_pos}{single_aa}"))
         })
         .collect();
 
@@ -127,6 +143,8 @@ pub fn process_codon(
             .collect(),
         aa_changes: vec![combined_aa],
         snp_aa_changes: snp_changes,
+        aa_changes_local: vec![combined_aa_local],
+        snp_aa_changes_local: snp_changes_local,
         variant_type: if codon_info.codon_list.len() == 1 {
             VariantType::Snp
         } else {
@@ -327,6 +345,7 @@ pub fn get_mnv_variants_for_gene(
             gene_end: eff_gene_end,
             codon_start,
             codon_end,
+            protein_offset: gene.protein_offset,
         };
 
         let mut var_info = process_codon(codon_info, gene.strand, chrom, genetic_code);
@@ -335,6 +354,9 @@ pub fn get_mnv_variants_for_gene(
             var_info.change_type = ChangeType::IndelOverlap;
             var_info.aa_changes = vec!["Unknown".to_string()];
             var_info.snp_aa_changes = vec!["Unknown".to_string(); var_info.snp_aa_changes.len()];
+            var_info.aa_changes_local = vec!["Unknown".to_string()];
+            var_info.snp_aa_changes_local =
+                vec!["Unknown".to_string(); var_info.snp_aa_changes_local.len()];
         } else if is_frameshifted {
             var_info.change_type = var_info.change_type.with_frameshift();
             var_info.aa_changes = var_info
@@ -344,6 +366,16 @@ pub fn get_mnv_variants_for_gene(
                 .collect();
             var_info.snp_aa_changes = var_info
                 .snp_aa_changes
+                .into_iter()
+                .map(|s| format!("{s} (fs)"))
+                .collect();
+            var_info.aa_changes_local = var_info
+                .aa_changes_local
+                .into_iter()
+                .map(|s| format!("{s} (fs)"))
+                .collect();
+            var_info.snp_aa_changes_local = var_info
+                .snp_aa_changes_local
                 .into_iter()
                 .map(|s| format!("{s} (fs)"))
                 .collect();
@@ -373,6 +405,8 @@ pub fn get_mnv_variants_for_gene(
             base_changes: vec![indel.alt_allele.clone()],
             aa_changes: vec!["-".to_string()],
             snp_aa_changes: vec!["-".to_string()],
+            aa_changes_local: vec!["-".to_string()],
+            snp_aa_changes_local: vec!["-".to_string()],
             variant_type: VariantType::Indel,
             change_type,
             snp_reads: None,
@@ -421,6 +455,8 @@ pub fn build_intergenic_variant(chrom: &str, vcf_pos: &crate::io::VcfPosition) -
         base_changes: vec![vcf_pos.alt_allele.clone()],
         aa_changes: vec!["-".to_string()],
         snp_aa_changes: vec!["-".to_string()],
+        aa_changes_local: vec!["-".to_string()],
+        snp_aa_changes_local: vec!["-".to_string()],
         variant_type,
         change_type: ChangeType::Unknown,
         ref_codon: None,
@@ -489,6 +525,7 @@ mod tests {
             end: 399,
             strand: Strand::Plus,
             phase: 0,
+            protein_offset: 0,
         };
         for pos in gene.start..=gene.end {
             let bounds = codon_bounds_for_position(&gene, pos).expect("expected codon bounds");
@@ -506,6 +543,7 @@ mod tests {
             end: 399,
             strand: Strand::Minus,
             phase: 0,
+            protein_offset: 0,
         };
         for pos in gene.start..=gene.end {
             let bounds = codon_bounds_for_position(&gene, pos).expect("expected codon bounds");
@@ -576,6 +614,7 @@ mod tests {
             end: 120,
             strand: Strand::Plus,
             phase: 1,
+            protein_offset: 0,
         };
         // Position 100 is in the skipped region, no codon
         assert!(codon_bounds_for_position(&gene, 100).is_none());
@@ -597,6 +636,7 @@ mod tests {
             end: 77_794_592,
             strand: Strand::Minus,
             phase: 1,
+            protein_offset: 0,
         };
         let b516 = codon_bounds_for_position(&gene, 77_794_516).expect("bounds for 516");
         let b517 = codon_bounds_for_position(&gene, 77_794_517).expect("bounds for 517");
@@ -613,6 +653,7 @@ mod tests {
             end: 199,
             strand: Strand::Plus,
             phase: 0,
+            protein_offset: 0,
         };
         assert!(codon_bounds_for_position(&gene, 50).is_none());
         assert!(codon_bounds_for_position(&gene, 300).is_none());
@@ -629,6 +670,7 @@ mod tests {
             end: 9,
             strand: Strand::Plus,
             phase: 0,
+            protein_offset: 0,
         };
         let reference = Reference {
             sequence: "ATGATGATG",
@@ -733,6 +775,7 @@ mod tests {
             gene_end: 399,
             codon_start: 100,
             codon_end: 102,
+            protein_offset: 0,
         };
         let result = process_codon(codon_info, Strand::Plus, "chr1", crate::genetic_code::GeneticCode::default());
         assert_eq!(result.variant_type, VariantType::SnpMnv);
@@ -758,6 +801,7 @@ mod tests {
             gene_end: 399,
             codon_start: 100,
             codon_end: 102,
+            protein_offset: 0,
         };
 
         let result = process_codon(codon_info, Strand::Plus, "chr1", crate::genetic_code::GeneticCode::default());
@@ -791,6 +835,7 @@ mod tests {
             gene_end: 120,
             codon_start: 100,
             codon_end: 102,
+            protein_offset: 0,
         };
         let result = process_codon(codon_info, Strand::Plus, "chr1", crate::genetic_code::GeneticCode::default());
         // Position 101 is the 2nd base (index 1). ATG → ATG with pos 101 T→t
@@ -814,6 +859,7 @@ mod tests {
             end: 111,
             strand: Strand::Plus,
             phase: 0,
+            protein_offset: 0,
         };
         // Two VCF records at position 101 with different ALTs
         let snps = vec![
