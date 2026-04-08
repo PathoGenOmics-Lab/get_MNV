@@ -65,6 +65,49 @@ pub fn process_codon(
     chrom: &str,
     genetic_code: crate::genetic_code::GeneticCode,
 ) -> VariantInfo {
+    // process_codon is only ever called with at least one SNP in the codon
+    // (the BTreeMap groups in `get_mnv_variants_for_gene` only ever contain
+    // non-empty Vec<Snp>). We still guard here so that an accidental
+    // direct caller does not panic via `codon_list[0]` or produce a row
+    // claiming a SNP at "position 0".
+    if codon_info.codon_list.is_empty() {
+        log::error!(
+            "process_codon called with empty codon_list for gene '{}' at codon {}-{}; \
+             this is a logic bug, please file an issue.",
+            codon_info.gene_name, codon_info.codon_start, codon_info.codon_end
+        );
+        return VariantInfo {
+            chrom: chrom.to_string(),
+            gene: codon_info.gene_name,
+            positions: Vec::new(),
+            ref_bases: Vec::new(),
+            base_changes: Vec::new(),
+            aa_changes: vec!["-".to_string()],
+            snp_aa_changes: vec!["-".to_string()],
+            aa_changes_local: vec!["-".to_string()],
+            snp_aa_changes_local: vec!["-".to_string()],
+            variant_type: VariantType::Snp,
+            change_type: ChangeType::Unknown,
+            snp_reads: None,
+            snp_forward_reads: None,
+            snp_reverse_reads: None,
+            mnv_reads: None,
+            mnv_forward_reads: None,
+            mnv_reverse_reads: None,
+            mnv_total_reads: None,
+            total_reads: None,
+            total_forward_reads: None,
+            total_reverse_reads: None,
+            mnv_total_forward_reads: None,
+            mnv_total_reverse_reads: None,
+            ref_codon: Some(codon_info.original_codon),
+            snp_codon: None,
+            mnv_codon: None,
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        };
+    }
     let ref_codon = codon_info.original_codon.clone();
 
     let mnv_snps: Vec<&Snp> = codon_info.codon_list.iter().collect();
@@ -191,9 +234,33 @@ fn effective_bounds(gene: &Gene) -> (usize, usize) {
 // Process one gene at a time to keep memory usage low.
 fn codon_bounds_for_position(gene: &Gene, position: usize) -> Option<(usize, usize)> {
     let (eff_start, eff_end) = effective_bounds(gene);
+    // The variant fell inside the GFF feature interval but outside the
+    // phase-adjusted region (the first `phase` bases of a plus-strand CDS or
+    // the last `phase` bases of a minus-strand CDS belong to a codon that
+    // physically spans into the *previous* exon — we cannot reconstruct that
+    // codon from this single CDS row, so the variant has to be dropped). Warn
+    // explicitly so the user knows: silently dropping was the trap that
+    // hid the codon-grouping bug behind issue #12 for so long.
     if position < eff_start || position > eff_end {
+        if gene.phase > 0
+            && position >= gene.start
+            && position <= gene.end
+        {
+            log::warn!(
+                "Variant at {}:{} falls in the phase-skipped region of CDS '{}' \
+                 (phase={}, exon {}-{}); the codon spans into a neighbouring exon \
+                 and cannot be reconstructed from a single GFF row. Variant skipped.",
+                gene.name, position, gene.name, gene.phase, gene.start, gene.end
+            );
+        }
         return None;
     }
+    let incomplete_codon_log = |reason: &str| {
+        log::debug!(
+            "SNP at position {} in gene '{}' falls in incomplete codon ({}; gene length {} not multiple of 3, phase {})",
+            position, gene.name, reason, eff_end - eff_start + 1, gene.phase
+        );
+    };
     match gene.strand {
         Strand::Plus => {
             let offset = position - eff_start;
@@ -202,10 +269,7 @@ fn codon_bounds_for_position(gene: &Gene, position: usize) -> Option<(usize, usi
             if codon_end <= eff_end {
                 Some((codon_start, codon_end))
             } else {
-                log::debug!(
-                    "SNP at position {} in gene '{}' falls in incomplete codon (gene length {} not multiple of 3, phase {})",
-                    position, gene.name, eff_end - eff_start + 1, gene.phase
-                );
+                incomplete_codon_log("plus-strand codon end past CDS");
                 None
             }
         }
@@ -213,20 +277,14 @@ fn codon_bounds_for_position(gene: &Gene, position: usize) -> Option<(usize, usi
             let offset = eff_end - position;
             let codon_end = eff_end.saturating_sub((offset / 3) * 3);
             if codon_end < eff_start + 2 {
-                log::debug!(
-                    "SNP at position {} in gene '{}' falls in incomplete codon (gene length {} not multiple of 3, phase {})",
-                    position, gene.name, eff_end - eff_start + 1, gene.phase
-                );
+                incomplete_codon_log("minus-strand codon would underflow CDS start");
                 return None;
             }
             let codon_start = codon_end - 2;
             if codon_start >= eff_start {
                 Some((codon_start, codon_end))
             } else {
-                log::debug!(
-                    "SNP at position {} in gene '{}' falls in incomplete codon (gene length {} not multiple of 3, phase {})",
-                    position, gene.name, eff_end - eff_start + 1, gene.phase
-                );
+                incomplete_codon_log("minus-strand codon start before effective start");
                 None
             }
         }
@@ -603,6 +661,41 @@ mod tests {
         assert_eq!("+".parse::<Strand>(), Ok(Strand::Plus));
         assert_eq!("-".parse::<Strand>(), Ok(Strand::Minus));
         assert!("?".parse::<Strand>().is_err());
+    }
+
+    #[test]
+    fn test_codon_bounds_phase_skipped_position_returns_none() {
+        // Plus strand, phase=2: positions 100 and 101 are in the
+        // phase-skipped region and must NOT be reported as belonging to a
+        // codon (the codon they sit in spans into the previous exon).
+        let gene = Gene {
+            name: "cds_plus_phase2".to_string(),
+            start: 100,
+            end: 120,
+            strand: Strand::Plus,
+            phase: 2,
+            protein_offset: 0,
+        };
+        assert!(codon_bounds_for_position(&gene, 100).is_none());
+        assert!(codon_bounds_for_position(&gene, 101).is_none());
+        // 102 is the first base of the first complete codon.
+        assert_eq!(codon_bounds_for_position(&gene, 102), Some((102, 104)));
+
+        // Minus strand symmetric: phase=2 means the LAST 2 bases of the
+        // exon are skipped (they belong to a codon ending in the next exon
+        // in transcript order). 120 and 119 → None, 118 → first complete
+        // codon.
+        let minus = Gene {
+            name: "cds_minus_phase2".to_string(),
+            start: 100,
+            end: 120,
+            strand: Strand::Minus,
+            phase: 2,
+            protein_offset: 0,
+        };
+        assert!(codon_bounds_for_position(&minus, 120).is_none());
+        assert!(codon_bounds_for_position(&minus, 119).is_none());
+        assert_eq!(codon_bounds_for_position(&minus, 118), Some((116, 118)));
     }
 
     #[test]

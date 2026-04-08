@@ -190,11 +190,14 @@ pub(crate) fn gene_name_from_gff(attrs: &HashMap<String, String>) -> String {
         .map(|value| value.trim_start_matches("gene-").to_string())
         .unwrap_or_else(|| "unknown_gene".to_string());
 
-    // Only append a locus_tag suffix when it is actually present and
-    // different from the primary name. This avoids the historical
-    // `primary_primary` duplication when no locus_tag exists.
+    // Only append a locus_tag suffix when it is actually present, non-empty
+    // and different from the primary name. This avoids both the historical
+    // `primary_primary` duplication when no locus_tag exists and a trailing
+    // underscore (`primary_`) when locus_tag is the empty string.
     match attrs.get("locus_tag") {
-        Some(locus) if locus != &primary => format!("{primary}_{locus}"),
+        Some(locus) if !locus.is_empty() && locus != &primary => {
+            format!("{primary}_{locus}")
+        }
         _ => primary,
     }
 }
@@ -723,6 +726,17 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("locus_tag".to_string(), "Rv0007".to_string());
         assert_eq!(gene_name_from_gff(&attrs), "Rv0007");
+    }
+
+    #[test]
+    fn test_gene_name_from_gff_empty_locus_tag_no_trailing_underscore() {
+        // Regression: an empty `locus_tag=""` (some annotation tools emit it)
+        // used to produce "BRCA1_" — a trailing underscore that broke
+        // downstream filtering by gene name.
+        let mut attrs = HashMap::new();
+        attrs.insert("gene_name".to_string(), "BRCA1".to_string());
+        attrs.insert("locus_tag".to_string(), String::new());
+        assert_eq!(gene_name_from_gff(&attrs), "BRCA1");
     }
 
     // ---- filter_genes_with_snps ----
