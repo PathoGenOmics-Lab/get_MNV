@@ -30,6 +30,15 @@ Reference genomic sequence. Record IDs must match VCF contig names exactly.
 Standard GFF3 with features of type `gene` and `pseudogene` by default.
 
 - Columns 4/5/7 are used for start, end, and strand
+- **Column 8 (phase) is honoured for `CDS` features** (since v1.1.2). Valid
+  values are `0`, `1`, `2` or `.`. The phase is the number of bases that must
+  be skipped from the feature start (or from the feature end on the minus
+  strand) to reach the first base of the first complete codon. This is
+  required for eukaryotic annotations whose CDS exons begin mid-codon — for
+  example GRCh38 Ensembl `GNAQ` exon 5 has `phase=1`, and without this
+  correction SNVs were grouped into the wrong codons. Features without phase
+  information (`gene`, `exon`, `UTR`, …) implicitly use `phase = 0`, which is
+  the historical behaviour.
 - Gene name is extracted from attributes: `gene` > `Name` > `locus_tag` > `ID`
 - Use `--gff-features CDS,tRNA` to customize which feature types are analyzed
 - Supports percent-encoded attribute values and quoted semicolons
@@ -37,18 +46,33 @@ Standard GFF3 with features of type `gene` and `pseudogene` by default.
 
 ### TSV format
 
-Tab-delimited file with one gene per line:
+Tab-delimited file with one gene per line. The 4-column form is the legacy
+format and is still fully supported:
 
 ```
 GeneName	GeneStart	GeneEnd	Strand
 ```
 
-Example:
+Since v1.1.2 an **optional 5th `Phase` column** is accepted for eukaryotic
+inputs where the gene/CDS does not start in frame 0:
+
+```
+GeneName	GeneStart	GeneEnd	Strand	Phase
+```
+
+Example (mixed: prokaryote rows omit phase, one eukaryote row uses phase=1):
 ```
 Rv0007_Rv0007	9914	10828	+
 ileT_Rvnt01	10887	10960	+
 Rv0008c_Rv0008c	11874	12311	-
+GNAQ_exon5	77794463	77794592	-	1
 ```
+
+- The phase column is **optional**. When omitted (4-column rows), phase
+  defaults to `0` — i.e. the prokaryote-style behaviour the tool has always
+  had.
+- Valid values: `0`, `1`, `2` or `.` (dot is treated as `0`).
+- 4-column and 5-column rows can be mixed in the same file.
 
 **Limitations:**
 - No contig information — for multi-contig VCF use `--gff` or restrict with `--chrom`

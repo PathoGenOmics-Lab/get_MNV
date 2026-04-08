@@ -226,6 +226,13 @@ fn load_genes_from_tsv(genes_file: &str, snp_list: &[VcfPosition]) -> AppResult<
 
         let (start, end) = parse_interval(fields[1], fields[2], line_number)?;
         let strand = parse_strand(fields[3], line_number)?;
+        // Optional 5th column: phase (0|1|2|.). Defaults to 0 (prokaryote-style)
+        // when omitted, preserving the historical 4-column TSV format.
+        let phase = if fields.len() >= 5 {
+            parse_gff_phase(fields[4], line_number)?
+        } else {
+            0
+        };
 
         if has_snp_in_interval(snp_list, start, end) {
             genes_with_snps += 1;
@@ -234,7 +241,7 @@ fn load_genes_from_tsv(genes_file: &str, snp_list: &[VcfPosition]) -> AppResult<
                 start,
                 end,
                 strand,
-                phase: 0,
+                phase,
             });
         } else {
             genes_without_snps += 1;

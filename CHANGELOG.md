@@ -9,6 +9,8 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - Regression tests for phase handling on both strands, including the GNAQ case from issue #12.
+- TSV gene annotation files now accept an **optional 5th column** with the phase (`0`, `1`, `2` or `.`). When omitted, phase defaults to `0`, preserving the historical 4-column prokaryote-style format. 4- and 5-column rows can be mixed in the same file.
+- Documentation: `docs/input-formats.md` describes the GFF phase handling and the new optional TSV phase column.
 
 ## [1.1.1] - 2026-03-30
 
