@@ -1,6 +1,6 @@
 [package]
 name = "get-mnv-gui"
-version = "1.1.1"
+version = "1.1.2"
 description = "get_MNV GUI - Multi-Nucleotide Variant Analysis Desktop App"
 authors = ["Paula Ruiz Rodriguez <paula.ruiz.rodriguez@csic.es>"]
 edition = "2021"

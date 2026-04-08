@@ -14,6 +14,14 @@ fn is_intergenic(variant: &VariantInfo) -> bool {
     variant.gene == "intergenic"
 }
 
+/// Render a "Local …" column. Falls back to the protein-wide column when the
+/// local vector is empty (e.g. records produced before this field existed and
+/// then deserialized via `#[serde(default)]`).
+fn local_aa_or_fallback(local: &[String], protein: &[String]) -> String {
+    let chosen = if local.is_empty() { protein } else { local };
+    chosen.join(", ")
+}
+
 fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
     validate_variant_shape(variant)?;
     if variant.variant_type == VariantType::Indel || is_intergenic(variant) {
@@ -33,6 +41,8 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
             base_str,
             variant.aa_changes.join(", "),
             variant.snp_aa_changes.join(", "),
+            local_aa_or_fallback(&variant.aa_changes_local, &variant.aa_changes),
+            local_aa_or_fallback(&variant.snp_aa_changes_local, &variant.snp_aa_changes),
             variant.variant_type.to_string(),
             variant.change_type.to_string(),
             variant.ref_codon.clone().unwrap_or_else(|| "-".to_string()),
@@ -107,6 +117,9 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
     let base_str = variant.base_changes.join(", ");
     let aa_str = variant.aa_changes.join(", ");
     let snp_aa_str = variant.snp_aa_changes.join(", ");
+    let local_aa_str = local_aa_or_fallback(&variant.aa_changes_local, &variant.aa_changes);
+    let local_snp_aa_str =
+        local_aa_or_fallback(&variant.snp_aa_changes_local, &variant.snp_aa_changes);
     let snp_reads_str = snp_counts
         .iter()
         .map(std::string::ToString::to_string)
@@ -134,6 +147,8 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
         base_str,
         aa_str,
         snp_aa_str,
+        local_aa_str,
+        local_snp_aa_str,
         variant.variant_type.to_string(),
         variant.change_type.to_string(),
         ref_cod,
@@ -170,6 +185,8 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
             base_str,
             variant.aa_changes.join(", "),
             variant.snp_aa_changes.join(", "),
+            local_aa_or_fallback(&variant.aa_changes_local, &variant.aa_changes),
+            local_aa_or_fallback(&variant.snp_aa_changes_local, &variant.snp_aa_changes),
             variant.variant_type.to_string(),
             variant.change_type.to_string(),
             variant.ref_codon.clone().unwrap_or_else(|| "-".to_string()),
@@ -188,6 +205,9 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
     let base_str = variant.base_changes.join(", ");
     let aa_str = variant.aa_changes.join(", ");
     let snp_aa_str = variant.snp_aa_changes.join(", ");
+    let local_aa_str = local_aa_or_fallback(&variant.aa_changes_local, &variant.aa_changes);
+    let local_snp_aa_str =
+        local_aa_or_fallback(&variant.snp_aa_changes_local, &variant.snp_aa_changes);
     Ok(vec![
         variant.chrom.clone(),
         variant.gene.clone(),
@@ -196,6 +216,8 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
         base_str,
         aa_str,
         snp_aa_str,
+        local_aa_str,
+        local_snp_aa_str,
         variant.variant_type.to_string(),
         variant.change_type.to_string(),
         variant.ref_codon.clone().unwrap_or_default(),
@@ -223,6 +245,8 @@ impl TsvWriter {
                 "Base Changes",
                 "AA Changes",
                 "SNP AA Changes",
+                "Local AA Changes",
+                "Local SNP AA Changes",
                 "Variant Type",
                 "Change Type",
                 "Reference Codon",
@@ -247,6 +271,8 @@ impl TsvWriter {
                 "Base Changes",
                 "AA Changes",
                 "SNP AA Changes",
+                "Local AA Changes",
+                "Local SNP AA Changes",
                 "Variant Type",
                 "Change Type",
                 "Reference Codon",
@@ -291,6 +317,8 @@ mod tests {
             base_changes: vec!["T".to_string(), "G".to_string()],
             aa_changes: vec!["Ala1Val".to_string()],
             snp_aa_changes: vec!["Ala1Ser".to_string(), "Ala1Thr".to_string()],
+            aa_changes_local: vec!["-".to_string()],
+            snp_aa_changes_local: vec!["-".to_string()],
             variant_type: VariantType::SnpMnv,
             change_type: ChangeType::NonSynonymous,
             snp_reads: Some(vec![1, 1]),
@@ -317,7 +345,23 @@ mod tests {
     #[test]
     fn test_build_tsv_row_uses_mnv_total_depth_for_mnv_metrics() {
         let row = build_tsv_row_with_reads(&variant_with_reads()).expect("row should build");
-        assert_eq!(row[18], "4");
-        assert_eq!(row[20], "0.2500");
+        // Two new columns (Local AA Changes / Local SNP AA Changes) shifted
+        // every later column by +2.
+        assert_eq!(row[20], "4");
+        assert_eq!(row[22], "0.2500");
+    }
+
+    #[test]
+    fn test_build_tsv_row_emits_local_aa_columns() {
+        let mut variant = variant_with_reads();
+        variant.aa_changes = vec!["Phe228Ile".to_string()];
+        variant.aa_changes_local = vec!["Val26His".to_string()];
+        variant.snp_aa_changes = vec!["Phe228Ile".to_string()];
+        variant.snp_aa_changes_local = vec!["Val26His".to_string()];
+        let row = build_tsv_row_with_reads(&variant).expect("row should build");
+        assert_eq!(row[5], "Phe228Ile", "AA Changes should be protein-wide");
+        assert_eq!(row[6], "Phe228Ile", "SNP AA Changes should be protein-wide");
+        assert_eq!(row[7], "Val26His", "Local AA Changes should be exon-local");
+        assert_eq!(row[8], "Val26His", "Local SNP AA Changes should be exon-local");
     }
 }

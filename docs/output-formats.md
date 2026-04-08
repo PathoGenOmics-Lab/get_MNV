@@ -11,8 +11,10 @@ File: `<vcf_filename>.MNV.tsv`
 | Positions | Variant positions (comma-separated for MNVs) |
 | Reference Bases | Reference nucleotides |
 | Base Changes | Alternative nucleotides |
-| AA Changes | Amino acid changes (MNV haplotype) |
-| SNP AA Changes | Amino acid changes per individual SNP |
+| AA Changes | Amino acid changes (MNV haplotype), **full-protein numbering** (compatible with Ensembl VEP, ANNOVAR, SnpEff, UniProt) |
+| SNP AA Changes | Amino acid changes per individual SNP, full-protein numbering |
+| Local AA Changes | Same MNV haplotype change but using **per-feature (exon-local) numbering** — what versions ≤ 1.1.1 used to report. Identical to `AA Changes` for prokaryotes and single-exon features |
+| Local SNP AA Changes | Per-SNP amino acid change in per-feature (exon-local) numbering |
 | Variant Type | `SNP`, `MNV`, `SNP/MNV`, or `INDEL` |
 | Change Type | `Synonymous`, `Non-synonymous`, `Stop gained`, `Stop lost`, `Unknown`, `Indel overlap`, frameshift variants, `In-frame Indel`, `Frameshift Indel` |
 | Reference Codon | Original codon sequence |

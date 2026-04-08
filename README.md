@@ -6,7 +6,7 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL%20v3-%23af64d1?style=flat-square)](LICENSE)
 [![Bioconda](https://img.shields.io/conda/dn/bioconda/get_mnv.svg?style=flat-square&label=bioconda)](https://anaconda.org/bioconda/get_mnv)
-[![Version](https://img.shields.io/badge/version-1.1.1-%23149389?style=flat-square)](https://github.com/PathoGenOmics-Lab/get_MNV/releases)
+[![Version](https://img.shields.io/badge/version-1.1.2-%23149389?style=flat-square)](https://github.com/PathoGenOmics-Lab/get_MNV/releases)
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13907423-%23ff0077?style=flat-square)](https://doi.org/10.5281/zenodo.13907423)
 [![PGO](https://img.shields.io/badge/PathoGenOmics-lab-%23E52421?style=flat-square)](https://github.com/PathoGenOmics-Lab)
 
@@ -55,8 +55,8 @@ Download the latest release for your platform:
 
 | Platform | Download |
 |---|---|
-| 🍎 macOS (Apple Silicon) | [**get_MNV_1.1.1_aarch64.dmg**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
-| 🍎 macOS (Intel) | [**get_MNV_1.1.1_x64.dmg**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
+| 🍎 macOS (Apple Silicon) | [**get_MNV_1.1.2_aarch64.dmg**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
+| 🍎 macOS (Intel) | [**get_MNV_1.1.2_x64.dmg**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
 | 🐧 Linux | [**Releases page**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
 | 🪟 Windows | [**Releases page**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
 
@@ -234,7 +234,7 @@ If you use get_MNV in your research, please cite:
   year      = {2026},
   doi       = {10.5281/zenodo.13907423},
   url       = {https://github.com/PathoGenOmics-Lab/get_MNV},
-  version   = {1.1.1},
+  version   = {1.1.2},
   license   = {AGPL-3.0}
 }
 ```

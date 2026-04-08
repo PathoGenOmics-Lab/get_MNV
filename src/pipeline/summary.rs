@@ -179,6 +179,8 @@ mod tests {
             base_changes: vec!["T".to_string()],
             aa_changes: vec!["V100A".to_string()],
             snp_aa_changes: vec!["V100A".to_string()],
+            aa_changes_local: vec!["-".to_string()],
+            snp_aa_changes_local: vec!["-".to_string()],
             variant_type: vtype,
             change_type: crate::variants::ChangeType::NonSynonymous,
             snp_reads: None,

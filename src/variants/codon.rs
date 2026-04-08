@@ -65,6 +65,49 @@ pub fn process_codon(
     chrom: &str,
     genetic_code: crate::genetic_code::GeneticCode,
 ) -> VariantInfo {
+    // process_codon is only ever called with at least one SNP in the codon
+    // (the BTreeMap groups in `get_mnv_variants_for_gene` only ever contain
+    // non-empty Vec<Snp>). We still guard here so that an accidental
+    // direct caller does not panic via `codon_list[0]` or produce a row
+    // claiming a SNP at "position 0".
+    if codon_info.codon_list.is_empty() {
+        log::error!(
+            "process_codon called with empty codon_list for gene '{}' at codon {}-{}; \
+             this is a logic bug, please file an issue.",
+            codon_info.gene_name, codon_info.codon_start, codon_info.codon_end
+        );
+        return VariantInfo {
+            chrom: chrom.to_string(),
+            gene: codon_info.gene_name,
+            positions: Vec::new(),
+            ref_bases: Vec::new(),
+            base_changes: Vec::new(),
+            aa_changes: vec!["-".to_string()],
+            snp_aa_changes: vec!["-".to_string()],
+            aa_changes_local: vec!["-".to_string()],
+            snp_aa_changes_local: vec!["-".to_string()],
+            variant_type: VariantType::Snp,
+            change_type: ChangeType::Unknown,
+            snp_reads: None,
+            snp_forward_reads: None,
+            snp_reverse_reads: None,
+            mnv_reads: None,
+            mnv_forward_reads: None,
+            mnv_reverse_reads: None,
+            mnv_total_reads: None,
+            total_reads: None,
+            total_forward_reads: None,
+            total_reverse_reads: None,
+            mnv_total_forward_reads: None,
+            mnv_total_reverse_reads: None,
+            ref_codon: Some(codon_info.original_codon),
+            snp_codon: None,
+            mnv_codon: None,
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        };
+    }
     let ref_codon = codon_info.original_codon.clone();
 
     let mnv_snps: Vec<&Snp> = codon_info.codon_list.iter().collect();
@@ -88,13 +131,16 @@ pub fn process_codon(
         ),
     };
 
-    let aa_pos = match strand {
+    let local_aa_pos = match strand {
         Strand::Plus => codon_info.codon_list[0].position.saturating_sub(codon_info.gene_start) / 3 + 1,
         Strand::Minus => codon_info.gene_end.saturating_sub(codon_info.codon_list[0].position) / 3 + 1,
     };
+    let aa_pos = codon_info.protein_offset + local_aa_pos;
 
     let combined_change = format!("{orig_aa}{aa_pos}{mut_aa}");
+    let combined_change_local = format!("{orig_aa}{local_aa_pos}{mut_aa}");
     let combined_aa = iupac_aa(&combined_change);
+    let combined_aa_local = iupac_aa(&combined_change_local);
     let change_type = ChangeType::from_label(&determine_change_type(&combined_change));
 
     let snp_changes: Vec<String> = codon_info
@@ -108,6 +154,19 @@ pub fn process_codon(
             };
             let single_aa = genetic_code.translate_seq(single.as_bytes());
             iupac_aa(&format!("{orig_aa}{aa_pos}{single_aa}"))
+        })
+        .collect();
+    let snp_changes_local: Vec<String> = codon_info
+        .codon_list
+        .iter()
+        .map(|snp| {
+            let single_codon = construct_codon(&codon_info, &[snp]);
+            let single = match strand {
+                Strand::Minus => reverse_complement(&single_codon),
+                Strand::Plus => single_codon,
+            };
+            let single_aa = genetic_code.translate_seq(single.as_bytes());
+            iupac_aa(&format!("{orig_aa}{local_aa_pos}{single_aa}"))
         })
         .collect();
 
@@ -127,6 +186,8 @@ pub fn process_codon(
             .collect(),
         aa_changes: vec![combined_aa],
         snp_aa_changes: snp_changes,
+        aa_changes_local: vec![combined_aa_local],
+        snp_aa_changes_local: snp_changes_local,
         variant_type: if codon_info.codon_list.len() == 1 {
             VariantType::Snp
         } else {
@@ -154,44 +215,76 @@ pub fn process_codon(
     }
 }
 
+/// Return the effective (phase-adjusted) start/end of the gene for codon math.
+///
+/// GFF column 8 (phase) tells us how many bases must be skipped from the start
+/// of the CDS to reach the first complete codon. For features on the plus
+/// strand the skip is applied at `gene.start`; for the minus strand, where the
+/// biological "start" is `gene.end`, the skip is applied at `gene.end`.
+/// Features without phase information (TSV gene files, gene/exon/UTR rows)
+/// carry `phase = 0` and behave exactly as before.
+fn effective_bounds(gene: &Gene) -> (usize, usize) {
+    let phase = gene.phase as usize;
+    match gene.strand {
+        Strand::Plus => (gene.start.saturating_add(phase), gene.end),
+        Strand::Minus => (gene.start, gene.end.saturating_sub(phase)),
+    }
+}
+
 // Process one gene at a time to keep memory usage low.
 fn codon_bounds_for_position(gene: &Gene, position: usize) -> Option<(usize, usize)> {
-    if position < gene.start || position > gene.end {
+    let (eff_start, eff_end) = effective_bounds(gene);
+    // The variant fell inside the GFF feature interval but outside the
+    // phase-adjusted region (the first `phase` bases of a plus-strand CDS or
+    // the last `phase` bases of a minus-strand CDS belong to a codon that
+    // physically spans into the *previous* exon — we cannot reconstruct that
+    // codon from this single CDS row, so the variant has to be dropped). Warn
+    // explicitly so the user knows: silently dropping was the trap that
+    // hid the codon-grouping bug behind issue #12 for so long.
+    if position < eff_start || position > eff_end {
+        if gene.phase > 0
+            && position >= gene.start
+            && position <= gene.end
+        {
+            log::warn!(
+                "Variant at {}:{} falls in the phase-skipped region of CDS '{}' \
+                 (phase={}, exon {}-{}); the codon spans into a neighbouring exon \
+                 and cannot be reconstructed from a single GFF row. Variant skipped.",
+                gene.name, position, gene.name, gene.phase, gene.start, gene.end
+            );
+        }
         return None;
     }
+    let incomplete_codon_log = |reason: &str| {
+        log::debug!(
+            "SNP at position {} in gene '{}' falls in incomplete codon ({}; gene length {} not multiple of 3, phase {})",
+            position, gene.name, reason, eff_end - eff_start + 1, gene.phase
+        );
+    };
     match gene.strand {
         Strand::Plus => {
-            let offset = position - gene.start;
-            let codon_start = gene.start + (offset / 3) * 3;
+            let offset = position - eff_start;
+            let codon_start = eff_start + (offset / 3) * 3;
             let codon_end = codon_start + 2;
-            if codon_end <= gene.end {
+            if codon_end <= eff_end {
                 Some((codon_start, codon_end))
             } else {
-                log::debug!(
-                    "SNP at position {} in gene '{}' falls in incomplete codon (gene length {} not multiple of 3)",
-                    position, gene.name, gene.end - gene.start + 1
-                );
+                incomplete_codon_log("plus-strand codon end past CDS");
                 None
             }
         }
         Strand::Minus => {
-            let offset = gene.end - position;
-            let codon_end = gene.end.saturating_sub((offset / 3) * 3);
-            if codon_end < gene.start + 2 {
-                log::debug!(
-                    "SNP at position {} in gene '{}' falls in incomplete codon (gene length {} not multiple of 3)",
-                    position, gene.name, gene.end - gene.start + 1
-                );
+            let offset = eff_end - position;
+            let codon_end = eff_end.saturating_sub((offset / 3) * 3);
+            if codon_end < eff_start + 2 {
+                incomplete_codon_log("minus-strand codon would underflow CDS start");
                 return None;
             }
             let codon_start = codon_end - 2;
-            if codon_start >= gene.start {
+            if codon_start >= eff_start {
                 Some((codon_start, codon_end))
             } else {
-                log::debug!(
-                    "SNP at position {} in gene '{}' falls in incomplete codon (gene length {} not multiple of 3)",
-                    position, gene.name, gene.end - gene.start + 1
-                );
+                incomplete_codon_log("minus-strand codon start before effective start");
                 None
             }
         }
@@ -301,14 +394,16 @@ pub fn get_mnv_variants_for_gene(
 
         let is_frameshifted = has_symbolic_sv || upstream_shift % 3 != 0;
 
+        let (eff_gene_start, eff_gene_end) = effective_bounds(gene);
         let codon_info = CodonInfo {
             codon_list: codon_snps,
             original_codon: codon_seq.to_string(),
             gene_name: gene.name.clone(),
-            gene_start: gene.start,
-            gene_end: gene.end,
+            gene_start: eff_gene_start,
+            gene_end: eff_gene_end,
             codon_start,
             codon_end,
+            protein_offset: gene.protein_offset,
         };
 
         let mut var_info = process_codon(codon_info, gene.strand, chrom, genetic_code);
@@ -317,6 +412,9 @@ pub fn get_mnv_variants_for_gene(
             var_info.change_type = ChangeType::IndelOverlap;
             var_info.aa_changes = vec!["Unknown".to_string()];
             var_info.snp_aa_changes = vec!["Unknown".to_string(); var_info.snp_aa_changes.len()];
+            var_info.aa_changes_local = vec!["Unknown".to_string()];
+            var_info.snp_aa_changes_local =
+                vec!["Unknown".to_string(); var_info.snp_aa_changes_local.len()];
         } else if is_frameshifted {
             var_info.change_type = var_info.change_type.with_frameshift();
             var_info.aa_changes = var_info
@@ -326,6 +424,16 @@ pub fn get_mnv_variants_for_gene(
                 .collect();
             var_info.snp_aa_changes = var_info
                 .snp_aa_changes
+                .into_iter()
+                .map(|s| format!("{s} (fs)"))
+                .collect();
+            var_info.aa_changes_local = var_info
+                .aa_changes_local
+                .into_iter()
+                .map(|s| format!("{s} (fs)"))
+                .collect();
+            var_info.snp_aa_changes_local = var_info
+                .snp_aa_changes_local
                 .into_iter()
                 .map(|s| format!("{s} (fs)"))
                 .collect();
@@ -355,6 +463,8 @@ pub fn get_mnv_variants_for_gene(
             base_changes: vec![indel.alt_allele.clone()],
             aa_changes: vec!["-".to_string()],
             snp_aa_changes: vec!["-".to_string()],
+            aa_changes_local: vec!["-".to_string()],
+            snp_aa_changes_local: vec!["-".to_string()],
             variant_type: VariantType::Indel,
             change_type,
             snp_reads: None,
@@ -403,6 +513,8 @@ pub fn build_intergenic_variant(chrom: &str, vcf_pos: &crate::io::VcfPosition) -
         base_changes: vec![vcf_pos.alt_allele.clone()],
         aa_changes: vec!["-".to_string()],
         snp_aa_changes: vec!["-".to_string()],
+        aa_changes_local: vec!["-".to_string()],
+        snp_aa_changes_local: vec!["-".to_string()],
         variant_type,
         change_type: ChangeType::Unknown,
         ref_codon: None,
@@ -470,6 +582,8 @@ mod tests {
             start: 100,
             end: 399,
             strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
         };
         for pos in gene.start..=gene.end {
             let bounds = codon_bounds_for_position(&gene, pos).expect("expected codon bounds");
@@ -486,6 +600,8 @@ mod tests {
             start: 100,
             end: 399,
             strand: Strand::Minus,
+            phase: 0,
+            protein_offset: 0,
         };
         for pos in gene.start..=gene.end {
             let bounds = codon_bounds_for_position(&gene, pos).expect("expected codon bounds");
@@ -548,12 +664,89 @@ mod tests {
     }
 
     #[test]
+    fn test_codon_bounds_phase_skipped_position_returns_none() {
+        // Plus strand, phase=2: positions 100 and 101 are in the
+        // phase-skipped region and must NOT be reported as belonging to a
+        // codon (the codon they sit in spans into the previous exon).
+        let gene = Gene {
+            name: "cds_plus_phase2".to_string(),
+            start: 100,
+            end: 120,
+            strand: Strand::Plus,
+            phase: 2,
+            protein_offset: 0,
+        };
+        assert!(codon_bounds_for_position(&gene, 100).is_none());
+        assert!(codon_bounds_for_position(&gene, 101).is_none());
+        // 102 is the first base of the first complete codon.
+        assert_eq!(codon_bounds_for_position(&gene, 102), Some((102, 104)));
+
+        // Minus strand symmetric: phase=2 means the LAST 2 bases of the
+        // exon are skipped (they belong to a codon ending in the next exon
+        // in transcript order). 120 and 119 → None, 118 → first complete
+        // codon.
+        let minus = Gene {
+            name: "cds_minus_phase2".to_string(),
+            start: 100,
+            end: 120,
+            strand: Strand::Minus,
+            phase: 2,
+            protein_offset: 0,
+        };
+        assert!(codon_bounds_for_position(&minus, 120).is_none());
+        assert!(codon_bounds_for_position(&minus, 119).is_none());
+        assert_eq!(codon_bounds_for_position(&minus, 118), Some((116, 118)));
+    }
+
+    #[test]
+    fn test_codon_bounds_plus_strand_with_phase_1() {
+        // Phase=1 means skip 1 base from gene.start: first codon is [start+1, start+3]
+        let gene = Gene {
+            name: "cds_plus_phase1".to_string(),
+            start: 100,
+            end: 120,
+            strand: Strand::Plus,
+            phase: 1,
+            protein_offset: 0,
+        };
+        // Position 100 is in the skipped region, no codon
+        assert!(codon_bounds_for_position(&gene, 100).is_none());
+        // 101,102,103 → first codon
+        assert_eq!(codon_bounds_for_position(&gene, 101), Some((101, 103)));
+        assert_eq!(codon_bounds_for_position(&gene, 103), Some((101, 103)));
+        // 104 → next codon
+        assert_eq!(codon_bounds_for_position(&gene, 104), Some((104, 106)));
+    }
+
+    #[test]
+    fn test_codon_bounds_minus_strand_phase_1_gnaq_regression() {
+        // Regression for issue #12: GNAQ CDS chr9:77794463-77794592, minus strand, phase=1.
+        // Without phase fix, 77794516 and 77794517 were grouped together and 77794518 left alone.
+        // With phase=1 applied, 77794517 and 77794518 must share a codon, and 77794516 must be on its own.
+        let gene = Gene {
+            name: "GNAQ_cds".to_string(),
+            start: 77_794_463,
+            end: 77_794_592,
+            strand: Strand::Minus,
+            phase: 1,
+            protein_offset: 0,
+        };
+        let b516 = codon_bounds_for_position(&gene, 77_794_516).expect("bounds for 516");
+        let b517 = codon_bounds_for_position(&gene, 77_794_517).expect("bounds for 517");
+        let b518 = codon_bounds_for_position(&gene, 77_794_518).expect("bounds for 518");
+        assert_eq!(b517, b518, "517 and 518 must share a codon under phase=1");
+        assert_ne!(b516, b517, "516 must NOT share a codon with 517/518 under phase=1");
+    }
+
+    #[test]
     fn test_codon_bounds_outside_gene_returns_none() {
         let gene = Gene {
             name: "g".to_string(),
             start: 100,
             end: 199,
             strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
         };
         assert!(codon_bounds_for_position(&gene, 50).is_none());
         assert!(codon_bounds_for_position(&gene, 300).is_none());
@@ -569,6 +762,8 @@ mod tests {
             start: 1,
             end: 9,
             strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
         };
         let reference = Reference {
             sequence: "ATGATGATG",
@@ -673,6 +868,7 @@ mod tests {
             gene_end: 399,
             codon_start: 100,
             codon_end: 102,
+            protein_offset: 0,
         };
         let result = process_codon(codon_info, Strand::Plus, "chr1", crate::genetic_code::GeneticCode::default());
         assert_eq!(result.variant_type, VariantType::SnpMnv);
@@ -698,6 +894,7 @@ mod tests {
             gene_end: 399,
             codon_start: 100,
             codon_end: 102,
+            protein_offset: 0,
         };
 
         let result = process_codon(codon_info, Strand::Plus, "chr1", crate::genetic_code::GeneticCode::default());
@@ -731,6 +928,7 @@ mod tests {
             gene_end: 120,
             codon_start: 100,
             codon_end: 102,
+            protein_offset: 0,
         };
         let result = process_codon(codon_info, Strand::Plus, "chr1", crate::genetic_code::GeneticCode::default());
         // Position 101 is the 2nd base (index 1). ATG → ATG with pos 101 T→t
@@ -753,6 +951,8 @@ mod tests {
             start: 100,
             end: 111,
             strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
         };
         // Two VCF records at position 101 with different ALTs
         let snps = vec![

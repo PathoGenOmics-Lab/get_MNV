@@ -536,6 +536,8 @@ mod tests {
             base_changes: vec!["T".to_string()],
             aa_changes: vec!["Ala10Val".to_string()],
             snp_aa_changes: vec!["Ala10Val".to_string()],
+            aa_changes_local: vec!["-".to_string()],
+            snp_aa_changes_local: vec!["-".to_string()],
             variant_type: VariantType::Snp,
             change_type: ChangeType::NonSynonymous,
             snp_reads: Some(vec![5]),

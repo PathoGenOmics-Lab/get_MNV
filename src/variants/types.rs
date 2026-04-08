@@ -156,6 +156,20 @@ pub struct Gene {
     pub start: usize,
     pub end: usize,
     pub strand: Strand,
+    /// GFF phase (column 8) for CDS features: 0, 1 or 2.
+    /// Indicates how many bases must be removed from the start of the feature
+    /// (or from the end, for minus strand features) to reach the first base of
+    /// the first complete codon. Defaults to 0 for features without phase
+    /// information (e.g. TSV gene files, gene/exon features).
+    pub phase: u8,
+    /// Amino-acid position of the first complete codon of this feature within
+    /// the full protein coded by the parent transcript (0-based). For
+    /// multi-exon eukaryotic CDS this is the cumulative count of complete
+    /// codons contributed by all prior exons of the same transcript. For
+    /// single-feature inputs (TSV gene files, non-CDS features, prokaryotic
+    /// annotations) this is always 0 and the historical per-feature numbering
+    /// is preserved.
+    pub protein_offset: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -178,6 +192,12 @@ pub struct CodonInfo {
     pub gene_end: usize,
     pub codon_start: usize,
     pub codon_end: usize,
+    /// Amino-acid offset of the current feature within the full protein
+    /// (0-based). Non-zero only for CDS exons of a multi-exon transcript; the
+    /// final `aa_pos` reported in the output is computed as
+    /// `protein_offset + local_aa_pos`.
+    #[serde(default)]
+    pub protein_offset: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -187,8 +207,24 @@ pub struct VariantInfo {
     pub positions: Vec<usize>,
     pub ref_bases: Vec<String>,
     pub base_changes: Vec<String>,
+    /// Amino acid change in **full-protein** numbering. For multi-exon
+    /// eukaryotic CDS this is the position relative to the protein N-terminus
+    /// (compatible with VEP/ANNOVAR/SnpEff/UniProt). For prokaryotes,
+    /// single-exon features and TSV gene files this is identical to
+    /// `aa_changes_local` because the protein offset is 0.
     pub aa_changes: Vec<String>,
     pub snp_aa_changes: Vec<String>,
+    /// Amino acid change in **per-feature** (exon-local) numbering — what
+    /// get_MNV reported up to and including version 1.1.1, where each CDS
+    /// row of the GFF was treated as an independent feature and the codon
+    /// counter was reset to 1 at every exon. Kept alongside `aa_changes` so
+    /// existing pipelines/scripts that rely on the old numbering can still
+    /// consume both columns. Identical to `aa_changes` whenever the feature
+    /// has no transcript context (`protein_offset == 0`).
+    #[serde(default)]
+    pub aa_changes_local: Vec<String>,
+    #[serde(default)]
+    pub snp_aa_changes_local: Vec<String>,
     pub variant_type: VariantType,
     pub change_type: ChangeType,
     pub snp_reads: Option<Vec<usize>>,
