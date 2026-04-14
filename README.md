@@ -220,6 +220,7 @@ get_MNV/
 - Insertions and deletions are detected but not fully codon-annotated
 - Multiallelic VCF records require `--split-multiallelic` or pre-splitting (`bcftools norm -m -`)
 - VCF contig names must match FASTA and GFF exactly
+- **Multiple transcripts per gene**: when using `--gff-features CDS` with a GFF file that contains multiple transcripts for the same gene, each transcript is annotated independently, producing one output line per transcript per variant. If you want a single line per variant, filter your GFF to keep only the canonical transcript before running get_MNV (e.g., using [AGAT](https://github.com/NBISweden/AGAT) `agat_sp_keep_longest_isoform.pl` or a similar tool)
 
 ## Citation
 

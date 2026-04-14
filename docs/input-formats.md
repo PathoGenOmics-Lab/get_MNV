@@ -54,6 +54,11 @@ Standard GFF3 with features of type `gene` and `pseudogene` by default.
   When the GFF contains CDS rows with non-zero phase and `CDS` is **not**
   selected, get_MNV logs a `WARN` line recommending you re-run with
   `--gff-features CDS` so the phase information is honoured.
+- **Multiple transcripts**: when the GFF contains multiple transcripts per gene
+  (common in eukaryotic annotations like Ensembl/GENCODE), each transcript is
+  annotated independently. This means a single variant may produce multiple
+  output lines — one per overlapping transcript. To obtain one line per variant,
+  filter the GFF to retain only the canonical transcript before running get_MNV.
 - Supports percent-encoded attribute values and quoted semicolons
 - Multi-contig aware — genes are automatically filtered per contig
 
