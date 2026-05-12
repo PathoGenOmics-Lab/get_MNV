@@ -9,8 +9,8 @@ use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader};
 
 const GET_MNV_INFO_TAGS: &[&str] = &[
-    "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR",
-    "DP", "FREQ", "SBP", "MSBP",
+    "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
+    "FREQ", "SBP", "MSBP",
 ];
 
 #[derive(Debug, Clone)]
@@ -68,7 +68,11 @@ pub(crate) fn parse_optional_depth(raw: &str) -> Option<usize> {
         .map(|value| value.round() as usize)
 }
 
-pub(crate) fn normalize_ref_alt(pos: usize, ref_allele: &str, alt_allele: &str) -> (usize, String, String) {
+pub(crate) fn normalize_ref_alt(
+    pos: usize,
+    ref_allele: &str,
+    alt_allele: &str,
+) -> (usize, String, String) {
     let is_symbolic = alt_allele.starts_with('<') && alt_allele.ends_with('>');
     if is_symbolic {
         return (pos, ref_allele.to_string(), alt_allele.to_string());
@@ -128,7 +132,10 @@ fn get_info_value<'a>(info: &'a str, key: &str) -> Option<&'a str> {
 fn get_format_value<'a>(format_keys: &[&str], sample_field: &'a str, key: &str) -> Option<&'a str> {
     let idx = format_keys.iter().position(|k| *k == key)?;
     let values: Vec<&str> = sample_field.split(':').collect();
-    values.get(idx).copied().filter(|v| !v.is_empty() && *v != ".")
+    values
+        .get(idx)
+        .copied()
+        .filter(|v| !v.is_empty() && *v != ".")
 }
 
 fn parse_original_metrics_from_fields(
@@ -157,7 +164,10 @@ fn parse_original_metrics_from_fields(
         // AD → derive freq
         if original_freq.is_none() {
             if let Some(ad_str) = get_format_value(format_keys, sample, "AD") {
-                let values: Vec<i64> = ad_str.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+                let values: Vec<i64> = ad_str
+                    .split(',')
+                    .filter_map(|s| s.trim().parse().ok())
+                    .collect();
                 if let Some(&alt_count) = values.get(alt_index + 1) {
                     let total: i64 = values.iter().filter(|v| **v >= 0).sum();
                     if total > 0 && alt_count >= 0 {
@@ -169,7 +179,10 @@ fn parse_original_metrics_from_fields(
         // AO/RO → derive freq
         if original_freq.is_none() {
             if let Some(ao_str) = get_format_value(format_keys, sample, "AO") {
-                let ao_values: Vec<i64> = ao_str.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+                let ao_values: Vec<i64> = ao_str
+                    .split(',')
+                    .filter_map(|s| s.trim().parse().ok())
+                    .collect();
                 if let Some(&alt_count) = ao_values.get(alt_index) {
                     let ro = get_format_value(format_keys, sample, "RO")
                         .and_then(|s| s.trim().parse::<i64>().ok())
@@ -203,7 +216,10 @@ fn parse_original_metrics_from_fields(
     }
     if original_freq.is_none() {
         if let Some(ad_str) = get_info_value(info, "AD") {
-            let values: Vec<i64> = ad_str.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+            let values: Vec<i64> = ad_str
+                .split(',')
+                .filter_map(|s| s.trim().parse().ok())
+                .collect();
             if let Some(&alt_count) = values.get(alt_index + 1) {
                 let total: i64 = values.iter().filter(|v| **v >= 0).sum();
                 if total > 0 && alt_count >= 0 {
@@ -214,7 +230,10 @@ fn parse_original_metrics_from_fields(
     }
     if original_freq.is_none() {
         if let Some(ao_str) = get_info_value(info, "AO") {
-            let ao_values: Vec<i64> = ao_str.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+            let ao_values: Vec<i64> = ao_str
+                .split(',')
+                .filter_map(|s| s.trim().parse().ok())
+                .collect();
             if let Some(&alt_count) = ao_values.get(alt_index) {
                 let ro = get_info_value(info, "RO")
                     .and_then(|s| s.trim().parse::<i64>().ok())
@@ -236,18 +255,26 @@ fn parse_original_metrics_from_fields(
 }
 
 fn extract_original_info_from_line(info: &str, own_tags: &HashSet<&str>) -> Option<String> {
-    let parts: Vec<&str> = info.split(';')
+    let parts: Vec<&str> = info
+        .split(';')
         .filter(|field| {
             let key = field.split_once('=').map(|(k, _)| k).unwrap_or(field);
             !own_tags.contains(key)
         })
         .collect();
-    if parts.is_empty() { None } else { Some(parts.join(";")) }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(";"))
+    }
 }
 
 pub fn list_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
     if vcf_file.ends_with(".bcf") {
-        return Err("BCF input is not supported. Convert to VCF first: bcftools view input.bcf > input.vcf".into());
+        return Err(
+            "BCF input is not supported. Convert to VCF first: bcftools view input.bcf > input.vcf"
+                .into(),
+        );
     }
     let reader: Box<dyn BufRead> = if vcf_file.ends_with(".gz") {
         let file = std::fs::File::open(vcf_file)?;
@@ -275,10 +302,7 @@ pub fn list_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
     Ok(Vec::new())
 }
 
-fn resolve_sample_index(
-    samples: &[String],
-    sample_name: Option<&str>,
-) -> AppResult<Option<usize>> {
+fn resolve_sample_index(samples: &[String], sample_name: Option<&str>) -> AppResult<Option<usize>> {
     if let Some(name) = sample_name {
         if samples.is_empty() {
             return Err(format!("Requested sample '{name}' but VCF has no sample columns").into());
@@ -312,7 +336,10 @@ pub fn extract_original_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
     let mut lines = Vec::new();
 
     if vcf_file.ends_with(".bcf") {
-        return Err("BCF input is not supported. Convert to VCF first: bcftools view input.bcf > input.vcf".into());
+        return Err(
+            "BCF input is not supported. Convert to VCF first: bcftools view input.bcf > input.vcf"
+                .into(),
+        );
     }
     let reader: Box<dyn BufRead> = if vcf_file.ends_with(".gz") {
         let file = std::fs::File::open(vcf_file)?;
@@ -358,7 +385,10 @@ pub fn load_vcf_positions_by_contig(
     let own_tags: HashSet<&str> = GET_MNV_INFO_TAGS.iter().copied().collect();
 
     if vcf_file.ends_with(".bcf") {
-        return Err("BCF input is not supported. Convert to VCF first: bcftools view input.bcf > input.vcf".into());
+        return Err(
+            "BCF input is not supported. Convert to VCF first: bcftools view input.bcf > input.vcf"
+                .into(),
+        );
     }
     let reader: Box<dyn BufRead> = if vcf_file.ends_with(".gz") {
         let file = std::fs::File::open(vcf_file)?;
@@ -382,14 +412,15 @@ pub fn load_vcf_positions_by_contig(
         record_idx += 1;
 
         if fields.len() < 8 {
-            return Err(format!(
-                "VCF record {} has fewer than 8 fields", record_idx
-            ).into());
+            return Err(format!("VCF record {} has fewer than 8 fields", record_idx).into());
         }
 
         let chrom = fields[0];
         let pos: usize = fields[1].parse().map_err(|_| {
-            format!("Invalid VCF position at record {}: {}", record_idx, fields[1])
+            format!(
+                "Invalid VCF position at record {}: {}",
+                record_idx, fields[1]
+            )
         })?;
         let ref_allele = fields[3];
         let alt_field = fields[4];
@@ -397,8 +428,10 @@ pub fn load_vcf_positions_by_contig(
 
         if ref_allele.is_empty() {
             return Err(format!(
-                "Invalid VCF allele at record {} (pos {}): empty REF", record_idx, pos
-            ).into());
+                "Invalid VCF allele at record {} (pos {}): empty REF",
+                record_idx, pos
+            )
+            .into());
         }
         validate_vcf_allele(ref_allele, record_idx, chrom, pos, "REF")?;
 
@@ -416,16 +449,15 @@ pub fn load_vcf_positions_by_contig(
         } else {
             Vec::new()
         };
-        let sample_field = sample_index.and_then(|idx| {
-            fields.get(9 + idx).copied()
-        });
+        let sample_field = sample_index.and_then(|idx| fields.get(9 + idx).copied());
 
         for (alt_idx, alt_allele) in alts.iter().enumerate() {
             if alt_allele.is_empty() || *alt_allele == "." {
                 return Err(format!(
                     "Invalid VCF allele at record {} (pos {}): REF='{}' ALT='{}'",
                     record_idx, pos, ref_allele, alt_allele
-                ).into());
+                )
+                .into());
             }
             let (normalized_pos, normalized_ref, normalized_alt) = if normalize_alleles {
                 normalize_ref_alt(pos, ref_allele, alt_allele)
@@ -435,9 +467,8 @@ pub fn load_vcf_positions_by_contig(
             validate_vcf_allele(&normalized_ref, record_idx, chrom, normalized_pos, "REF")?;
             validate_vcf_allele(&normalized_alt, record_idx, chrom, normalized_pos, "ALT")?;
 
-            let (original_dp, original_freq) = parse_original_metrics_from_fields(
-                info, &format_keys, sample_field, alt_idx,
-            );
+            let (original_dp, original_freq) =
+                parse_original_metrics_from_fields(info, &format_keys, sample_field, alt_idx);
             let original_info = if keep_original_info {
                 extract_original_info_from_line(info, &own_tags)
             } else {

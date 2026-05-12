@@ -45,17 +45,18 @@ pub fn load_references(fasta_file: &str) -> AppResult<ReferenceMap> {
     let mut record_idx = 0usize;
 
     for line_result in reader.lines() {
-        let line = line_result.map_err(|e| {
-            format!("Failed reading FASTA '{}': {}", fasta_file, e)
-        })?;
+        let line =
+            line_result.map_err(|e| format!("Failed reading FASTA '{}': {}", fasta_file, e))?;
         if line.starts_with('>') {
             // Flush previous record
             if let Some(id) = current_id.take() {
                 let seq_str = finalize_sequence(&mut seq_buf, &id, fasta_file)?;
                 if references.insert(id.clone(), seq_str).is_some() {
                     return Err(format!(
-                        "Duplicate FASTA contig '{}' found in '{}'", id, fasta_file
-                    ).into());
+                        "Duplicate FASTA contig '{}' found in '{}'",
+                        id, fasta_file
+                    )
+                    .into());
                 }
             }
             record_idx += 1;
@@ -66,7 +67,8 @@ pub fn load_references(fasta_file: &str) -> AppResult<ReferenceMap> {
                 return Err(format!(
                     "Invalid FASTA record {} in '{}': empty contig name",
                     record_idx, fasta_file
-                ).into());
+                )
+                .into());
             }
             current_id = Some(id);
             seq_buf.clear();
@@ -84,9 +86,9 @@ pub fn load_references(fasta_file: &str) -> AppResult<ReferenceMap> {
     if let Some(id) = current_id.take() {
         let seq_str = finalize_sequence(&mut seq_buf, &id, fasta_file)?;
         if references.insert(id.clone(), seq_str).is_some() {
-            return Err(format!(
-                "Duplicate FASTA contig '{}' found in '{}'", id, fasta_file
-            ).into());
+            return Err(
+                format!("Duplicate FASTA contig '{}' found in '{}'", id, fasta_file).into(),
+            );
         }
     }
 
@@ -103,14 +105,21 @@ fn finalize_sequence(buf: &mut Vec<u8>, contig_id: &str, fasta_file: &str) -> Ap
         return Err(format!(
             "Invalid base '{}' at position {} in FASTA contig '{}' in '{}'. \
 Allowed IUPAC DNA bases: A,C,G,T,R,Y,S,W,K,M,B,D,H,V,N",
-            buf[pos] as char, pos + 1, contig_id, fasta_file
-        ).into());
+            buf[pos] as char,
+            pos + 1,
+            contig_id,
+            fasta_file
+        )
+        .into());
     }
     // SAFETY: buf contains only ASCII uppercase IUPAC chars after validation
     Ok(unsafe { String::from_utf8_unchecked(std::mem::take(buf)) })
 }
 
-pub fn reference_for_chrom<'a>(references: &'a ReferenceMap, chrom: &str) -> AppResult<Reference<'a>> {
+pub fn reference_for_chrom<'a>(
+    references: &'a ReferenceMap,
+    chrom: &str,
+) -> AppResult<Reference<'a>> {
     let sequence = references.get(chrom).ok_or_else(|| {
         format!(
             "Reference contig '{}' is missing in FASTA. Available contigs: {}",
@@ -122,9 +131,7 @@ pub fn reference_for_chrom<'a>(references: &'a ReferenceMap, chrom: &str) -> App
             }
         )
     })?;
-    Ok(Reference {
-        sequence,
-    })
+    Ok(Reference { sequence })
 }
 
 pub fn validate_vcf_reference_alleles(
@@ -174,10 +181,7 @@ mod tests {
 
     fn write_temp_fasta(content: &str) -> String {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!(
-            "test_fasta_{}_{n}.fa",
-            std::process::id()
-        ));
+        let path = std::env::temp_dir().join(format!("test_fasta_{}_{n}.fa", std::process::id()));
         let mut f = std::fs::File::create(&path).unwrap();
         f.write_all(content.as_bytes()).unwrap();
         path.to_string_lossy().to_string()
@@ -267,8 +271,12 @@ mod tests {
         let refs = ReferenceMap::from([("c".to_string(), "ACGT".to_string())]);
         let r = reference_for_chrom(&refs, "c").unwrap();
         let snps = vec![VcfPosition {
-            position: 1, ref_allele: "A".into(), alt_allele: "T".into(),
-            original_dp: None, original_freq: None, original_info: None,
+            position: 1,
+            ref_allele: "A".into(),
+            alt_allele: "T".into(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
         }];
         assert!(validate_vcf_reference_alleles("c", &snps, &r).is_ok());
     }
@@ -278,8 +286,12 @@ mod tests {
         let refs = ReferenceMap::from([("c".to_string(), "ACGT".to_string())]);
         let r = reference_for_chrom(&refs, "c").unwrap();
         let snps = vec![VcfPosition {
-            position: 1, ref_allele: "T".into(), alt_allele: "A".into(),
-            original_dp: None, original_freq: None, original_info: None,
+            position: 1,
+            ref_allele: "T".into(),
+            alt_allele: "A".into(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
         }];
         assert!(validate_vcf_reference_alleles("c", &snps, &r).is_err());
     }
@@ -289,8 +301,12 @@ mod tests {
         let refs = ReferenceMap::from([("c".to_string(), "AC".to_string())]);
         let r = reference_for_chrom(&refs, "c").unwrap();
         let snps = vec![VcfPosition {
-            position: 2, ref_allele: "CG".into(), alt_allele: "TT".into(),
-            original_dp: None, original_freq: None, original_info: None,
+            position: 2,
+            ref_allele: "CG".into(),
+            alt_allele: "TT".into(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
         }];
         assert!(validate_vcf_reference_alleles("c", &snps, &r).is_err());
     }

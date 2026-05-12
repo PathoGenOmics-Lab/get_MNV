@@ -297,6 +297,9 @@ mod tests {
     #[test]
     fn test_display() {
         let gc = GeneticCode::new(11).unwrap();
-        assert_eq!(gc.to_string(), "Bacterial/Archaeal/Plant Plastid (NCBI table 11)");
+        assert_eq!(
+            gc.to_string(),
+            "Bacterial/Archaeal/Plant Plastid (NCBI table 11)"
+        );
     }
 }

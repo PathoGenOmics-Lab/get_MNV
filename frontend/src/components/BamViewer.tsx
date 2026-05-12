@@ -134,7 +134,7 @@ function countLabel(n: number): string {
 function supportLabel(s: BamReadView["support"]): string {
   switch (s) {
     case "mnv": return "MNV";
-    case "partial": return "Partial";
+    case "partial": return "SNP/partial";
     case "reference": return "Ref";
     case "other": return "Other";
     default: return s;
@@ -425,9 +425,6 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
       .catch((e) => { if (!cancelled) { setError(String(e)); setLoading(false); } });
 
     return () => { cancelled = true; };
-    // `view` intentionally omitted — only used for conditional loading bar,
-    // including it would cause an infinite fetch loop.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bamPath, fastaPath, minBaseQuality, minMapq, selectedId, loci]);
 
   /* ── Auto-scroll to center MNV when data loads ── */
@@ -788,8 +785,8 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                   <button type="button" className={`bam-count-card${visibleSupport.has("mnv") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("mnv")} title="Toggle MNV reads">
                     <strong>{countLabel(displayCounts.mnv)}</strong><span>MNV</span>
                   </button>
-                  <button type="button" className={`bam-count-card${visibleSupport.has("partial") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("partial")} title="Toggle Partial reads">
-                    <strong>{countLabel(displayCounts.partial)}</strong><span>Partial</span>
+                  <button type="button" className={`bam-count-card${visibleSupport.has("partial") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("partial")} title="Toggle SNP/partial reads">
+                    <strong>{countLabel(displayCounts.partial)}</strong><span>SNP/partial</span>
                   </button>
                   <button type="button" className={`bam-count-card${visibleSupport.has("reference") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("reference")} title="Toggle Reference reads">
                     <strong>{countLabel(displayCounts.reference)}</strong><span>Ref</span>

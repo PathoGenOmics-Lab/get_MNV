@@ -12,11 +12,7 @@ pub(crate) struct OutputPaths {
 
 impl OutputPaths {
     /// Resolve output paths from CLI args, base name, and optional sample suffix.
-    pub fn resolve(
-        args: &Args,
-        base_name: &str,
-        sample_suffix: Option<&str>,
-    ) -> Self {
+    pub fn resolve(args: &Args, base_name: &str, sample_suffix: Option<&str>) -> Self {
         let base_stem = super::config::append_sample_suffix(base_name, sample_suffix);
         let stem_name = match &args.output_prefix {
             Some(prefix) => prefix.clone(),

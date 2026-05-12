@@ -12,19 +12,28 @@ This folder contains helper scripts to reproduce benchmark and example-run artif
 - `reproduce_example_run.sh`
   - Runs `get_mnv` against bundled example inputs.
   - Produces TSV, VCF, compressed VCF (`.vcf.gz`), Tabix index (`.tbi`), summary JSON, and SHA-256 checksums.
+- `build_get_mnv.sh`
+  - Builds the release CLI and copies it to `dist/get_mnv`.
+- `build_gui_bundle.sh`
+  - Builds the React frontend, Tauri `.app`, and macOS `.dmg` bundle.
+  - The DMG step uses `hdiutil` directly after Tauri creates the `.app`, avoiding the generated Tauri DMG script when it is invoked without arguments on local builds.
 
 ## Usage
 
 ```bash
-chmod +x analysis/run_reproducible_benchmark.sh analysis/reproduce_example_run.sh
+chmod +x scripts/*.sh
 ```
 
 ```bash
-analysis/run_reproducible_benchmark.sh
+bash scripts/run_reproducible_benchmark.sh
 ```
 
 ```bash
-analysis/reproduce_example_run.sh
+bash scripts/reproduce_example_run.sh
+```
+
+```bash
+bash scripts/build_gui_bundle.sh
 ```
 
 Optional benchmark environment overrides:

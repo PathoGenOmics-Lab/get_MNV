@@ -7,7 +7,8 @@ use csv::WriterBuilder;
 use std::fs::File;
 
 use super::common::{
-    format_freq, get_mnv_depth_from_variant, snp_bam_vectors, validate_variant_shape,
+    allele_frequency, format_freq, get_mnv_depth_from_variant, snp_bam_vectors,
+    validate_variant_shape, SnpBamVectors,
 };
 
 fn is_intergenic(variant: &VariantInfo) -> bool {
@@ -20,6 +21,98 @@ fn is_intergenic(variant: &VariantInfo) -> bool {
 fn local_aa_or_fallback(local: &[String], protein: &[String]) -> String {
     let chosen = if local.is_empty() { protein } else { local };
     chosen.join(", ")
+}
+
+fn mnv_frequency(variant: &VariantInfo, total_reads: &[usize]) -> f64 {
+    allele_frequency(
+        variant.mnv_reads.unwrap_or(0),
+        get_mnv_depth_from_variant(variant, total_reads),
+    )
+}
+
+#[derive(Clone, Copy)]
+struct TsvFilterConfig {
+    min_snp_reads: usize,
+    min_snp_frequency: f64,
+    min_mnv_reads: usize,
+    min_mnv_frequency: f64,
+    min_snp_strand_reads: usize,
+    min_mnv_strand_reads: usize,
+}
+
+impl TsvFilterConfig {
+    fn has_active_filters(self) -> bool {
+        self.min_snp_reads > 0
+            || self.min_snp_frequency > 0.0
+            || self.min_mnv_reads > 0
+            || self.min_mnv_frequency > 0.0
+            || self.min_snp_strand_reads > 0
+            || self.min_mnv_strand_reads > 0
+    }
+
+    fn has_active_snp_filters(self) -> bool {
+        self.min_snp_reads > 0 || self.min_snp_frequency > 0.0 || self.min_snp_strand_reads > 0
+    }
+}
+
+pub struct TsvWriterConfig<'a> {
+    pub filename: &'a str,
+    pub bam_provided: bool,
+    pub min_snp_reads: usize,
+    pub min_snp_frequency: f64,
+    pub min_mnv_reads: usize,
+    pub min_mnv_frequency: f64,
+    pub min_snp_strand_reads: usize,
+    pub min_mnv_strand_reads: usize,
+}
+
+fn snp_component_passes_filters(bam_vectors: &SnpBamVectors<'_>, filters: TsvFilterConfig) -> bool {
+    bam_vectors
+        .reads
+        .iter()
+        .zip(bam_vectors.total_reads.iter())
+        .zip(bam_vectors.forward_reads.iter())
+        .zip(bam_vectors.reverse_reads.iter())
+        .all(|(((&support, &depth), &forward), &reverse)| {
+            support >= filters.min_snp_reads
+                && allele_frequency(support, depth) >= filters.min_snp_frequency
+                && forward >= filters.min_snp_strand_reads
+                && reverse >= filters.min_snp_strand_reads
+        })
+}
+
+fn mnv_component_passes_filters(
+    variant: &VariantInfo,
+    total_reads: &[usize],
+    filters: TsvFilterConfig,
+) -> bool {
+    variant.mnv_reads.unwrap_or(0) >= filters.min_mnv_reads
+        && mnv_frequency(variant, total_reads) >= filters.min_mnv_frequency
+        && variant.mnv_forward_reads.unwrap_or(0) >= filters.min_mnv_strand_reads
+        && variant.mnv_reverse_reads.unwrap_or(0) >= filters.min_mnv_strand_reads
+}
+
+fn passes_filters(variant: &VariantInfo, filters: TsvFilterConfig) -> AppResult<bool> {
+    if !filters.has_active_filters() {
+        return Ok(true);
+    }
+    if variant.variant_type == VariantType::Indel {
+        return Ok(true);
+    }
+    if is_intergenic(variant) {
+        return Ok(!filters.has_active_snp_filters());
+    }
+
+    let bam_vectors = snp_bam_vectors(variant)?;
+    let snp_passes = || snp_component_passes_filters(&bam_vectors, filters);
+    let mnv_passes = || mnv_component_passes_filters(variant, bam_vectors.total_reads, filters);
+
+    Ok(match variant.variant_type {
+        VariantType::Snp => snp_passes(),
+        VariantType::Mnv => mnv_passes(),
+        VariantType::SnpMnv => snp_passes() || mnv_passes(),
+        VariantType::Indel => true,
+    })
 }
 
 fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
@@ -69,23 +162,13 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
     let snp_freq: Vec<String> = snp_counts
         .iter()
         .zip(total_reads.iter())
-        .map(|(&s, &t)| {
-            if t > 0 {
-                format_freq(s as f64 / t as f64)
-            } else {
-                format_freq(0.0)
-            }
-        })
+        .map(|(&s, &t)| format_freq(allele_frequency(s, t)))
         .collect();
 
     let dp_mean: usize = total_reads.iter().sum::<usize>() / total_reads.len().max(1);
     let mnv_depth = get_mnv_depth_from_variant(variant, total_reads);
 
-    let mnv_freq_str = if mnv_depth > 0 {
-        format_freq(variant.mnv_reads.unwrap_or(0) as f64 / mnv_depth as f64)
-    } else {
-        format_freq(0.0)
-    };
+    let mnv_freq_str = format_freq(allele_frequency(variant.mnv_reads.unwrap_or(0), mnv_depth));
 
     let total_str = if variant.variant_type == VariantType::Snp {
         dp_mean.to_string()
@@ -229,10 +312,13 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
 pub struct TsvWriter {
     writer: csv::Writer<File>,
     bam_provided: bool,
+    filters: TsvFilterConfig,
 }
 
 impl TsvWriter {
-    pub fn new(filename: &str, bam_provided: bool) -> AppResult<Self> {
+    pub fn new(cfg: TsvWriterConfig<'_>) -> AppResult<Self> {
+        let filename = cfg.filename;
+        let bam_provided = cfg.bam_provided;
         let out_file = format!("{filename}.MNV.tsv");
         let mut writer = WriterBuilder::new().delimiter(b'\t').from_path(&out_file)?;
 
@@ -285,12 +371,23 @@ impl TsvWriter {
         Ok(Self {
             writer,
             bam_provided,
+            filters: TsvFilterConfig {
+                min_snp_reads: cfg.min_snp_reads,
+                min_snp_frequency: cfg.min_snp_frequency,
+                min_mnv_reads: cfg.min_mnv_reads,
+                min_mnv_frequency: cfg.min_mnv_frequency,
+                min_snp_strand_reads: cfg.min_snp_strand_reads,
+                min_mnv_strand_reads: cfg.min_mnv_strand_reads,
+            },
         })
     }
 
     pub fn write_variants(&mut self, variants: &[VariantInfo]) -> AppResult<()> {
         for variant in variants {
             if self.bam_provided {
+                if !passes_filters(variant, self.filters)? {
+                    continue;
+                }
                 let row = build_tsv_row_with_reads(variant)?;
                 self.writer.write_record(&row)?;
             } else {
@@ -305,8 +402,26 @@ impl TsvWriter {
 
 #[cfg(test)]
 mod tests {
-    use super::build_tsv_row_with_reads;
+    use super::{build_tsv_row_with_reads, passes_filters, TsvFilterConfig};
     use crate::variants::{ChangeType, VariantInfo, VariantType};
+
+    fn filters(
+        min_snp_reads: usize,
+        min_snp_frequency: f64,
+        min_mnv_reads: usize,
+        min_mnv_frequency: f64,
+        min_snp_strand_reads: usize,
+        min_mnv_strand_reads: usize,
+    ) -> TsvFilterConfig {
+        TsvFilterConfig {
+            min_snp_reads,
+            min_snp_frequency,
+            min_mnv_reads,
+            min_mnv_frequency,
+            min_snp_strand_reads,
+            min_mnv_strand_reads,
+        }
+    }
 
     fn variant_with_reads() -> VariantInfo {
         VariantInfo {
@@ -362,6 +477,57 @@ mod tests {
         assert_eq!(row[5], "Phe228Ile", "AA Changes should be protein-wide");
         assert_eq!(row[6], "Phe228Ile", "SNP AA Changes should be protein-wide");
         assert_eq!(row[7], "Val26His", "Local AA Changes should be exon-local");
-        assert_eq!(row[8], "Val26His", "Local SNP AA Changes should be exon-local");
+        assert_eq!(
+            row[8], "Val26His",
+            "Local SNP AA Changes should be exon-local"
+        );
+    }
+
+    #[test]
+    fn test_tsv_frequency_filters_use_bam_derived_values() {
+        let variant = variant_with_reads();
+
+        assert!(passes_filters(&variant, filters(0, 0.09, 0, 0.20, 0, 0)).unwrap());
+        assert!(passes_filters(&variant, filters(0, 0.20, 0, 0.20, 0, 0)).unwrap());
+        assert!(!passes_filters(&variant, filters(0, 0.20, 0, 0.30, 0, 0)).unwrap());
+    }
+
+    #[test]
+    fn test_tsv_frequency_filters_keep_snp_mnv_when_mnv_component_passes() {
+        let variant = variant_with_reads();
+
+        assert!(
+            passes_filters(&variant, filters(0, 0.20, 0, 0.20, 0, 0)).unwrap(),
+            "a strong MNV haplotype should keep a mixed SNP/MNV row even when SNP frequencies fail"
+        );
+        assert!(
+            passes_filters(&variant, filters(0, 0.20, 0, 0.0, 0, 0)).unwrap(),
+            "an SNP-only frequency filter should not remove the MNV component of a mixed row"
+        );
+        assert!(
+            passes_filters(&variant, filters(0, 0.09, 0, 0.30, 0, 0)).unwrap(),
+            "a passing SNP component should keep a mixed row even when the MNV frequency fails"
+        );
+        assert!(
+            !passes_filters(&variant, filters(0, 0.20, 0, 0.30, 0, 0)).unwrap(),
+            "a mixed row should be removed only when every relevant component fails its own active filter"
+        );
+    }
+
+    #[test]
+    fn test_tsv_strand_filters_keep_snp_mnv_when_mnv_component_passes() {
+        let mut variant = variant_with_reads();
+        variant.mnv_reads = Some(4);
+        variant.mnv_forward_reads = Some(2);
+        variant.mnv_reverse_reads = Some(2);
+
+        assert!(
+            passes_filters(&variant, filters(0, 0.0, 0, 0.0, 1, 2)).unwrap(),
+            "a mixed SNP/MNV row should be kept when the MNV strand support passes"
+        );
+        assert!(
+            !passes_filters(&variant, filters(0, 0.0, 0, 0.0, 1, 3)).unwrap(),
+            "a mixed SNP/MNV row should be removed when neither SNP nor MNV strand support passes"
+        );
     }
 }

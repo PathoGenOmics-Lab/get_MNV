@@ -1,6 +1,16 @@
 /target/
+/dist/
+.DS_Store
 G35894.var.snp.MNV.tsv
 *.MNV.tsv
+*.MNV.vcf
+*.MNV.vcf.gz
+*.MNV.vcf.gz.tbi
+*.MNV.bcf
+*.summary.json
+*.manifest.json
+*.error.json
 src-tauri/gen/
 minimal_example.tar.gz
 minimal_example/
+/test_pancreas/

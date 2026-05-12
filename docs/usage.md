@@ -1,80 +1,51 @@
 # Usage
 
-## Basic command
+This page shows the most common commands and what the main arguments mean.
+
+## Basic Command
 
 ```bash
-get_mnv --vcf <VCF_FILE> --fasta <FASTA_FILE> (--genes <GENES_FILE> | --gff <GFF_FILE>)
+get_mnv \
+  --vcf <VARIANT_FILE> \
+  --fasta <REFERENCE_FASTA> \
+  (--gff <ANNOTATION_GFF> | --genes <ANNOTATION_TSV>)
 ```
 
-## Required arguments
+Despite the name, `--vcf` can point to either a VCF file or an iVar
+`variants.tsv` file. Use `--input-format ivar` when you want to be explicit.
 
-| Argument | Description |
-|----------|-------------|
-| `-v, --vcf <VCF_FILE>` | VCF file containing the SNVs |
-| `-f, --fasta <FASTA_FILE>` | FASTA file with the reference sequence |
-| `-g, --genes <GENES_FILE>` | Gene annotation file in TSV format (if `--gff` is not used) |
-| `--gff <GFF_FILE>` | Gene annotation file in GFF/GFF3 format (if `--genes` is not used) |
+## Common Recipes
 
-## Optional arguments
-
-### Input options
-
-| Argument | Description |
-|----------|-------------|
-| `-b, --bam <BAM_FILE>` | BAM file with aligned reads |
-| `--sample <SAMPLE>` | Sample name for FORMAT metrics (default: first sample). Use `all` to process every sample |
-| `--chrom <CHROM>` | Comma-separated contig selection (default: all contigs in VCF) |
-| `--gff-features <FEATURES>` | Comma-separated GFF feature types (default: `gene,pseudogene`) |
-| `--translation-table <N>` | NCBI genetic code table for codon translation (default: 11). Supported: 1, 2, 3, 4, 5, 6, 11, 12, 25 |
-
-### Quality filters
-
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `-q, --quality <QUALITY>` | 20 | Minimum Phred quality score |
-| `--mapq <MAPQ>` | 0 | Minimum mapping quality (MAPQ) |
-| `--snp <N>` | 0 | Minimum supporting reads for SNP |
-| `--mnv <N>` | 0 | Minimum supporting reads for MNV |
-| `--min-snp-strand <N>` | 0 | Minimum per-strand reads for SNP |
-| `--min-mnv-strand <N>` | 0 | Minimum per-strand reads for MNV |
-| `--min-strand-bias-p <P>` | 0 | Fisher exact strand-bias p-value threshold |
-| `--strict` | off | Fail if original metrics (ODP/OFREQ) are missing |
-
-### Output options
-
-| Argument | Description |
-|----------|-------------|
-| `--convert` | Output VCF instead of TSV |
-| `--both` | Output both TSV and VCF |
-| `--vcf-gz` | Write BGZF-compressed `.MNV.vcf.gz` |
-| `--index-vcf-gz` | Build Tabix index for `.vcf.gz` |
-| `--bcf` | Also write BCF output |
-| `--emit-filtered` | Keep filtered variants with FILTER tags instead of skipping |
-| `--strand-bias-info` | Add strand-bias p-values to VCF INFO |
-| `--keep-original-info` | Preserve original VCF INFO fields in output |
-| `--exclude-intergenic` | Exclude variants outside annotated genes |
-| `--summary-json <FILE>` | Write structured run summary (JSON) |
-| `--error-json <FILE>` | Write structured error details (JSON) |
-| `--run-manifest <FILE>` | Write reproducibility manifest with checksums |
-
-### Performance
-
-| Argument | Description |
-|----------|-------------|
-| `--threads <N>` | Number of worker threads (default: Rayon auto) |
-| `--dry-run` | Validate inputs without writing output files |
-| `--normalize-alleles` | Normalize REF/ALT alleles before processing |
-| `--split-multiallelic` | Split multiallelic VCF records into individual ALT alleles |
-
-## Examples
-
-### Basic MNV detection
+### VCF Input
 
 ```bash
-get_mnv --vcf variants.vcf --fasta reference.fasta --gff genes.gff3
+get_mnv \
+  --vcf variants.vcf \
+  --fasta reference.fasta \
+  --gff genes.gff3
 ```
 
-### With BAM reads and quality filters
+### iVar TSV Input
+
+```bash
+get_mnv \
+  --vcf sample_variants.tsv \
+  --input-format ivar \
+  --fasta reference.fasta \
+  --gff genes.gff3
+```
+
+### Add BAM Read Support
+
+```bash
+get_mnv \
+  --vcf variants.vcf \
+  --bam reads.bam \
+  --fasta reference.fasta \
+  --gff genes.gff3
+```
+
+### Write Both TSV and VCF
 
 ```bash
 get_mnv \
@@ -82,33 +53,100 @@ get_mnv \
   --bam reads.bam \
   --fasta reference.fasta \
   --gff genes.gff3 \
-  --quality 30 \
-  --mapq 20
+  --both
 ```
 
-### VCF output with strand-bias filtering
+### Analyze CDS Features in a GFF
 
 ```bash
 get_mnv \
   --vcf variants.vcf \
-  --bam reads.bam \
   --fasta reference.fasta \
   --gff genes.gff3 \
-  --both \
-  --vcf-gz \
-  --index-vcf-gz \
-  --emit-filtered \
-  --strand-bias-info \
-  --min-strand-bias-p 0.05
+  --gff-features CDS
 ```
 
-### Multi-sample processing
+Use `--gff-features CDS` when you want codon-aware protein annotation from CDS
+features, especially for eukaryotic GFF/GTF files.
 
-```bash
-get_mnv \
-  --vcf multisample.vcf \
-  --fasta reference.fasta \
-  --gff genes.gff3 \
-  --sample all \
-  --threads 8
-```
+## Required Arguments
+
+| Argument | Meaning |
+|---|---|
+| `--vcf <FILE>` | Variant calls. VCF and iVar TSV are supported. |
+| `--fasta <FILE>` | Reference FASTA used to call the variants. |
+| `--gff <FILE>` | Gene annotation in GFF/GFF3/GTF format. |
+| `--genes <FILE>` | Simple gene annotation TSV. Use this instead of `--gff`. |
+
+You must provide either `--gff` or `--genes`.
+
+## Input Arguments
+
+| Argument | Default | Meaning |
+|---|---:|---|
+| `--input-format auto|vcf|ivar` | `auto` | Selects how to parse the variant file. |
+| `--bam <FILE>` | none | Sorted and indexed BAM used to count read support. |
+| `--sample <NAME>` | first sample | Sample to read from a multi-sample VCF. Use `all` for every sample. |
+| `--chrom <NAME>` | all contigs | Restrict the run to one contig. |
+| `--gff-features <LIST>` | `gene,pseudogene` | Feature types to analyze from GFF/GTF. |
+| `--translation-table <N>` | `11` | NCBI genetic code table. Supported: `1,2,3,4,5,6,11,12,25`. |
+
+## Filter Arguments
+
+| Argument | Default | Meaning |
+|---|---:|---|
+| `--quality <N>` | `20` | Minimum variant quality. |
+| `--min-mapq <N>` | `0` | Minimum mapping quality for BAM reads. |
+| `--snp <N>` | `0` | Minimum SNP-supporting reads. |
+| `--mnv <N>` | `0` | Minimum MNV-supporting reads. |
+| `--min-snp-frequency <F>` | `0` | Minimum BAM-derived SNP allele frequency (`0` to `1`). |
+| `--min-mnv-frequency <F>` | `0` | Minimum BAM-derived MNV haplotype frequency (`0` to `1`). |
+| `--min-snp-strand <N>` | `0` | Minimum SNP reads on each strand. |
+| `--min-mnv-strand <N>` | `0` | Minimum MNV reads on each strand. |
+| `--min-strand-bias-p <P>` | `0` | Minimum Fisher exact p-value for strand-bias filtering. |
+| `--strict` | off | Fail when original depth/frequency metrics are missing. |
+
+Frequency filters require `--bam` because they use read support recalculated by
+get_MNV. They do not filter on the original input `OFREQ` value. For example,
+`--min-snp-frequency 0.05` keeps SNP records at 5% or higher, and
+`--min-mnv-frequency 0.20` keeps MNV haplotypes at 20% or higher.
+These two thresholds are independent: in mixed `SNP/MNV` calls, the SNP
+threshold does not remove a strong MNV haplotype, and the MNV threshold does not
+remove SNP observations that pass the SNP threshold.
+Read-count and strand-support filters follow the same rule: `--snp` and
+`--min-snp-strand` apply to SNP observations, while `--mnv` and
+`--min-mnv-strand` apply to MNV haplotypes.
+
+## Output Arguments
+
+| Argument | Meaning |
+|---|---|
+| `--convert` | Write VCF instead of TSV. |
+| `--both` | Write both TSV and VCF. |
+| `--vcf-gz` | Write compressed `.MNV.vcf.gz` output. |
+| `--index-vcf-gz` | Create a Tabix index for `.MNV.vcf.gz`. |
+| `--bcf` | Also write BCF output. Requires VCF output. |
+| `--emit-filtered` | In VCF output, keep records that fail filters and mark them in `FILTER`. TSV output still omits failed rows. |
+| `--strand-bias-info` | Add strand-bias p-values to VCF INFO fields. |
+| `--keep-original-info` | Preserve non-get_MNV INFO fields from the input VCF. Requires VCF output. |
+| `--exclude-intergenic` | Skip variants outside annotated features. |
+| `--summary-json <FILE>` | Write a JSON run summary. |
+| `--error-json <FILE>` | Write JSON error details if the run fails. |
+| `--run-manifest <FILE>` | Write command, version, inputs, outputs, and checksums. |
+
+## Utility Arguments
+
+| Argument | Meaning |
+|---|---|
+| `--dry-run` | Validate inputs without writing output files. |
+| `--threads <N>` | Number of worker threads. Default: automatic. |
+| `--normalize-alleles` | Trim shared REF/ALT context before processing. |
+| `--split-multiallelic` | Split multiallelic VCF records inside get_MNV. |
+
+## Notes
+
+- Contig names must match exactly across the variant file, FASTA, GFF, and BAM.
+- iVar TSV parsing keeps passing SNV rows and skips iVar indel notation such as
+  `+A` or `-N`.
+- If you use `--genes`, the annotation TSV has no contig column. For
+  multi-contig data, prefer `--gff`.

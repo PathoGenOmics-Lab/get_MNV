@@ -247,7 +247,6 @@ pub struct VariantInfo {
     pub original_info: Option<String>,
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -288,7 +287,11 @@ mod tests {
         ];
         for ct in &types {
             let label = ct.to_string();
-            assert_eq!(ChangeType::from_label(&label), *ct, "roundtrip failed for {label}");
+            assert_eq!(
+                ChangeType::from_label(&label),
+                *ct,
+                "roundtrip failed for {label}"
+            );
         }
     }
 
@@ -299,13 +302,31 @@ mod tests {
 
     #[test]
     fn test_with_frameshift() {
-        assert_eq!(ChangeType::Synonymous.with_frameshift(), ChangeType::FrameshiftSynonymous);
-        assert_eq!(ChangeType::NonSynonymous.with_frameshift(), ChangeType::FrameshiftNonSynonymous);
-        assert_eq!(ChangeType::StopGained.with_frameshift(), ChangeType::FrameshiftStopGained);
-        assert_eq!(ChangeType::StopLost.with_frameshift(), ChangeType::FrameshiftStopLost);
-        assert_eq!(ChangeType::Unknown.with_frameshift(), ChangeType::FrameshiftUnknown);
+        assert_eq!(
+            ChangeType::Synonymous.with_frameshift(),
+            ChangeType::FrameshiftSynonymous
+        );
+        assert_eq!(
+            ChangeType::NonSynonymous.with_frameshift(),
+            ChangeType::FrameshiftNonSynonymous
+        );
+        assert_eq!(
+            ChangeType::StopGained.with_frameshift(),
+            ChangeType::FrameshiftStopGained
+        );
+        assert_eq!(
+            ChangeType::StopLost.with_frameshift(),
+            ChangeType::FrameshiftStopLost
+        );
+        assert_eq!(
+            ChangeType::Unknown.with_frameshift(),
+            ChangeType::FrameshiftUnknown
+        );
         // Frameshift of frameshift returns same
-        assert_eq!(ChangeType::FrameshiftSynonymous.with_frameshift(), ChangeType::FrameshiftSynonymous);
+        assert_eq!(
+            ChangeType::FrameshiftSynonymous.with_frameshift(),
+            ChangeType::FrameshiftSynonymous
+        );
     }
 
     // ---- Strand ----

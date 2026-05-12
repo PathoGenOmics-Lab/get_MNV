@@ -2,6 +2,7 @@
 
 export interface AnalysisConfig {
   vcfFile: string;
+  inputFormat: "auto" | "vcf" | "ivar";
   bamFile?: string;
   fastaFile: string;
   genesFile: string;
@@ -12,7 +13,9 @@ export interface AnalysisConfig {
   minMapq: number;
   threads?: number;
   minSnpReads: number;
+  minSnpFrequency: number;
   minMnvReads: number;
+  minMnvFrequency: number;
   minSnpStrandReads: number;
   minMnvStrandReads: number;
   minStrandBiasP: number;
@@ -170,13 +173,16 @@ export type ChangeType =
 
 export const DEFAULT_CONFIG: AnalysisConfig = {
   vcfFile: "",
+  inputFormat: "auto",
   fastaFile: "",
   genesFile: "",
   gffFeatures: ["gene", "pseudogene"],
   minQuality: 20,
   minMapq: 20,
   minSnpReads: 2,
+  minSnpFrequency: 0,
   minMnvReads: 2,
+  minMnvFrequency: 0,
   minSnpStrandReads: 0,
   minMnvStrandReads: 0,
   minStrandBiasP: 0,

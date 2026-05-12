@@ -63,11 +63,13 @@ struct ReadKey {
 }
 
 fn build_read_key(rec: &bam::Record) -> ReadKey {
-    let qname = rec.name()
+    let qname = rec
+        .name()
         .map(|n| <_ as AsRef<[u8]>>::as_ref(&n).to_vec())
         .unwrap_or_default();
     let flags = rec.flags();
-    let start_pos = rec.alignment_start()
+    let start_pos = rec
+        .alignment_start()
         .and_then(|p| p.ok())
         .map(|p| {
             let pos: usize = p.into();
@@ -85,9 +87,13 @@ fn build_read_key(rec: &bam::Record) -> ReadKey {
 fn get_query_pos(rec: &bam::Record, pos: usize) -> Option<usize> {
     // pos is 1-based
     let target_pos = (pos - 1) as i64; // 0-based reference position
-    let rec_start: i64 = rec.alignment_start()
+    let rec_start: i64 = rec
+        .alignment_start()
         .and_then(|p| p.ok())
-        .map(|p| { let v: usize = p.into(); v as i64 - 1 })
+        .map(|p| {
+            let v: usize = p.into();
+            v as i64 - 1
+        })
         .unwrap_or(0);
     let mut ref_pos = rec_start;
     let mut query_pos = 0usize;
@@ -192,22 +198,26 @@ pub fn build_region_observation_cache(
 
     // Build region query string: chrom:start-end (1-based, inclusive)
     let region_str = format!("{chrom}:{region_start}-{region_end}");
-    let region: noodles::core::Region = region_str.parse()
+    let region: noodles::core::Region = region_str
+        .parse()
         .map_err(|e| AppError::validation(format!("Invalid region '{region_str}': {e}")))?;
 
-    let mut query = bam_reader.query(header, &region)
+    let mut query = bam_reader
+        .query(header, &region)
         .map_err(|e| AppError::validation(format!("BAM query failed for {region_str}: {e}")))?;
 
     let mut record = bam::Record::default();
-    while query.read_record(&mut record).map_err(|e| AppError::validation(format!("BAM read error: {e}")))? != 0 {
+    while query
+        .read_record(&mut record)
+        .map_err(|e| AppError::validation(format!("BAM read error: {e}")))?
+        != 0
+    {
         let flags = record.flags();
-        if flags.is_duplicate()
-            || flags.is_secondary()
-            || flags.is_supplementary()
-        {
+        if flags.is_duplicate() || flags.is_secondary() || flags.is_supplementary() {
             continue;
         }
-        let mapq = record.mapping_quality()
+        let mapq = record
+            .mapping_quality()
             .map(|q: noodles::sam::alignment::record::MappingQuality| q.get())
             .unwrap_or(255);
         if mapq < min_mapq {
@@ -476,7 +486,9 @@ pub fn count_reads_per_position(
         .max()
         .ok_or_else(|| AppError::validation("No positions provided for read counting"))?;
 
-    let cache = build_region_observation_cache(bam_reader, header, chrom, min_pos, max_pos, positions, min_mapq)?;
+    let cache = build_region_observation_cache(
+        bam_reader, header, chrom, min_pos, max_pos, positions, min_mapq,
+    )?;
     count_reads_from_cache(&cache, positions, alt_bases, min_phred_quality)
 }
 

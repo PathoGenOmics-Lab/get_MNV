@@ -5,6 +5,7 @@ import { useState } from "react";
 function FileIcon({ type }: { type: string }) {
   const colors: Record<string, string> = {
     VCF: "#E52421",        /* Red — variants / mutations */
+    Variants: "#E52421",   /* Red — variants / mutations */
     FASTA: "#3460AA",      /* Blue — reference sequence */
     Annotation: "#66B32E", /* Green — genes */
     BAM: "#EF781A",        /* Orange — alignments */
