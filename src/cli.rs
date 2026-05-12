@@ -7,7 +7,9 @@ use clap::{Parser, ValueEnum};
 pub enum VariantInputFormat {
     Auto,
     Vcf,
-    Ivar,
+    #[value(name = "tsv", alias = "ivar")]
+    #[serde(rename = "tsv", alias = "ivar")]
+    Tsv,
 }
 
 #[derive(Debug, Clone, Parser)]
@@ -18,11 +20,11 @@ pub enum VariantInputFormat {
     about = "Identifies SNPs within codons, reclassifies multi-nucleotide variants (MNVs), calculates amino acid changes, and outputs results in TSV/VCF format."
 )]
 pub struct Args {
-    /// Variant input file containing SNPs (VCF or iVar TSV)
+    /// Variant input file containing SNPs (VCF or TSV)
     #[arg(short = 'v', long = "vcf", value_name = "VARIANT_FILE")]
     pub vcf_file: String,
 
-    /// Variant input format (auto-detect, VCF, or iVar TSV)
+    /// Variant input format (auto-detect, VCF, or TSV)
     #[arg(long = "input-format", value_enum, default_value_t = VariantInputFormat::Auto)]
     pub input_format: VariantInputFormat,
 
@@ -314,11 +316,28 @@ mod tests {
     }
 
     #[test]
-    fn test_input_format_ivar() {
+    fn test_input_format_tsv() {
         let args = Args::try_parse_from([
             "get_mnv",
             "--vcf",
-            "ivar.tsv",
+            "variants.tsv",
+            "--input-format",
+            "tsv",
+            "--fasta",
+            "ref.fa",
+            "--genes",
+            "genes.txt",
+        ])
+        .unwrap();
+        assert_eq!(args.input_format, VariantInputFormat::Tsv);
+    }
+
+    #[test]
+    fn test_input_format_ivar_alias() {
+        let args = Args::try_parse_from([
+            "get_mnv",
+            "--vcf",
+            "variants.tsv",
             "--input-format",
             "ivar",
             "--fasta",
@@ -327,7 +346,7 @@ mod tests {
             "genes.txt",
         ])
         .unwrap();
-        assert_eq!(args.input_format, VariantInputFormat::Ivar);
+        assert_eq!(args.input_format, VariantInputFormat::Tsv);
     }
 
     #[test]

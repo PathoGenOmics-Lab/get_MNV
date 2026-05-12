@@ -21,7 +21,7 @@ Use one of:
 ```bash
 --input-format auto   # default
 --input-format vcf
---input-format ivar
+--input-format tsv
 ```
 
 ### VCF

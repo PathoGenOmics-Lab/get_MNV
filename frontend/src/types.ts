@@ -2,7 +2,7 @@
 
 export interface AnalysisConfig {
   vcfFile: string;
-  inputFormat: "auto" | "vcf" | "ivar";
+  inputFormat: "auto" | "vcf" | "tsv";
   bamFile?: string;
   fastaFile: string;
   genesFile: string;

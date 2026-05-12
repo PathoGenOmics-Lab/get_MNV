@@ -35,7 +35,7 @@ Fix:
 
 Fix:
 
-- Use `--input-format ivar`.
+- Use `--input-format tsv`.
 - Check that the TSV header contains at least `REGION`, `POS`, `REF`, and
   `ALT`.
 - If the file is actually a gene annotation TSV, pass it with `--genes`, not

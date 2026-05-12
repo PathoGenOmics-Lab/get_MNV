@@ -68,7 +68,7 @@ async function classifyDroppedFile(path: string): Promise<keyof AnalysisConfig |
   if (/\.(tsv|txt|csv)$/i.test(lower)) {
     try {
       const detected = await invoke<string>("detect_variant_input_format", { path });
-      if (detected === "ivar" || detected === "vcf") return "vcfFile";
+      if (detected === "tsv" || detected === "vcf") return "vcfFile";
     } catch {
       // Fall back to extension-based classification below.
     }

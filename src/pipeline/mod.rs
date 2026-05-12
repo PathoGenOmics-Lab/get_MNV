@@ -291,9 +291,9 @@ pub fn run_with_progress(
     configure_threads(args.threads)?;
 
     let input_format = resolve_variant_input_format(args)?;
-    if input_format == VariantInputFormat::Ivar && args.sample.is_some() {
+    if input_format == VariantInputFormat::Tsv && args.sample.is_some() {
         return Err(AppError::config(
-            "--sample is only supported for VCF input; iVar TSV input is treated as a single sample",
+            "--sample is only supported for VCF input; TSV input is treated as a single sample",
         ));
     }
 

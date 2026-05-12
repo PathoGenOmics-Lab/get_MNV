@@ -106,13 +106,13 @@ get_mnv \
 ```bash
 get_mnv \
   --vcf sample_variants.tsv \
-  --input-format ivar \
+  --input-format tsv \
   --bam reads.bam \
   --fasta reference.fasta \
   --gff genes.gff3
 ```
 
-`--input-format ivar` is optional when the iVar header can be auto-detected, but adding it makes the command explicit.
+`--input-format tsv` is optional when the iVar header can be auto-detected, but adding it makes the command explicit.
 
 ### With BAM read support
 
@@ -144,7 +144,7 @@ Run `get_mnv --help` for the full list of options.
 | Argument | What it does |
 |---|---|
 | `--vcf <FILE>` | Variant input file. It can be VCF or iVar TSV. |
-| `--input-format auto|vcf|ivar` | Selects the variant parser. Default: `auto`. |
+| `--input-format auto|vcf|tsv` | Selects the variant parser. Default: `auto`. |
 | `--bam <FILE>` | Optional sorted and indexed BAM for read support. |
 | `--fasta <FILE>` | Reference FASTA. Contig names must match the variant file. |
 | `--gff <FILE>` | Gene annotation in GFF/GFF3/GTF format. |

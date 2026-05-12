@@ -12,7 +12,7 @@ get_mnv \
 ```
 
 Despite the name, `--vcf` can point to either a VCF file or an iVar
-`variants.tsv` file. Use `--input-format ivar` when you want to be explicit.
+`variants.tsv` file. Use `--input-format tsv` when you want to be explicit.
 
 ## Common Recipes
 
@@ -30,7 +30,7 @@ get_mnv \
 ```bash
 get_mnv \
   --vcf sample_variants.tsv \
-  --input-format ivar \
+  --input-format tsv \
   --fasta reference.fasta \
   --gff genes.gff3
 ```
@@ -84,7 +84,7 @@ You must provide either `--gff` or `--genes`.
 
 | Argument | Default | Meaning |
 |---|---:|---|
-| `--input-format auto|vcf|ivar` | `auto` | Selects how to parse the variant file. |
+| `--input-format auto|vcf|tsv` | `auto` | Selects how to parse the variant file. |
 | `--bam <FILE>` | none | Sorted and indexed BAM used to count read support. |
 | `--sample <NAME>` | first sample | Sample to read from a multi-sample VCF. Use `all` for every sample. |
 | `--chrom <NAME>` | all contigs | Restrict the run to one contig. |

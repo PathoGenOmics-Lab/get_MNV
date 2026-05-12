@@ -218,7 +218,7 @@ pub fn detect_variant_input_format(path: String) -> Result<String, String> {
     }
 
     match get_mnv::io::ivar::looks_like_ivar_tsv(&path) {
-        Ok(true) => Ok("ivar".to_string()),
+        Ok(true) => Ok("tsv".to_string()),
         Ok(false) => Ok("unknown".to_string()),
         Err(e) => Err(e.to_string()),
     }
@@ -1007,9 +1007,37 @@ mod tests {
     }
 
     #[test]
+    fn test_gui_config_deserializes_tsv_input_format_and_ivar_alias() {
+        let tsv_value = serde_json::json!({
+            "vcfFile": "/tmp/sample_variants.tsv",
+            "inputFormat": "tsv",
+            "fastaFile": "/tmp/ref.fasta",
+            "genesFile": "/tmp/ref.gff"
+        });
+        let alias_value = serde_json::json!({
+            "vcfFile": "/tmp/sample_variants.tsv",
+            "inputFormat": "ivar",
+            "fastaFile": "/tmp/ref.fasta",
+            "genesFile": "/tmp/ref.gff"
+        });
+
+        let tsv_config: AnalysisConfig = serde_json::from_value(tsv_value).unwrap();
+        let alias_config: AnalysisConfig = serde_json::from_value(alias_value).unwrap();
+
+        assert_eq!(
+            tsv_config.input_format,
+            Some(get_mnv::cli::VariantInputFormat::Tsv)
+        );
+        assert_eq!(
+            alias_config.input_format,
+            Some(get_mnv::cli::VariantInputFormat::Tsv)
+        );
+    }
+
+    #[test]
     fn test_gui_config_forwards_variant_filters() {
         let mut config = minimal_config("/tmp/sample_variants.tsv");
-        config.input_format = Some(get_mnv::cli::VariantInputFormat::Ivar);
+        config.input_format = Some(get_mnv::cli::VariantInputFormat::Tsv);
         config.min_mapq = Some(20);
         config.min_snp_reads = Some(2);
         config.min_mnv_reads = Some(3);
@@ -1023,7 +1051,7 @@ mod tests {
 
         let args = config.into_args();
 
-        assert_eq!(args.input_format, get_mnv::cli::VariantInputFormat::Ivar);
+        assert_eq!(args.input_format, get_mnv::cli::VariantInputFormat::Tsv);
         assert_eq!(args.min_mapq, 20);
         assert_eq!(args.min_snp_reads, 2);
         assert_eq!(args.min_mnv_reads, 3);
@@ -1060,7 +1088,7 @@ mod tests {
 
         assert_eq!(
             detect_variant_input_format(path.to_string_lossy().into_owned()).unwrap(),
-            "ivar"
+            "tsv"
         );
         let _ = std::fs::remove_file(path);
     }

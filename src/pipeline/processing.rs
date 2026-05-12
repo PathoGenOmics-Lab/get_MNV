@@ -74,14 +74,14 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
     let references =
         io::load_references(&args.fasta_file).map_err(reclassify_generic_as_validation)?;
     let input_format = resolve_variant_input_format(args)?;
-    if input_format == VariantInputFormat::Ivar && sample_override.is_some() {
+    if input_format == VariantInputFormat::Tsv && sample_override.is_some() {
         return Err(AppError::config(
-            "--sample is only supported for VCF input; iVar TSV input is treated as a single sample",
+            "--sample is only supported for VCF input; TSV input is treated as a single sample",
         ));
     }
 
     let snp_by_contig = match input_format {
-        VariantInputFormat::Ivar => {
+        VariantInputFormat::Tsv => {
             io::ivar::load_ivar_tsv(&args.vcf_file).map_err(reclassify_generic_as_validation)?
         }
         VariantInputFormat::Vcf | VariantInputFormat::Auto => {
@@ -152,7 +152,7 @@ pub(crate) fn resolve_variant_input_format(args: &Args) -> AppResult<VariantInpu
             if io::ivar::looks_like_ivar_tsv(&args.vcf_file)
                 .map_err(reclassify_generic_as_validation)?
             {
-                Ok(VariantInputFormat::Ivar)
+                Ok(VariantInputFormat::Tsv)
             } else {
                 Ok(VariantInputFormat::Vcf)
             }
