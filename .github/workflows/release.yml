@@ -7,6 +7,7 @@ on:
   push:
     tags:
       - "v*"
+      - "[0-9]*"
   workflow_dispatch:
 
 jobs:
@@ -17,15 +18,19 @@ jobs:
         include:
           - platform: macos-15
             rust_target: aarch64-apple-darwin
+            asset_suffix: macos-aarch64
             args: "--target aarch64-apple-darwin"
           - platform: macos-15
             rust_target: x86_64-apple-darwin
+            asset_suffix: macos-x86_64
             args: "--target x86_64-apple-darwin"
           - platform: ubuntu-22.04
             rust_target: x86_64-unknown-linux-gnu
+            asset_suffix: linux-x86_64
             args: "--target x86_64-unknown-linux-gnu"
           - platform: windows-latest
             rust_target: x86_64-pc-windows-msvc
+            asset_suffix: windows-x86_64
             args: "--target x86_64-pc-windows-msvc"
 
     runs-on: ${{ matrix.platform }}
@@ -96,6 +101,30 @@ jobs:
           }
           $json | ConvertTo-Json -Depth 100 | Set-Content -Encoding utf8 $confPath
 
+      - name: Build CLI binary
+        run: cargo build --release --locked --target ${{ matrix.rust_target }} --bin get_mnv
+
+      - name: Package CLI binary (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_dir="dist/get_MNV_${{ github.ref_name }}_${{ matrix.asset_suffix }}_cli"
+          mkdir -p "$package_dir"
+          cp "target/${{ matrix.rust_target }}/release/get_mnv" "$package_dir/get_mnv"
+          cp README.md CHANGELOG.md LICENSE "$package_dir/"
+          tar -C dist -czf "${package_dir}.tar.gz" "$(basename "$package_dir")"
+
+      - name: Package CLI binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $packageDir = "dist/get_MNV_${{ github.ref_name }}_${{ matrix.asset_suffix }}_cli"
+          New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+          Copy-Item "target/${{ matrix.rust_target }}/release/get_mnv.exe" "$packageDir/get_mnv.exe"
+          Copy-Item README.md, CHANGELOG.md, LICENSE -Destination $packageDir
+          Compress-Archive -Path $packageDir -DestinationPath "$packageDir.zip" -Force
+
       - name: Install and build frontend
         run: |
           cd frontend
@@ -103,6 +132,7 @@ jobs:
           npm run build
 
       - name: Build and Upload to Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -111,7 +141,24 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "get_MNV ${{ github.ref_name }}"
-          releaseBody: "See [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details."
+          releaseBody: |
+            get_MNV ${{ github.ref_name }} adds explicit iVar variants TSV input through `--tsv`, keeps VCF input through `--vcf`, and updates the desktop GUI to handle both input types.
+
+            Sebastian Velandia-Álvarez and Mireya Martínez-Pérez proposed iVar input support for get_MNV.
+
+            See [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for the full list of changes.
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           args: ${{ matrix.args }}
+
+      - name: Upload CLI binary to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "get_MNV ${{ github.ref_name }}"
+          draft: true
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          files: |
+            dist/*_cli.tar.gz
+            dist/*_cli.zip

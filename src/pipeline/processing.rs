@@ -8,6 +8,7 @@ use super::config::{
 // build_input_metadata used by mod.rs, not here
 use super::summary::{summarize_contig_variants, ContigSummary};
 use crate::cli::Args;
+use crate::cli::VariantInputFormat;
 use crate::error::ErrorCode;
 use crate::error::{AppError, AppResult};
 use crate::io::{self, AnnotationFormat, ReferenceMap, VcfPosition};
@@ -16,9 +17,9 @@ use crate::read_count::{self, ReadCountSummary, RegionObservationCache};
 use crate::variants::{self, Gene, VariantInfo, VariantType};
 use log::info;
 use lru::LruCache;
-use rayon::prelude::*;
 use noodles::bam;
 use noodles::sam::Header;
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
 
@@ -69,31 +70,46 @@ pub(crate) fn sort_variants(variants: &mut [VariantInfo]) {
 }
 
 pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppResult<ParsedInputs> {
-    let base_name = io::get_base_name(&args.vcf_file).map_err(reclassify_generic_as_validation)?;
+    let variant_file = args.variant_file();
+    let base_name = io::get_base_name(variant_file).map_err(reclassify_generic_as_validation)?;
     let references =
         io::load_references(&args.fasta_file).map_err(reclassify_generic_as_validation)?;
-    // Use fast text parser for plain .vcf files, htslib for .bcf/.vcf.gz
-    let snp_by_contig = if io::vcf_fast::use_fast_parser(&args.vcf_file) {
-        io::vcf_fast::load_vcf_text(
-            &args.vcf_file,
-            sample_override,
-            args.split_multiallelic,
-            args.normalize_alleles,
-            args.keep_original_info,
-        )
-        .map_err(reclassify_generic_as_validation)?
-    } else {
-        io::load_vcf_positions_by_contig(
-            &args.vcf_file,
-            sample_override,
-            args.split_multiallelic,
-            args.normalize_alleles,
-            args.keep_original_info,
-        )
-        .map_err(reclassify_generic_as_validation)?
+    let input_format = resolve_variant_input_format(args)?;
+    if input_format == VariantInputFormat::Tsv && sample_override.is_some() {
+        return Err(AppError::config(
+            "--sample is only supported for VCF input; TSV input is treated as a single sample",
+        ));
+    }
+
+    let snp_by_contig = match input_format {
+        VariantInputFormat::Tsv => {
+            io::ivar::load_ivar_tsv(variant_file).map_err(reclassify_generic_as_validation)?
+        }
+        VariantInputFormat::Vcf | VariantInputFormat::Auto => {
+            // Use fast text parser for plain .vcf files, htslib for .bcf/.vcf.gz
+            if io::vcf_fast::use_fast_parser(variant_file) {
+                io::vcf_fast::load_vcf_text(
+                    variant_file,
+                    sample_override,
+                    args.split_multiallelic,
+                    args.normalize_alleles,
+                    args.keep_original_info,
+                )
+                .map_err(reclassify_generic_as_validation)?
+            } else {
+                io::load_vcf_positions_by_contig(
+                    variant_file,
+                    sample_override,
+                    args.split_multiallelic,
+                    args.normalize_alleles,
+                    args.keep_original_info,
+                )
+                .map_err(reclassify_generic_as_validation)?
+            }
+        }
     };
-    let annotation_format =
-        io::detect_annotation_format(args.genes_file()).map_err(reclassify_generic_as_validation)?;
+    let annotation_format = io::detect_annotation_format(args.genes_file())
+        .map_err(reclassify_generic_as_validation)?;
     let contigs = selected_contigs(args, &snp_by_contig)?;
     validate_strict_original_metrics(&contigs, &snp_by_contig, args.strict)?;
     validate_contig_inputs(&contigs, &references, &snp_by_contig, annotation_format)?;
@@ -107,17 +123,18 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
         None
     };
 
-    let original_info_headers = if args.keep_original_info {
-        if io::vcf_fast::use_fast_parser(&args.vcf_file) {
-            io::vcf_fast::extract_text_info_headers(&args.vcf_file)
-                .map_err(reclassify_generic_as_validation)?
+    let original_info_headers =
+        if args.keep_original_info && input_format == VariantInputFormat::Vcf {
+            if io::vcf_fast::use_fast_parser(variant_file) {
+                io::vcf_fast::extract_text_info_headers(variant_file)
+                    .map_err(reclassify_generic_as_validation)?
+            } else {
+                io::extract_original_info_headers(variant_file)
+                    .map_err(reclassify_generic_as_validation)?
+            }
         } else {
-            io::extract_original_info_headers(&args.vcf_file)
-                .map_err(reclassify_generic_as_validation)?
-        }
-    } else {
-        Vec::new()
-    };
+            Vec::new()
+        };
 
     Ok(ParsedInputs {
         base_name,
@@ -128,6 +145,28 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
         preloaded_gff,
         original_info_headers,
     })
+}
+
+pub(crate) fn resolve_variant_input_format(args: &Args) -> AppResult<VariantInputFormat> {
+    if args.tsv_file.is_some() && args.input_format == VariantInputFormat::Vcf {
+        return Err(AppError::config(
+            "--tsv cannot be combined with --input-format vcf",
+        ));
+    }
+
+    let variant_file = args.variant_file();
+    match args.effective_input_format() {
+        VariantInputFormat::Auto => {
+            if io::ivar::looks_like_ivar_tsv(variant_file)
+                .map_err(reclassify_generic_as_validation)?
+            {
+                Ok(VariantInputFormat::Tsv)
+            } else {
+                Ok(VariantInputFormat::Vcf)
+            }
+        }
+        explicit => Ok(explicit),
+    }
 }
 
 pub(crate) fn reclassify_generic_as_validation(error: AppError) -> AppError {
@@ -194,46 +233,46 @@ fn count_gene_variant_reads(
         min_mapq: args.min_mapq,
     };
 
-    let (cache, cache_hits, cache_misses) =
-        if let Some(cached) = state.region_cache.get(&cache_key) {
-            (cached.clone(), 1, 0)
-        } else {
-            let bam = match state.bam.as_mut() {
-                Some(b) => b,
-                None => {
-                    return Err(AppError::validation(
-                        "BAM reader unavailable in worker thread",
-                    ))
-                }
-            };
-            let bam_header = match state.bam_header.as_ref() {
-                Some(h) => h,
-                None => {
-                    return Err(AppError::validation(
-                        "BAM header unavailable in worker thread",
-                    ))
-                }
-            };
-            let built = read_count::build_region_observation_cache(
-                bam,
-                bam_header,
-                contig,
-                gene.start,
-                gene.end,
-                &target_positions,
-                args.min_mapq,
-            )
-            .map_err(|e| {
-                AppError::validation(format!(
-                    "Failed building read cache for contig '{}' gene '{}' at interval {}-{}: {}",
-                    contig, gene.name, gene.start, gene.end, e
+    let (cache, cache_hits, cache_misses) = if let Some(cached) = state.region_cache.get(&cache_key)
+    {
+        (cached.clone(), 1, 0)
+    } else {
+        let bam = match state.bam.as_mut() {
+            Some(b) => b,
+            None => {
+                return Err(AppError::validation(
+                    "BAM reader unavailable in worker thread",
                 ))
-            })?;
-
-            let result = built.clone();
-            state.region_cache.put(cache_key, built);
-            (result, 0, 1)
+            }
         };
+        let bam_header = match state.bam_header.as_ref() {
+            Some(h) => h,
+            None => {
+                return Err(AppError::validation(
+                    "BAM header unavailable in worker thread",
+                ))
+            }
+        };
+        let built = read_count::build_region_observation_cache(
+            bam,
+            bam_header,
+            contig,
+            gene.start,
+            gene.end,
+            &target_positions,
+            args.min_mapq,
+        )
+        .map_err(|e| {
+            AppError::validation(format!(
+                "Failed building read cache for contig '{}' gene '{}' at interval {}-{}: {}",
+                contig, gene.name, gene.start, gene.end, e
+            ))
+        })?;
+
+        let result = built.clone();
+        state.region_cache.put(cache_key, built);
+        (result, 0, 1)
+    };
 
     for variant in variants {
         if variant.variant_type == VariantType::Indel {
@@ -285,8 +324,13 @@ pub(crate) fn process_contig(
         );
         filtered
     } else {
-        io::load_genes(args.genes_file(), snp_list, Some(contig), &args.gff_features())
-            .map_err(reclassify_generic_as_validation)?
+        io::load_genes(
+            args.genes_file(),
+            snp_list,
+            Some(contig),
+            &args.gff_features(),
+        )
+        .map_err(reclassify_generic_as_validation)?
     };
     info!(
         "Contig '{}' -> {} SNP/variant records in VCF, {} mapped genes",
@@ -332,7 +376,8 @@ pub(crate) fn process_contig(
                 let state = state_result
                     .as_mut()
                     .map_err(|err| AppError::validation(err.to_string()))?;
-                let mut variants = annotate_variants_for_gene(gene, snp_list, &reference, contig, genetic_code);
+                let mut variants =
+                    annotate_variants_for_gene(gene, snp_list, &reference, contig, genetic_code);
                 if variants.is_empty() {
                     return Ok(WorkerResult::default());
                 }

@@ -531,7 +531,7 @@ pub fn preload_gff_genes(
 
 /// Emit a single warning line if the GFF contains CDS rows with non-zero
 /// phase but the user did not select `CDS` in `--gff-features`. In that
-/// configuration the phase-aware codon grouping introduced in 1.1.2 is
+/// configuration the phase-aware codon grouping used by current releases is
 /// effectively disabled and codon boundaries may be wrong for eukaryotic
 /// annotations.
 fn warn_if_cds_phase_ignored(genes_file: &str, feature_types: &[String]) -> AppResult<()> {
@@ -652,8 +652,22 @@ mod tests {
     #[test]
     fn test_has_snp_in_interval_found() {
         let snps = vec![
-            VcfPosition { position: 100, ref_allele: "A".into(), alt_allele: "T".into(), original_dp: None, original_freq: None, original_info: None },
-            VcfPosition { position: 200, ref_allele: "G".into(), alt_allele: "C".into(), original_dp: None, original_freq: None, original_info: None },
+            VcfPosition {
+                position: 100,
+                ref_allele: "A".into(),
+                alt_allele: "T".into(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
+            VcfPosition {
+                position: 200,
+                ref_allele: "G".into(),
+                alt_allele: "C".into(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
         ];
         assert!(has_snp_in_interval(&snps, 50, 150));
         assert!(has_snp_in_interval(&snps, 100, 100)); // exact match
@@ -662,9 +676,14 @@ mod tests {
 
     #[test]
     fn test_has_snp_in_interval_not_found() {
-        let snps = vec![
-            VcfPosition { position: 100, ref_allele: "A".into(), alt_allele: "T".into(), original_dp: None, original_freq: None, original_info: None },
-        ];
+        let snps = vec![VcfPosition {
+            position: 100,
+            ref_allele: "A".into(),
+            alt_allele: "T".into(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }];
         assert!(!has_snp_in_interval(&snps, 200, 300));
         assert!(!has_snp_in_interval(&snps, 50, 99));
     }
@@ -743,7 +762,15 @@ mod tests {
 
     // ---- assign_cds_protein_offsets / multi-exon aggregation ----
 
-    fn record(contig: &str, start: usize, end: usize, strand: crate::variants::Strand, phase: u8, ft: &str, tid: Option<&str>) -> GffGeneRecord {
+    fn record(
+        contig: &str,
+        start: usize,
+        end: usize,
+        strand: crate::variants::Strand,
+        phase: u8,
+        ft: &str,
+        tid: Option<&str>,
+    ) -> GffGeneRecord {
         GffGeneRecord {
             contig: contig.to_string(),
             gene: Gene {
@@ -767,13 +794,69 @@ mod tests {
         // transcript is the one with the HIGHEST genomic coordinate.
         let mut recs = vec![
             // (genomic order, not transcript order)
-            record("chr9", 77_721_323, 77_721_513, Strand::Minus, 2, "CDS", Some("ENST00000286548.9")), // exon 7
-            record("chr9", 77_728_514, 77_728_667, Strand::Minus, 0, "CDS", Some("ENST00000286548.9")), // exon 6
-            record("chr9", 77_794_463, 77_794_592, Strand::Minus, 1, "CDS", Some("ENST00000286548.9")), // exon 5
-            record("chr9", 77_797_520, 77_797_648, Strand::Minus, 1, "CDS", Some("ENST00000286548.9")), // exon 4
-            record("chr9", 77_815_616, 77_815_770, Strand::Minus, 0, "CDS", Some("ENST00000286548.9")), // exon 3
-            record("chr9", 77_922_161, 77_922_345, Strand::Minus, 2, "CDS", Some("ENST00000286548.9")), // exon 2
-            record("chr9", 78_031_100, 78_031_235, Strand::Minus, 0, "CDS", Some("ENST00000286548.9")), // exon 1
+            record(
+                "chr9",
+                77_721_323,
+                77_721_513,
+                Strand::Minus,
+                2,
+                "CDS",
+                Some("ENST00000286548.9"),
+            ), // exon 7
+            record(
+                "chr9",
+                77_728_514,
+                77_728_667,
+                Strand::Minus,
+                0,
+                "CDS",
+                Some("ENST00000286548.9"),
+            ), // exon 6
+            record(
+                "chr9",
+                77_794_463,
+                77_794_592,
+                Strand::Minus,
+                1,
+                "CDS",
+                Some("ENST00000286548.9"),
+            ), // exon 5
+            record(
+                "chr9",
+                77_797_520,
+                77_797_648,
+                Strand::Minus,
+                1,
+                "CDS",
+                Some("ENST00000286548.9"),
+            ), // exon 4
+            record(
+                "chr9",
+                77_815_616,
+                77_815_770,
+                Strand::Minus,
+                0,
+                "CDS",
+                Some("ENST00000286548.9"),
+            ), // exon 3
+            record(
+                "chr9",
+                77_922_161,
+                77_922_345,
+                Strand::Minus,
+                2,
+                "CDS",
+                Some("ENST00000286548.9"),
+            ), // exon 2
+            record(
+                "chr9",
+                78_031_100,
+                78_031_235,
+                Strand::Minus,
+                0,
+                "CDS",
+                Some("ENST00000286548.9"),
+            ), // exon 1
         ];
         assign_cds_protein_offsets(&mut recs);
         // Build a map (start -> offset) so we don't depend on ordering.
@@ -810,13 +893,69 @@ mod tests {
         //   exon-5 effective end → local codon index → +protein_offset
         // produces codon 209 exactly.
         let mut recs = vec![
-            record("chr9", 78_031_100, 78_031_235, Strand::Minus, 0, "CDS", Some("ENST00000286548.9")),
-            record("chr9", 77_922_161, 77_922_345, Strand::Minus, 2, "CDS", Some("ENST00000286548.9")),
-            record("chr9", 77_815_616, 77_815_770, Strand::Minus, 0, "CDS", Some("ENST00000286548.9")),
-            record("chr9", 77_797_520, 77_797_648, Strand::Minus, 1, "CDS", Some("ENST00000286548.9")),
-            record("chr9", 77_794_463, 77_794_592, Strand::Minus, 1, "CDS", Some("ENST00000286548.9")),
-            record("chr9", 77_728_514, 77_728_667, Strand::Minus, 0, "CDS", Some("ENST00000286548.9")),
-            record("chr9", 77_721_323, 77_721_513, Strand::Minus, 2, "CDS", Some("ENST00000286548.9")),
+            record(
+                "chr9",
+                78_031_100,
+                78_031_235,
+                Strand::Minus,
+                0,
+                "CDS",
+                Some("ENST00000286548.9"),
+            ),
+            record(
+                "chr9",
+                77_922_161,
+                77_922_345,
+                Strand::Minus,
+                2,
+                "CDS",
+                Some("ENST00000286548.9"),
+            ),
+            record(
+                "chr9",
+                77_815_616,
+                77_815_770,
+                Strand::Minus,
+                0,
+                "CDS",
+                Some("ENST00000286548.9"),
+            ),
+            record(
+                "chr9",
+                77_797_520,
+                77_797_648,
+                Strand::Minus,
+                1,
+                "CDS",
+                Some("ENST00000286548.9"),
+            ),
+            record(
+                "chr9",
+                77_794_463,
+                77_794_592,
+                Strand::Minus,
+                1,
+                "CDS",
+                Some("ENST00000286548.9"),
+            ),
+            record(
+                "chr9",
+                77_728_514,
+                77_728_667,
+                Strand::Minus,
+                0,
+                "CDS",
+                Some("ENST00000286548.9"),
+            ),
+            record(
+                "chr9",
+                77_721_323,
+                77_721_513,
+                Strand::Minus,
+                2,
+                "CDS",
+                Some("ENST00000286548.9"),
+            ),
         ];
         assign_cds_protein_offsets(&mut recs);
         let exon5 = recs.iter().find(|r| r.gene.start == 77_794_463).unwrap();
@@ -828,7 +967,10 @@ mod tests {
         let eff_end = exon5.gene.end - exon5.gene.phase as usize;
         let local_aa = (eff_end - pos) / 3 + 1;
         let aa = exon5.gene.protein_offset + local_aa;
-        assert_eq!(aa, 209, "GNAQ Q209L canonical position must map to codon 209");
+        assert_eq!(
+            aa, 209,
+            "GNAQ Q209L canonical position must map to codon 209"
+        );
     }
 
     #[test]
@@ -867,12 +1009,31 @@ mod tests {
     #[test]
     fn test_filter_genes_with_snps() {
         let genes = vec![
-            Gene { name: "gene1".into(), start: 100, end: 200, strand: crate::variants::Strand::Plus, phase: 0, protein_offset: 0 },
-            Gene { name: "gene2".into(), start: 500, end: 600, strand: crate::variants::Strand::Minus, phase: 0, protein_offset: 0 },
+            Gene {
+                name: "gene1".into(),
+                start: 100,
+                end: 200,
+                strand: crate::variants::Strand::Plus,
+                phase: 0,
+                protein_offset: 0,
+            },
+            Gene {
+                name: "gene2".into(),
+                start: 500,
+                end: 600,
+                strand: crate::variants::Strand::Minus,
+                phase: 0,
+                protein_offset: 0,
+            },
         ];
-        let snps = vec![
-            VcfPosition { position: 150, ref_allele: "A".into(), alt_allele: "T".into(), original_dp: None, original_freq: None, original_info: None },
-        ];
+        let snps = vec![VcfPosition {
+            position: 150,
+            ref_allele: "A".into(),
+            alt_allele: "T".into(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }];
         let filtered = filter_genes_with_snps(&genes, &snps);
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].name, "gene1");

@@ -96,16 +96,17 @@ pub fn get_base_name(file_path: &str) -> AppResult<String> {
         base
     } else {
         // Fallback: use Path::file_stem for any other extension
-        path.file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or(name)
+        path.file_stem().and_then(|s| s.to_str()).unwrap_or(name)
     };
 
     if stem.is_empty() {
         return Err(IoError::new(
             ErrorKind::InvalidInput,
-            format!("Invalid input VCF path '{file_path}': empty file stem after stripping extensions"),
-        ).into());
+            format!(
+                "Invalid input VCF path '{file_path}': empty file stem after stripping extensions"
+            ),
+        )
+        .into());
     }
 
     Ok(stem.to_string())

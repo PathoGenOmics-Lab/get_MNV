@@ -6,11 +6,11 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL%20v3-%23af64d1?style=flat-square)](LICENSE)
 [![Bioconda](https://img.shields.io/conda/dn/bioconda/get_mnv.svg?style=flat-square&label=bioconda)](https://anaconda.org/bioconda/get_mnv)
-[![Version](https://img.shields.io/badge/version-1.1.2-%23149389?style=flat-square)](https://github.com/PathoGenOmics-Lab/get_MNV/releases)
+[![Version](https://img.shields.io/badge/version-1.1.3-%23149389?style=flat-square)](https://github.com/PathoGenOmics-Lab/get_MNV/releases)
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13907423-%23ff0077?style=flat-square)](https://doi.org/10.5281/zenodo.13907423)
 [![PGO](https://img.shields.io/badge/PathoGenOmics-lab-%23E52421?style=flat-square)](https://github.com/PathoGenOmics-Lab)
 
-**Multi-Nucleotide Variant detection — accurate codon-level annotation from VCF + BAM.**
+**Multi-Nucleotide Variant detection - codon-level annotation from VCF or iVar TSV.**
 **Pure Rust · no C dependencies · cross-platform (macOS, Linux, Windows)**
 
 [Quick Start](#quick-start) · [GUI](#desktop-gui) · [Features](#features) · [Docs](docs/) · [Citation](#citation)
@@ -26,54 +26,55 @@ __and Mireia Coscolla<sup>1</sup>__
 
 ## What is get_MNV?
 
-When multiple SNVs co-occur in the same codon, the resulting amino acid change can differ from what individual SNV annotation predicts. Standard tools like ANNOVAR or SnpEff annotate SNVs independently and miss these compound effects.
+get_MNV finds cases where two or more SNVs fall in the same codon and should be interpreted together. These combined changes can produce a different amino acid effect than the individual SNVs alone.
 
-**get_MNV** detects these Multi-Nucleotide Variants (MNVs) by:
+The tool takes:
 
-- **Grouping SNVs by codon** from VCF + reference + gene annotation
-- **Recalculating amino acid changes** considering all SNVs in each codon together
-- **Quantifying read support** from BAM files with strand-bias statistics
-- **Classifying each variant** as SNP, MNV, or SNP/MNV based on phased read evidence
+- Variant calls: VCF or iVar `variants.tsv`
+- Reference sequence: FASTA
+- Gene annotation: GFF/GFF3/GTF or a simple TSV file
+- Optional aligned reads: BAM, used to count SNP and MNV read support
+
+It writes annotated variants as TSV, VCF, or both.
 
 <p align="center">
   <img src="images/get_mnv_aa.png" alt="MNV amino acid reclassification" width="650" />
 </p>
 
-**Key features:**
-- 🧬 **Accurate MNV annotation** — codon-aware amino acid changes
-- ⚡ **Fast** — 6.2× faster than v1.0 (18 ms typical, Rust + Rayon parallel)
-- 📊 **Read support** — BAM-based SNP/MNV counts with strand-bias statistics
-- 🧪 **9 genetic codes** — bacterial, mitochondrial, nuclear, and more
-- 🖥️ **Desktop GUI** — native app via Tauri with built-in genomic track viewer
-- 📁 **Multiple outputs** — TSV, VCF (plain/BGZF), BCF, JSON summary
+**Main features:**
+
+- Groups SNVs by codon and reports SNP, MNV, or SNP/MNV calls
+- Recalculates amino acid changes from the full codon haplotype
+- Reads VCF and iVar TSV variant calls
+- Uses BAM reads, when provided, to count SNP/MNV support and strand bias
+- Supports 9 NCBI genetic code tables
+- Includes a desktop GUI for drag-and-drop analysis
 
 ## Installation
 
-### Desktop GUI (pre-built)
+### Desktop GUI
 
 Download the latest release for your platform:
 
 | Platform | Download |
 |---|---|
-| 🍎 macOS (Apple Silicon) | [**get_MNV_1.1.2_aarch64.dmg**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
-| 🍎 macOS (Intel) | [**get_MNV_1.1.2_x64.dmg**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
+| 🍎 macOS (Apple Silicon) | [**get_MNV_1.1.3_aarch64.dmg**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
+| 🍎 macOS (Intel) | [**get_MNV_1.1.3_x64.dmg**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
 | 🐧 Linux | [**Releases page**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
 | 🪟 Windows | [**Releases page**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
 
 > [!NOTE]
 > **macOS users**: The app is not signed with an Apple Developer certificate. On first launch, right-click the app → **Open** → click **Open** in the dialog. See [Apple support](https://support.apple.com/en-us/HT202491) for details.
 
-All releases: [**Releases page**](https://github.com/PathoGenOmics-Lab/get_MNV/releases)
+All releases are available on the [Releases page](https://github.com/PathoGenOmics-Lab/get_MNV/releases).
 
-### CLI (Bioconda)
+### Command line
 
 ```bash
 conda install -c bioconda get_mnv
-# or
-mamba install -c bioconda get_mnv
 ```
 
-### CLI (pre-built binary)
+or download a pre-built binary:
 
 ```bash
 wget https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest/download/get_mnv
@@ -81,7 +82,7 @@ chmod +x get_mnv
 ./get_mnv --help
 ```
 
-### CLI (from source)
+or build from source:
 
 ```bash
 git clone https://github.com/PathoGenOmics-Lab/get_MNV.git
@@ -91,37 +92,114 @@ cargo install --path .
 
 ## Quick Start
 
+### VCF input
+
 ```bash
-# Basic: TSV output
-get_mnv --vcf variants.vcf --fasta reference.fasta --gff genes.gff3
-
-# With BAM reads and quality filters
 get_mnv \
   --vcf variants.vcf \
-  --bam reads.bam \
   --fasta reference.fasta \
-  --gff genes.gff3 \
-  --quality 30 \
-  --mapq 20
-
-# Both TSV + VCF output with strand-bias filtering
-get_mnv \
-  --vcf variants.vcf \
-  --bam reads.bam \
-  --fasta reference.fasta \
-  --gff genes.gff3 \
-  --both --vcf-gz --emit-filtered \
-  --min-strand-bias-p 0.05
-
-# Mitochondrial genome with vertebrate genetic code
-get_mnv \
-  --vcf mito.vcf \
-  --fasta mito.fasta \
-  --gff mito.gff3 \
-  --translation-table 2
+  --gff genes.gff3
 ```
 
-Run `get_mnv --help` for all options.
+### iVar TSV input
+
+```bash
+get_mnv \
+  --tsv sample_variants.tsv \
+  --bam reads.bam \
+  --fasta reference.fasta \
+  --gff genes.gff3
+```
+
+Use `--tsv` for the `variants.tsv` file produced by `ivar variants`.
+
+### With BAM read support
+
+```bash
+get_mnv \
+  --vcf variants.vcf \
+  --bam reads.bam \
+  --fasta reference.fasta \
+  --gff genes.gff3
+```
+
+### TSV and VCF output
+
+```bash
+get_mnv \
+  --vcf variants.vcf \
+  --bam reads.bam \
+  --fasta reference.fasta \
+  --gff genes.gff3 \
+  --both \
+  --summary-json run.summary.json \
+  --run-manifest run.manifest.json
+```
+
+Run `get_mnv --help` for the full list of options.
+
+## Common Arguments
+
+| Argument | What it does |
+|---|---|
+| `--vcf <FILE>` | Variant input file in VCF/BCF format. |
+| `--tsv <FILE>` | iVar `variants.tsv` input file. |
+| `--bam <FILE>` | Optional sorted and indexed BAM for read support. |
+| `--fasta <FILE>` | Reference FASTA. Contig names must match the variant file. |
+| `--gff <FILE>` | Gene annotation in GFF/GFF3/GTF format. |
+| `--genes <FILE>` | Simple gene annotation TSV. Use instead of `--gff`. |
+| `--gff-features <LIST>` | Feature types to analyze, for example `CDS` or `gene,pseudogene`. |
+| `--quality <N>` | Minimum variant quality. Default: `20`. |
+| `--min-mapq <N>` | Minimum read mapping quality when using BAM. Default: `0`. |
+| `--snp <N>` | Minimum SNP-supporting reads. Default: `0`. |
+| `--min-snp-frequency <F>` | Minimum BAM-derived SNP frequency, from `0` to `1`. Default: `0`. |
+| `--min-snp-strand <N>` | Minimum SNP-supporting reads required on each strand. Default: `0`. |
+| `--mnv <N>` | Minimum MNV-supporting reads. Default: `0`. |
+| `--min-mnv-frequency <F>` | Minimum BAM-derived MNV haplotype frequency, from `0` to `1`. Default: `0`. |
+| `--min-mnv-strand <N>` | Minimum MNV-supporting reads required on each strand. Default: `0`. |
+| `--both` | Write both TSV and VCF outputs. |
+| `--summary-json <FILE>` | Write a machine-readable run summary. |
+| `--run-manifest <FILE>` | Write command, version, inputs, outputs, and checksums. |
+
+Frequency filters use read support recalculated from `--bam`, not the original
+`OFREQ` value from VCF/iVar input. Use values such as `0.05` for 5% or `0.20`
+for 20%. When VCF output is requested, low-frequency records are skipped by
+default or marked with `FILTER=LowFrequency` when `--emit-filtered` is enabled.
+SNP and MNV frequency filters are independent: `--min-snp-frequency` applies to
+individual SNP observations, while `--min-mnv-frequency` applies to the phased
+MNV haplotype. In mixed `SNP/MNV` calls, a strong MNV haplotype is not removed
+just because the individual SNP observations are below the SNP threshold.
+The read-count and strand-support filters are independent in the same way:
+`--snp` and `--min-snp-strand` apply to SNP observations, while `--mnv` and
+`--min-mnv-strand` apply to the MNV haplotype.
+
+## Outputs
+
+By default, get_MNV writes:
+
+```text
+<input_name>.MNV.tsv
+```
+
+With `--convert` or `--both`, it also writes:
+
+```text
+<input_name>.MNV.vcf
+```
+
+The most important output fields are:
+
+| Column | Meaning |
+|---|---|
+| `Chromosome` | Contig name |
+| `Gene` | Gene or feature name |
+| `Positions` | One position for SNPs, multiple positions for MNVs |
+| `Base Changes` | Alternative bases |
+| `AA Changes` | Amino acid change after combining SNVs in the codon |
+| `Variant Type` | `SNP`, `MNV`, `SNP/MNV`, or `INDEL` |
+| `Change Type` | Synonymous, non-synonymous, stop gained/lost, unknown, etc. |
+
+When a BAM is provided, extra columns report read depth, SNP support, MNV support, frequency, and strand counts.
 
 ## Features
 
@@ -134,27 +212,23 @@ Run `get_mnv --help` for all options.
 | 📁 Multiple outputs | TSV, VCF (plain/BGZF+Tabix), BCF, JSON summary, run manifest |
 | ⚡ Parallel | Multi-threaded contig processing with Rayon |
 | 🧪 Genetic codes | 9 NCBI translation tables (1, 2, 3, 4, 5, 6, 11, 12, 25) |
-| 🧩 Flexible input | GFF3/GTF or TSV annotations, multi-contig, multi-sample VCFs |
+| 🧩 Flexible input | VCF or iVar TSV variant calls; GFF3/GTF or TSV annotations; multi-contig and multi-sample VCFs |
 | ✅ Validation | Dry-run mode, strict metrics, input checksums, error JSON |
 | 🖥️ Desktop GUI | Native Tauri app with drag-and-drop, genomic track viewer, dark mode |
 
 ## Desktop GUI
 
-The desktop app provides the full get_MNV workflow with a visual interface:
+The desktop app gives the same analysis workflow in a visual interface:
 
-- **Drag-and-drop** file selection (VCF, FASTA, GFF, BAM)
-- **Multi-sample batch** — drop multiple VCFs + BAMs, auto-matched by filename
-- **Parameter presets** — Default, Strict, Lenient, one click
-- **Real-time progress** with per-contig status
-- **Results dashboard** — variant summary, timing breakdown, per-contig stats
-- **Genomic Track Viewer** — IGV-style read pileup with codon annotation, MNV/SNP comparison, coverage track, and color-coded read support
-- **Export** — filter/sort variants, export filtered subset as TSV or CSV
+- Drop VCF or iVar TSV variant files
+- Drop FASTA, GFF/GTF/GFF3, and optional BAM files
+- Choose common parameters from the form
+- Run one sample or multiple matched samples
+- Inspect, filter, and export results
 
 ```bash
-# Build from source
-cd get_MNV
-cargo tauri dev       # Development
-cargo tauri build     # Production
+bash scripts/dev.sh   # development
+bash scripts/build_gui_bundle.sh  # production .app + .dmg bundle
 ```
 
 ## Example Output
@@ -167,9 +241,9 @@ MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    MNV           No
 ```
 
 **Variant types:**
-- **SNP** — single nucleotide change, one SNV per codon
-- **MNV** — all reads carry multiple SNVs together (Multi-Nucleotide Variant)
-- **SNP/MNV** — some reads carry individual SNVs, others carry the MNV combination
+- **SNP**: single nucleotide change, one SNV per codon
+- **MNV**: all reads carry multiple SNVs together (Multi-Nucleotide Variant)
+- **SNP/MNV**: some reads carry individual SNVs, others carry the MNV combination
 
 ## Documentation
 
@@ -182,36 +256,18 @@ MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    MNV           No
 | [Benchmarking](docs/benchmarking.md) | Performance testing |
 | [Changelog](CHANGELOG.md) | Version history |
 
-## Project Structure
+## For Developers
 
-```
-get_MNV/
-├── src/                      # Core library + CLI
-│   ├── main.rs               # CLI entry point
-│   ├── cli.rs                # Clap derive argument definitions
-│   ├── genetic_code.rs       # 9 NCBI translation tables
-│   ├── read_count.rs         # BAM read counting + strand metrics
-│   ├── variants/             # MNV detection
-│   │   ├── types.rs          #   Domain types (VariantType, ChangeType)
-│   │   └── codon.rs          #   Codon grouping + AA reclassification
-│   ├── io/                   # Input parsing
-│   │   ├── annotation.rs     #   GFF/GTF/TSV gene loading
-│   │   ├── fasta.rs          #   Zero-copy FASTA parser
-│   │   ├── vcf_fast.rs       #   Fast text VCF parser
-│   │   └── validation.rs     #   Input validation
-│   ├── output/               # Output generation
-│   │   ├── tsv.rs            #   TSV writer
-│   │   ├── vcf.rs            #   VCF/BCF writer
-│   │   └── stats.rs          #   Fisher exact strand bias
-│   ├── pipeline/             # Orchestration
-│   │   ├── mod.rs            #   Multi-threaded pipeline
-│   │   └── output_paths.rs   #   Path resolution
-│   └── utils.rs              # Shared utilities
-├── src-tauri/                # Desktop app backend (Tauri)
-├── frontend/                 # GUI (React + TypeScript)
-├── docs/                     # Documentation
-├── images/                   # Logo and figures
-└── tests/                    # Integration tests (224 total)
+The core CLI and library live in `src/`. The desktop app uses Tauri in
+`src-tauri/` and React/TypeScript in `frontend/`.
+
+Useful commands:
+
+```bash
+cargo test --workspace
+npm run build --prefix frontend
+bash scripts/build_get_mnv.sh
+bash scripts/build_gui_bundle.sh
 ```
 
 ## Limitations
@@ -219,7 +275,7 @@ get_MNV/
 - Designed for SNVs against a reference sequence
 - Insertions and deletions are detected but not fully codon-annotated
 - Multiallelic VCF records require `--split-multiallelic` or pre-splitting (`bcftools norm -m -`)
-- VCF contig names must match FASTA and GFF exactly
+- Variant contig names must match FASTA and GFF exactly
 - **Multiple transcripts per gene**: when using `--gff-features CDS` with a GFF file that contains multiple transcripts for the same gene, each transcript is annotated independently, producing one output line per transcript per variant. If you want a single line per variant, filter your GFF to keep only the canonical transcript before running get_MNV (e.g., using [AGAT](https://github.com/NBISweden/AGAT) `agat_sp_keep_longest_isoform.pl` or a similar tool)
 
 ## Citation
@@ -235,7 +291,7 @@ If you use get_MNV in your research, please cite:
   year      = {2026},
   doi       = {10.5281/zenodo.13907423},
   url       = {https://github.com/PathoGenOmics-Lab/get_MNV},
-  version   = {1.1.2},
+  version   = {1.1.3},
   license   = {AGPL-3.0}
 }
 ```

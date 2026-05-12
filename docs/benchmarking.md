@@ -37,10 +37,10 @@ This appends one row per run to `benchmark.csv`.
 | `--warmup <N>` | 5 | Warmup iterations (not measured) |
 | `--iters <N>` | 30 | Measured iterations |
 | `--threads <N>` | 1 | Worker threads |
-| `--dataset <DIR>` | — | Path to dataset directory (FASTA + VCF + annotation) |
+| `--dataset <DIR>` | none | Path to dataset directory (FASTA + VCF + annotation) |
 | `--contig <NAME>` | all | Restrict to a single contig |
-| `--csv <FILE>` | — | Append CSV results |
-| `--max-avg-ms <MS>` | — | Fail if average exceeds threshold (regression detection) |
+| `--csv <FILE>` | none | Append CSV results |
+| `--max-avg-ms <MS>` | none | Fail if average exceeds threshold (regression detection) |
 | `--synthetic-scale <N>` | 1 | Scale factor for synthetic gene/SNP count |
 
 ## Reproducible scripts

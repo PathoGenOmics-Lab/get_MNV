@@ -9,11 +9,11 @@ use std::io::Write;
 use std::path::Path;
 
 use super::common::{
-    build_alt_region, build_info_string, filter_value, get_mnv_depth_from_variant, get_required,
-    mnv_strand_bias_p_value, reference_subsequence, snp_aa_for_index, snp_bam_vectors,
-    snp_strand_bias_p_value, validate_variant_shape, variant_context, vcf_entry_line,
-    write_info_header, write_sorted_vcf_entries, MnvCallMetrics, SnpBamVectors, SnpCallMetrics,
-    VcfEntry,
+    allele_frequency, build_alt_region, build_info_string, filter_value, format_freq,
+    get_mnv_depth_from_variant, get_required, mnv_strand_bias_p_value, reference_subsequence,
+    snp_aa_for_index, snp_bam_vectors, snp_strand_bias_p_value, validate_variant_shape,
+    variant_context, vcf_entry_line, write_info_header, write_sorted_vcf_entries, MnvCallMetrics,
+    SnpBamVectors, SnpCallMetrics, VcfEntry,
 };
 
 /// Configuration for constructing a VCF writer.
@@ -21,7 +21,9 @@ pub struct VcfWriterConfig<'a> {
     pub filename: &'a str,
     pub bam_provided: bool,
     pub min_snp_reads: usize,
+    pub min_snp_frequency: f64,
     pub min_mnv_reads: usize,
+    pub min_mnv_frequency: f64,
     pub min_quality: u8,
     pub min_mapq: u8,
     pub command_line: &'a str,
@@ -39,7 +41,9 @@ pub struct VcfWriter {
     writer: Box<dyn Write>,
     bam_provided: bool,
     min_snp_reads: usize,
+    min_snp_frequency: f64,
     min_mnv_reads: usize,
+    min_mnv_frequency: f64,
     min_snp_strand_reads: usize,
     min_mnv_strand_reads: usize,
     min_strand_bias_p: f64,
@@ -47,12 +51,25 @@ pub struct VcfWriter {
     include_strand_bias_info: bool,
 }
 
+struct SupportFilterInput {
+    support_reads: usize,
+    min_reads: usize,
+    depth: usize,
+    min_frequency: f64,
+    forward_reads: usize,
+    reverse_reads: usize,
+    min_strand_reads: usize,
+    strand_bias_p: Option<f64>,
+}
+
 impl VcfWriter {
     pub fn new(cfg: VcfWriterConfig<'_>) -> AppResult<Self> {
         let filename = cfg.filename;
         let bam_provided = cfg.bam_provided;
         let min_snp_reads = cfg.min_snp_reads;
+        let min_snp_frequency = cfg.min_snp_frequency;
         let min_mnv_reads = cfg.min_mnv_reads;
+        let min_mnv_frequency = cfg.min_mnv_frequency;
         let min_quality = cfg.min_quality;
         let min_mapq = cfg.min_mapq;
         let command_line = cfg.command_line;
@@ -82,7 +99,17 @@ impl VcfWriter {
         writeln!(writer, "##get_mnv_min_quality={min_quality}")?;
         writeln!(writer, "##get_mnv_min_mapq={min_mapq}")?;
         writeln!(writer, "##get_mnv_min_snp_reads={min_snp_reads}")?;
+        writeln!(
+            writer,
+            "##get_mnv_min_snp_frequency={}",
+            format_freq(min_snp_frequency)
+        )?;
         writeln!(writer, "##get_mnv_min_mnv_reads={min_mnv_reads}")?;
+        writeln!(
+            writer,
+            "##get_mnv_min_mnv_frequency={}",
+            format_freq(min_mnv_frequency)
+        )?;
         if min_snp_strand_reads > 0 {
             writeln!(
                 writer,
@@ -101,7 +128,10 @@ impl VcfWriter {
         for contig in contigs {
             // Sanitize contig names to prevent VCF header corruption from
             // control characters in FASTA sequence identifiers
-            let safe_id: String = contig.chars().map(|c| if c.is_control() { '_' } else { c }).collect();
+            let safe_id: String = contig
+                .chars()
+                .map(|c| if c.is_control() { '_' } else { c })
+                .collect();
             writeln!(writer, "##contig=<ID={safe_id}>")?;
         }
         write_info_header(
@@ -114,6 +144,10 @@ impl VcfWriter {
             writeln!(
                 writer,
                 "##FILTER=<ID=LowSupport,Description=\"Insufficient supporting reads\">"
+            )?;
+            writeln!(
+                writer,
+                "##FILTER=<ID=LowFrequency,Description=\"Allele frequency below threshold\">"
             )?;
             writeln!(
                 writer,
@@ -130,7 +164,9 @@ impl VcfWriter {
             writer,
             bam_provided,
             min_snp_reads,
+            min_snp_frequency,
             min_mnv_reads,
+            min_mnv_frequency,
             min_snp_strand_reads,
             min_mnv_strand_reads,
             min_strand_bias_p,
@@ -193,23 +229,22 @@ impl VcfWriter {
         }
     }
 
-    fn build_support_filters(
-        &self,
-        support_reads: usize,
-        min_reads: usize,
-        forward_reads: usize,
-        reverse_reads: usize,
-        min_strand_reads: usize,
-        strand_bias_p: Option<f64>,
-    ) -> Vec<&'static str> {
+    fn build_support_filters(&self, input: SupportFilterInput) -> Vec<&'static str> {
         let mut filters = Vec::new();
-        if support_reads < min_reads {
+        if input.support_reads < input.min_reads {
             filters.push("LowSupport");
         }
-        if forward_reads < min_strand_reads || reverse_reads < min_strand_reads {
+        if input.min_frequency > 0.0
+            && allele_frequency(input.support_reads, input.depth) < input.min_frequency
+        {
+            filters.push("LowFrequency");
+        }
+        if input.forward_reads < input.min_strand_reads
+            || input.reverse_reads < input.min_strand_reads
+        {
             filters.push("StrandSupport");
         }
-        if let Some(p_value) = strand_bias_p {
+        if let Some(p_value) = input.strand_bias_p {
             if self.min_strand_bias_p > 0.0 && p_value < self.min_strand_bias_p {
                 filters.push("StrandBias");
             }
@@ -283,14 +318,16 @@ impl VcfWriter {
         aa: &str,
         metrics: SnpCallMetrics,
     ) -> AppResult<Option<VcfEntry>> {
-        let filters = self.build_support_filters(
-            metrics.support_reads,
-            self.min_snp_reads,
-            metrics.forward_reads,
-            metrics.reverse_reads,
-            self.min_snp_strand_reads,
-            metrics.strand_bias_p,
-        );
+        let filters = self.build_support_filters(SupportFilterInput {
+            support_reads: metrics.support_reads,
+            min_reads: self.min_snp_reads,
+            depth: metrics.depth,
+            min_frequency: self.min_snp_frequency,
+            forward_reads: metrics.forward_reads,
+            reverse_reads: metrics.reverse_reads,
+            min_strand_reads: self.min_snp_strand_reads,
+            strand_bias_p: metrics.strand_bias_p,
+        });
         if !self.should_emit_record(&filters) {
             return Ok(None);
         }
@@ -333,14 +370,16 @@ impl VcfWriter {
         aa: &str,
         metrics: MnvCallMetrics,
     ) -> AppResult<Option<VcfEntry>> {
-        let filters = self.build_support_filters(
-            metrics.support_reads,
-            self.min_mnv_reads,
-            metrics.forward_reads,
-            metrics.reverse_reads,
-            self.min_mnv_strand_reads,
-            metrics.strand_bias_p,
-        );
+        let filters = self.build_support_filters(SupportFilterInput {
+            support_reads: metrics.support_reads,
+            min_reads: self.min_mnv_reads,
+            depth: metrics.depth,
+            min_frequency: self.min_mnv_frequency,
+            forward_reads: metrics.forward_reads,
+            reverse_reads: metrics.reverse_reads,
+            min_strand_reads: self.min_mnv_strand_reads,
+            strand_bias_p: metrics.strand_bias_p,
+        });
         if !self.should_emit_record(&filters) {
             return Ok(None);
         }
@@ -611,7 +650,16 @@ impl VcfWriter {
         // When BAM-based filters are active, intergenic variants have no read
         // support so they are subject to the same thresholds (support=0).
         let filters = if self.bam_provided {
-            self.build_support_filters(0, self.min_snp_reads, 0, 0, self.min_snp_strand_reads, None)
+            self.build_support_filters(SupportFilterInput {
+                support_reads: 0,
+                min_reads: self.min_snp_reads,
+                depth: 0,
+                min_frequency: self.min_snp_frequency,
+                forward_reads: 0,
+                reverse_reads: 0,
+                min_strand_reads: self.min_snp_strand_reads,
+                strand_bias_p: None,
+            })
         } else {
             Vec::new()
         };
@@ -712,7 +760,9 @@ pub fn convert_vcf_to_bcf(input_vcf_path: &str, output_bcf_path: &str) -> AppRes
 
 #[cfg(test)]
 mod tests {
-    use super::write_sorted_vcf_entries;
+    use super::{write_sorted_vcf_entries, VcfWriter, VcfWriterConfig};
+    use crate::variants::{ChangeType, VariantInfo, VariantType};
+    use std::collections::HashMap;
     use std::fs::{self, File};
     use std::io::Read;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -749,5 +799,80 @@ mod tests {
         assert!(lines[0].contains("\t10\t"));
         assert!(lines[1].contains("\t20\t"));
         let _ = fs::remove_file(path);
+    }
+
+    fn snp_variant_with_reads(support_reads: usize, depth: usize) -> VariantInfo {
+        VariantInfo {
+            chrom: "chr1".to_string(),
+            gene: "geneA".to_string(),
+            positions: vec![10],
+            ref_bases: vec!["A".to_string()],
+            base_changes: vec!["T".to_string()],
+            aa_changes: vec!["Ala1Val".to_string()],
+            snp_aa_changes: vec!["Ala1Val".to_string()],
+            aa_changes_local: vec!["Ala1Val".to_string()],
+            snp_aa_changes_local: vec!["Ala1Val".to_string()],
+            variant_type: VariantType::Snp,
+            change_type: ChangeType::NonSynonymous,
+            snp_reads: Some(vec![support_reads]),
+            snp_forward_reads: Some(vec![support_reads]),
+            snp_reverse_reads: Some(vec![0]),
+            mnv_reads: None,
+            mnv_forward_reads: None,
+            mnv_reverse_reads: None,
+            mnv_total_reads: None,
+            total_reads: Some(vec![depth]),
+            total_forward_reads: Some(vec![depth]),
+            total_reverse_reads: Some(vec![0]),
+            mnv_total_forward_reads: None,
+            mnv_total_reverse_reads: None,
+            ref_codon: Some("AAA".to_string()),
+            snp_codon: Some("TAA".to_string()),
+            mnv_codon: None,
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }
+    }
+
+    #[test]
+    fn test_low_frequency_filter_marks_snp_when_emit_filtered() {
+        let stem = unique_temp_path("get_mnv_vcf_frequency", "out");
+        let stem_str = stem.to_string_lossy().into_owned();
+        let out_path = format!("{stem_str}.MNV.vcf");
+        let mut writer = VcfWriter::new(VcfWriterConfig {
+            filename: &stem_str,
+            bam_provided: true,
+            min_snp_reads: 0,
+            min_snp_frequency: 0.5,
+            min_mnv_reads: 0,
+            min_mnv_frequency: 0.0,
+            min_quality: 20,
+            min_mapq: 0,
+            command_line: "get_mnv test",
+            contigs: &["chr1".to_string()],
+            bgzf_output: false,
+            min_snp_strand_reads: 0,
+            min_mnv_strand_reads: 0,
+            min_strand_bias_p: 0.0,
+            emit_filtered: true,
+            include_strand_bias_info: false,
+            original_info_headers: &[],
+        })
+        .expect("writer should build");
+        writer
+            .write_variants(&[snp_variant_with_reads(2, 10)], &HashMap::new())
+            .expect("variant should write");
+        drop(writer);
+
+        let mut contents = String::new();
+        File::open(&out_path)
+            .expect("failed to open VCF")
+            .read_to_string(&mut contents)
+            .expect("failed to read VCF");
+        assert!(contents.contains("##FILTER=<ID=LowFrequency"));
+        assert!(contents.contains("\tLowFrequency\t"));
+        assert!(contents.contains("FREQ=0.2000"));
+        let _ = fs::remove_file(out_path);
     }
 }

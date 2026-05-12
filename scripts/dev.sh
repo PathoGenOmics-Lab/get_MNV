@@ -4,9 +4,10 @@
 #        ./dev.sh build   (production build)
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FRONTEND="$ROOT/frontend"
-DESKTOP="$ROOT/apps/desktop"
+DESKTOP="$ROOT/src-tauri"
 
 # Ensure frontend dependencies are installed
 if [ ! -d "$FRONTEND/node_modules" ]; then
@@ -15,10 +16,7 @@ if [ ! -d "$FRONTEND/node_modules" ]; then
 fi
 
 if [ "${1:-}" = "build" ]; then
-  echo "==> Building frontend for production..."
-  (cd "$FRONTEND" && npm run build)
-  echo "==> Building Tauri app..."
-  (cd "$DESKTOP" && cargo tauri build)
+  "$SCRIPT_DIR/build_gui_bundle.sh"
 else
   # Start Vite dev server in background
   echo "==> Starting Vite dev server..."

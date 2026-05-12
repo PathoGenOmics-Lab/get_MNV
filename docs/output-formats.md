@@ -1,110 +1,182 @@
-# Output formats
+# Output Formats
 
-## TSV output (default)
+get_MNV can write TSV, VCF, BCF, and JSON metadata files.
 
-File: `<vcf_filename>.MNV.tsv`
+## Default TSV Output
 
-| Column | Description |
-|--------|-------------|
-| Chromosome | Contig/chromosome name |
-| Gene | Gene name (or `intergenic`) |
-| Positions | Variant positions (comma-separated for MNVs) |
-| Reference Bases | Reference nucleotides |
-| Base Changes | Alternative nucleotides |
-| AA Changes | Amino acid changes (MNV haplotype), **full-protein numbering** (compatible with Ensembl VEP, ANNOVAR, SnpEff, UniProt) |
-| SNP AA Changes | Amino acid changes per individual SNP, full-protein numbering |
-| Local AA Changes | Same MNV haplotype change but using **per-feature (exon-local) numbering** — what versions ≤ 1.1.1 used to report. Identical to `AA Changes` for prokaryotes and single-exon features |
-| Local SNP AA Changes | Per-SNP amino acid change in per-feature (exon-local) numbering |
-| Variant Type | `SNP`, `MNV`, `SNP/MNV`, or `INDEL` |
-| Change Type | `Synonymous`, `Non-synonymous`, `Stop gained`, `Stop lost`, `Unknown`, `Indel overlap`, frameshift variants, `In-frame Indel`, `Frameshift Indel` |
-| Reference Codon | Original codon sequence |
-| SNP Codon | Codon with individual SNP substitutions |
-| MNV Codon | Codon with all MNV substitutions |
+Default file name:
 
-**With BAM (additional columns):**
-
-| Column | Description |
-|--------|-------------|
-| SNP Reads | Supporting reads per SNP position |
-| SNP Forward/Reverse Reads | Strand-specific SNP counts |
-| MNV Reads | Reads supporting the full MNV haplotype |
-| MNV Forward/Reverse Reads | Strand-specific MNV counts |
-| Total Reads | Total depth at each position |
-| SNP Frequencies | Per-position SNP frequencies |
-| MNV Frequencies | MNV haplotype frequency |
-
-### Example
-
+```text
+<input_name>.MNV.tsv
 ```
+
+Use this format for spreadsheets, downstream parsing, and quick inspection.
+
+Main columns:
+
+| Column | Meaning |
+|---|---|
+| `Chromosome` | Contig name |
+| `Gene` | Gene or feature name. Intergenic variants are marked as `intergenic`. |
+| `Positions` | One position for SNPs, multiple comma-separated positions for MNVs. |
+| `Reference Bases` | Reference bases at those positions. |
+| `Base Changes` | Alternative bases. |
+| `AA Changes` | Amino acid change after combining all SNVs in the codon. |
+| `SNP AA Changes` | Amino acid change for each SNV considered separately. |
+| `Local AA Changes` | Exon/local numbering, useful for older downstream workflows. |
+| `Local SNP AA Changes` | Per-SNP amino acid changes in local numbering. |
+| `Variant Type` | `SNP`, `MNV`, `SNP/MNV`, or `INDEL`. |
+| `Change Type` | Synonymous, non-synonymous, stop gained/lost, unknown, etc. |
+| `Reference Codon` | Original codon. |
+| `SNP Codon` | Codon with individual SNP substitutions. |
+| `MNV Codon` | Codon with all grouped substitutions. |
+
+Extra columns when `--bam` is used:
+
+| Column | Meaning |
+|---|---|
+| `SNP Reads` | Reads supporting each individual SNV. |
+| `SNP Forward/Reverse Reads` | Strand-specific SNP support. |
+| `MNV Reads` | Reads supporting the full MNV haplotype. |
+| `MNV Forward/Reverse Reads` | Strand-specific MNV support. |
+| `Total Reads` | Depth at the variant positions. |
+| `SNP Frequencies` | Per-position SNP frequencies. |
+| `MNV Frequencies` | MNV haplotype frequency. |
+
+Frequency columns are calculated from BAM support. `--min-snp-frequency` and
+`--min-mnv-frequency` use these same BAM-derived values. The filters are
+independent: `--min-snp-frequency` applies to individual SNP observations, and
+`--min-mnv-frequency` applies to phased MNV haplotypes. In mixed `SNP/MNV`
+calls, a row or VCF record is kept when either component passes its own active
+threshold.
+Read-count and strand-support filters (`--snp`, `--mnv`, `--min-snp-strand`,
+and `--min-mnv-strand`) follow the same independent SNP/MNV behavior.
+
+Example:
+
+```text
 Chromosome	Gene	Positions	Base Changes	AA Changes	Variant Type	Change Type
 MTB_anc	Rv0095c	104838	T	Asp126Glu	SNP	Non-synonymous
 MTB_anc	Rv0095c	104941,104942	T,G	Gly92Gln	SNP/MNV	Non-synonymous
-MTB_anc	esxL	1341102,1341103	T,C	Arg33Ser	MNV	Non-synonymous
 ```
 
-## VCF output (`--convert` or `--both`)
+## VCF Output
 
-File: `<vcf_filename>.MNV.vcf` (or `.MNV.vcf.gz` with `--vcf-gz`)
+Write VCF with:
 
-### INFO fields
+```bash
+--convert
+```
 
-| Field | Description |
-|-------|-------------|
-| `GENE` | Gene name |
+or write both TSV and VCF with:
+
+```bash
+--both
+```
+
+Default file name:
+
+```text
+<input_name>.MNV.vcf
+```
+
+Use `--vcf-gz` for compressed output:
+
+```text
+<input_name>.MNV.vcf.gz
+```
+
+Common INFO fields:
+
+| Field | Meaning |
+|---|---|
+| `GENE` | Gene or feature name |
 | `AA` | Amino acid change |
 | `CT` | Change type |
-| `TYPE` | Variant type (SNP/MNV/INDEL) |
-| `ODP` | Original depth from input VCF |
-| `OFREQ` | Original allele frequency from input VCF |
-| `SR/SRF/SRR` | SNP reads (total/forward/reverse) — BAM only |
-| `MR/MRF/MRR` | MNV reads (total/forward/reverse) — BAM only |
-| `DP` | Recalculated depth from BAM |
-| `FREQ` | Recalculated frequency from BAM |
-| `SBP` | SNP strand-bias p-value (with `--strand-bias-info`) |
-| `MSBP` | MNV strand-bias p-value (with `--strand-bias-info`) |
+| `TYPE` | Variant type |
+| `ODP` | Original depth from the input variant file |
+| `OFREQ` | Original allele frequency from the input variant file |
+| `SR`, `SRF`, `SRR` | SNP reads: total, forward, reverse |
+| `MR`, `MRF`, `MRR` | MNV reads: total, forward, reverse |
+| `DP` | Depth recalculated from BAM |
+| `FREQ` | Frequency recalculated from BAM |
+| `SBP` | SNP strand-bias p-value |
+| `MSBP` | MNV strand-bias p-value |
 
-### FILTER tags (with `--emit-filtered`)
+The VCF header records the get_MNV version, command line, and thresholds used.
+When `--emit-filtered` is enabled, VCF records below read-support, frequency,
+strand-support, or strand-bias thresholds are written with FILTER tags such as
+`LowSupport`, `LowFrequency`, `StrandSupport`, or `StrandBias`; otherwise they
+are skipped.
 
-| Tag | Description |
-|-----|-------------|
-| `LowSupport` | Below minimum read support thresholds |
-| `StrandSupport` | Below minimum per-strand support |
-| `StrandBias` | Below Fisher exact p-value threshold |
+## BCF Output
 
-### Header metadata
+Write BCF with:
 
-The VCF header includes `##get_mnv_version`, `##get_mnv_command`, and all parameter thresholds used.
+```bash
+--bcf
+```
 
-## BCF output (`--bcf`)
+BCF requires VCF output mode, so use it with `--convert` or `--both`.
 
-Binary VCF converted from the generated VCF. File: `<vcf_filename>.MNV.bcf`
+Default file name:
 
-## JSON outputs
+```text
+<input_name>.MNV.bcf
+```
 
-### Summary JSON (`--summary-json`)
+## JSON Files
 
-Structured run summary with:
-- Per-contig variant counts (SNP, MNV, SNP/MNV, INDEL, intergenic)
-- Global aggregated counts
-- Per-phase timings (ms): `parse_inputs_ms`, `process_ms`, `emit_ms`, `total_ms`
-- SHA-256 checksums for all input files
-- Schema version for stable parsing
+### Summary JSON
 
-### Run manifest (`--run-manifest`)
+Write with:
 
-Reproducibility manifest including:
-- Everything in summary JSON
-- Output file checksums (VCF/TSV/BCF)
-- Tool version and command line
-- Unix timestamp
+```bash
+--summary-json run.summary.json
+```
 
-### Error JSON (`--error-json`)
+Includes:
 
-Structured error details when the command fails, including error code and message.
+- Input file checksums
+- Per-contig variant counts
+- Global variant counts
+- Runtime timings
+- Output paths
+
+### Run Manifest
+
+Write with:
+
+```bash
+--run-manifest run.manifest.json
+```
+
+Includes the summary plus:
+
+- Command line
+- Tool version
+- Output file checksums
+- Timestamp
+
+### Error JSON
+
+Write errors as JSON with:
+
+```bash
+--error-json run.error.json
+```
+
+This is useful in automated pipelines.
 
 ## Notes
 
-- For MNV records, `DP/FREQ` use the depth of reads spanning all SNP positions in the haplotype
-- Frequencies are printed with 4 decimal places
-- `--sample all` writes one output set per sample with suffix `.sample_<name>`
-- `--keep-original-info` preserves all non-get_mnv INFO fields from the input VCF
+- For MNV records, depth and frequency are calculated from reads spanning all
+  positions in the grouped haplotype.
+- Frequencies are printed with 4 decimal places.
+- `--min-snp-frequency` and `--min-mnv-frequency` are values from `0` to `1`
+  and require `--bam`.
+- SNP and MNV frequency filters are independent, so a strong MNV haplotype is
+  not removed by a stricter SNP-frequency threshold.
+- SNP and MNV read-support and strand-support filters are also independent.
+- `--sample all` writes one output set per VCF sample.
+- `--keep-original-info` preserves non-get_MNV INFO fields from the input VCF.

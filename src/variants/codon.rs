@@ -19,10 +19,7 @@ fn merge_original_info(snps: &[Snp]) -> Option<String> {
     }
     // Deduplicate while preserving order
     let mut seen = std::collections::HashSet::new();
-    let unique: Vec<&str> = infos
-        .into_iter()
-        .filter(|s| seen.insert(*s))
-        .collect();
+    let unique: Vec<&str> = infos.into_iter().filter(|s| seen.insert(*s)).collect();
     Some(unique.join("|"))
 }
 
@@ -74,7 +71,9 @@ pub fn process_codon(
         log::error!(
             "process_codon called with empty codon_list for gene '{}' at codon {}-{}; \
              this is a logic bug, please file an issue.",
-            codon_info.gene_name, codon_info.codon_start, codon_info.codon_end
+            codon_info.gene_name,
+            codon_info.codon_start,
+            codon_info.codon_end
         );
         return VariantInfo {
             chrom: chrom.to_string(),
@@ -132,8 +131,20 @@ pub fn process_codon(
     };
 
     let local_aa_pos = match strand {
-        Strand::Plus => codon_info.codon_list[0].position.saturating_sub(codon_info.gene_start) / 3 + 1,
-        Strand::Minus => codon_info.gene_end.saturating_sub(codon_info.codon_list[0].position) / 3 + 1,
+        Strand::Plus => {
+            codon_info.codon_list[0]
+                .position
+                .saturating_sub(codon_info.gene_start)
+                / 3
+                + 1
+        }
+        Strand::Minus => {
+            codon_info
+                .gene_end
+                .saturating_sub(codon_info.codon_list[0].position)
+                / 3
+                + 1
+        }
     };
     let aa_pos = codon_info.protein_offset + local_aa_pos;
 
@@ -242,15 +253,17 @@ fn codon_bounds_for_position(gene: &Gene, position: usize) -> Option<(usize, usi
     // explicitly so the user knows: silently dropping was the trap that
     // hid the codon-grouping bug behind issue #12 for so long.
     if position < eff_start || position > eff_end {
-        if gene.phase > 0
-            && position >= gene.start
-            && position <= gene.end
-        {
+        if gene.phase > 0 && position >= gene.start && position <= gene.end {
             log::warn!(
                 "Variant at {}:{} falls in the phase-skipped region of CDS '{}' \
                  (phase={}, exon {}-{}); the codon spans into a neighbouring exon \
                  and cannot be reconstructed from a single GFF row. Variant skipped.",
-                gene.name, position, gene.name, gene.phase, gene.start, gene.end
+                gene.name,
+                position,
+                gene.name,
+                gene.phase,
+                gene.start,
+                gene.end
             );
         }
         return None;
@@ -540,13 +553,9 @@ pub fn build_intergenic_variant(chrom: &str, vcf_pos: &crate::io::VcfPosition) -
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        codon_bounds_for_position, process_codon,
-    };
-    use crate::variants::{
-        ChangeType, CodonInfo, Gene, Snp, Strand, VariantType,
-    };
+    use super::{codon_bounds_for_position, process_codon};
     use crate::utils::reverse_complement;
+    use crate::variants::{ChangeType, CodonInfo, Gene, Snp, Strand, VariantType};
 
     fn next_u64(seed: &mut u64) -> u64 {
         *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
@@ -735,7 +744,10 @@ mod tests {
         let b517 = codon_bounds_for_position(&gene, 77_794_517).expect("bounds for 517");
         let b518 = codon_bounds_for_position(&gene, 77_794_518).expect("bounds for 518");
         assert_eq!(b517, b518, "517 and 518 must share a codon under phase=1");
-        assert_ne!(b516, b517, "516 must NOT share a codon with 517/518 under phase=1");
+        assert_ne!(
+            b516, b517,
+            "516 must NOT share a codon with 517/518 under phase=1"
+        );
     }
 
     #[test]
@@ -788,7 +800,13 @@ mod tests {
             },
         ];
 
-        let variants = get_mnv_variants_for_gene(&gene, &snps, &reference, "chr1", crate::genetic_code::GeneticCode::default());
+        let variants = get_mnv_variants_for_gene(
+            &gene,
+            &snps,
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
         assert!(
             variants.len() >= 2,
             "expected SNP + indel, got {}",
@@ -870,7 +888,12 @@ mod tests {
             codon_end: 102,
             protein_offset: 0,
         };
-        let result = process_codon(codon_info, Strand::Plus, "chr1", crate::genetic_code::GeneticCode::default());
+        let result = process_codon(
+            codon_info,
+            Strand::Plus,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
         assert_eq!(result.variant_type, VariantType::SnpMnv);
         assert_eq!(result.positions.len(), 2);
         assert!(result.mnv_codon.is_some());
@@ -897,7 +920,12 @@ mod tests {
             protein_offset: 0,
         };
 
-        let result = process_codon(codon_info, Strand::Plus, "chr1", crate::genetic_code::GeneticCode::default());
+        let result = process_codon(
+            codon_info,
+            Strand::Plus,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
         assert_eq!(result.variant_type, VariantType::Snp);
         assert!(matches!(
             result.change_type,
@@ -930,7 +958,12 @@ mod tests {
             codon_end: 102,
             protein_offset: 0,
         };
-        let result = process_codon(codon_info, Strand::Plus, "chr1", crate::genetic_code::GeneticCode::default());
+        let result = process_codon(
+            codon_info,
+            Strand::Plus,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
         // Position 101 is the 2nd base (index 1). ATG → ATG with pos 101 T→t
         // The codon becomes "ATt" → uppercased to "ATT" → Ile (I), not X.
         assert_ne!(
@@ -975,9 +1008,19 @@ mod tests {
         ];
         let seq = "N".repeat(99) + "ATGATGATGATG";
         let reference = Reference { sequence: &seq };
-        let variants = get_mnv_variants_for_gene(&gene, &snps, &reference, "chr1", crate::genetic_code::GeneticCode::default());
+        let variants = get_mnv_variants_for_gene(
+            &gene,
+            &snps,
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
         // Should produce exactly 1 variant (first ALT wins, duplicate skipped)
-        assert_eq!(variants.len(), 1, "Duplicate position should be deduplicated");
+        assert_eq!(
+            variants.len(),
+            1,
+            "Duplicate position should be deduplicated"
+        );
         assert_eq!(variants[0].positions.len(), 1);
         assert_eq!(variants[0].base_changes[0], "T"); // first ALT kept
     }

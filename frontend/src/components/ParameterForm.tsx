@@ -198,7 +198,9 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
       config.minQuality === merged.minQuality &&
       config.minMapq === merged.minMapq &&
       config.minSnpReads === merged.minSnpReads &&
+      config.minSnpFrequency === merged.minSnpFrequency &&
       config.minMnvReads === merged.minMnvReads &&
+      config.minMnvFrequency === merged.minMnvFrequency &&
       config.minSnpStrandReads === merged.minSnpStrandReads &&
       config.minMnvStrandReads === merged.minMnvStrandReads &&
       config.minStrandBiasP === merged.minStrandBiasP &&
@@ -224,6 +226,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
       ...preset.config,
       // Preserve user-selected files and environment settings
       vcfFile: config.vcfFile,
+      inputFormat: config.inputFormat,
       fastaFile: config.fastaFile,
       genesFile: config.genesFile,
       bamFile: config.bamFile,
@@ -330,6 +333,24 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
             min={0}
             max={50}
             onChange={(v) => update("minMnvReads", v)}
+          />
+          <SliderField
+            label="Min SNP frequency"
+            tip="Minimum BAM-derived allele frequency for SNP records. 0 = disabled; requires a BAM file when enabled."
+            value={config.minSnpFrequency}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => update("minSnpFrequency", v)}
+          />
+          <SliderField
+            label="Min MNV frequency"
+            tip="Minimum BAM-derived haplotype frequency for MNV records. 0 = disabled; requires a BAM file when enabled."
+            value={config.minMnvFrequency}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => update("minMnvFrequency", v)}
           />
 
           <div className="param-divider" />
@@ -450,13 +471,13 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
         <ParamGroup title="Analysis Options" accent="#149389">
           <ToggleField
             label="Normalize alleles"
-            tip="Left-align and trim alleles to their canonical VCF representation before analysis."
+            tip="Left-align and trim VCF alleles before analysis. iVar TSV SNVs are already position-based."
             checked={config.normalizeAlleles}
             onChange={(v) => update("normalizeAlleles", v)}
           />
           <ToggleField
             label="Split multiallelic"
-            tip="Decompose multi-allelic VCF records into separate biallelic entries for cleaner per-variant analysis."
+            tip="Decompose multi-allelic VCF records into separate biallelic entries. iVar TSV inputs already use one row per allele."
             checked={config.splitMultiallelic}
             onChange={(v) => update("splitMultiallelic", v)}
           />
@@ -468,7 +489,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
           />
           <ToggleField
             label="Emit filtered"
-            tip="Include filtered variants in output (marked as FILTER=FAIL). Useful for auditing which variants were removed."
+            tip="Include filtered VCF records with FILTER tags such as LowSupport or LowFrequency. Useful for auditing which variants were removed."
             checked={config.emitFiltered}
             onChange={(v) => update("emitFiltered", v)}
           />
@@ -480,7 +501,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
           />
           <ToggleField
             label="Keep original INFO"
-            tip="Preserve all original INFO fields from the input VCF in the output VCF (e.g. SnpEff ANN, CSQ). Requires VCF output."
+            tip="Preserve original INFO fields from VCF input in the output VCF (e.g. SnpEff ANN, CSQ). Requires VCF output."
             checked={config.keepOriginalInfo}
             onChange={(v) => update("keepOriginalInfo", v)}
           />
@@ -557,7 +578,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
           <div className="param-text-row">
             <div className="param-slider-label">
               <span>Output directory</span>
-              <Tip text="Directory where output files will be written. Leave empty to use the same directory as the VCF file." />
+              <Tip text="Directory where output files will be written. Leave empty to use the same directory as the variant input file." />
             </div>
             <div className="output-dir-row">
               <input
@@ -570,7 +591,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
                 placeholder={
                   config.vcfFile
                     ? config.vcfFile.split(/[\\/]/).slice(0, -1).join("/") || "/"
-                    : "Same as VCF file"
+                    : "Same as variant file"
                 }
               />
               <button
@@ -594,7 +615,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
           <div className="param-text-row">
             <div className="param-slider-label">
               <span>Output prefix</span>
-              <Tip text="Filename prefix for output files (e.g. 'my_run' produces 'my_run.MNV.tsv'). Leave empty to derive from VCF filename." />
+              <Tip text="Filename prefix for output files (e.g. 'my_run' produces 'my_run.MNV.tsv'). Leave empty to derive from the variant input filename." />
             </div>
             <input
               type="text"
@@ -605,8 +626,8 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
               }
               placeholder={
                 config.vcfFile
-                  ? config.vcfFile.split(/[\\/]/).pop()?.replace(/\.(vcf\.gz|vcf)$/i, "") ?? "auto"
-                  : "Derived from VCF"
+                  ? config.vcfFile.split(/[\\/]/).pop()?.replace(/\.(vcf\.gz|vcf|tsv|txt)$/i, "") ?? "auto"
+                  : "Derived from variants"
               }
             />
           </div>

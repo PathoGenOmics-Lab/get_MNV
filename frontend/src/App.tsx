@@ -43,6 +43,7 @@ const NAME_HINTS: [RegExp, keyof AnalysisConfig][] = [
 
 function classifyFile(path: string): keyof AnalysisConfig | null {
   const lower = path.toLowerCase();
+  const filename = lower.split(/[\\/]/).pop() ?? "";
 
   // 1. Compound extensions first
   if (lower.endsWith(".vcf.gz")) return "vcfFile";
@@ -54,12 +55,29 @@ function classifyFile(path: string): keyof AnalysisConfig | null {
   if (byExt) return byExt;
 
   // 3. Keyword fallback on filename (handles files without extensions)
-  const filename = lower.split(/[\\/]/).pop() ?? "";
   for (const [pattern, field] of NAME_HINTS) {
     if (pattern.test(filename)) return field;
   }
 
   return null;
+}
+
+async function classifyDroppedFile(path: string): Promise<keyof AnalysisConfig | null> {
+  const lower = path.toLowerCase();
+
+  if (/\.(tsv|txt|csv)$/i.test(lower)) {
+    try {
+      const detected = await invoke<string>("detect_variant_input_format", { path });
+      if (detected === "tsv" || detected === "vcf") return "vcfFile";
+    } catch {
+      // Fall back to extension-based classification below.
+    }
+
+    const ext = lower.split(".").pop() ?? "";
+    return EXT_MAP[ext] ?? null;
+  }
+
+  return classifyFile(path);
 }
 
 /** Check if the annotation file is GFF/GFF3/GTF format (vs plain genes TSV) */
@@ -68,9 +86,25 @@ function isGffFile(path: string): boolean {
   return /\.(gff3?|gtf)(\.gz)?$/.test(lower);
 }
 
+function sameFeatures(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((feature, idx) => feature === b[idx]);
+}
+
+function preferredGffFeatures(available: string[]): string[] {
+  if (available.includes("CDS")) return ["CDS"];
+
+  const defaultMatches = DEFAULT_CONFIG.gffFeatures.filter((feature) =>
+    available.includes(feature)
+  );
+  if (defaultMatches.length > 0) return defaultMatches;
+
+  return available.slice(0, 1);
+}
+
 /** Extract filename stem — removes path and known bioinformatics extensions */
 function filenameStem(path: string): string {
-  return (path.split(/[\\/]/).pop() ?? "").replace(/\.(vcf\.gz|vcf|bam)$/i, "");
+  return (path.split(/[\\/]/).pop() ?? "").replace(/\.(vcf\.gz|vcf|tsv|txt|bam)$/i, "");
 }
 
 /** Extract the core sample ID (first dot-segment) from a filename */
@@ -107,6 +141,24 @@ function matchBamToVcf(vcfPath: string, bamPaths: string[]): string | undefined 
   }
 
   return undefined;
+}
+
+function resetSampleForRun(sample: SampleEntry): SampleEntry {
+  return {
+    ...sample,
+    status: "pending",
+    error: undefined,
+    result: undefined,
+    tsvData: undefined,
+  };
+}
+
+function configForSample(baseConfig: AnalysisConfig, sample: SampleEntry): AnalysisConfig {
+  return {
+    ...baseConfig,
+    vcfFile: sample.vcfPath,
+    bamFile: sample.bamPath ?? baseConfig.bamFile,
+  };
 }
 
 /** Codon background — each letter illuminates randomly with MNV colors */
@@ -233,7 +285,7 @@ function App() {
   const [gffAvailableFeatures, setGffAvailableFeatures] = useState<string[]>([]);
   const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme);
   const [showCrab, setShowCrab] = useState(getInitialCrab);
-  const [appVersion, setAppVersion] = useState("v1.1.1");
+  const [appVersion, setAppVersion] = useState("v1.1.3");
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const [runProgress, setRunProgress] = useState<ProgressEvent | null>(null);
 
@@ -321,7 +373,7 @@ function App() {
     } else {
       setSamples([]);
     }
-    setConfig((prev) => ({ ...prev, vcfFile: path }));
+    setConfig((prev) => ({ ...prev, vcfFile: path, inputFormat: "auto" }));
   }, []);
 
   // Remove a sample from the list
@@ -347,7 +399,24 @@ function App() {
       Promise.resolve().then(() => { if (!cancelled) setGffAvailableFeatures([]); });
     } else {
       invoke<string[]>("get_gff_features", { path: config.genesFile })
-        .then((features) => { if (!cancelled) setGffAvailableFeatures(features); })
+        .then((features) => {
+          if (cancelled) return;
+          setGffAvailableFeatures(features);
+
+          if (features.length === 0) return;
+          setConfig((prev) => {
+            const isDefaultSelection = sameFeatures(prev.gffFeatures, DEFAULT_CONFIG.gffFeatures);
+            const hasSelectedDetectedFeature = prev.gffFeatures.some((feature) =>
+              features.includes(feature)
+            );
+
+            if (!isDefaultSelection && hasSelectedDetectedFeature) return prev;
+
+            const nextFeatures = preferredGffFeatures(features);
+            if (sameFeatures(prev.gffFeatures, nextFeatures)) return prev;
+            return { ...prev, gffFeatures: nextFeatures };
+          });
+        })
         .catch(() => { if (!cancelled) setGffAvailableFeatures([]); });
     }
 
@@ -368,83 +437,86 @@ function App() {
         } else if (payload.type === "drop") {
           setDragActive(false);
 
-          const vcfPaths: string[] = [];
-          const bamPaths: string[] = [];
-          const updates: Partial<AnalysisConfig> = {};
-          const assigned: string[] = [];
+          void (async (paths: string[]) => {
+            const vcfPaths: string[] = [];
+            const bamPaths: string[] = [];
+            const updates: Partial<AnalysisConfig> = {};
+            const assigned: string[] = [];
 
-          for (const path of payload.paths) {
-            const field = classifyFile(path);
-            if (field === "vcfFile") {
-              vcfPaths.push(path);
-            } else if (field === "bamFile") {
-              bamPaths.push(path);
-            } else if (field) {
-              (updates as Record<string, unknown>)[field] = path;
-              assigned.push(field);
-            }
-          }
-
-          // Build sample entries from VCFs (deduplicated)
-          if (vcfPaths.length > 0) {
-            // Deduplicate within the drop itself
-            const uniqueVcfPaths = [...new Set(vcfPaths)];
-
-            setSamples((prev) => {
-              // Filter out VCFs that already exist as samples
-              const existingPaths = new Set(prev.map((s) => s.vcfPath));
-              const freshVcfPaths = uniqueVcfPaths.filter((p) => !existingPaths.has(p));
-              if (freshVcfPaths.length === 0) return prev; // nothing new
-
-              const usedBams = new Set<string>();
-              const newSamples: SampleEntry[] = freshVcfPaths.map((vcf) => {
-                // Match BAM using multi-level fallback (exact stem → prefix → sample ID)
-                const availableBams = bamPaths.filter((b) => !usedBams.has(b));
-                const matchedBam = matchBamToVcf(vcf, availableBams);
-                if (matchedBam) usedBams.add(matchedBam);
-                return {
-                  id: crypto.randomUUID(),
-                  name: sampleIdFromPath(vcf) || filenameStem(vcf),
-                  vcfPath: vcf,
-                  bamPath: matchedBam,
-                  status: "pending" as const,
-                };
-              });
-
-              // If there's only one BAM and no stem match happened, assign it to all new samples
-              if (bamPaths.length === 1 && !newSamples.some((s) => s.bamPath)) {
-                for (const s of newSamples) s.bamPath = bamPaths[0];
+            for (const path of paths) {
+              const field = await classifyDroppedFile(path);
+              if (field === "vcfFile") {
+                vcfPaths.push(path);
+              } else if (field === "bamFile") {
+                bamPaths.push(path);
+              } else if (field) {
+                (updates as Record<string, unknown>)[field] = path;
+                assigned.push(field);
               }
+            }
 
-              // Append to existing done/running samples
-              const keepPrev = prev.filter((s) => s.status === "done" || s.status === "running");
-              return [...keepPrev, ...newSamples];
-            });
-            updates.vcfFile = vcfPaths[0];
-            assigned.push("vcfFile");
+            // Build sample entries from variant files (deduplicated)
+            if (vcfPaths.length > 0) {
+              // Deduplicate within the drop itself
+              const uniqueVcfPaths = [...new Set(vcfPaths)];
 
-            // If a single BAM was dropped alongside VCFs, also set config.bamFile
-            if (bamPaths.length === 1) {
+              setSamples((prev) => {
+                // Filter out variant files that already exist as samples
+                const existingPaths = new Set(prev.map((s) => s.vcfPath));
+                const freshVcfPaths = uniqueVcfPaths.filter((p) => !existingPaths.has(p));
+                if (freshVcfPaths.length === 0) return prev; // nothing new
+
+                const usedBams = new Set<string>();
+                const newSamples: SampleEntry[] = freshVcfPaths.map((vcf) => {
+                  // Match BAM using multi-level fallback (exact stem → prefix → sample ID)
+                  const availableBams = bamPaths.filter((b) => !usedBams.has(b));
+                  const matchedBam = matchBamToVcf(vcf, availableBams);
+                  if (matchedBam) usedBams.add(matchedBam);
+                  return {
+                    id: crypto.randomUUID(),
+                    name: sampleIdFromPath(vcf) || filenameStem(vcf),
+                    vcfPath: vcf,
+                    bamPath: matchedBam,
+                    status: "pending" as const,
+                  };
+                });
+
+                // If there's only one BAM and no stem match happened, assign it to all new samples
+                if (bamPaths.length === 1 && !newSamples.some((s) => s.bamPath)) {
+                  for (const s of newSamples) s.bamPath = bamPaths[0];
+                }
+
+                // Append to existing done/running samples
+                const keepPrev = prev.filter((s) => s.status === "done" || s.status === "running");
+                return [...keepPrev, ...newSamples];
+              });
+              updates.vcfFile = vcfPaths[0];
+              updates.inputFormat = "auto";
+              assigned.push("vcfFile");
+
+              // If a single BAM was dropped alongside variant files, also set config.bamFile
+              if (bamPaths.length === 1) {
+                updates.bamFile = bamPaths[0];
+                assigned.push("bamFile");
+              }
+            } else if (bamPaths.length > 0) {
+              // Only BAMs dropped (no variant files) — assign to config + existing samples
               updates.bamFile = bamPaths[0];
               assigned.push("bamFile");
+              if (bamPaths.length === 1) {
+                setSamples((prev) => prev.map((s) => ({ ...s, bamPath: bamPaths[0] })));
+              }
             }
-          } else if (bamPaths.length > 0) {
-            // Only BAMs dropped (no VCFs) — assign to config + existing samples
-            updates.bamFile = bamPaths[0];
-            assigned.push("bamFile");
-            if (bamPaths.length === 1) {
-              setSamples((prev) => prev.map((s) => ({ ...s, bamPath: bamPaths[0] })));
-            }
-          }
 
-          if (assigned.length > 0) {
-            setConfig((prev) => ({ ...prev, ...updates }));
-            flashAssigned(assigned);
-            // Auto-generate .fai when FASTA is assigned via drag-and-drop
-            if (updates.fastaFile) {
-              invoke("ensure_fasta_index", { fastaPath: updates.fastaFile }).catch(() => {});
+            if (assigned.length > 0) {
+              setConfig((prev) => ({ ...prev, ...updates }));
+              flashAssigned(assigned);
+              // Auto-generate .fai when FASTA is assigned via drag-and-drop
+              if (updates.fastaFile) {
+                invoke("ensure_fasta_index", { fastaPath: updates.fastaFile }).catch(() => {});
+              }
             }
-          }
+          })(payload.paths);
         }
       })
       .then((fn) => {
@@ -457,10 +529,10 @@ function App() {
   }, [flashAssigned]);
 
   // ── Batch analysis runner ──
-  const handleRunAll = useCallback(async () => {
-    const toRun = samples.filter((s) => s.status === "pending" || s.status === "error");
+  const runSamples = useCallback(async (toRun: SampleEntry[]) => {
     if (toRun.length === 0) return;
 
+    const baseConfig = configRef.current;
     setRunning(true);
     setError(null);
     setBatchProgress({ current: 0, total: toRun.length });
@@ -479,11 +551,7 @@ function App() {
           prev.map((s) => (s.id === sample.id ? { ...s, status: "running" } : s))
         );
 
-        const sampleConfig: AnalysisConfig = {
-          ...configRef.current,
-          vcfFile: sample.vcfPath,
-          bamFile: sample.bamPath ?? configRef.current.bamFile,
-        };
+        const sampleConfig = configForSample(baseConfig, sample);
 
         try {
           const result = await invoke<RunSummary>("run_analysis", { config: sampleConfig });
@@ -541,36 +609,97 @@ function App() {
         return prev;
       });
     }
-  }, [samples]);
+  }, []);
+
+  const confirmOutputWrites = useCallback(async (toRun: SampleEntry[]) => {
+    if (toRun.length === 0) return true;
+
+    const baseConfig = configRef.current;
+    const configs = toRun.map((sample) => configForSample(baseConfig, sample));
+
+    try {
+      const [plannedBySample, existingBySample] = await Promise.all([
+        Promise.all(
+          configs.map((sampleConfig) =>
+            invoke<string[]>("resolve_output_paths", { config: sampleConfig })
+          )
+        ),
+        Promise.all(
+          configs.map((sampleConfig) =>
+            invoke<string[]>("check_output_conflicts", { config: sampleConfig })
+          )
+        ),
+      ]);
+
+      const plannedCounts = new Map<string, number>();
+      for (const path of plannedBySample.flat()) {
+        plannedCounts.set(path, (plannedCounts.get(path) ?? 0) + 1);
+      }
+      const duplicatePlanned = Array.from(plannedCounts.entries())
+        .filter(([, count]) => count > 1)
+        .map(([path]) => path);
+      const existing = Array.from(new Set(existingBySample.flat()));
+
+      if (duplicatePlanned.length === 0 && existing.length === 0) return true;
+
+      const basename = (path: string) => path.split(/[\\/]/).pop() ?? path;
+      const sections: string[] = [];
+      if (existing.length > 0) {
+        sections.push(
+          `The following output files already exist and will be overwritten:\n${existing.map(basename).join(", ")}`
+        );
+      }
+      if (duplicatePlanned.length > 0) {
+        sections.push(
+          `Multiple samples will write to the same output path:\n${duplicatePlanned.map(basename).join(", ")}`
+        );
+      }
+
+      return window.confirm(`${sections.join("\n\n")}\n\nContinue?`);
+    } catch {
+      return true;
+    }
+  }, []);
+
+  const handleRunAll = useCallback(() => {
+    const toRun = samples.filter((s) => s.status === "pending" || s.status === "error");
+    void runSamples(toRun);
+  }, [samples, runSamples]);
 
   // Re-run a single sample (e.g., after error or completed)
-  const handleRerunSample = useCallback((sampleId: string) => {
+  const handleRerunSample = useCallback(async (sampleId: string) => {
+    if (running) return;
+    const sample = samples.find((s) => s.id === sampleId);
+    if (!sample) return;
+    if (!(await confirmOutputWrites([sample]))) return;
+
+    const sampleToRun = resetSampleForRun(sample);
     setSamples((prev) =>
-      prev.map((s) => (s.id === sampleId ? { ...s, status: "pending", error: undefined, result: undefined, tsvData: undefined } : s))
+      prev.map((s) => (s.id === sampleId ? resetSampleForRun(s) : s))
     );
-  }, []);
+    setActiveSampleId(sampleId);
+    void runSamples([sampleToRun]);
+  }, [samples, running, runSamples, confirmOutputWrites]);
 
-  // Re-run all completed/error samples — resets them to pending, then auto-triggers batch run
-  const rerunRequestedRef = useRef(false);
-
+  // Re-run all completed/error samples.
   const handleRerunAll = useCallback(() => {
+    if (running) return;
+    const samplesToRun = samples
+      .filter((s) => s.status === "done" || s.status === "error")
+      .map(resetSampleForRun);
+    if (samplesToRun.length === 0) return;
+
+    const rerunIds = new Set(samplesToRun.map((s) => s.id));
     setSamples((prev) =>
       prev.map((s) =>
-        s.status === "done" || s.status === "error"
-          ? { ...s, status: "pending" as const, error: undefined, result: undefined, tsvData: undefined }
-          : s
+        rerunIds.has(s.id) ? resetSampleForRun(s) : s
       )
     );
-    rerunRequestedRef.current = true;
-  }, []);
-
-  // Auto-trigger batch run after re-run resets samples to pending
-  useEffect(() => {
-    if (rerunRequestedRef.current && !running && samples.some((s) => s.status === "pending")) {
-      rerunRequestedRef.current = false;
-      handleRunAll();
-    }
-  }, [samples, running, handleRunAll]);
+    setActiveSampleId((prev) =>
+      prev && rerunIds.has(prev) ? prev : samplesToRun[0].id
+    );
+    void runSamples(samplesToRun);
+  }, [samples, running, runSamples]);
 
   // Clear all samples
   const clearAllSamples = useCallback(() => {
@@ -618,23 +747,15 @@ function App() {
     setShowValidation(false);
 
     if (runnableCount > 0) {
-      try {
-        const conflicts = await invoke<string[]>("check_output_conflicts", { config: configRef.current });
-        if (conflicts.length > 0) {
-          const names = conflicts.map((p: string) => p.split(/[\\/]/).pop()).join(", ");
-          const ok = window.confirm(
-            `The following output files already exist and will be overwritten:\n\n${names}\n\nContinue?`
-          );
-          if (!ok) return;
-        }
-      } catch {
-        // If check fails, proceed anyway
-      }
+      const toRun = samples.filter((s) => s.status === "pending" || s.status === "error");
+      if (!(await confirmOutputWrites(toRun))) return;
       handleRunAll();
     } else {
+      const toRun = samples.filter((s) => s.status === "done" || s.status === "error");
+      if (!(await confirmOutputWrites(toRun))) return;
       handleRerunAll();
     }
-  }, [filesReady, samples.length, runnableCount, handleRunAll, handleRerunAll]);
+  }, [filesReady, samples, runnableCount, handleRunAll, handleRerunAll, confirmOutputWrites]);
 
   // Ctrl+Enter / Cmd+Enter shortcut to run analysis
   const triggerRunRef = useRef(triggerRun);
@@ -744,6 +865,7 @@ function App() {
                         setConfig((prev) => ({
                           ...prev,
                           vcfFile: "",
+                          inputFormat: "auto",
                           fastaFile: "",
                           genesFile: "",
                           bamFile: undefined,
@@ -762,10 +884,10 @@ function App() {
                 </div>
                 <div className="files-grid">
                   <FileSelector
-                    label={samples.length > 1 ? `VCF variants (${samples.length})` : "VCF variants"}
+                    label={samples.length > 1 ? `Variant calls (${samples.length})` : "Variant calls"}
                     value={samples.length === 1 ? samples[0].vcfPath : samples.length > 1 ? `${samples.length} samples loaded` : ""}
                     onChange={handleVcfChange}
-                    filters={[{ name: "VCF", extensions: ["vcf", "vcf.gz"] }]}
+                    filters={[{ name: "Variants", extensions: ["vcf", "vcf.gz", "tsv", "txt"] }]}
                     required
                     isDragActive={dragActive}
                     justAssigned={justAssigned.has("vcfFile")}
@@ -935,7 +1057,7 @@ function App() {
                     <p className={`hint${showValidation ? " hint--error" : ""}`}>
                       {showValidation
                         ? "⚠ Required files are missing — select them above"
-                        : "Select VCF, FASTA, and gene annotation files to enable analysis"}
+                        : "Select variants, FASTA, and gene annotation files to enable analysis"}
                     </p>
                   )}
                   {filesReady && !running && (
@@ -969,6 +1091,7 @@ function App() {
                     setConfig((prev) => ({
                       ...DEFAULT_CONFIG,
                       vcfFile: prev.vcfFile,
+                      inputFormat: prev.inputFormat,
                       fastaFile: prev.fastaFile,
                       genesFile: prev.genesFile,
                       bamFile: prev.bamFile,

@@ -3,7 +3,7 @@
 //! These tests run the full pipeline (`pipeline::run`) against the bundled
 //! `example/` data and verify output correctness at a structural level.
 
-use get_mnv::cli::Args;
+use get_mnv::cli::{Args, VariantInputFormat};
 use get_mnv::pipeline;
 use std::fs;
 use std::path::PathBuf;
@@ -26,7 +26,9 @@ fn temp_dir(prefix: &str) -> PathBuf {
 fn base_args() -> Args {
     let ex = example_dir();
     Args {
-        vcf_file: ex.join("G35894.var.snp.vcf").to_string_lossy().into(),
+        vcf_file: Some(ex.join("G35894.var.snp.vcf").to_string_lossy().into()),
+        tsv_file: None,
+        input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: ex.join("MTB_ancestor.fas").to_string_lossy().into(),
         genes_file_tsv: Some(ex.join("anot_genes.txt").to_string_lossy().into()),
@@ -39,7 +41,9 @@ fn base_args() -> Args {
         min_mapq: 0,
         threads: None,
         min_snp_reads: 0,
+        min_snp_frequency: 0.0,
         min_mnv_reads: 0,
+        min_mnv_frequency: 0.0,
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
@@ -87,10 +91,7 @@ fn test_e2e_tsv_output_matches_expected_variant_counts() {
 
     // Variant counts: 797 SNP + 9 MNV + 1 SNP/MNV = 807 genic + intergenic
     let total = summary.global.produced_variants;
-    assert!(
-        total >= 800,
-        "expected ≥800 variants, got {total}"
-    );
+    assert!(total >= 800, "expected ≥800 variants, got {total}");
     assert!(
         summary.global.snp_variants >= 700,
         "expected ≥700 SNPs, got {}",
@@ -122,8 +123,53 @@ fn test_e2e_tsv_output_matches_expected_variant_counts() {
     let header = tsv_lines[0];
     assert!(header.contains("Chromosome"), "header missing Chromosome");
     assert!(header.contains("Gene"), "header missing Gene");
-    assert!(header.contains("Variant Type"), "header missing Variant Type");
+    assert!(
+        header.contains("Variant Type"),
+        "header missing Variant Type"
+    );
     assert!(header.contains("Change Type"), "header missing Change Type");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
+fn test_e2e_ivar_tsv_input_with_tsv_option() {
+    let tmp = temp_dir("e2e_ivar");
+    let ivar_path = tmp.join("sample_variants.tsv");
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+
+    fs::write(
+        &ivar_path,
+        "REGION\tPOS\tREF\tALT\tREF_DP\tALT_DP\tALT_FREQ\tTOTAL_DP\tPASS\n\
+chr1\t4\tG\tA\t1\t9\t0.9\t10\tTRUE\n\
+chr1\t5\tG\tA\t1\t9\t0.9\t10\tTRUE\n\
+chr1\t6\tA\tC\t1\t9\t0.9\t10\tTRUE\n\
+chr1\t7\tC\tT\t1\t9\t0.9\t10\tFALSE\n\
+chr1\t8\tC\t+A\t1\t9\t0.9\t10\tTRUE\n",
+    )
+    .unwrap();
+    fs::write(&ref_path, ">chr1\nATGGGACCCTAA\n").unwrap();
+    fs::write(&genes_path, "gene1\t1\t12\t+\n").unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = None;
+    args.tsv_file = Some(ivar_path.to_string_lossy().into());
+    args.input_format = VariantInputFormat::Auto;
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.gff_file = None;
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("ivar_out".to_string());
+
+    let summary = pipeline::run(&args).expect("iVar TSV pipeline should succeed");
+    assert_eq!(summary.global.snp_records_in_vcf, 3);
+    assert_eq!(summary.global.produced_variants, 1);
+    assert_eq!(summary.global.snp_mnv_variants, 1);
+
+    let tsv_content = fs::read_to_string(tmp.join("ivar_out.MNV.tsv")).expect("read TSV");
+    assert!(tsv_content.contains("4, 5, 6"));
+    assert!(tsv_content.contains("SNP/MNV"));
 
     fs::remove_dir_all(&tmp).ok();
 }
@@ -149,8 +195,14 @@ fn test_e2e_vcf_output_is_valid() {
     let lines: Vec<&str> = vcf_content.lines().collect();
 
     // Check VCF header
-    assert!(lines[0].starts_with("##fileformat=VCFv4"), "missing VCF header");
-    let header_line = lines.iter().find(|l| l.starts_with("#CHROM")).expect("missing #CHROM line");
+    assert!(
+        lines[0].starts_with("##fileformat=VCFv4"),
+        "missing VCF header"
+    );
+    let header_line = lines
+        .iter()
+        .find(|l| l.starts_with("#CHROM"))
+        .expect("missing #CHROM line");
     assert!(header_line.contains("INFO"), "header missing INFO column");
 
     // Data lines (non-header, non-comment)
@@ -163,7 +215,10 @@ fn test_e2e_vcf_output_is_valid() {
 
     // Every data line should have the contig
     for line in &data_lines {
-        assert!(line.starts_with("MTB_anc\t"), "unexpected contig in VCF line");
+        assert!(
+            line.starts_with("MTB_anc\t"),
+            "unexpected contig in VCF line"
+        );
     }
 
     // Check INFO fields contain expected tags
@@ -172,8 +227,14 @@ fn test_e2e_vcf_output_is_valid() {
     assert!(sample_line.contains("TYPE="), "missing TYPE in INFO");
     assert!(sample_line.contains("CT="), "missing CT in INFO");
 
-    assert!(summary.output_vcf.is_some(), "summary should report VCF output");
-    assert!(summary.output_tsv.is_none(), "should not produce TSV in convert mode");
+    assert!(
+        summary.output_vcf.is_some(),
+        "summary should report VCF output"
+    );
+    assert!(
+        summary.output_tsv.is_none(),
+        "should not produce TSV in convert mode"
+    );
 
     fs::remove_dir_all(&tmp).ok();
 }
@@ -215,8 +276,14 @@ fn test_e2e_dry_run_no_files() {
     let summary = pipeline::run(&args).expect("pipeline should succeed");
 
     assert!(summary.dry_run, "summary should report dry-run");
-    assert!(!tmp.join("test_dry.MNV.tsv").exists(), "TSV should NOT exist in dry-run");
-    assert!(summary.global.produced_variants >= 800, "dry-run should still count variants");
+    assert!(
+        !tmp.join("test_dry.MNV.tsv").exists(),
+        "TSV should NOT exist in dry-run"
+    );
+    assert!(
+        summary.global.produced_variants >= 800,
+        "dry-run should still count variants"
+    );
 
     fs::remove_dir_all(&tmp).ok();
 }
@@ -337,7 +404,8 @@ fn test_e2e_error_json_on_bad_input() {
     let tmp = temp_dir("e2e_error");
     let error_path = tmp.join("error.json");
     let mut args = base_args();
-    args.vcf_file = "/nonexistent/file.vcf".to_string();
+    args.vcf_file = Some("/nonexistent/file.vcf".to_string());
+    args.tsv_file = None;
     args.error_json = Some(error_path.to_string_lossy().into());
     args.output_dir = Some(tmp.to_string_lossy().into());
 
@@ -373,7 +441,10 @@ fn test_e2e_keep_original_info_in_vcf() {
     // The example VCF has ANN= from SnpEff — should be preserved
     let data_lines: Vec<&str> = content.lines().filter(|l| !l.starts_with('#')).collect();
     let has_ann = data_lines.iter().any(|l| l.contains("ANN="));
-    assert!(has_ann, "original ANN= INFO field should be preserved with --keep-original-info");
+    assert!(
+        has_ann,
+        "original ANN= INFO field should be preserved with --keep-original-info"
+    );
 
     fs::remove_dir_all(&tmp).ok();
 }
@@ -427,7 +498,9 @@ chr1\t300\t.\tG\tA\t.\tPASS\t.\tGT:DP\t1/1:25\t1/1:30
     fs::write(&genes_path, genes_content).unwrap();
 
     let args = Args {
-        vcf_file: vcf_path.to_string_lossy().into(),
+        vcf_file: Some(vcf_path.to_string_lossy().into()),
+        tsv_file: None,
+        input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: ref_path.to_string_lossy().into(),
         genes_file_tsv: Some(genes_path.to_string_lossy().into()),
@@ -440,7 +513,9 @@ chr1\t300\t.\tG\tA\t.\tPASS\t.\tGT:DP\t1/1:25\t1/1:30
         min_mapq: 0,
         threads: None,
         min_snp_reads: 0,
+        min_snp_frequency: 0.0,
         min_mnv_reads: 0,
+        min_mnv_frequency: 0.0,
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
@@ -503,7 +578,9 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT:DP\t1/1:20\t0/0:15
     fs::write(&genes_path, genes_content).unwrap();
 
     let args = Args {
-        vcf_file: vcf_path.to_string_lossy().into(),
+        vcf_file: Some(vcf_path.to_string_lossy().into()),
+        tsv_file: None,
+        input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: ref_path.to_string_lossy().into(),
         genes_file_tsv: Some(genes_path.to_string_lossy().into()),
@@ -516,7 +593,9 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT:DP\t1/1:20\t0/0:15
         min_mapq: 0,
         threads: None,
         min_snp_reads: 0,
+        min_snp_frequency: 0.0,
         min_mnv_reads: 0,
+        min_mnv_frequency: 0.0,
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
@@ -570,7 +649,9 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT\t1/1
     fs::write(tmp.join("genes.txt"), genes_content).unwrap();
 
     let args = Args {
-        vcf_file: tmp.join("test.vcf").to_string_lossy().into(),
+        vcf_file: Some(tmp.join("test.vcf").to_string_lossy().into()),
+        tsv_file: None,
+        input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: tmp.join("ref.fas").to_string_lossy().into(),
         genes_file_tsv: Some(tmp.join("genes.txt").to_string_lossy().into()),
@@ -583,7 +664,9 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT\t1/1
         min_mapq: 0,
         threads: None,
         min_snp_reads: 0,
+        min_snp_frequency: 0.0,
         min_mnv_reads: 0,
+        min_mnv_frequency: 0.0,
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
@@ -610,7 +693,10 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT\t1/1
     let result = pipeline::run(&args);
     assert!(result.is_err(), "nonexistent sample should fail");
     let err = result.unwrap_err().to_string();
-    assert!(err.contains("NONEXISTENT") || err.contains("not found"), "error should mention sample name: {err}");
+    assert!(
+        err.contains("NONEXISTENT") || err.contains("not found"),
+        "error should mention sample name: {err}"
+    );
 
     fs::remove_dir_all(&tmp).ok();
 }
@@ -638,7 +724,9 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.
     fs::write(tmp.join("genes.txt"), genes_content).unwrap();
 
     let args = Args {
-        vcf_file: tmp.join("test.vcf").to_string_lossy().into(),
+        vcf_file: Some(tmp.join("test.vcf").to_string_lossy().into()),
+        tsv_file: None,
+        input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: tmp.join("ref.fas").to_string_lossy().into(),
         genes_file_tsv: Some(tmp.join("genes.txt").to_string_lossy().into()),
@@ -651,7 +739,9 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.
         min_mapq: 0,
         threads: None,
         min_snp_reads: 0,
+        min_snp_frequency: 0.0,
         min_mnv_reads: 0,
+        min_mnv_frequency: 0.0,
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
@@ -676,10 +766,15 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.
     };
 
     let result = pipeline::run(&args);
-    assert!(result.is_err(), "strict mode should fail when DP/FREQ missing");
+    assert!(
+        result.is_err(),
+        "strict mode should fail when DP/FREQ missing"
+    );
     let err = result.unwrap_err().to_string();
-    assert!(err.contains("strict") || err.contains("ODP") || err.contains("missing"),
-        "error should mention strict/metrics: {err}");
+    assert!(
+        err.contains("strict") || err.contains("ODP") || err.contains("missing"),
+        "error should mention strict/metrics: {err}"
+    );
 
     fs::remove_dir_all(&tmp).ok();
 }
@@ -702,7 +797,10 @@ fn test_e2e_index_without_vcf_gz_errors() {
     let mut args = base_args();
     args.index_vcf_gz = true;
     let result = pipeline::run(&args);
-    assert!(result.is_err(), "--index-vcf-gz without --vcf-gz should fail");
+    assert!(
+        result.is_err(),
+        "--index-vcf-gz without --vcf-gz should fail"
+    );
 }
 
 #[test]
@@ -711,6 +809,14 @@ fn test_e2e_bcf_without_convert_errors() {
     args.bcf = true;
     let result = pipeline::run(&args);
     assert!(result.is_err(), "--bcf without --convert should fail");
+}
+
+#[test]
+fn test_e2e_frequency_filters_require_bam() {
+    let mut args = base_args();
+    args.min_snp_frequency = 0.05;
+    let err = pipeline::run(&args).expect_err("frequency filtering without BAM should fail");
+    assert!(err.to_string().contains("require --bam"));
 }
 
 // ---------------------------------------------------------------------------
@@ -734,8 +840,12 @@ fn test_fast_parser_matches_htslib() {
 
     // Same contigs
     assert_eq!(
-        fast_result.keys().collect::<std::collections::BTreeSet<_>>(),
-        htslib_result.keys().collect::<std::collections::BTreeSet<_>>(),
+        fast_result
+            .keys()
+            .collect::<std::collections::BTreeSet<_>>(),
+        htslib_result
+            .keys()
+            .collect::<std::collections::BTreeSet<_>>(),
         "contigs should match"
     );
 
@@ -750,18 +860,42 @@ fn test_fast_parser_matches_htslib() {
             fast_positions.len(),
             htslib_positions.len()
         );
-        for (i, (fp, hp)) in fast_positions.iter().zip(htslib_positions.iter()).enumerate() {
-            assert_eq!(fp.position, hp.position, "contig '{}' pos {}: position mismatch", contig, i);
-            assert_eq!(fp.ref_allele, hp.ref_allele, "contig '{}' pos {}: ref mismatch", contig, i);
-            assert_eq!(fp.alt_allele, hp.alt_allele, "contig '{}' pos {}: alt mismatch", contig, i);
-            assert_eq!(fp.original_dp, hp.original_dp, "contig '{}' pos {} ({}): DP mismatch (fast={:?}, htslib={:?})", contig, i, fp.position, fp.original_dp, hp.original_dp);
+        for (i, (fp, hp)) in fast_positions
+            .iter()
+            .zip(htslib_positions.iter())
+            .enumerate()
+        {
+            assert_eq!(
+                fp.position, hp.position,
+                "contig '{}' pos {}: position mismatch",
+                contig, i
+            );
+            assert_eq!(
+                fp.ref_allele, hp.ref_allele,
+                "contig '{}' pos {}: ref mismatch",
+                contig, i
+            );
+            assert_eq!(
+                fp.alt_allele, hp.alt_allele,
+                "contig '{}' pos {}: alt mismatch",
+                contig, i
+            );
+            assert_eq!(
+                fp.original_dp, hp.original_dp,
+                "contig '{}' pos {} ({}): DP mismatch (fast={:?}, htslib={:?})",
+                contig, i, fp.position, fp.original_dp, hp.original_dp
+            );
             // Compare freq with tolerance for float rounding
             match (fp.original_freq, hp.original_freq) {
                 (Some(f), Some(h)) => {
                     assert!(
                         (f - h).abs() < 1e-6,
                         "contig '{}' pos {} ({}): FREQ mismatch (fast={}, htslib={})",
-                        contig, i, fp.position, f, h
+                        contig,
+                        i,
+                        fp.position,
+                        f,
+                        h
                     );
                 }
                 (None, None) => {}
@@ -793,13 +927,19 @@ fn test_fast_parser_keep_info_matches_htslib() {
     for contig in fast_result.keys() {
         let fast_positions = &fast_result[contig];
         let htslib_positions = &htslib_result[contig];
-        for (i, (fp, hp)) in fast_positions.iter().zip(htslib_positions.iter()).enumerate() {
+        for (i, (fp, hp)) in fast_positions
+            .iter()
+            .zip(htslib_positions.iter())
+            .enumerate()
+        {
             // Both should have or not have original_info
             assert_eq!(
                 fp.original_info.is_some(),
                 hp.original_info.is_some(),
                 "contig '{}' pos {} ({}): original_info presence mismatch",
-                contig, i, fp.position
+                contig,
+                i,
+                fp.position
             );
         }
     }
@@ -815,7 +955,9 @@ fn test_invalid_translation_table_fails() {
     let out = std::env::temp_dir().join("get_mnv_test_invalid_tt");
 
     let args = Args {
-        vcf_file: ex.join("G35894.var.snp.vcf").to_string_lossy().to_string(),
+        vcf_file: Some(ex.join("G35894.var.snp.vcf").to_string_lossy().to_string()),
+        tsv_file: None,
+        input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: ex.join("MTB_ancestor.fas").to_string_lossy().to_string(),
         genes_file_tsv: Some(ex.join("anot_genes.txt").to_string_lossy().to_string()),
@@ -828,7 +970,9 @@ fn test_invalid_translation_table_fails() {
         min_mapq: 0,
         threads: Some(1),
         min_snp_reads: 0,
+        min_snp_frequency: 0.0,
         min_mnv_reads: 0,
+        min_mnv_frequency: 0.0,
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
@@ -847,7 +991,7 @@ fn test_invalid_translation_table_fails() {
         run_manifest: None,
         convert: false,
         both: false,
-        translation_table: 99,  // invalid
+        translation_table: 99, // invalid
         output_dir: Some(out.to_string_lossy().to_string()),
         output_prefix: None,
     };
@@ -868,7 +1012,9 @@ fn test_translation_table_1_standard() {
     let out = std::env::temp_dir().join("get_mnv_test_table1");
 
     let args = Args {
-        vcf_file: ex.join("G35894.var.snp.vcf").to_string_lossy().to_string(),
+        vcf_file: Some(ex.join("G35894.var.snp.vcf").to_string_lossy().to_string()),
+        tsv_file: None,
+        input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: ex.join("MTB_ancestor.fas").to_string_lossy().to_string(),
         genes_file_tsv: Some(ex.join("anot_genes.txt").to_string_lossy().to_string()),
@@ -881,7 +1027,9 @@ fn test_translation_table_1_standard() {
         min_mapq: 0,
         threads: Some(1),
         min_snp_reads: 0,
+        min_snp_frequency: 0.0,
         min_mnv_reads: 0,
+        min_mnv_frequency: 0.0,
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
@@ -900,7 +1048,7 @@ fn test_translation_table_1_standard() {
         run_manifest: None,
         convert: false,
         both: false,
-        translation_table: 1,  // Standard
+        translation_table: 1, // Standard
         output_dir: Some(out.to_string_lossy().to_string()),
         output_prefix: None,
     };
@@ -936,7 +1084,9 @@ fn test_empty_vcf_no_records() {
 
     let ex = example_dir();
     let args = Args {
-        vcf_file: vcf_path.to_string_lossy().to_string(),
+        vcf_file: Some(vcf_path.to_string_lossy().to_string()),
+        tsv_file: None,
+        input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: fasta_path.to_string_lossy().to_string(),
         genes_file_tsv: Some(ex.join("anot_genes.txt").to_string_lossy().to_string()),
@@ -949,7 +1099,9 @@ fn test_empty_vcf_no_records() {
         min_mapq: 0,
         threads: Some(1),
         min_snp_reads: 0,
+        min_snp_frequency: 0.0,
         min_mnv_reads: 0,
+        min_mnv_frequency: 0.0,
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
@@ -1004,10 +1156,17 @@ fn test_truncated_vcf_record() {
     }
 
     let args = Args {
-        vcf_file: vcf_path.to_string_lossy().to_string(),
+        vcf_file: Some(vcf_path.to_string_lossy().to_string()),
+        tsv_file: None,
+        input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: fasta_path.to_string_lossy().to_string(),
-        genes_file_tsv: Some(example_dir().join("anot_genes.txt").to_string_lossy().to_string()),
+        genes_file_tsv: Some(
+            example_dir()
+                .join("anot_genes.txt")
+                .to_string_lossy()
+                .to_string(),
+        ),
         gff_file: None,
         gff_features_raw: None,
         sample: None,
@@ -1017,7 +1176,9 @@ fn test_truncated_vcf_record() {
         min_mapq: 0,
         threads: Some(1),
         min_snp_reads: 0,
+        min_snp_frequency: 0.0,
         min_mnv_reads: 0,
+        min_mnv_frequency: 0.0,
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
@@ -1073,10 +1234,17 @@ fn test_vcf_no_header() {
     }
 
     let args = Args {
-        vcf_file: vcf_path.to_string_lossy().to_string(),
+        vcf_file: Some(vcf_path.to_string_lossy().to_string()),
+        tsv_file: None,
+        input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: fasta_path.to_string_lossy().to_string(),
-        genes_file_tsv: Some(example_dir().join("anot_genes.txt").to_string_lossy().to_string()),
+        genes_file_tsv: Some(
+            example_dir()
+                .join("anot_genes.txt")
+                .to_string_lossy()
+                .to_string(),
+        ),
         gff_file: None,
         gff_features_raw: None,
         sample: None,
@@ -1086,7 +1254,9 @@ fn test_vcf_no_header() {
         min_mapq: 0,
         threads: Some(1),
         min_snp_reads: 0,
+        min_snp_frequency: 0.0,
         min_mnv_reads: 0,
+        min_mnv_frequency: 0.0,
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
@@ -1138,10 +1308,17 @@ fn test_error_json_written_on_failure() {
     let error_json_path = dir.join("error.json");
 
     let args = Args {
-        vcf_file: vcf_path.to_string_lossy().to_string(),
+        vcf_file: Some(vcf_path.to_string_lossy().to_string()),
+        tsv_file: None,
+        input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: fasta_path.to_string_lossy().to_string(),
-        genes_file_tsv: Some(example_dir().join("anot_genes.txt").to_string_lossy().to_string()),
+        genes_file_tsv: Some(
+            example_dir()
+                .join("anot_genes.txt")
+                .to_string_lossy()
+                .to_string(),
+        ),
         gff_file: None,
         gff_features_raw: None,
         sample: None,
@@ -1151,7 +1328,9 @@ fn test_error_json_written_on_failure() {
         min_mapq: 0,
         threads: Some(1),
         min_snp_reads: 0,
+        min_snp_frequency: 0.0,
         min_mnv_reads: 0,
+        min_mnv_frequency: 0.0,
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
@@ -1184,8 +1363,17 @@ fn test_error_json_written_on_failure() {
     let err = result.unwrap_err();
     let json_str = get_mnv::error::error_to_json(&err);
     let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
-    assert!(parsed.get("code").is_some(), "Error JSON should have 'code' field");
-    assert!(parsed.get("message").is_some(), "Error JSON should have 'message' field");
-    assert!(parsed.get("schema_version").is_some(), "Error JSON should have 'schema_version'");
+    assert!(
+        parsed.get("code").is_some(),
+        "Error JSON should have 'code' field"
+    );
+    assert!(
+        parsed.get("message").is_some(),
+        "Error JSON should have 'message' field"
+    );
+    assert!(
+        parsed.get("schema_version").is_some(),
+        "Error JSON should have 'schema_version'"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }

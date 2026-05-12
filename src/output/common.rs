@@ -68,6 +68,14 @@ pub(crate) fn format_freq(value: f64) -> String {
     format!("{value:.4}")
 }
 
+pub(crate) fn allele_frequency(support_reads: usize, depth: usize) -> f64 {
+    if depth > 0 {
+        support_reads as f64 / depth as f64
+    } else {
+        0.0
+    }
+}
+
 fn original_dp_for_index(variant: &VariantInfo, index: usize) -> Option<usize> {
     variant.original_dp.as_ref()?.get(index).copied()
 }
@@ -161,11 +169,7 @@ pub(crate) fn build_info_string(
     push_original_metrics(&mut builder, variant, original_index);
 
     if let (Some(dp), Some(support)) = (depth, support_reads) {
-        let freq = if dp > 0 {
-            support as f64 / dp as f64
-        } else {
-            0.0
-        };
+        let freq = allele_frequency(support, dp);
         builder.push("DP", dp);
         builder.push("FREQ", format_freq(freq));
     }

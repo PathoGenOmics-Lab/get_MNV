@@ -27,6 +27,7 @@ pub fn get_core_version() -> String {
 #[allow(dead_code)] // `convert` and `both` are computed in into_args(), not read directly
 pub struct AnalysisConfig {
     pub vcf_file: String,
+    pub input_format: Option<get_mnv::cli::VariantInputFormat>,
     pub bam_file: Option<String>,
     pub fasta_file: String,
     pub genes_file: String,
@@ -37,7 +38,9 @@ pub struct AnalysisConfig {
     pub min_mapq: Option<u8>,
     pub threads: Option<usize>,
     pub min_snp_reads: Option<usize>,
+    pub min_snp_frequency: Option<f64>,
     pub min_mnv_reads: Option<usize>,
+    pub min_mnv_frequency: Option<f64>,
     pub min_snp_strand_reads: Option<usize>,
     pub min_mnv_strand_reads: Option<usize>,
     pub min_strand_bias_p: Option<f64>,
@@ -67,6 +70,15 @@ pub struct AnalysisConfig {
 impl AnalysisConfig {
     /// Convert the GUI config into the core library's `Args` struct.
     fn into_args(self) -> get_mnv::cli::Args {
+        let input_format = self
+            .input_format
+            .unwrap_or(get_mnv::cli::VariantInputFormat::Auto);
+        let variant_file = self.vcf_file;
+        let output_dir = self
+            .output_dir
+            .filter(|dir| !dir.trim().is_empty())
+            .or_else(|| default_output_dir_for_variant_file(&variant_file));
+
         // Route genes_file to the correct field based on file extension.
         let genes_lower = self.genes_file.to_lowercase();
         let is_gff = genes_lower.ends_with(".gff")
@@ -80,16 +92,21 @@ impl AnalysisConfig {
         } else {
             (None, Some(self.genes_file))
         };
+        let (vcf_file, tsv_file) = if input_format == get_mnv::cli::VariantInputFormat::Tsv {
+            (None, Some(variant_file))
+        } else {
+            (Some(variant_file), None)
+        };
 
         get_mnv::cli::Args {
-            vcf_file: self.vcf_file,
+            vcf_file,
+            tsv_file,
+            input_format,
             bam_file: self.bam_file,
             fasta_file: self.fasta_file,
             genes_file_tsv,
             gff_file,
-            gff_features_raw: self
-                .gff_features
-                .map(|v| v.join(",")),
+            gff_features_raw: self.gff_features.map(|v| v.join(",")),
             sample: self.sample,
             chrom: self.chrom,
             normalize_alleles: self.normalize_alleles.unwrap_or(false),
@@ -97,7 +114,9 @@ impl AnalysisConfig {
             min_mapq: self.min_mapq.unwrap_or(0),
             threads: self.threads,
             min_snp_reads: self.min_snp_reads.unwrap_or(0),
+            min_snp_frequency: self.min_snp_frequency.unwrap_or(0.0),
             min_mnv_reads: self.min_mnv_reads.unwrap_or(0),
+            min_mnv_frequency: self.min_mnv_frequency.unwrap_or(0.0),
             min_snp_strand_reads: self.min_snp_strand_reads.unwrap_or(0),
             min_mnv_strand_reads: self.min_mnv_strand_reads.unwrap_or(0),
             min_strand_bias_p: self.min_strand_bias_p.unwrap_or(0.0),
@@ -129,10 +148,53 @@ impl AnalysisConfig {
                 let vcf = self.output_vcf.unwrap_or(false);
                 tsv && vcf
             },
-            output_dir: self.output_dir,
+            output_dir,
             output_prefix: self.output_prefix,
         }
     }
+}
+
+fn default_output_dir_for_variant_file(variant_file: &str) -> Option<String> {
+    let parent = std::path::Path::new(variant_file).parent()?;
+    if parent.as_os_str().is_empty() {
+        None
+    } else {
+        Some(parent.to_string_lossy().into_owned())
+    }
+}
+
+fn expected_output_paths(config: &AnalysisConfig) -> Result<Vec<String>, String> {
+    let args = config.clone().into_args();
+    if args.dry_run {
+        return Ok(Vec::new());
+    }
+
+    let base_name = get_mnv::io::get_base_name(args.variant_file()).map_err(|e| e.to_string())?;
+    let stem_name = args.output_prefix.clone().unwrap_or(base_name);
+    let output_stem = match &args.output_dir {
+        Some(dir) => std::path::Path::new(dir)
+            .join(&stem_name)
+            .to_string_lossy()
+            .into_owned(),
+        None => stem_name,
+    };
+
+    let mut paths = Vec::new();
+    if args.both || !args.convert {
+        paths.push(format!("{output_stem}.MNV.tsv"));
+    }
+    if args.both || args.convert {
+        paths.push(if args.vcf_gz {
+            format!("{output_stem}.MNV.vcf.gz")
+        } else {
+            format!("{output_stem}.MNV.vcf")
+        });
+    }
+    if args.bcf {
+        paths.push(format!("{output_stem}.MNV.bcf"));
+    }
+
+    Ok(paths)
 }
 
 #[tauri::command]
@@ -153,39 +215,39 @@ pub fn run_analysis(
 }
 
 // ---------------------------------------------------------------------------
+// detect_variant_input_format
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn detect_variant_input_format(path: String) -> Result<String, String> {
+    let lower = path.to_ascii_lowercase();
+    if lower.ends_with(".vcf") || lower.ends_with(".vcf.gz") || lower.ends_with(".bcf") {
+        return Ok("vcf".to_string());
+    }
+
+    match get_mnv::io::ivar::looks_like_ivar_tsv(&path) {
+        Ok(true) => Ok("tsv".to_string()),
+        Ok(false) => Ok("unknown".to_string()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // check_output_conflicts
 // ---------------------------------------------------------------------------
 
+#[tauri::command]
+pub fn resolve_output_paths(config: AnalysisConfig) -> Result<Vec<String>, String> {
+    expected_output_paths(&config)
+}
+
 /// Check if any output files already exist. Returns paths that would be overwritten.
 #[tauri::command]
-pub fn check_output_conflicts(config: AnalysisConfig) -> Vec<String> {
-    let vcf_path = std::path::Path::new(&config.vcf_file);
-
-    let base_name = vcf_path
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .replace(".vcf.gz", "")
-        .replace(".vcf", "");
-
-    let stem = config.output_prefix.as_deref().unwrap_or(&base_name);
-    let dir = config.output_dir.as_deref().map(std::path::Path::new)
-        .unwrap_or_else(|| vcf_path.parent().unwrap_or(std::path::Path::new(".")));
-    let base = dir.join(stem);
-
-    let mut paths = Vec::new();
-    if config.output_tsv.unwrap_or(true) {
-        paths.push(format!("{}.MNV.tsv", base.display()));
-    }
-    if config.output_vcf.unwrap_or(false) {
-        if config.vcf_gz.unwrap_or(false) {
-            paths.push(format!("{}.MNV.vcf.gz", base.display()));
-        } else {
-            paths.push(format!("{}.MNV.vcf", base.display()));
-        }
-    }
-
-    paths.into_iter().filter(|p| std::path::Path::new(p).exists()).collect()
+pub fn check_output_conflicts(config: AnalysisConfig) -> Result<Vec<String>, String> {
+    Ok(expected_output_paths(&config)?
+        .into_iter()
+        .filter(|p| std::path::Path::new(p).exists())
+        .collect())
 }
 
 // ---------------------------------------------------------------------------
@@ -204,11 +266,12 @@ pub fn ensure_fasta_index(fasta_path: String) -> Result<String, String> {
 
     // Cannot index gzipped FASTA — byte offsets would be meaningless
     if fasta_path.ends_with(".gz") || fasta_path.ends_with(".bgz") {
-        return Err("Cannot create .fai index for gzipped FASTA. Please decompress first.".to_string());
+        return Err(
+            "Cannot create .fai index for gzipped FASTA. Please decompress first.".to_string(),
+        );
     }
 
-    let bytes = std::fs::read(&fasta_path)
-        .map_err(|e| format!("Cannot read FASTA: {}", e))?;
+    let bytes = std::fs::read(&fasta_path).map_err(|e| format!("Cannot read FASTA: {}", e))?;
 
     let mut entries: Vec<String> = Vec::new();
     let mut name = String::new();
@@ -234,7 +297,10 @@ pub fn ensure_fasta_index(fasta_path: String) -> Result<String, String> {
         if line_start < bytes.len() && bytes[line_start] == b'>' {
             // Flush previous sequence
             if !name.is_empty() {
-                entries.push(format!("{}\t{}\t{}\t{}\t{}", name, seq_len, seq_offset, line_bases, line_width));
+                entries.push(format!(
+                    "{}\t{}\t{}\t{}\t{}",
+                    name, seq_len, seq_offset, line_bases, line_width
+                ));
             }
             // Parse header
             let header = &bytes[line_start + 1..line_end];
@@ -271,12 +337,14 @@ pub fn ensure_fasta_index(fasta_path: String) -> Result<String, String> {
     }
     // Flush last sequence
     if !name.is_empty() {
-        entries.push(format!("{}\t{}\t{}\t{}\t{}", name, seq_len, seq_offset, line_bases, line_width));
+        entries.push(format!(
+            "{}\t{}\t{}\t{}\t{}",
+            name, seq_len, seq_offset, line_bases, line_width
+        ));
     }
 
     let fai_content = entries.join("\n") + "\n";
-    std::fs::write(&fai_path, &fai_content)
-        .map_err(|e| format!("Cannot write .fai: {}", e))?;
+    std::fs::write(&fai_path, &fai_content).map_err(|e| format!("Cannot write .fai: {}", e))?;
 
     Ok(fai_path)
 }
@@ -412,14 +480,14 @@ pub struct BamSupportCounts {
 }
 
 /// Extract the base a read contributes at a given reference position (0-based).
-fn base_at_ref_pos(
-    record: &bam::Record,
-    ref_pos: u64,
-    min_bq: u8,
-) -> Option<String> {
-    let read_start = record.alignment_start()
+fn base_at_ref_pos(record: &bam::Record, ref_pos: u64, min_bq: u8) -> Option<String> {
+    let read_start = record
+        .alignment_start()
         .and_then(|p| p.ok())
-        .map(|p| { let v: usize = p.into(); v as u64 - 1 })
+        .map(|p| {
+            let v: usize = p.into();
+            v as u64 - 1
+        })
         .unwrap_or(0);
 
     let seq = record.sequence();
@@ -468,7 +536,12 @@ fn base_at_ref_pos(
 }
 
 /// Read reference sequence from an indexed FASTA file.
-fn read_fasta_region(fasta_path: &str, chrom: &str, start: u64, end: u64) -> Result<String, String> {
+fn read_fasta_region(
+    fasta_path: &str,
+    chrom: &str,
+    start: u64,
+    end: u64,
+) -> Result<String, String> {
     let fai_path = format!("{}.fai", fasta_path);
     let fai_file = std::fs::File::open(&fai_path)
         .map_err(|e| format!("Cannot open FASTA index '{}': {}", fai_path, e))?;
@@ -484,10 +557,18 @@ fn read_fasta_region(fasta_path: &str, chrom: &str, start: u64, end: u64) -> Res
         let line = line_result.map_err(|e| format!("Error reading .fai: {}", e))?;
         let fields: Vec<&str> = line.split('\t').collect();
         if fields.len() >= 5 && fields[0] == chrom {
-            seq_len = fields[1].parse().map_err(|_| "Bad .fai length".to_string())?;
-            offset = fields[2].parse().map_err(|_| "Bad .fai offset".to_string())?;
-            line_bases = fields[3].parse().map_err(|_| "Bad .fai line_bases".to_string())?;
-            line_width = fields[4].parse().map_err(|_| "Bad .fai line_width".to_string())?;
+            seq_len = fields[1]
+                .parse()
+                .map_err(|_| "Bad .fai length".to_string())?;
+            offset = fields[2]
+                .parse()
+                .map_err(|_| "Bad .fai offset".to_string())?;
+            line_bases = fields[3]
+                .parse()
+                .map_err(|_| "Bad .fai line_bases".to_string())?;
+            line_width = fields[4]
+                .parse()
+                .map_err(|_| "Bad .fai line_width".to_string())?;
             found = true;
             break;
         }
@@ -496,11 +577,24 @@ fn read_fasta_region(fasta_path: &str, chrom: &str, start: u64, end: u64) -> Res
         return Err(format!("Chromosome '{}' not found in FASTA index", chrom));
     }
 
+    if start >= seq_len {
+        return Err(format!(
+            "Requested FASTA region {}:{}-{} starts beyond contig length {}",
+            chrom,
+            start + 1,
+            end,
+            seq_len
+        ));
+    }
+
     let actual_end = end.min(seq_len);
     let window_len = (actual_end - start) as usize;
 
     if line_bases == 0 || line_width == 0 {
-        return Err(format!("Invalid FASTA index for '{}': line_bases={}, line_width={}", chrom, line_bases, line_width));
+        return Err(format!(
+            "Invalid FASTA index for '{}': line_bases={}, line_width={}",
+            chrom, line_bases, line_width
+        ));
     }
 
     let start_line = start / line_bases;
@@ -510,15 +604,18 @@ fn read_fasta_region(fasta_path: &str, chrom: &str, start: u64, end: u64) -> Res
     let bytes_to_read = (end_byte - start_byte) as usize;
 
     use std::io::{Read, Seek, SeekFrom};
-    let mut fasta_file = std::fs::File::open(fasta_path)
-        .map_err(|e| format!("Cannot open FASTA: {}", e))?;
-    fasta_file.seek(SeekFrom::Start(start_byte))
+    let mut fasta_file =
+        std::fs::File::open(fasta_path).map_err(|e| format!("Cannot open FASTA: {}", e))?;
+    fasta_file
+        .seek(SeekFrom::Start(start_byte))
         .map_err(|e| format!("FASTA seek error: {}", e))?;
     let mut buf = vec![0u8; bytes_to_read + 100];
-    let n = fasta_file.read(&mut buf)
+    let n = fasta_file
+        .read(&mut buf)
         .map_err(|e| format!("FASTA read error: {}", e))?;
 
-    let mut result: String = buf[..n].iter()
+    let mut result: String = buf[..n]
+        .iter()
         .filter(|&&b| b != b'\n' && b != b'\r')
         .map(|&b| b.to_ascii_uppercase() as char)
         .take(window_len)
@@ -535,6 +632,32 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
     let min_bq = request.min_base_quality.unwrap_or(0);
     let max_reads = request.max_reads.unwrap_or(500);
 
+    if request.positions.is_empty() {
+        return Err("BAM viewer requires at least one variant position".to_string());
+    }
+
+    if request.positions.len() != request.ref_bases.len()
+        || request.positions.len() != request.alt_bases.len()
+    {
+        return Err(format!(
+            "BAM viewer request has inconsistent site arrays: positions={}, refBases={}, altBases={}",
+            request.positions.len(),
+            request.ref_bases.len(),
+            request.alt_bases.len()
+        ));
+    }
+
+    if request.positions.contains(&0) {
+        return Err("BAM viewer positions must be 1-based positive coordinates".to_string());
+    }
+
+    if request.window_start == 0 || request.window_end < request.window_start {
+        return Err(format!(
+            "Invalid BAM viewer window: {}-{}",
+            request.window_start, request.window_end
+        ));
+    }
+
     let mut site_map: HashMap<u64, (String, String)> = HashMap::new();
     let mut sites: Vec<BamVariantSite> = Vec::new();
     for i in 0..request.positions.len() {
@@ -542,22 +665,41 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         let rb = request.ref_bases[i].clone();
         let ab = request.alt_bases[i].clone();
         site_map.insert(pos, (rb.clone(), ab.clone()));
-        sites.push(BamVariantSite { position: pos, reference_base: rb, alt_base: ab });
+        sites.push(BamVariantSite {
+            position: pos,
+            reference_base: rb,
+            alt_base: ab,
+        });
     }
 
-    let window_len = (request.window_end - request.window_start) as usize;
-    let reference = read_fasta_region(&request.fasta_path, &request.chrom, request.window_start, request.window_end)?;
+    // Frontend and TSV positions are 1-based inclusive. Internally, BAM/FASTA
+    // helpers use 0-based reference offsets, so convert only at IO boundaries.
+    let window_len = (request.window_end - request.window_start + 1) as usize;
+    let zero_based_start = request.window_start - 1;
+    let zero_based_end_exclusive = request.window_end;
+    let reference = read_fasta_region(
+        &request.fasta_path,
+        &request.chrom,
+        zero_based_start,
+        zero_based_end_exclusive,
+    )?;
 
     let mut bam_reader = bam::io::indexed_reader::Builder::default()
         .build_from_path(&request.bam_path)
         .map_err(|e| format!("Cannot open BAM: {}", e))?;
-    let header = bam_reader.read_header()
+    let header = bam_reader
+        .read_header()
         .map_err(|e| format!("Cannot read BAM header: {}", e))?;
 
-    let region_str = format!("{}:{}-{}", request.chrom, request.window_start + 1, request.window_end);
-    let region: noodles::core::Region = region_str.parse()
+    let region_str = format!(
+        "{}:{}-{}",
+        request.chrom, request.window_start, request.window_end
+    );
+    let region: noodles::core::Region = region_str
+        .parse()
         .map_err(|e| format!("Invalid region '{}': {}", region_str, e))?;
-    let mut query = bam_reader.query(&header, &region)
+    let mut query = bam_reader
+        .query(&header, &region)
         .map_err(|e| format!("BAM query error: {}", e))?;
 
     let mut all_reads: Vec<BamReadView> = Vec::new();
@@ -565,23 +707,36 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
     let mut total_reads: usize = 0;
 
     let mut record = bam::Record::default();
-    while query.read_record(&mut record).map_err(|e| format!("BAM read error: {}", e))? != 0 {
+    while query
+        .read_record(&mut record)
+        .map_err(|e| format!("BAM read error: {}", e))?
+        != 0
+    {
         let flags = record.flags();
-        if flags.is_unmapped() || flags.is_secondary() || flags.is_supplementary()
-            || flags.is_qc_fail() || flags.is_duplicate()
-        { continue; }
+        if flags.is_unmapped()
+            || flags.is_secondary()
+            || flags.is_supplementary()
+            || flags.is_qc_fail()
+            || flags.is_duplicate()
+        {
+            continue;
+        }
 
-        let mapq = record.mapping_quality()
+        let mapq = record
+            .mapping_quality()
             .map(|q: noodles::sam::alignment::record::MappingQuality| q.get())
             .unwrap_or(255);
-        if mapq < min_mapq { continue; }
+        if mapq < min_mapq {
+            continue;
+        }
 
         total_reads += 1;
 
         let mut bases: Vec<String> = Vec::with_capacity(window_len);
         for off in 0..window_len {
-            let rp = request.window_start + off as u64;
-            match base_at_ref_pos(&record, rp, min_bq) {
+            let one_based_pos = request.window_start + off as u64;
+            let zero_based_pos = one_based_pos - 1;
+            match base_at_ref_pos(&record, zero_based_pos, min_bq) {
                 Some(b) => bases.push(b),
                 None => bases.push(" ".to_string()),
             }
@@ -591,25 +746,39 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         let mut matches_ref = 0usize;
         let mut covered_sites = 0usize;
         for &pos in &request.positions {
-            if pos < request.window_start || pos >= request.window_end { continue; }
+            if pos < request.window_start || pos > request.window_end {
+                continue;
+            }
             let off = (pos - request.window_start) as usize;
             if off < bases.len() {
                 let base = &bases[off];
-                if base == " " || base == "-" { continue; }
+                if base == " " || base == "-" {
+                    continue;
+                }
                 covered_sites += 1;
                 if let Some((rb, ab)) = site_map.get(&pos) {
-                    if base.eq_ignore_ascii_case(ab) { matches_alt += 1; }
-                    else if base.eq_ignore_ascii_case(rb) { matches_ref += 1; }
+                    if base.eq_ignore_ascii_case(ab) {
+                        matches_alt += 1;
+                    } else if base.eq_ignore_ascii_case(rb) {
+                        matches_ref += 1;
+                    }
                 }
             }
         }
 
         let n_sites = request.positions.len();
-        let support = if covered_sites == 0 { "other" }
-            else if matches_alt == n_sites { "mnv" }
-            else if matches_alt > 0 && matches_alt < n_sites { "partial" }
-            else if matches_ref == n_sites { "reference" }
-            else { "other" }.to_string();
+        let support = if covered_sites == 0 {
+            "other"
+        } else if matches_alt == n_sites {
+            "mnv"
+        } else if matches_alt > 0 && matches_alt < n_sites {
+            "partial"
+        } else if matches_ref == n_sites {
+            "reference"
+        } else {
+            "other"
+        }
+        .to_string();
 
         match support.as_str() {
             "mnv" => counts.mnv += 1,
@@ -618,28 +787,47 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
             _ => counts.other += 1,
         }
 
-        let strand = if flags.is_reverse_complemented() { "-" } else { "+" }.to_string();
-        let read_name = record.name()
+        let strand = if flags.is_reverse_complemented() {
+            "-"
+        } else {
+            "+"
+        }
+        .to_string();
+        let read_name = record
+            .name()
             .map(|n| String::from_utf8_lossy(<_ as AsRef<[u8]>>::as_ref(&n)).to_string())
             .unwrap_or_else(|| "?".to_string());
 
-        let read_start = record.alignment_start()
+        let read_start = record
+            .alignment_start()
             .and_then(|p| p.ok())
-            .map(|p| { let v: usize = p.into(); v as u64 - 1 })
+            .map(|p| {
+                let v: usize = p.into();
+                v as u64 - 1
+            })
             .unwrap_or(0);
-        let aligned_len: u64 = record.cigar().iter()
+        let aligned_len: u64 = record
+            .cigar()
+            .iter()
             .filter_map(|r| r.ok())
             .map(|op| match op.kind() {
-                Kind::Match | Kind::SequenceMatch | Kind::SequenceMismatch
-                | Kind::Deletion | Kind::Skip => op.len() as u64,
+                Kind::Match
+                | Kind::SequenceMatch
+                | Kind::SequenceMismatch
+                | Kind::Deletion
+                | Kind::Skip => op.len() as u64,
                 _ => 0,
             })
             .sum();
 
         all_reads.push(BamReadView {
-            name: read_name, strand, support,
-            start: read_start, end: read_start + aligned_len,
-            mapq, bases,
+            name: read_name,
+            strand,
+            support,
+            start: read_start + 1,
+            end: read_start + aligned_len,
+            mapq,
+            bases,
         });
     }
 
@@ -649,14 +837,23 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         let mut depths = vec![0u32; window_len];
         for read in &all_reads {
             for (i, base) in read.bases.iter().enumerate() {
-                if base != " " { depths[i] += 1; }
+                if base != " " {
+                    depths[i] += 1;
+                }
             }
         }
         depths
     };
 
     all_reads.sort_by(|a, b| {
-        let order = |s: &str| -> u8 { match s { "mnv" => 0, "partial" => 1, "reference" => 2, _ => 3 } };
+        let order = |s: &str| -> u8 {
+            match s {
+                "mnv" => 0,
+                "partial" => 1,
+                "reference" => 2,
+                _ => 3,
+            }
+        };
         order(&a.support).cmp(&order(&b.support))
     });
 
@@ -664,8 +861,16 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
     all_reads.truncate(max_reads);
 
     Ok(BamViewResponse {
-        chrom: request.chrom, display_start: request.window_start, display_end: request.window_end,
-        reference, sites, reads: all_reads, counts, total_reads, truncated, coverage,
+        chrom: request.chrom,
+        display_start: request.window_start,
+        display_end: request.window_end,
+        reference,
+        sites,
+        reads: all_reads,
+        counts,
+        total_reads,
+        truncated,
+        coverage,
     })
 }
 
@@ -676,4 +881,296 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
 #[tauri::command]
 pub fn write_text_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, &content).map_err(|e| format!("Failed to write file '{}': {}", path, e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unique_temp_path(extension: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "get_mnv_gui_test_{}.{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+            extension
+        ))
+    }
+
+    fn write_indexed_fasta(content: &str) -> String {
+        use std::io::Write;
+
+        let path = unique_temp_path("fasta");
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+        let path_str = path.to_string_lossy().into_owned();
+        ensure_fasta_index(path_str.clone()).unwrap();
+        path_str
+    }
+
+    fn minimal_config(variant_file: &str) -> AnalysisConfig {
+        AnalysisConfig {
+            vcf_file: variant_file.to_string(),
+            input_format: None,
+            bam_file: None,
+            fasta_file: "/tmp/ref.fasta".to_string(),
+            genes_file: "/tmp/ref.gff".to_string(),
+            sample: None,
+            chrom: None,
+            normalize_alleles: None,
+            min_quality: None,
+            min_mapq: None,
+            threads: None,
+            min_snp_reads: None,
+            min_snp_frequency: None,
+            min_mnv_reads: None,
+            min_mnv_frequency: None,
+            min_snp_strand_reads: None,
+            min_mnv_strand_reads: None,
+            min_strand_bias_p: None,
+            dry_run: None,
+            strict: None,
+            split_multiallelic: None,
+            emit_filtered: None,
+            vcf_gz: None,
+            index_vcf_gz: None,
+            strand_bias_info: None,
+            keep_original_info: None,
+            bcf: None,
+            summary_json: None,
+            error_json: None,
+            run_manifest: None,
+            gff_features: None,
+            exclude_intergenic: None,
+            translation_table: None,
+            output_tsv: None,
+            output_vcf: None,
+            convert: None,
+            both: None,
+            output_dir: None,
+            output_prefix: None,
+        }
+    }
+
+    #[test]
+    fn test_gui_defaults_output_dir_to_variant_parent() {
+        let args = minimal_config("/tmp/sample/sample_variants.tsv").into_args();
+        assert_eq!(args.output_dir.as_deref(), Some("/tmp/sample"));
+    }
+
+    #[test]
+    fn test_gui_preserves_explicit_output_dir() {
+        let mut config = minimal_config("/tmp/sample/sample_variants.tsv");
+        config.output_dir = Some("/tmp/output".to_string());
+        let args = config.into_args();
+        assert_eq!(args.output_dir.as_deref(), Some("/tmp/output"));
+    }
+
+    #[test]
+    fn test_resolve_output_paths_matches_core_suffixes() {
+        let mut config = minimal_config("/tmp/sample/sample_variants.tsv");
+        config.output_tsv = Some(true);
+        config.output_vcf = Some(true);
+        config.vcf_gz = Some(true);
+
+        let paths = resolve_output_paths(config).unwrap();
+
+        assert_eq!(
+            paths,
+            vec![
+                "/tmp/sample/sample_variants.MNV.tsv".to_string(),
+                "/tmp/sample/sample_variants.MNV.vcf.gz".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn test_resolve_output_paths_honors_output_prefix() {
+        let mut config = minimal_config("/tmp/sample.vcf.gz");
+        config.output_dir = Some("/tmp/out".to_string());
+        config.output_prefix = Some("custom".to_string());
+        config.output_tsv = Some(false);
+        config.output_vcf = Some(true);
+
+        let paths = resolve_output_paths(config).unwrap();
+
+        assert_eq!(paths, vec!["/tmp/out/custom.MNV.vcf".to_string()]);
+    }
+
+    #[test]
+    fn test_gui_config_deserializes_lowercase_input_format() {
+        let value = serde_json::json!({
+            "vcfFile": "/tmp/sample.vcf",
+            "inputFormat": "auto",
+            "fastaFile": "/tmp/ref.fasta",
+            "genesFile": "/tmp/ref.gff"
+        });
+
+        let config: AnalysisConfig = serde_json::from_value(value).unwrap();
+        assert_eq!(
+            config.input_format,
+            Some(get_mnv::cli::VariantInputFormat::Auto)
+        );
+    }
+
+    #[test]
+    fn test_gui_config_deserializes_tsv_input_format_and_ivar_alias() {
+        let tsv_value = serde_json::json!({
+            "vcfFile": "/tmp/sample_variants.tsv",
+            "inputFormat": "tsv",
+            "fastaFile": "/tmp/ref.fasta",
+            "genesFile": "/tmp/ref.gff"
+        });
+        let alias_value = serde_json::json!({
+            "vcfFile": "/tmp/sample_variants.tsv",
+            "inputFormat": "ivar",
+            "fastaFile": "/tmp/ref.fasta",
+            "genesFile": "/tmp/ref.gff"
+        });
+
+        let tsv_config: AnalysisConfig = serde_json::from_value(tsv_value).unwrap();
+        let alias_config: AnalysisConfig = serde_json::from_value(alias_value).unwrap();
+
+        assert_eq!(
+            tsv_config.input_format,
+            Some(get_mnv::cli::VariantInputFormat::Tsv)
+        );
+        assert_eq!(
+            alias_config.input_format,
+            Some(get_mnv::cli::VariantInputFormat::Tsv)
+        );
+    }
+
+    #[test]
+    fn test_gui_config_forwards_variant_filters() {
+        let mut config = minimal_config("/tmp/sample_variants.tsv");
+        config.input_format = Some(get_mnv::cli::VariantInputFormat::Tsv);
+        config.min_mapq = Some(20);
+        config.min_snp_reads = Some(2);
+        config.min_mnv_reads = Some(3);
+        config.min_snp_frequency = Some(0.05);
+        config.min_mnv_frequency = Some(0.10);
+        config.min_snp_strand_reads = Some(2);
+        config.min_mnv_strand_reads = Some(2);
+        config.strand_bias_info = Some(true);
+        config.output_tsv = Some(true);
+        config.output_vcf = Some(true);
+
+        let args = config.into_args();
+
+        assert_eq!(args.input_format, get_mnv::cli::VariantInputFormat::Tsv);
+        assert_eq!(args.tsv_file.as_deref(), Some("/tmp/sample_variants.tsv"));
+        assert!(args.vcf_file.is_none());
+        assert_eq!(args.min_mapq, 20);
+        assert_eq!(args.min_snp_reads, 2);
+        assert_eq!(args.min_mnv_reads, 3);
+        assert_eq!(args.min_snp_frequency, 0.05);
+        assert_eq!(args.min_mnv_frequency, 0.10);
+        assert_eq!(args.min_snp_strand_reads, 2);
+        assert_eq!(args.min_mnv_strand_reads, 2);
+        assert!(args.strand_bias_info);
+        assert!(args.both);
+        assert!(!args.convert);
+    }
+
+    #[test]
+    fn test_detect_variant_input_format_recognizes_vcf_extension() {
+        assert_eq!(
+            detect_variant_input_format("/tmp/sample.vcf.gz".to_string()).unwrap(),
+            "vcf"
+        );
+    }
+
+    #[test]
+    fn test_detect_variant_input_format_recognizes_ivar_tsv() {
+        use std::io::Write;
+
+        let path = std::env::temp_dir().join(format!(
+            "get_mnv_gui_ivar_detect_{}.tsv",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let mut file = std::fs::File::create(&path).unwrap();
+        writeln!(file, "REGION\tPOS\tREF\tALT\tTOTAL_DP\tALT_FREQ\tPASS").unwrap();
+
+        assert_eq!(
+            detect_variant_input_format(path.to_string_lossy().into_owned()).unwrap(),
+            "tsv"
+        );
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_detect_variant_input_format_leaves_annotation_tsv_unknown() {
+        use std::io::Write;
+
+        let path = std::env::temp_dir().join(format!(
+            "get_mnv_gui_gene_detect_{}.tsv",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let mut file = std::fs::File::create(&path).unwrap();
+        writeln!(file, "gene\tstart\tend\tstrand").unwrap();
+
+        assert_eq!(
+            detect_variant_input_format(path.to_string_lossy().into_owned()).unwrap(),
+            "unknown"
+        );
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_read_fasta_region_uses_zero_based_offsets_for_tsv_coordinates() {
+        let fasta = write_indexed_fasta(">ref_amplicon\nATGGACTTAA\n");
+
+        assert_eq!(
+            read_fasta_region(&fasta, "ref_amplicon", 0, 3).unwrap(),
+            "ATG"
+        );
+
+        // TSV positions 4-5 are 1-based and should resolve to GA.
+        assert_eq!(
+            read_fasta_region(&fasta, "ref_amplicon", 3, 5).unwrap(),
+            "GA"
+        );
+
+        let _ = std::fs::remove_file(&fasta);
+        let _ = std::fs::remove_file(format!("{fasta}.fai"));
+    }
+
+    #[test]
+    fn test_bam_view_rejects_mismatched_site_arrays() {
+        let err = get_bam_view(BamViewRequest {
+            bam_path: "/tmp/missing.bam".to_string(),
+            fasta_path: "/tmp/missing.fasta".to_string(),
+            chrom: "ref_amplicon".to_string(),
+            positions: vec![2704, 2705],
+            ref_bases: vec!["G".to_string()],
+            alt_bases: vec!["A".to_string(), "G".to_string()],
+            min_mapq: Some(0),
+            min_base_quality: Some(20),
+            max_reads: Some(10),
+            window_start: 2624,
+            window_end: 2785,
+        })
+        .unwrap_err();
+
+        assert!(err.contains("inconsistent site arrays"));
+    }
+
+    #[test]
+    fn test_read_fasta_region_rejects_start_past_contig() {
+        let fasta = write_indexed_fasta(">ref_amplicon\nACGT\n");
+        let err = read_fasta_region(&fasta, "ref_amplicon", 10_000, 10_010).unwrap_err();
+
+        assert!(err.contains("starts beyond contig length"));
+
+        let _ = std::fs::remove_file(&fasta);
+        let _ = std::fs::remove_file(format!("{fasta}.fai"));
+    }
 }

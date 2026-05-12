@@ -40,8 +40,8 @@ pub fn load_vcf_text(
 
     // INFO tags to preserve when keep_original_info is active
     let get_mnv_tags: &[&str] = &[
-        "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR",
-        "MR", "MRF", "MRR", "DP", "FREQ", "SBP", "MSBP",
+        "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
+        "FREQ", "SBP", "MSBP",
     ];
 
     for line_result in reader.lines() {
@@ -75,9 +75,9 @@ pub fn load_vcf_text(
         }
 
         let chrom = cols[0];
-        let pos: usize = cols[1].parse().map_err(|_| {
-            format!("VCF record {record_idx}: invalid POS '{}'", cols[1])
-        })?;
+        let pos: usize = cols[1]
+            .parse()
+            .map_err(|_| format!("VCF record {record_idx}: invalid POS '{}'", cols[1]))?;
         if pos == 0 {
             return Err(format!("VCF record {record_idx}: POS cannot be 0").into());
         }
@@ -100,7 +100,11 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
         }
 
         // Parse FORMAT fields for DP and FREQ
-        let format_keys: Vec<&str> = if cols.len() > 8 { cols[8].split(':').collect() } else { Vec::new() };
+        let format_keys: Vec<&str> = if cols.len() > 8 {
+            cols[8].split(':').collect()
+        } else {
+            Vec::new()
+        };
         let sample_values: Vec<&str> = if let Some(si) = sample_index {
             let col_idx = 9 + si;
             if col_idx < cols.len() {
@@ -141,8 +145,15 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
             validate_vcf_allele(&norm_ref, record_idx, chrom, norm_pos, "REF")?;
             validate_vcf_allele(&norm_alt, record_idx, chrom, norm_pos, "ALT")?;
 
-            let (original_dp, original_freq) =
-                parse_text_metrics(&sample_values, dp_idx, freq_idx, af_idx, ad_idx, alt_idx, cols[7]);
+            let (original_dp, original_freq) = parse_text_metrics(
+                &sample_values,
+                dp_idx,
+                freq_idx,
+                af_idx,
+                ad_idx,
+                alt_idx,
+                cols[7],
+            );
 
             positions_by_contig
                 .entry(chrom.to_string())
@@ -197,16 +208,13 @@ fn resolve_text_sample_index(
             }
         }
         Some(name) => {
-            let idx = sample_names
-                .iter()
-                .position(|s| s == name)
-                .ok_or_else(|| {
-                    format!(
-                        "Sample '{}' not found in VCF. Available samples: {}",
-                        name,
-                        sample_names.join(", ")
-                    )
-                })?;
+            let idx = sample_names.iter().position(|s| s == name).ok_or_else(|| {
+                format!(
+                    "Sample '{}' not found in VCF. Available samples: {}",
+                    name,
+                    sample_names.join(", ")
+                )
+            })?;
             Ok(Some(idx))
         }
     }
@@ -378,7 +386,12 @@ pub fn list_text_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
         let line = line_result.map_err(|e| format!("Error reading VCF: {e}"))?;
         if line.starts_with("#CHROM") {
             let cols: Vec<&str> = line.split('\t').collect();
-            return Ok(cols.get(9..).unwrap_or(&[]).iter().map(|s| s.to_string()).collect());
+            return Ok(cols
+                .get(9..)
+                .unwrap_or(&[])
+                .iter()
+                .map(|s| s.to_string())
+                .collect());
         }
     }
     Ok(Vec::new())
@@ -387,8 +400,8 @@ pub fn list_text_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
 /// Extract original INFO header lines from a plain-text VCF.
 pub fn extract_text_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
     let get_mnv_tags: &[&str] = &[
-        "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR",
-        "MR", "MRF", "MRR", "DP", "FREQ", "SBP", "MSBP",
+        "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
+        "FREQ", "SBP", "MSBP",
     ];
     let file = std::fs::File::open(vcf_file)
         .map_err(|e| format!("Cannot open VCF file '{}': {}", vcf_file, e))?;

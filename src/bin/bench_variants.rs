@@ -158,12 +158,26 @@ fn run_synthetic(
         .collect();
 
     let _ = run_iterations(config.warmup, thread_pool, || {
-        get_mnv_variants_for_gene(&gene, &snp_positions, &reference, chrom, get_mnv::genetic_code::GeneticCode::default()).len()
+        get_mnv_variants_for_gene(
+            &gene,
+            &snp_positions,
+            &reference,
+            chrom,
+            get_mnv::genetic_code::GeneticCode::default(),
+        )
+        .len()
     });
 
     let start = Instant::now();
     let produced_per_iteration = run_iterations(config.iterations, thread_pool, || {
-        get_mnv_variants_for_gene(&gene, &snp_positions, &reference, chrom, get_mnv::genetic_code::GeneticCode::default()).len()
+        get_mnv_variants_for_gene(
+            &gene,
+            &snp_positions,
+            &reference,
+            chrom,
+            get_mnv::genetic_code::GeneticCode::default(),
+        )
+        .len()
     });
     let elapsed = start.elapsed().as_secs_f64() * 1000.0;
     let produced = produced_per_iteration.last().copied().unwrap_or(0);
@@ -261,7 +275,16 @@ fn run_dataset(
             .map(|(contig, reference, snp_list, genes)| {
                 genes
                     .iter()
-                    .map(|gene| get_mnv_variants_for_gene(gene, snp_list, reference, contig, get_mnv::genetic_code::GeneticCode::default()).len())
+                    .map(|gene| {
+                        get_mnv_variants_for_gene(
+                            gene,
+                            snp_list,
+                            reference,
+                            contig,
+                            get_mnv::genetic_code::GeneticCode::default(),
+                        )
+                        .len()
+                    })
                     .sum::<usize>()
             })
             .sum::<usize>()

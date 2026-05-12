@@ -4,8 +4,9 @@
 mod commands;
 
 use commands::{
-    check_output_conflicts, ensure_fasta_index, get_bam_view, get_core_version, get_gff_features,
-    read_tsv_file, run_analysis, write_text_file,
+    check_output_conflicts, detect_variant_input_format, ensure_fasta_index, get_bam_view,
+    get_core_version, get_gff_features, read_tsv_file, resolve_output_paths, run_analysis,
+    write_text_file,
 };
 
 fn main() {
@@ -17,9 +18,11 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             run_analysis,
             get_core_version,
+            detect_variant_input_format,
             get_gff_features,
             ensure_fasta_index,
             check_output_conflicts,
+            resolve_output_paths,
             read_tsv_file,
             get_bam_view,
             write_text_file,

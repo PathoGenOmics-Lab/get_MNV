@@ -2,7 +2,8 @@
 set -euo pipefail
 
 BIN_NAME="get_mnv"
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUT_DIR="${1:-$ROOT_DIR/dist}"
 
 if ! command -v cargo >/dev/null 2>&1; then

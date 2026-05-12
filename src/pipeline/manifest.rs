@@ -29,9 +29,10 @@ pub(crate) fn compute_sha256(path: &str) -> AppResult<String> {
 /// are left empty to avoid ~15ms of I/O on every run. Checksums are only
 /// needed when `--summary-json` or `--run-manifest` is requested.
 pub(crate) fn build_input_metadata(args: &Args, compute_checksums: bool) -> AppResult<RunInputs> {
+    let variant_file = args.variant_file();
     let checksums = if compute_checksums {
         InputChecksums {
-            vcf_sha256: compute_sha256(&args.vcf_file)?,
+            vcf_sha256: compute_sha256(variant_file)?,
             fasta_sha256: compute_sha256(&args.fasta_file)?,
             annotation_sha256: compute_sha256(args.genes_file())?,
             bam_sha256: match args.bam_file.as_ref() {
@@ -48,7 +49,7 @@ pub(crate) fn build_input_metadata(args: &Args, compute_checksums: bool) -> AppR
         }
     };
     Ok(RunInputs {
-        vcf: args.vcf_file.clone(),
+        vcf: variant_file.to_string(),
         fasta: args.fasta_file.clone(),
         annotation: args.genes_file().to_string(),
         bam: args.bam_file.clone(),

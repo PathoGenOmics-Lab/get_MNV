@@ -1,130 +1,188 @@
-# Input formats
+# Input Formats
 
-## VCF file (required)
+get_MNV needs three files: variant calls, a reference FASTA, and gene
+annotation. A BAM file is optional.
 
-Standard VCF (v4.x) containing identified SNVs.
+## 1. Variant Calls
 
-**Requirements:**
-- Contigs must be declared in the header (`##contig=<ID=...>`)
-- Contig names must match exactly (case-sensitive) across VCF, FASTA, and GFF
-- Multiallelic records require `--split-multiallelic` or pre-splitting with `bcftools norm -m -`
+Pass variant calls with:
 
-**Supported metrics extraction** (for `ODP`/`OFREQ` fields):
-- FORMAT: `DP`, `AF`, `FREQ`, `AD`, `AO`/`RO`
-- INFO: `DP`, `AF`, `FREQ`, `AD`, `AO`/`RO`
-- Automatic fallback chain for maximum caller compatibility
-
-## FASTA file (required)
-
-Reference genomic sequence. Record IDs must match VCF contig names exactly.
-
-**Requirements:**
-- Valid IUPAC DNA bases (A, C, G, T, R, Y, S, W, K, M, B, D, H, V, N)
-- No duplicate contig names
-- UTF-8 encoding
-
-## Gene annotation (required — one of the following)
-
-### GFF/GFF3 format (recommended)
-
-Standard GFF3 with features of type `gene` and `pseudogene` by default.
-
-- Columns 4/5/7 are used for start, end, and strand
-- **Column 8 (phase) is honoured for `CDS` features** (since v1.1.2). Valid
-  values are `0`, `1`, `2` or `.`. The phase is the number of bases that must
-  be skipped from the feature start (or from the feature end on the minus
-  strand) to reach the first base of the first complete codon. This is
-  required for eukaryotic annotations whose CDS exons begin mid-codon — for
-  example GRCh38 Ensembl `GNAQ` exon 5 has `phase=1`, and without this
-  correction SNVs were grouped into the wrong codons. Features without phase
-  information (`gene`, `exon`, `UTR`, …) implicitly use `phase = 0`, which is
-  the historical behaviour.
-- **Transcript-aware amino-acid numbering for CDS.** Since v1.1.2, when you
-  run with `--gff-features CDS`, get_MNV groups CDS rows by `transcript_id`
-  (falling back to `Parent`), orders the exons in transcript sense, and
-  reports amino-acid positions against the full protein — not against each
-  exon in isolation. For example, a variant in GNAQ exon 5 is now reported
-  at its real protein residue (`Phe225`, `Met224`, …) instead of the
-  per-exon local number (`Val26`, `Met25`, …).
-- Gene name is extracted from attributes: `gene_name` > `gene` > `Name` >
-  `locus_tag` > `gene_id` > `ID`. The `gene_name` and `gene_id` attributes
-  used by Ensembl/GENCODE/GTF are recognised so eukaryotic outputs show
-  `GNAQ` instead of the annotation-tool ID (e.g. `agat-cds-37838`).
-- Use `--gff-features CDS,tRNA` to customize which feature types are analyzed.
-  When the GFF contains CDS rows with non-zero phase and `CDS` is **not**
-  selected, get_MNV logs a `WARN` line recommending you re-run with
-  `--gff-features CDS` so the phase information is honoured.
-- **Multiple transcripts**: when the GFF contains multiple transcripts per gene
-  (common in eukaryotic annotations like Ensembl/GENCODE), each transcript is
-  annotated independently. This means a single variant may produce multiple
-  output lines — one per overlapping transcript. To obtain one line per variant,
-  filter the GFF to retain only the canonical transcript before running get_MNV.
-- Supports percent-encoded attribute values and quoted semicolons
-- Multi-contig aware — genes are automatically filtered per contig
-
-### TSV format
-
-Tab-delimited file with one gene per line.
-
-#### Prokaryote (4 columns)
-
-The legacy 4-column format. Every CDS starts in frame 0, so no phase is
-needed:
-
+```bash
+--vcf <VCF_FILE>
+# or
+--tsv <IVAR_TSV_FILE>
 ```
+
+The supported variant-call inputs are:
+
+- VCF (`.vcf` or `.vcf.gz`)
+- iVar variants TSV (`.tsv`)
+
+Use `--vcf` for VCF/BCF files and `--tsv` for iVar `variants.tsv` files.
+Older commands that pass an iVar TSV through `--vcf` are still auto-detected
+when the header has the standard iVar columns.
+
+### VCF
+
+Use a standard VCF file containing SNV calls.
+
+Requirements:
+
+- VCF contig names must match the FASTA and GFF/GTF contig names.
+- REF alleles must match the FASTA sequence.
+- Multiallelic records should be pre-split, or run with
+  `--split-multiallelic`.
+
+get_MNV can read original depth/frequency metrics from common INFO or FORMAT
+fields, including `DP`, `AF`, `FREQ`, `AD`, `AO`, and `RO`.
+
+These input frequency values are kept for reporting as `OFREQ`. Command-line
+frequency filters (`--min-snp-frequency`, `--min-mnv-frequency`) use
+BAM-derived read support instead, so they require `--bam`.
+
+### iVar TSV
+
+Use the TSV produced by `ivar variants`.
+
+Required columns:
+
+| Column | Meaning |
+|---|---|
+| `REGION` | Contig name |
+| `POS` | 1-based position |
+| `REF` | Reference base |
+| `ALT` | Alternative base |
+
+Optional columns used when present:
+
+| Column | Used as |
+|---|---|
+| `TOTAL_DP` | Original depth (`ODP`) |
+| `ALT_FREQ` | Original frequency (`OFREQ`) |
+| `REF_DP`, `ALT_DP` | Used to infer depth/frequency if needed |
+| `PASS` | Used to keep passing rows |
+
+Filtering:
+
+- If `PASS` exists, get_MNV keeps truthy values such as `TRUE`, `PASS`, `1`,
+  or `YES`.
+- Rows where `REF == ALT` are skipped.
+- iVar indel notation such as `+A` or `-N` is skipped for now. get_MNV is
+  SNV-based.
+- `ALT_FREQ` is reported as original frequency (`OFREQ`). It is separate from
+  the BAM-derived frequency filters.
+
+## 2. Reference FASTA
+
+Pass the reference with:
+
+```bash
+--fasta reference.fasta
+```
+
+Requirements:
+
+- FASTA record IDs must match the variant contig names.
+- Bases must be valid IUPAC DNA bases.
+- Duplicate contig names are not allowed.
+
+## 3. Gene Annotation
+
+Provide either `--gff` or `--genes`.
+
+### GFF/GFF3/GTF
+
+Recommended for most datasets:
+
+```bash
+--gff genes.gff3
+```
+
+By default, get_MNV analyzes `gene,pseudogene` features. For protein-coding
+codon annotation, use:
+
+```bash
+--gff-features CDS
+```
+
+Important details:
+
+- Coordinates are read from columns 4 and 5.
+- Strand is read from column 7.
+- For `CDS` features, phase from column 8 is used when present.
+- For multi-exon CDS annotations, amino acid numbering is reported against the
+  full transcript when transcript information is available.
+- If a GFF/GTF contains multiple transcripts for the same gene, one variant can
+  produce one output line per overlapping transcript.
+
+Gene names are read from common attributes such as `gene_name`, `gene`, `Name`,
+`locus_tag`, `gene_id`, and `ID`.
+
+### Simple TSV Annotation
+
+Use `--genes` for a small, simple annotation file:
+
+```bash
+--genes genes.tsv
+```
+
+Four-column format:
+
+```text
 GeneName	GeneStart	GeneEnd	Strand
 ```
 
 Example:
-```
+
+```text
 Rv0007_Rv0007	9914	10828	+
-ileT_Rvnt01	10887	10960	+
 Rv0008c_Rv0008c	11874	12311	-
 ```
 
-#### Eukaryote (5 columns, since v1.1.2)
+Optional five-column format with phase:
 
-For eukaryotic CDS exons that do not start in frame 0, add a 5th column with
-the GFF-style phase (`0`, `1`, `2` or `.`):
-
-```
+```text
 GeneName	GeneStart	GeneEnd	Strand	Phase
 ```
 
-Example (GRCh38 GNAQ exon 5, minus strand, phase=1):
-```
-GNAQ_exon5	77794463	77794592	-	1
-```
+Phase can be `0`, `1`, `2`, or `.`. If the phase column is omitted, it defaults
+to `0`.
 
-- The phase column is **optional**. When omitted (4-column rows), phase
-  defaults to `0` — i.e. the prokaryote behaviour above.
-- Valid values: `0`, `1`, `2` or `.` (dot is treated as `0`).
-- 4-column and 5-column rows can be mixed in the same file.
+Limitations of TSV annotation:
 
-**Limitations:**
-- No contig information — for multi-contig VCF use `--gff` or restrict with `--chrom`
-- Coordinates must be 1-based, positive integers
-- Strand must be `+` or `-`
+- It has no contig column.
+- For multi-contig data, use GFF/GTF or restrict the run with `--chrom`.
 
-## BAM file (optional)
+## 4. BAM Reads (Optional)
 
-Indexed BAM file with aligned reads. When provided, get_MNV calculates:
+Pass BAM reads with:
 
-- Per-position read support counts (SNP and MNV)
-- Strand-specific counts (forward/reverse)
-- Recalculated depth and frequency from reads
-
-**Requirements:**
-- Must be sorted and indexed (`.bai`)
-- Contig names must match VCF
-- Duplicate, secondary, and supplementary reads are automatically excluded
-
-## Contig naming contract
-
-All input files must use consistent contig names:
-
-```
-VCF contig == FASTA record ID == GFF sequence ID
+```bash
+--bam reads.bam
 ```
 
-If names don't match, normalize them before running get_MNV (e.g., `chr1` vs `1`).
+When a BAM is provided, get_MNV calculates:
+
+- SNP read support
+- MNV haplotype read support
+- Total depth and frequency
+- Forward/reverse strand counts
+- Optional strand-bias statistics
+
+Requirements:
+
+- BAM must be sorted.
+- BAM must be indexed (`.bai`).
+- BAM contig names must match the variant file and FASTA.
+- Duplicate, secondary, and supplementary reads are ignored.
+
+## Contig Names
+
+All input files must agree on contig names:
+
+```text
+variant contig == FASTA record ID == GFF sequence ID == BAM reference name
+```
+
+For example, `chr1` and `1` are different names. Rename or normalize inputs
+before running get_MNV.

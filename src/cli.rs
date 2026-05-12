@@ -1,6 +1,16 @@
 //! Command-line argument parsing and validation.
 
-use clap::Parser;
+use clap::{ArgGroup, Parser, ValueEnum};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum VariantInputFormat {
+    Auto,
+    Vcf,
+    #[value(name = "tsv", alias = "ivar")]
+    #[serde(rename = "tsv", alias = "ivar")]
+    Tsv,
+}
 
 #[derive(Debug, Clone, Parser)]
 #[command(
@@ -9,10 +19,30 @@ use clap::Parser;
     author = "Paula Ruiz Rodriguez",
     about = "Identifies SNPs within codons, reclassifies multi-nucleotide variants (MNVs), calculates amino acid changes, and outputs results in TSV/VCF format."
 )]
+#[command(
+    group(
+        ArgGroup::new("variant_input")
+            .required(true)
+            .args(["vcf_file", "tsv_file"])
+    )
+)]
 pub struct Args {
-    /// VCF file containing SNPs
-    #[arg(short = 'v', long = "vcf")]
-    pub vcf_file: String,
+    /// Variant input file containing SNPs in VCF/BCF format
+    #[arg(
+        short = 'v',
+        long = "vcf",
+        value_name = "VCF_FILE",
+        conflicts_with = "tsv_file"
+    )]
+    pub vcf_file: Option<String>,
+
+    /// iVar variants TSV input file
+    #[arg(long = "tsv", value_name = "TSV_FILE", conflicts_with = "vcf_file")]
+    pub tsv_file: Option<String>,
+
+    /// Legacy variant input format selector
+    #[arg(long = "input-format", value_enum, default_value_t = VariantInputFormat::Auto, hide = true)]
+    pub input_format: VariantInputFormat,
 
     /// BAM file with aligned reads (optional)
     #[arg(short = 'b', long = "bam")]
@@ -23,7 +53,12 @@ pub struct Args {
     pub fasta_file: String,
 
     /// Gene annotation file in TSV format (gene,start,end,strand)
-    #[arg(short = 'g', long = "genes", required_unless_present = "gff_file", conflicts_with = "gff_file")]
+    #[arg(
+        short = 'g',
+        long = "genes",
+        required_unless_present = "gff_file",
+        conflicts_with = "gff_file"
+    )]
     pub genes_file_tsv: Option<String>,
 
     /// Gene annotation file in GFF/GFF3 format
@@ -34,7 +69,7 @@ pub struct Args {
     #[arg(long = "gff-features")]
     pub gff_features_raw: Option<String>,
 
-    /// Chromosome/contig to process (optional; default: all contigs in the VCF)
+    /// Chromosome/contig to process (optional; default: all contigs in the variant input)
     #[arg(long)]
     pub chrom: Option<String>,
 
@@ -47,7 +82,7 @@ pub struct Args {
     pub min_quality: u8,
 
     /// Minimum mapping quality MAPQ (default: 0)
-    #[arg(long, default_value_t = 0)]
+    #[arg(long = "min-mapq", alias = "mapq", default_value_t = 0)]
     pub min_mapq: u8,
 
     /// Normalize REF/ALT alleles (trim shared prefix/suffix) before processing
@@ -62,9 +97,17 @@ pub struct Args {
     #[arg(short = 's', long = "snp", default_value_t = 0)]
     pub min_snp_reads: usize,
 
+    /// Minimum BAM-derived SNP allele frequency, from 0.0 to 1.0 (default: 0.0)
+    #[arg(long = "min-snp-frequency", default_value_t = 0.0)]
+    pub min_snp_frequency: f64,
+
     /// Minimum read count for MNV (default: 0)
     #[arg(short = 'm', long = "mnv", default_value_t = 0)]
     pub min_mnv_reads: usize,
+
+    /// Minimum BAM-derived MNV haplotype frequency, from 0.0 to 1.0 (default: 0.0)
+    #[arg(long = "min-mnv-frequency", default_value_t = 0.0)]
+    pub min_mnv_frequency: f64,
 
     /// Minimum supporting reads required on each strand for SNP calls (default: 0)
     #[arg(long = "min-snp-strand", default_value_t = 0)]
@@ -82,7 +125,7 @@ pub struct Args {
     #[arg(long = "dry-run")]
     pub dry_run: bool,
 
-    /// Fail if original depth/frequency metrics (ODP/OFREQ) are missing in input VCF
+    /// Fail if original depth/frequency metrics (ODP/OFREQ) are missing in input variant calls
     #[arg(long)]
     pub strict: bool,
 
@@ -90,7 +133,7 @@ pub struct Args {
     #[arg(long = "split-multiallelic")]
     pub split_multiallelic: bool,
 
-    /// Emit records that fail read/strand/strand-bias thresholds with FILTER tags instead of skipping them
+    /// In VCF output, emit records that fail read/frequency/strand/strand-bias thresholds with FILTER tags instead of skipping them
     #[arg(long = "emit-filtered")]
     pub emit_filtered: bool,
 
@@ -106,11 +149,11 @@ pub struct Args {
     #[arg(long = "strand-bias-info")]
     pub strand_bias_info: bool,
 
-    /// Preserve all original INFO fields from the input VCF in the output VCF
+    /// Preserve all original INFO fields from the input VCF in the output VCF (requires --convert or --both)
     #[arg(long = "keep-original-info")]
     pub keep_original_info: bool,
 
-    /// Also write a BCF output converted from generated VCF
+    /// Also write a BCF output converted from generated VCF (requires --convert or --both)
     #[arg(long)]
     pub bcf: bool,
 
@@ -156,6 +199,23 @@ pub struct Args {
 }
 
 impl Args {
+    /// Resolved variant input file path (from --vcf or --tsv).
+    pub fn variant_file(&self) -> &str {
+        self.tsv_file
+            .as_deref()
+            .or(self.vcf_file.as_deref())
+            .expect("either --vcf or --tsv must be provided")
+    }
+
+    /// Variant parser selected by the public input option plus legacy overrides.
+    pub fn effective_input_format(&self) -> VariantInputFormat {
+        if self.tsv_file.is_some() {
+            VariantInputFormat::Tsv
+        } else {
+            self.input_format
+        }
+    }
+
     /// Resolved gene annotation file path (from --genes or --gff).
     pub fn genes_file(&self) -> &str {
         self.gff_file
@@ -190,51 +250,191 @@ mod tests {
     #[test]
     fn test_default_gff_features() {
         let args = Args::try_parse_from([
-            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--genes", "genes.txt",
-        ]).unwrap();
+            "get_mnv",
+            "--vcf",
+            "in.vcf",
+            "--fasta",
+            "ref.fa",
+            "--genes",
+            "genes.txt",
+        ])
+        .unwrap();
         assert_eq!(args.gff_features(), vec!["gene", "pseudogene"]);
     }
 
     #[test]
     fn test_custom_gff_features() {
         let args = Args::try_parse_from([
-            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--gff", "ann.gff",
-            "--gff-features", "CDS,mRNA",
-        ]).unwrap();
+            "get_mnv",
+            "--vcf",
+            "in.vcf",
+            "--fasta",
+            "ref.fa",
+            "--gff",
+            "ann.gff",
+            "--gff-features",
+            "CDS,mRNA",
+        ])
+        .unwrap();
         assert_eq!(args.gff_features(), vec!["CDS", "mRNA"]);
     }
 
     #[test]
     fn test_translation_table_default() {
         let args = Args::try_parse_from([
-            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--genes", "genes.txt",
-        ]).unwrap();
+            "get_mnv",
+            "--vcf",
+            "in.vcf",
+            "--fasta",
+            "ref.fa",
+            "--genes",
+            "genes.txt",
+        ])
+        .unwrap();
         assert_eq!(args.translation_table, 11);
     }
 
     #[test]
     fn test_translation_table_custom() {
         let args = Args::try_parse_from([
-            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--genes", "genes.txt",
-            "--translation-table", "2",
-        ]).unwrap();
+            "get_mnv",
+            "--vcf",
+            "in.vcf",
+            "--fasta",
+            "ref.fa",
+            "--genes",
+            "genes.txt",
+            "--translation-table",
+            "2",
+        ])
+        .unwrap();
         assert_eq!(args.translation_table, 2);
+    }
+
+    #[test]
+    fn test_frequency_filters_parse() {
+        let args = Args::try_parse_from([
+            "get_mnv",
+            "--vcf",
+            "in.vcf",
+            "--fasta",
+            "ref.fa",
+            "--genes",
+            "genes.txt",
+            "--min-snp-frequency",
+            "0.15",
+            "--min-mnv-frequency",
+            "0.25",
+        ])
+        .unwrap();
+        assert_eq!(args.min_snp_frequency, 0.15);
+        assert_eq!(args.min_mnv_frequency, 0.25);
+    }
+
+    #[test]
+    fn test_mapq_alias() {
+        let args = Args::try_parse_from([
+            "get_mnv",
+            "--vcf",
+            "in.vcf",
+            "--fasta",
+            "ref.fa",
+            "--genes",
+            "genes.txt",
+            "--mapq",
+            "20",
+        ])
+        .unwrap();
+        assert_eq!(args.min_mapq, 20);
+    }
+
+    #[test]
+    fn test_input_format_tsv() {
+        let args = Args::try_parse_from([
+            "get_mnv",
+            "--vcf",
+            "variants.tsv",
+            "--input-format",
+            "tsv",
+            "--fasta",
+            "ref.fa",
+            "--genes",
+            "genes.txt",
+        ])
+        .unwrap();
+        assert_eq!(args.input_format, VariantInputFormat::Tsv);
+        assert_eq!(args.effective_input_format(), VariantInputFormat::Tsv);
+    }
+
+    #[test]
+    fn test_tsv_option_selects_tsv_input() {
+        let args = Args::try_parse_from([
+            "get_mnv",
+            "--tsv",
+            "variants.tsv",
+            "--fasta",
+            "ref.fa",
+            "--genes",
+            "genes.txt",
+        ])
+        .unwrap();
+        assert_eq!(args.tsv_file.as_deref(), Some("variants.tsv"));
+        assert_eq!(args.variant_file(), "variants.tsv");
+        assert_eq!(args.effective_input_format(), VariantInputFormat::Tsv);
+    }
+
+    #[test]
+    fn test_vcf_and_tsv_conflict() {
+        let result = Args::try_parse_from([
+            "get_mnv",
+            "--vcf",
+            "in.vcf",
+            "--tsv",
+            "variants.tsv",
+            "--fasta",
+            "ref.fa",
+            "--genes",
+            "genes.txt",
+        ]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_input_format_ivar_alias() {
+        let args = Args::try_parse_from([
+            "get_mnv",
+            "--vcf",
+            "variants.tsv",
+            "--input-format",
+            "ivar",
+            "--fasta",
+            "ref.fa",
+            "--genes",
+            "genes.txt",
+        ])
+        .unwrap();
+        assert_eq!(args.input_format, VariantInputFormat::Tsv);
     }
 
     #[test]
     fn test_genes_or_gff_required() {
         // Neither --genes nor --gff → should fail
-        let result = Args::try_parse_from([
-            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa",
-        ]);
+        let result = Args::try_parse_from(["get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa"]);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_convert_and_both_conflict() {
         let result = Args::try_parse_from([
-            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--genes", "g.txt",
-            "--convert", "--both",
+            "get_mnv",
+            "--vcf",
+            "in.vcf",
+            "--fasta",
+            "ref.fa",
+            "--genes",
+            "g.txt",
+            "--convert",
+            "--both",
         ]);
         assert!(result.is_err());
     }
@@ -242,13 +442,21 @@ mod tests {
     #[test]
     fn test_genes_file_accessor() {
         let args = Args::try_parse_from([
-            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--genes", "genes.txt",
-        ]).unwrap();
+            "get_mnv",
+            "--vcf",
+            "in.vcf",
+            "--fasta",
+            "ref.fa",
+            "--genes",
+            "genes.txt",
+        ])
+        .unwrap();
         assert_eq!(args.genes_file(), "genes.txt");
 
         let args_gff = Args::try_parse_from([
             "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--gff", "ann.gff",
-        ]).unwrap();
+        ])
+        .unwrap();
         assert_eq!(args_gff.genes_file(), "ann.gff");
     }
 }

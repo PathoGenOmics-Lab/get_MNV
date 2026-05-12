@@ -101,7 +101,10 @@ pub(crate) fn sanitized_command_line() -> String {
                 arg
             };
             // Escape control characters that could corrupt VCF header lines
-            cleaned.replace('\t', "\\t").replace('\n', "\\n").replace('\r', "\\r")
+            cleaned
+                .replace('\t', "\\t")
+                .replace('\n', "\\n")
+                .replace('\r', "\\r")
         })
         .collect::<Vec<_>>();
     format!("get_mnv {}", command_line_args.join(" "))
@@ -169,7 +172,8 @@ pub(crate) fn log_toggle(label: &str, enabled: bool) {
 }
 
 pub(crate) fn log_run_configuration(args: &Args, sample_override: Option<&str>) {
-    info!("VCF file: {}", args.vcf_file);
+    info!("Variant input file: {}", args.variant_file());
+    info!("Variant input format: {:?}", args.effective_input_format());
     if let Some(ref bam) = args.bam_file {
         info!("BAM file: {bam}");
     } else {
@@ -202,7 +206,9 @@ pub(crate) fn log_run_configuration(args: &Args, sample_override: Option<&str>) 
     info!("Minimum Phred quality: {}", args.min_quality);
     info!("Minimum mapping quality (MAPQ): {}", args.min_mapq);
     info!("Minimum SNP reads: {}", args.min_snp_reads);
+    info!("Minimum SNP frequency: {:.4}", args.min_snp_frequency);
     info!("Minimum MNV reads: {}", args.min_mnv_reads);
+    info!("Minimum MNV frequency: {:.4}", args.min_mnv_frequency);
     info!("Minimum strand-bias p-value: {:.4}", args.min_strand_bias_p);
     info!(
         "Minimum SNP reads per strand: {}",
@@ -356,7 +362,9 @@ mod tests {
 
     fn default_test_args() -> crate::cli::Args {
         crate::cli::Args {
-            vcf_file: String::new(),
+            vcf_file: Some(String::new()),
+            tsv_file: None,
+            input_format: crate::cli::VariantInputFormat::Auto,
             bam_file: None,
             fasta_file: String::new(),
             genes_file_tsv: Some(String::new()),
@@ -369,7 +377,9 @@ mod tests {
             min_mapq: 20,
             threads: None,
             min_snp_reads: 1,
+            min_snp_frequency: 0.0,
             min_mnv_reads: 1,
+            min_mnv_frequency: 0.0,
             min_snp_strand_reads: 0,
             min_mnv_strand_reads: 0,
             min_strand_bias_p: 0.0,

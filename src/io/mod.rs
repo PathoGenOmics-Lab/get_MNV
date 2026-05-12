@@ -3,6 +3,7 @@
 
 pub mod annotation;
 pub mod fasta;
+pub mod ivar;
 pub mod validation;
 pub mod vcf;
 pub mod vcf_fast;

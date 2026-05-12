@@ -115,9 +115,7 @@ fn test_load_references_multiple_contigs() {
 
 #[test]
 fn test_validate_vcf_reference_alleles_detects_mismatch() {
-    let reference = Reference {
-        sequence: "ACTG",
-    };
+    let reference = Reference { sequence: "ACTG" };
     let snp_list = vec![VcfPosition {
         position: 2,
         ref_allele: "A".to_string(),

@@ -13,16 +13,15 @@ pub use summary::{
     RunSummary, RunTimings,
 };
 
-use config::{
-    configure_threads, log_run_configuration, sanitized_command_line,
-};
+use config::{configure_threads, log_run_configuration, sanitized_command_line};
 use manifest::{build_input_metadata, build_run_manifest_value, write_json_value};
 use processing::{
     emit_contig_variants, parse_inputs, process_contig, reclassify_generic_as_validation,
+    resolve_variant_input_format,
 };
 use summary::update_global_summary;
 
-use crate::cli::Args;
+use crate::cli::{Args, VariantInputFormat};
 use crate::error::{AppError, AppResult};
 use crate::io;
 use crate::output;
@@ -38,10 +37,13 @@ fn run_single(
     on_progress: &dyn Fn(ProgressEvent),
 ) -> AppResult<RunSummary> {
     let total_start = Instant::now();
-    let genetic_code = crate::genetic_code::GeneticCode::new(args.translation_table)
-        .ok_or_else(|| AppError::config(format!(
-            "Unsupported translation table: {}", args.translation_table
-        )))?;
+    let genetic_code =
+        crate::genetic_code::GeneticCode::new(args.translation_table).ok_or_else(|| {
+            AppError::config(format!(
+                "Unsupported translation table: {}",
+                args.translation_table
+            ))
+        })?;
     info!("Using genetic code: {genetic_code}");
     log_run_configuration(args, sample_override);
 
@@ -62,10 +64,16 @@ fn run_single(
     let paths = output_paths::OutputPaths::resolve(args, &parsed.base_name, sample_suffix);
 
     let mut tsv_writer = if paths.tsv.is_some() {
-        Some(output::TsvWriter::new(
-            &paths.output_stem,
-            args.bam_file.is_some(),
-        )?)
+        Some(output::TsvWriter::new(output::TsvWriterConfig {
+            filename: &paths.output_stem,
+            bam_provided: args.bam_file.is_some(),
+            min_snp_reads: args.min_snp_reads,
+            min_snp_frequency: args.min_snp_frequency,
+            min_mnv_reads: args.min_mnv_reads,
+            min_mnv_frequency: args.min_mnv_frequency,
+            min_snp_strand_reads: args.min_snp_strand_reads,
+            min_mnv_strand_reads: args.min_mnv_strand_reads,
+        })?)
     } else {
         None
     };
@@ -74,7 +82,9 @@ fn run_single(
             filename: &paths.output_stem,
             bam_provided: args.bam_file.is_some(),
             min_snp_reads: args.min_snp_reads,
+            min_snp_frequency: args.min_snp_frequency,
             min_mnv_reads: args.min_mnv_reads,
+            min_mnv_frequency: args.min_mnv_frequency,
             min_quality: args.min_quality,
             min_mapq: args.min_mapq,
             command_line: &parsed.command_line,
@@ -187,7 +197,7 @@ fn run_single(
     }
 
     info!(
-        "Global summary -> contigs={}, VCF records={}, mapped genes={}, emitted variants={} (SNP={}, MNV={}, SNP/MNV={}, INDEL={}, intergenic={})",
+        "Global summary -> contigs={}, VCF records={}, mapped genes={}, produced variants={} (SNP={}, MNV={}, SNP/MNV={}, INDEL={}, intergenic={})",
         summary.global.contig_count,
         summary.global.snp_records_in_vcf,
         summary.global.mapped_genes,
@@ -255,6 +265,21 @@ pub fn run_with_progress(
             "--min-strand-bias-p must be between 0 and 1",
         ));
     }
+    if !(0.0..=1.0).contains(&args.min_snp_frequency) {
+        return Err(AppError::config(
+            "--min-snp-frequency must be between 0 and 1",
+        ));
+    }
+    if !(0.0..=1.0).contains(&args.min_mnv_frequency) {
+        return Err(AppError::config(
+            "--min-mnv-frequency must be between 0 and 1",
+        ));
+    }
+    if (args.min_snp_frequency > 0.0 || args.min_mnv_frequency > 0.0) && args.bam_file.is_none() {
+        return Err(AppError::config(
+            "--min-snp-frequency and --min-mnv-frequency require --bam because frequencies are calculated from read support",
+        ));
+    }
     if crate::genetic_code::GeneticCode::new(args.translation_table).is_none() {
         return Err(AppError::config(format!(
             "--translation-table {} is not supported. Supported tables: {:?}",
@@ -265,15 +290,23 @@ pub fn run_with_progress(
 
     configure_threads(args.threads)?;
 
+    let input_format = resolve_variant_input_format(args)?;
+    if input_format == VariantInputFormat::Tsv && args.sample.is_some() {
+        return Err(AppError::config(
+            "--sample is only supported for VCF input; TSV input is treated as a single sample",
+        ));
+    }
+
     if args.sample.as_deref() != Some("all") {
         return run_single(args, args.sample.as_deref(), None, true, on_progress);
     }
 
-    let sample_names = if io::vcf_fast::use_fast_parser(&args.vcf_file) {
-        io::vcf_fast::list_text_vcf_samples(&args.vcf_file)
+    let variant_file = args.variant_file();
+    let sample_names = if io::vcf_fast::use_fast_parser(variant_file) {
+        io::vcf_fast::list_text_vcf_samples(variant_file)
             .map_err(reclassify_generic_as_validation)?
     } else {
-        io::list_vcf_samples(&args.vcf_file).map_err(reclassify_generic_as_validation)?
+        io::list_vcf_samples(variant_file).map_err(reclassify_generic_as_validation)?
     };
     if sample_names.is_empty() {
         return Err(AppError::validation(

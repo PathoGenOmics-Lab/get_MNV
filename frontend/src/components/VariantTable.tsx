@@ -119,6 +119,12 @@ function isCategoricalCol(header: string): boolean {
   );
 }
 
+function serializeCell(value: string, separator: string): string {
+  if (separator !== ",") return value;
+  if (!/[",\r\n]/.test(value)) return value;
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
 export default function VariantTable({ data }: VariantTableProps) {
   const [search, setSearch] = useState("");
   const [sortCol, setSortCol] = useState<number | null>(null);
@@ -269,9 +275,9 @@ export default function VariantTable({ data }: VariantTableProps) {
     if (!filePath) return;
     const sep = filePath.toLowerCase().endsWith(".csv") ? "," : "\t";
     const lines = [
-      headers.join(sep),
+      headers.map((header) => serializeCell(header, sep)).join(sep),
       ...sorted.map((row) =>
-        headers.map((_, ci) => effectiveCellValue(row, ci)).join(sep)
+        headers.map((_, ci) => serializeCell(effectiveCellValue(row, ci), sep)).join(sep)
       ),
     ];
     await invoke("write_text_file", { path: filePath, content: lines.join("\n") });
