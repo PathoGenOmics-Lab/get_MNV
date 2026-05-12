@@ -6,13 +6,13 @@ This page shows the most common commands and what the main arguments mean.
 
 ```bash
 get_mnv \
-  --vcf <VARIANT_FILE> \
+  (--vcf <VCF_FILE> | --tsv <IVAR_TSV_FILE>) \
   --fasta <REFERENCE_FASTA> \
   (--gff <ANNOTATION_GFF> | --genes <ANNOTATION_TSV>)
 ```
 
-Despite the name, `--vcf` can point to either a VCF file or an iVar
-`variants.tsv` file. Use `--input-format tsv` when you want to be explicit.
+Use `--vcf` for VCF/BCF input and `--tsv` for the `variants.tsv` file produced
+by `ivar variants`.
 
 ## Common Recipes
 
@@ -29,8 +29,7 @@ get_mnv \
 
 ```bash
 get_mnv \
-  --vcf sample_variants.tsv \
-  --input-format tsv \
+  --tsv sample_variants.tsv \
   --fasta reference.fasta \
   --gff genes.gff3
 ```
@@ -73,7 +72,8 @@ features, especially for eukaryotic GFF/GTF files.
 
 | Argument | Meaning |
 |---|---|
-| `--vcf <FILE>` | Variant calls. VCF and iVar TSV are supported. |
+| `--vcf <FILE>` | Variant calls in VCF/BCF format. |
+| `--tsv <FILE>` | iVar `variants.tsv` calls. |
 | `--fasta <FILE>` | Reference FASTA used to call the variants. |
 | `--gff <FILE>` | Gene annotation in GFF/GFF3/GTF format. |
 | `--genes <FILE>` | Simple gene annotation TSV. Use this instead of `--gff`. |
@@ -84,7 +84,6 @@ You must provide either `--gff` or `--genes`.
 
 | Argument | Default | Meaning |
 |---|---:|---|
-| `--input-format auto|vcf|tsv` | `auto` | Selects how to parse the variant file. |
 | `--bam <FILE>` | none | Sorted and indexed BAM used to count read support. |
 | `--sample <NAME>` | first sample | Sample to read from a multi-sample VCF. Use `all` for every sample. |
 | `--chrom <NAME>` | all contigs | Restrict the run to one contig. |

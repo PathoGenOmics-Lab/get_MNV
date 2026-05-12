@@ -172,8 +172,8 @@ pub(crate) fn log_toggle(label: &str, enabled: bool) {
 }
 
 pub(crate) fn log_run_configuration(args: &Args, sample_override: Option<&str>) {
-    info!("Variant input file: {}", args.vcf_file);
-    info!("Variant input format: {:?}", args.input_format);
+    info!("Variant input file: {}", args.variant_file());
+    info!("Variant input format: {:?}", args.effective_input_format());
     if let Some(ref bam) = args.bam_file {
         info!("BAM file: {bam}");
     } else {
@@ -362,7 +362,8 @@ mod tests {
 
     fn default_test_args() -> crate::cli::Args {
         crate::cli::Args {
-            vcf_file: String::new(),
+            vcf_file: Some(String::new()),
+            tsv_file: None,
             input_format: crate::cli::VariantInputFormat::Auto,
             bam_file: None,
             fasta_file: String::new(),

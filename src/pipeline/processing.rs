@@ -70,7 +70,8 @@ pub(crate) fn sort_variants(variants: &mut [VariantInfo]) {
 }
 
 pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppResult<ParsedInputs> {
-    let base_name = io::get_base_name(&args.vcf_file).map_err(reclassify_generic_as_validation)?;
+    let variant_file = args.variant_file();
+    let base_name = io::get_base_name(variant_file).map_err(reclassify_generic_as_validation)?;
     let references =
         io::load_references(&args.fasta_file).map_err(reclassify_generic_as_validation)?;
     let input_format = resolve_variant_input_format(args)?;
@@ -82,13 +83,13 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
 
     let snp_by_contig = match input_format {
         VariantInputFormat::Tsv => {
-            io::ivar::load_ivar_tsv(&args.vcf_file).map_err(reclassify_generic_as_validation)?
+            io::ivar::load_ivar_tsv(variant_file).map_err(reclassify_generic_as_validation)?
         }
         VariantInputFormat::Vcf | VariantInputFormat::Auto => {
             // Use fast text parser for plain .vcf files, htslib for .bcf/.vcf.gz
-            if io::vcf_fast::use_fast_parser(&args.vcf_file) {
+            if io::vcf_fast::use_fast_parser(variant_file) {
                 io::vcf_fast::load_vcf_text(
-                    &args.vcf_file,
+                    variant_file,
                     sample_override,
                     args.split_multiallelic,
                     args.normalize_alleles,
@@ -97,7 +98,7 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
                 .map_err(reclassify_generic_as_validation)?
             } else {
                 io::load_vcf_positions_by_contig(
-                    &args.vcf_file,
+                    variant_file,
                     sample_override,
                     args.split_multiallelic,
                     args.normalize_alleles,
@@ -124,11 +125,11 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
 
     let original_info_headers =
         if args.keep_original_info && input_format == VariantInputFormat::Vcf {
-            if io::vcf_fast::use_fast_parser(&args.vcf_file) {
-                io::vcf_fast::extract_text_info_headers(&args.vcf_file)
+            if io::vcf_fast::use_fast_parser(variant_file) {
+                io::vcf_fast::extract_text_info_headers(variant_file)
                     .map_err(reclassify_generic_as_validation)?
             } else {
-                io::extract_original_info_headers(&args.vcf_file)
+                io::extract_original_info_headers(variant_file)
                     .map_err(reclassify_generic_as_validation)?
             }
         } else {
@@ -147,9 +148,16 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
 }
 
 pub(crate) fn resolve_variant_input_format(args: &Args) -> AppResult<VariantInputFormat> {
-    match args.input_format {
+    if args.tsv_file.is_some() && args.input_format == VariantInputFormat::Vcf {
+        return Err(AppError::config(
+            "--tsv cannot be combined with --input-format vcf",
+        ));
+    }
+
+    let variant_file = args.variant_file();
+    match args.effective_input_format() {
         VariantInputFormat::Auto => {
-            if io::ivar::looks_like_ivar_tsv(&args.vcf_file)
+            if io::ivar::looks_like_ivar_tsv(variant_file)
                 .map_err(reclassify_generic_as_validation)?
             {
                 Ok(VariantInputFormat::Tsv)

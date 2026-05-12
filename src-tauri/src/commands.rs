@@ -70,10 +70,14 @@ pub struct AnalysisConfig {
 impl AnalysisConfig {
     /// Convert the GUI config into the core library's `Args` struct.
     fn into_args(self) -> get_mnv::cli::Args {
+        let input_format = self
+            .input_format
+            .unwrap_or(get_mnv::cli::VariantInputFormat::Auto);
+        let variant_file = self.vcf_file;
         let output_dir = self
             .output_dir
             .filter(|dir| !dir.trim().is_empty())
-            .or_else(|| default_output_dir_for_variant_file(&self.vcf_file));
+            .or_else(|| default_output_dir_for_variant_file(&variant_file));
 
         // Route genes_file to the correct field based on file extension.
         let genes_lower = self.genes_file.to_lowercase();
@@ -88,12 +92,16 @@ impl AnalysisConfig {
         } else {
             (None, Some(self.genes_file))
         };
+        let (vcf_file, tsv_file) = if input_format == get_mnv::cli::VariantInputFormat::Tsv {
+            (None, Some(variant_file))
+        } else {
+            (Some(variant_file), None)
+        };
 
         get_mnv::cli::Args {
-            vcf_file: self.vcf_file,
-            input_format: self
-                .input_format
-                .unwrap_or(get_mnv::cli::VariantInputFormat::Auto),
+            vcf_file,
+            tsv_file,
+            input_format,
             bam_file: self.bam_file,
             fasta_file: self.fasta_file,
             genes_file_tsv,
@@ -161,7 +169,7 @@ fn expected_output_paths(config: &AnalysisConfig) -> Result<Vec<String>, String>
         return Ok(Vec::new());
     }
 
-    let base_name = get_mnv::io::get_base_name(&args.vcf_file).map_err(|e| e.to_string())?;
+    let base_name = get_mnv::io::get_base_name(args.variant_file()).map_err(|e| e.to_string())?;
     let stem_name = args.output_prefix.clone().unwrap_or(base_name);
     let output_stem = match &args.output_dir {
         Some(dir) => std::path::Path::new(dir)
@@ -1052,6 +1060,8 @@ mod tests {
         let args = config.into_args();
 
         assert_eq!(args.input_format, get_mnv::cli::VariantInputFormat::Tsv);
+        assert_eq!(args.tsv_file.as_deref(), Some("/tmp/sample_variants.tsv"));
+        assert!(args.vcf_file.is_none());
         assert_eq!(args.min_mapq, 20);
         assert_eq!(args.min_snp_reads, 2);
         assert_eq!(args.min_mnv_reads, 3);

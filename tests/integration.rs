@@ -26,7 +26,8 @@ fn temp_dir(prefix: &str) -> PathBuf {
 fn base_args() -> Args {
     let ex = example_dir();
     Args {
-        vcf_file: ex.join("G35894.var.snp.vcf").to_string_lossy().into(),
+        vcf_file: Some(ex.join("G35894.var.snp.vcf").to_string_lossy().into()),
+        tsv_file: None,
         input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: ex.join("MTB_ancestor.fas").to_string_lossy().into(),
@@ -132,7 +133,7 @@ fn test_e2e_tsv_output_matches_expected_variant_counts() {
 }
 
 #[test]
-fn test_e2e_ivar_tsv_input_autodetect() {
+fn test_e2e_ivar_tsv_input_with_tsv_option() {
     let tmp = temp_dir("e2e_ivar");
     let ivar_path = tmp.join("sample_variants.tsv");
     let ref_path = tmp.join("ref.fasta");
@@ -152,7 +153,8 @@ chr1\t8\tC\t+A\t1\t9\t0.9\t10\tTRUE\n",
     fs::write(&genes_path, "gene1\t1\t12\t+\n").unwrap();
 
     let mut args = base_args();
-    args.vcf_file = ivar_path.to_string_lossy().into();
+    args.vcf_file = None;
+    args.tsv_file = Some(ivar_path.to_string_lossy().into());
     args.input_format = VariantInputFormat::Auto;
     args.fasta_file = ref_path.to_string_lossy().into();
     args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
@@ -402,7 +404,8 @@ fn test_e2e_error_json_on_bad_input() {
     let tmp = temp_dir("e2e_error");
     let error_path = tmp.join("error.json");
     let mut args = base_args();
-    args.vcf_file = "/nonexistent/file.vcf".to_string();
+    args.vcf_file = Some("/nonexistent/file.vcf".to_string());
+    args.tsv_file = None;
     args.error_json = Some(error_path.to_string_lossy().into());
     args.output_dir = Some(tmp.to_string_lossy().into());
 
@@ -495,7 +498,8 @@ chr1\t300\t.\tG\tA\t.\tPASS\t.\tGT:DP\t1/1:25\t1/1:30
     fs::write(&genes_path, genes_content).unwrap();
 
     let args = Args {
-        vcf_file: vcf_path.to_string_lossy().into(),
+        vcf_file: Some(vcf_path.to_string_lossy().into()),
+        tsv_file: None,
         input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: ref_path.to_string_lossy().into(),
@@ -574,7 +578,8 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT:DP\t1/1:20\t0/0:15
     fs::write(&genes_path, genes_content).unwrap();
 
     let args = Args {
-        vcf_file: vcf_path.to_string_lossy().into(),
+        vcf_file: Some(vcf_path.to_string_lossy().into()),
+        tsv_file: None,
         input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: ref_path.to_string_lossy().into(),
@@ -644,7 +649,8 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT\t1/1
     fs::write(tmp.join("genes.txt"), genes_content).unwrap();
 
     let args = Args {
-        vcf_file: tmp.join("test.vcf").to_string_lossy().into(),
+        vcf_file: Some(tmp.join("test.vcf").to_string_lossy().into()),
+        tsv_file: None,
         input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: tmp.join("ref.fas").to_string_lossy().into(),
@@ -718,7 +724,8 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.
     fs::write(tmp.join("genes.txt"), genes_content).unwrap();
 
     let args = Args {
-        vcf_file: tmp.join("test.vcf").to_string_lossy().into(),
+        vcf_file: Some(tmp.join("test.vcf").to_string_lossy().into()),
+        tsv_file: None,
         input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: tmp.join("ref.fas").to_string_lossy().into(),
@@ -948,7 +955,8 @@ fn test_invalid_translation_table_fails() {
     let out = std::env::temp_dir().join("get_mnv_test_invalid_tt");
 
     let args = Args {
-        vcf_file: ex.join("G35894.var.snp.vcf").to_string_lossy().to_string(),
+        vcf_file: Some(ex.join("G35894.var.snp.vcf").to_string_lossy().to_string()),
+        tsv_file: None,
         input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: ex.join("MTB_ancestor.fas").to_string_lossy().to_string(),
@@ -1004,7 +1012,8 @@ fn test_translation_table_1_standard() {
     let out = std::env::temp_dir().join("get_mnv_test_table1");
 
     let args = Args {
-        vcf_file: ex.join("G35894.var.snp.vcf").to_string_lossy().to_string(),
+        vcf_file: Some(ex.join("G35894.var.snp.vcf").to_string_lossy().to_string()),
+        tsv_file: None,
         input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: ex.join("MTB_ancestor.fas").to_string_lossy().to_string(),
@@ -1075,7 +1084,8 @@ fn test_empty_vcf_no_records() {
 
     let ex = example_dir();
     let args = Args {
-        vcf_file: vcf_path.to_string_lossy().to_string(),
+        vcf_file: Some(vcf_path.to_string_lossy().to_string()),
+        tsv_file: None,
         input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: fasta_path.to_string_lossy().to_string(),
@@ -1146,7 +1156,8 @@ fn test_truncated_vcf_record() {
     }
 
     let args = Args {
-        vcf_file: vcf_path.to_string_lossy().to_string(),
+        vcf_file: Some(vcf_path.to_string_lossy().to_string()),
+        tsv_file: None,
         input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: fasta_path.to_string_lossy().to_string(),
@@ -1223,7 +1234,8 @@ fn test_vcf_no_header() {
     }
 
     let args = Args {
-        vcf_file: vcf_path.to_string_lossy().to_string(),
+        vcf_file: Some(vcf_path.to_string_lossy().to_string()),
+        tsv_file: None,
         input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: fasta_path.to_string_lossy().to_string(),
@@ -1296,7 +1308,8 @@ fn test_error_json_written_on_failure() {
     let error_json_path = dir.join("error.json");
 
     let args = Args {
-        vcf_file: vcf_path.to_string_lossy().to_string(),
+        vcf_file: Some(vcf_path.to_string_lossy().to_string()),
+        tsv_file: None,
         input_format: VariantInputFormat::Auto,
         bam_file: None,
         fasta_file: fasta_path.to_string_lossy().to_string(),

@@ -1,6 +1,6 @@
 //! Command-line argument parsing and validation.
 
-use clap::{Parser, ValueEnum};
+use clap::{ArgGroup, Parser, ValueEnum};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -19,13 +19,29 @@ pub enum VariantInputFormat {
     author = "Paula Ruiz Rodriguez",
     about = "Identifies SNPs within codons, reclassifies multi-nucleotide variants (MNVs), calculates amino acid changes, and outputs results in TSV/VCF format."
 )]
+#[command(
+    group(
+        ArgGroup::new("variant_input")
+            .required(true)
+            .args(["vcf_file", "tsv_file"])
+    )
+)]
 pub struct Args {
-    /// Variant input file containing SNPs (VCF or TSV)
-    #[arg(short = 'v', long = "vcf", value_name = "VARIANT_FILE")]
-    pub vcf_file: String,
+    /// Variant input file containing SNPs in VCF/BCF format
+    #[arg(
+        short = 'v',
+        long = "vcf",
+        value_name = "VCF_FILE",
+        conflicts_with = "tsv_file"
+    )]
+    pub vcf_file: Option<String>,
 
-    /// Variant input format (auto-detect, VCF, or TSV)
-    #[arg(long = "input-format", value_enum, default_value_t = VariantInputFormat::Auto)]
+    /// iVar variants TSV input file
+    #[arg(long = "tsv", value_name = "TSV_FILE", conflicts_with = "vcf_file")]
+    pub tsv_file: Option<String>,
+
+    /// Legacy variant input format selector
+    #[arg(long = "input-format", value_enum, default_value_t = VariantInputFormat::Auto, hide = true)]
     pub input_format: VariantInputFormat,
 
     /// BAM file with aligned reads (optional)
@@ -183,6 +199,23 @@ pub struct Args {
 }
 
 impl Args {
+    /// Resolved variant input file path (from --vcf or --tsv).
+    pub fn variant_file(&self) -> &str {
+        self.tsv_file
+            .as_deref()
+            .or(self.vcf_file.as_deref())
+            .expect("either --vcf or --tsv must be provided")
+    }
+
+    /// Variant parser selected by the public input option plus legacy overrides.
+    pub fn effective_input_format(&self) -> VariantInputFormat {
+        if self.tsv_file.is_some() {
+            VariantInputFormat::Tsv
+        } else {
+            self.input_format
+        }
+    }
+
     /// Resolved gene annotation file path (from --genes or --gff).
     pub fn genes_file(&self) -> &str {
         self.gff_file
@@ -330,6 +363,40 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(args.input_format, VariantInputFormat::Tsv);
+        assert_eq!(args.effective_input_format(), VariantInputFormat::Tsv);
+    }
+
+    #[test]
+    fn test_tsv_option_selects_tsv_input() {
+        let args = Args::try_parse_from([
+            "get_mnv",
+            "--tsv",
+            "variants.tsv",
+            "--fasta",
+            "ref.fa",
+            "--genes",
+            "genes.txt",
+        ])
+        .unwrap();
+        assert_eq!(args.tsv_file.as_deref(), Some("variants.tsv"));
+        assert_eq!(args.variant_file(), "variants.tsv");
+        assert_eq!(args.effective_input_format(), VariantInputFormat::Tsv);
+    }
+
+    #[test]
+    fn test_vcf_and_tsv_conflict() {
+        let result = Args::try_parse_from([
+            "get_mnv",
+            "--vcf",
+            "in.vcf",
+            "--tsv",
+            "variants.tsv",
+            "--fasta",
+            "ref.fa",
+            "--genes",
+            "genes.txt",
+        ]);
+        assert!(result.is_err());
     }
 
     #[test]

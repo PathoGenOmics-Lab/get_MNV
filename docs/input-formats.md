@@ -8,21 +8,19 @@ annotation. A BAM file is optional.
 Pass variant calls with:
 
 ```bash
---vcf <FILE>
+--vcf <VCF_FILE>
+# or
+--tsv <IVAR_TSV_FILE>
 ```
 
-The option name is kept for backwards compatibility. The file can be:
+The supported variant-call inputs are:
 
 - VCF (`.vcf` or `.vcf.gz`)
 - iVar variants TSV (`.tsv`)
 
-Use one of:
-
-```bash
---input-format auto   # default
---input-format vcf
---input-format tsv
-```
+Use `--vcf` for VCF/BCF files and `--tsv` for iVar `variants.tsv` files.
+Older commands that pass an iVar TSV through `--vcf` are still auto-detected
+when the header has the standard iVar columns.
 
 ### VCF
 

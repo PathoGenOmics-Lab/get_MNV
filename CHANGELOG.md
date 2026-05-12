@@ -5,14 +5,13 @@ All notable changes to this project are documented in this file.
 ## [1.1.3] - 2026-05-11
 
 ### Added
-- **iVar variant TSV input support** via `--input-format auto|vcf|tsv`. The new iVar parser reads the standard `REGION`, `POS`, `REF`, `ALT`, `TOTAL_DP`, `REF_DP`, `ALT_DP`, `ALT_FREQ`, and `PASS` columns and maps passing SNVs into the internal variant model used by the VCF pipeline.
-- **Automatic iVar TSV detection** when `--input-format auto` is used, so typical iVar `variants.tsv` files can be passed through the existing `--vcf` input argument without renaming or conversion.
+- **iVar variant TSV input support** via the new `--tsv <FILE>` option. The new iVar parser reads the standard `REGION`, `POS`, `REF`, `ALT`, `TOTAL_DP`, `REF_DP`, `ALT_DP`, `ALT_FREQ`, and `PASS` columns and maps passing SNVs into the internal variant model used by the VCF pipeline.
+- **Automatic iVar TSV detection** for older commands that pass a typical iVar `variants.tsv` file through the existing `--vcf` input argument.
 - **Desktop GUI support for iVar TSV variant files.** The GUI now accepts variant `.tsv` files, detects iVar headers separately from annotation TSV files, and sends the selected input format to the Rust backend.
 - **BAM-derived SNP and MNV frequency filters** via `--min-snp-frequency` and `--min-mnv-frequency`, including GUI controls and VCF `LowFrequency` FILTER tags when `--emit-filtered` is enabled.
 
 ### Changed
-- The variant input wording now reflects that the `--vcf` path can point to a supported variant-call file, with `--input-format` controlling or auto-detecting VCF versus iVar TSV parsing.
-- `--input-format tsv` is now the documented explicit option for iVar TSV inputs; `--input-format ivar` remains accepted as a backwards-compatible alias.
+- `--vcf` is now documented for VCF/BCF inputs and `--tsv` is the explicit public option for iVar TSV inputs. The legacy `--input-format tsv` and `--input-format ivar` forms remain accepted for backwards compatibility.
 - The GUI output-directory logic now defaults to a writable location next to the selected variant input and preserves explicit output directories across reruns.
 - Documentation now explains the difference between original input frequency (`OFREQ`) and BAM-derived frequency filtering.
 - The macOS GUI build flow now uses `scripts/build_gui_bundle.sh`, which builds the Tauri `.app` first and then creates the `.dmg` with `hdiutil` for reproducible local packaging.
