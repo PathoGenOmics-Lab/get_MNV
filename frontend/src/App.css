@@ -4067,6 +4067,79 @@ h4 {
   color: var(--text-secondary);
 }
 
+/* ═════════════════ In-app Confirmation Dialog ═════════════════ */
+
+.confirm-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgba(10, 12, 18, 0.58);
+  backdrop-filter: blur(3px);
+}
+
+.confirm-dialog {
+  width: min(520px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-elevated);
+  color: var(--text-primary);
+  padding: 1.25rem;
+}
+
+.confirm-dialog h3 {
+  margin: 0 0 0.75rem;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.confirm-dialog-text {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.confirm-dialog-btn {
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 800;
+  padding: 0.65rem 0.95rem;
+  transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease), background 0.15s var(--ease);
+}
+
+.confirm-dialog-btn:hover,
+.confirm-dialog-btn:focus {
+  outline: none;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-hover);
+}
+
+.confirm-dialog-btn--secondary {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.confirm-dialog-btn--primary {
+  background: var(--mnv-m);
+  color: #ffffff;
+}
+
 /* ═════════════════ Responsive ═════════════════ */
 
 /* Narrower window: shrink sidebar, single-col params */

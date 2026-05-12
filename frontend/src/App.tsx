@@ -271,6 +271,11 @@ interface ProgressEvent {
   total: number;
 }
 
+interface ConfirmationPrompt {
+  message: string;
+  resolve: (confirmed: boolean) => void;
+}
+
 function App() {
   const [tab, setTab] = useState<Tab>("analysis");
   const [config, setConfig] = useState<AnalysisConfig>(DEFAULT_CONFIG);
@@ -288,6 +293,7 @@ function App() {
   const [appVersion, setAppVersion] = useState("v1.1.3");
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const [runProgress, setRunProgress] = useState<ProgressEvent | null>(null);
+  const [confirmationPrompt, setConfirmationPrompt] = useState<ConfirmationPrompt | null>(null);
 
   const configRef = useRef(config);
   useEffect(() => { configRef.current = config; }, [config]);
@@ -611,6 +617,19 @@ function App() {
     }
   }, []);
 
+  const askForConfirmation = useCallback((message: string) => {
+    return new Promise<boolean>((resolve) => {
+      setConfirmationPrompt({ message, resolve });
+    });
+  }, []);
+
+  const resolveConfirmation = useCallback((confirmed: boolean) => {
+    setConfirmationPrompt((prompt) => {
+      prompt?.resolve(confirmed);
+      return null;
+    });
+  }, []);
+
   const confirmOutputWrites = useCallback(async (toRun: SampleEntry[]) => {
     if (toRun.length === 0) return true;
 
@@ -655,11 +674,11 @@ function App() {
         );
       }
 
-      return window.confirm(`${sections.join("\n\n")}\n\nContinue?`);
+      return askForConfirmation(`${sections.join("\n\n")}\n\nContinue?`);
     } catch {
       return true;
     }
-  }, []);
+  }, [askForConfirmation]);
 
   const handleRunAll = useCallback(() => {
     const toRun = samples.filter((s) => s.status === "pending" || s.status === "error");
@@ -1180,6 +1199,36 @@ function App() {
           </div>
         )}
       </main>
+
+      {confirmationPrompt && (
+        <div className="confirm-dialog-backdrop" role="presentation">
+          <div
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-dialog-title"
+          >
+            <h3 id="confirm-dialog-title">Confirm output overwrite</h3>
+            <p className="confirm-dialog-text">{confirmationPrompt.message}</p>
+            <div className="confirm-dialog-actions">
+              <button
+                type="button"
+                className="confirm-dialog-btn confirm-dialog-btn--secondary"
+                onClick={() => resolveConfirmation(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="confirm-dialog-btn confirm-dialog-btn--primary"
+                onClick={() => resolveConfirmation(true)}
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Global drop overlay */}
       {dragActive && (
