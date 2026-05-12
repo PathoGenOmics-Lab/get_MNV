@@ -37,6 +37,12 @@ The tool takes:
 
 It writes annotated variants as TSV, VCF, or both.
 
+> [!WARNING]
+> get_MNV is designed for SNV/MNV interpretation. VCF insertions and deletions
+> can be reported as `INDEL`, but their codon and amino-acid annotation is
+> limited. iVar TSV indel rows, such as `+A` or `-N`, are skipped. For detailed
+> indel consequence annotation, use a dedicated variant annotation tool.
+
 <p align="center">
   <img src="images/get_mnv_aa.png" alt="MNV amino acid reclassification" width="650" />
 </p>
@@ -244,6 +250,7 @@ MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    MNV           No
 - **SNP**: single nucleotide change, one SNV per codon
 - **MNV**: all reads carry multiple SNVs together (Multi-Nucleotide Variant)
 - **SNP/MNV**: some reads carry individual SNVs, others carry the MNV combination
+- **INDEL**: insertion or deletion; detected/reported with limited codon and amino-acid annotation
 
 ## Documentation
 
@@ -273,7 +280,7 @@ bash scripts/build_gui_bundle.sh
 ## Limitations
 
 - Designed for SNVs against a reference sequence
-- Insertions and deletions are detected but not fully codon-annotated
+- VCF insertions and deletions are detected but not fully codon-annotated; iVar TSV indel notation such as `+A` or `-N` is skipped
 - Multiallelic VCF records require `--split-multiallelic` or pre-splitting (`bcftools norm -m -`)
 - Variant contig names must match FASTA and GFF exactly
 - **Multiple transcripts per gene**: when using `--gff-features CDS` with a GFF file that contains multiple transcripts for the same gene, each transcript is annotated independently, producing one output line per transcript per variant. If you want a single line per variant, filter your GFF to keep only the canonical transcript before running get_MNV (e.g., using [AGAT](https://github.com/NBISweden/AGAT) `agat_sp_keep_longest_isoform.pl` or a similar tool)
