@@ -45,6 +45,7 @@ const VIEWER_MAX_READS = 80;
 const DEFAULT_CELL_SIZE = 14;
 const MIN_CELL_SIZE = 6;
 const MAX_CELL_SIZE = 24;
+const SUPPORT_TYPES = ["mnv", "partial", "reference", "other"] as const;
 
 /* ── Pure helpers ─────────────────────────────────────── */
 
@@ -139,6 +140,12 @@ function supportLabel(s: BamReadView["support"]): string {
     case "other": return "Other";
     default: return s;
   }
+}
+
+function supportButtonTitle(visibleSupport: Set<string>, type: string, label: string): string {
+  return visibleSupport.size === 1 && visibleSupport.has(type)
+    ? "Show all reads"
+    : `Show only ${label} reads`;
 }
 
 function locusTitle(l: ViewerLocus): string {
@@ -310,7 +317,7 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
   const [expanded, setExpanded] = useState(false);
   const [cellSize, setCellSize] = useState(DEFAULT_CELL_SIZE);
   const [visibleSupport, setVisibleSupport] = useState<Set<string>>(
-    () => new Set(["mnv", "partial", "reference", "other"]),
+    () => new Set(SUPPORT_TYPES),
   );
   const gridWrapRef = useRef<HTMLDivElement>(null);
   const prevCellSizeRef = useRef(DEFAULT_CELL_SIZE);
@@ -584,10 +591,10 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
 
   const toggleSupport = useCallback((type: string) => {
     setVisibleSupport((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
-      return next;
+      if (prev.size === 1 && prev.has(type)) {
+        return new Set(SUPPORT_TYPES);
+      }
+      return new Set([type]);
     });
   }, []);
 
@@ -782,16 +789,16 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
             {view && (
               <>
                 <div className="bam-count-grid">
-                  <button type="button" className={`bam-count-card${visibleSupport.has("mnv") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("mnv")} title="Toggle MNV reads">
+                  <button type="button" className={`bam-count-card${visibleSupport.has("mnv") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("mnv")} title={supportButtonTitle(visibleSupport, "mnv", "MNV")}>
                     <strong>{countLabel(displayCounts.mnv)}</strong><span>MNV</span>
                   </button>
-                  <button type="button" className={`bam-count-card${visibleSupport.has("partial") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("partial")} title="Toggle SNP/partial reads">
+                  <button type="button" className={`bam-count-card${visibleSupport.has("partial") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("partial")} title={supportButtonTitle(visibleSupport, "partial", "SNP/partial")}>
                     <strong>{countLabel(displayCounts.partial)}</strong><span>SNP/partial</span>
                   </button>
-                  <button type="button" className={`bam-count-card${visibleSupport.has("reference") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("reference")} title="Toggle Reference reads">
+                  <button type="button" className={`bam-count-card${visibleSupport.has("reference") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("reference")} title={supportButtonTitle(visibleSupport, "reference", "Reference")}>
                     <strong>{countLabel(displayCounts.reference)}</strong><span>Ref</span>
                   </button>
-                  <button type="button" className={`bam-count-card${visibleSupport.has("other") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("other")} title="Toggle Other reads">
+                  <button type="button" className={`bam-count-card${visibleSupport.has("other") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("other")} title={supportButtonTitle(visibleSupport, "other", "Other")}>
                     <strong>{countLabel(displayCounts.other)}</strong><span>Other</span>
                   </button>
                 </div>

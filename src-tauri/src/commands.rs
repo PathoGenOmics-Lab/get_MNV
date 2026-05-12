@@ -479,6 +479,70 @@ pub struct BamSupportCounts {
     pub other: usize,
 }
 
+fn bam_support_rank(support: &str) -> u8 {
+    match support {
+        "mnv" => 0,
+        "partial" => 1,
+        "reference" => 2,
+        _ => 3,
+    }
+}
+
+fn sort_bam_reads_for_display(reads: &mut [BamReadView]) {
+    reads.sort_by(|a, b| {
+        bam_support_rank(&a.support)
+            .cmp(&bam_support_rank(&b.support))
+            .then_with(|| a.start.cmp(&b.start))
+            .then_with(|| a.end.cmp(&b.end))
+            .then_with(|| a.name.cmp(&b.name))
+    });
+}
+
+fn select_bam_reads_for_display(
+    mut reads: Vec<BamReadView>,
+    max_reads: usize,
+) -> (Vec<BamReadView>, bool) {
+    let truncated = reads.len() > max_reads;
+    sort_bam_reads_for_display(&mut reads);
+
+    if !truncated {
+        return (reads, false);
+    }
+
+    if max_reads == 0 {
+        return (Vec::new(), true);
+    }
+
+    let mut buckets: [Vec<BamReadView>; 4] = std::array::from_fn(|_| Vec::new());
+    for read in reads {
+        let rank = bam_support_rank(&read.support) as usize;
+        buckets[rank].push(read);
+    }
+
+    let mut selected = Vec::with_capacity(max_reads);
+    let mut offsets = [0usize; 4];
+    while selected.len() < max_reads {
+        let mut added = false;
+        for bucket_idx in 0..buckets.len() {
+            if selected.len() >= max_reads {
+                break;
+            }
+            let offset = offsets[bucket_idx];
+            if let Some(read) = buckets[bucket_idx].get(offset).cloned() {
+                selected.push(read);
+                offsets[bucket_idx] += 1;
+                added = true;
+            }
+        }
+        if !added {
+            break;
+        }
+    }
+
+    sort_bam_reads_for_display(&mut selected);
+    (selected, true)
+}
+
 /// Extract the base a read contributes at a given reference position (0-based).
 fn base_at_ref_pos(record: &bam::Record, ref_pos: u64, min_bq: u8) -> Option<String> {
     let read_start = record
@@ -845,20 +909,7 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         depths
     };
 
-    all_reads.sort_by(|a, b| {
-        let order = |s: &str| -> u8 {
-            match s {
-                "mnv" => 0,
-                "partial" => 1,
-                "reference" => 2,
-                _ => 3,
-            }
-        };
-        order(&a.support).cmp(&order(&b.support))
-    });
-
-    let truncated = all_reads.len() > max_reads;
-    all_reads.truncate(max_reads);
+    let (display_reads, truncated) = select_bam_reads_for_display(all_reads, max_reads);
 
     Ok(BamViewResponse {
         chrom: request.chrom,
@@ -866,7 +917,7 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         display_end: request.window_end,
         reference,
         sites,
-        reads: all_reads,
+        reads: display_reads,
         counts,
         total_reads,
         truncated,
@@ -907,6 +958,18 @@ mod tests {
         let path_str = path.to_string_lossy().into_owned();
         ensure_fasta_index(path_str.clone()).unwrap();
         path_str
+    }
+
+    fn bam_read_for_test(name: &str, support: &str, start: u64) -> BamReadView {
+        BamReadView {
+            name: name.to_string(),
+            strand: "+".to_string(),
+            support: support.to_string(),
+            start,
+            end: start + 10,
+            mapq: 60,
+            bases: vec!["A".to_string()],
+        }
     }
 
     fn minimal_config(variant_file: &str) -> AnalysisConfig {
@@ -1072,6 +1135,49 @@ mod tests {
         assert!(args.strand_bias_info);
         assert!(args.both);
         assert!(!args.convert);
+    }
+
+    #[test]
+    fn test_bam_view_balanced_truncation_keeps_partial_reads() {
+        let mut reads = Vec::new();
+        for i in 0..100 {
+            reads.push(bam_read_for_test(&format!("mnv_{i}"), "mnv", i));
+        }
+        for i in 0..3 {
+            reads.push(bam_read_for_test(
+                &format!("partial_{i}"),
+                "partial",
+                1_000 + i,
+            ));
+        }
+
+        let (display_reads, truncated) = select_bam_reads_for_display(reads, 10);
+
+        assert!(truncated);
+        assert_eq!(display_reads.len(), 10);
+        assert!(
+            display_reads.iter().any(|read| read.support == "partial"),
+            "truncated BAM viewer reads should still include partial-support examples"
+        );
+    }
+
+    #[test]
+    fn test_bam_view_untruncated_reads_keep_support_order() {
+        let reads = vec![
+            bam_read_for_test("ref", "reference", 30),
+            bam_read_for_test("partial", "partial", 20),
+            bam_read_for_test("mnv", "mnv", 10),
+            bam_read_for_test("other", "other", 40),
+        ];
+
+        let (display_reads, truncated) = select_bam_reads_for_display(reads, 10);
+        let supports: Vec<&str> = display_reads
+            .iter()
+            .map(|read| read.support.as_str())
+            .collect();
+
+        assert!(!truncated);
+        assert_eq!(supports, vec!["mnv", "partial", "reference", "other"]);
     }
 
     #[test]
