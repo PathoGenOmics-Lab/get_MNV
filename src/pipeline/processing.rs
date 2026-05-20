@@ -570,7 +570,7 @@ pub(crate) fn process_contig(
         let mut covered = vec![false; snp_list.len()];
         for gene in &genes {
             for (idx, snp) in snp_list.iter().enumerate() {
-                if snp.overlaps_interval(gene.start, gene.end) {
+                if io::gene_overlaps_variant(gene, snp) {
                     covered[idx] = true;
                 }
             }

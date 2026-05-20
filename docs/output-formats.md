@@ -23,7 +23,7 @@ Main columns:
 | `Base Changes` | Alternative bases. |
 | `AA Changes` | Amino acid change after combining all SNVs in the codon. |
 | `SNP AA Changes` | Amino acid change for each SNV considered separately. |
-| `Local AA Changes` | Exon/local numbering, useful for older downstream workflows. |
+| `Local AA Changes` | Per-feature numbering for legacy feature models; identical to `AA Changes` when a spliced transcript CDS model is available. |
 | `Local SNP AA Changes` | Per-SNP amino acid changes in local numbering. |
 | `Variant Type` | `SNP`, `MNV`, `SNP/MNV`, or `INDEL`. |
 | `Change Type` | Synonymous, non-synonymous, stop gained/lost, unknown, etc. |

@@ -3,7 +3,7 @@
 
 use super::vcf::VcfPosition;
 use crate::error::AppResult;
-use crate::variants::Gene;
+use crate::variants::{CdsSegment, Gene};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -131,6 +131,21 @@ pub(crate) fn has_snp_in_interval(snp_list: &[VcfPosition], start: usize, end: u
         .any(|variant| variant.overlaps_interval(start, end))
 }
 
+pub fn gene_overlaps_variant(gene: &Gene, variant: &VcfPosition) -> bool {
+    if gene.cds_segments.is_empty() {
+        return variant.overlaps_interval(gene.start, gene.end);
+    }
+    gene.cds_segments
+        .iter()
+        .any(|segment| variant.overlaps_interval(segment.start, segment.end))
+}
+
+fn gene_has_variant(gene: &Gene, snp_list: &[VcfPosition]) -> bool {
+    snp_list
+        .iter()
+        .any(|variant| gene_overlaps_variant(gene, variant))
+}
+
 fn parse_strand(raw: &str, line_number: usize) -> AppResult<crate::variants::Strand> {
     raw.parse::<crate::variants::Strand>().map_err(|_| {
         format!("Invalid strand at line {line_number} ('{raw}'). Expected '+' or '-'").into()
@@ -254,6 +269,8 @@ fn load_genes_from_tsv(genes_file: &str, snp_list: &[VcfPosition]) -> AppResult<
                 strand,
                 phase,
                 protein_offset: 0,
+                transcript_id: None,
+                cds_segments: Vec::new(),
             });
         } else {
             genes_without_snps += 1;
@@ -336,6 +353,8 @@ pub(crate) fn parse_gff_gene_records(
                 strand,
                 phase,
                 protein_offset: 0,
+                transcript_id: transcript_id.clone(),
+                cds_segments: Vec::new(),
             },
             feature_type,
             transcript_id,
@@ -433,14 +452,95 @@ pub(crate) fn count_multi_exon_cds_transcripts(records: &[GffGeneRecord]) -> usi
 fn warn_if_multi_exon_cds_detected(records: &[GffGeneRecord]) {
     let count = count_multi_exon_cds_transcripts(records);
     if count > 0 {
-        log::warn!(
-            "Detected {count} multi-exon CDS transcript(s). get_MNV annotates amino-acid \
-             numbering with transcript offsets, but local haplotype reconstruction and \
-             frameshift context are evaluated per overlapping feature/CDS row. Variants \
-             in exon-junction codons or downstream of transcript-level frameshifts should \
-             be interpreted with transcript-aware validation."
+        log::info!(
+            "Detected {count} multi-exon CDS transcript(s). get_MNV will build \
+             transcript-aware CDS models for CDS rows with transcript identifiers; \
+             CDS rows without transcript identifiers keep per-feature annotation."
         );
     }
+}
+
+pub(crate) fn build_transcript_cds_records(records: Vec<GffGeneRecord>) -> Vec<GffGeneRecord> {
+    use std::collections::BTreeMap;
+
+    let mut groups: BTreeMap<(String, String), Vec<GffGeneRecord>> = BTreeMap::new();
+    let mut out = Vec::new();
+
+    for rec in records {
+        if rec.feature_type == "CDS" {
+            if let Some(transcript_id) = rec.transcript_id.clone() {
+                groups
+                    .entry((rec.contig.clone(), transcript_id))
+                    .or_default()
+                    .push(rec);
+                continue;
+            }
+        }
+        out.push(rec);
+    }
+
+    for ((contig, transcript_id), mut group) in groups {
+        let strand = group[0].gene.strand;
+        group.sort_by(|a, b| match strand {
+            crate::variants::Strand::Plus => a.gene.start.cmp(&b.gene.start),
+            crate::variants::Strand::Minus => b.gene.start.cmp(&a.gene.start),
+        });
+
+        if group.len() == 1 && group[0].gene.phase != 0 {
+            log::warn!(
+                "CDS transcript '{transcript_id}' on contig '{contig}' has a single \
+                 CDS row with non-zero phase {}; keeping per-feature annotation because \
+                 the full spliced CDS cannot be reconstructed from the selected rows.",
+                group[0].gene.phase
+            );
+            out.extend(group);
+            continue;
+        }
+
+        if group.first().is_some_and(|rec| rec.gene.phase != 0) {
+            log::warn!(
+                "CDS transcript '{transcript_id}' on contig '{contig}' starts with \
+                 non-zero phase {}; keeping per-feature annotation because the selected \
+                 CDS rows do not appear to contain the full coding sequence.",
+                group[0].gene.phase
+            );
+            out.extend(group);
+            continue;
+        }
+
+        let start = group
+            .iter()
+            .map(|rec| rec.gene.start)
+            .min()
+            .unwrap_or_default();
+        let end = group
+            .iter()
+            .map(|rec| rec.gene.end)
+            .max()
+            .unwrap_or_default();
+        let mut gene = group[0].gene.clone();
+        gene.start = start;
+        gene.end = end;
+        gene.phase = 0;
+        gene.protein_offset = 0;
+        gene.transcript_id = Some(transcript_id.clone());
+        gene.cds_segments = group
+            .iter()
+            .map(|rec| CdsSegment {
+                start: rec.gene.start,
+                end: rec.gene.end,
+            })
+            .collect();
+
+        out.push(GffGeneRecord {
+            contig,
+            gene,
+            feature_type: "CDS".to_string(),
+            transcript_id: Some(transcript_id),
+        });
+    }
+
+    out
 }
 
 /// Scan a GFF file once and report whether it contains any CDS row with a
@@ -481,6 +581,7 @@ pub(crate) fn load_genes_from_gff(
     let mut records = parse_gff_gene_records(genes_file, feature_types)?;
     assign_cds_protein_offsets(&mut records);
     warn_if_multi_exon_cds_detected(&records);
+    let records = build_transcript_cds_records(records);
 
     let mut genes: Vec<Gene> = Vec::new();
     let mut parsed_entries = 0usize;
@@ -500,7 +601,7 @@ pub(crate) fn load_genes_from_gff(
 
         parsed_entries += 1;
 
-        if has_snp_in_interval(snp_list, rec.gene.start, rec.gene.end) {
+        if gene_has_variant(&rec.gene, snp_list) {
             genes_with_snps += 1;
             genes.push(rec.gene);
         } else {
@@ -551,6 +652,7 @@ pub fn preload_gff_genes(
     let mut records = parse_gff_gene_records(genes_file, feature_types)?;
     assign_cds_protein_offsets(&mut records);
     warn_if_multi_exon_cds_detected(&records);
+    let records = build_transcript_cds_records(records);
     let total_entries = records.len();
 
     let mut genes_by_contig: HashMap<String, Vec<Gene>> = HashMap::new();
@@ -594,7 +696,7 @@ fn warn_if_cds_phase_ignored(genes_file: &str, feature_types: &[String]) -> AppR
 pub fn filter_genes_with_snps(genes: &[Gene], snp_list: &[VcfPosition]) -> Vec<Gene> {
     genes
         .iter()
-        .filter(|gene| has_snp_in_interval(snp_list, gene.start, gene.end))
+        .filter(|gene| gene_has_variant(gene, snp_list))
         .cloned()
         .collect()
 }
@@ -817,6 +919,8 @@ mod tests {
                 strand,
                 phase,
                 protein_offset: 0,
+                transcript_id: tid.map(|s| s.to_string()),
+                cds_segments: Vec::new(),
             },
             feature_type: ft.to_string(),
             transcript_id: tid.map(|s| s.to_string()),
@@ -1055,6 +1159,25 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_build_transcript_cds_records_collapses_exons() {
+        use crate::variants::Strand;
+        let mut recs = vec![
+            record("chr1", 1, 4, Strand::Plus, 0, "CDS", Some("tx1")),
+            record("chr1", 10, 14, Strand::Plus, 2, "CDS", Some("tx1")),
+        ];
+        assign_cds_protein_offsets(&mut recs);
+        let collapsed = build_transcript_cds_records(recs);
+
+        assert_eq!(collapsed.len(), 1);
+        assert_eq!(collapsed[0].gene.start, 1);
+        assert_eq!(collapsed[0].gene.end, 14);
+        assert_eq!(collapsed[0].gene.transcript_id.as_deref(), Some("tx1"));
+        assert_eq!(collapsed[0].gene.cds_segments.len(), 2);
+        assert_eq!(collapsed[0].gene.cds_segments[0].start, 1);
+        assert_eq!(collapsed[0].gene.cds_segments[1].start, 10);
+    }
+
     // ---- filter_genes_with_snps ----
 
     #[test]
@@ -1067,6 +1190,8 @@ mod tests {
                 strand: crate::variants::Strand::Plus,
                 phase: 0,
                 protein_offset: 0,
+                transcript_id: None,
+                cds_segments: Vec::new(),
             },
             Gene {
                 name: "gene2".into(),
@@ -1075,6 +1200,8 @@ mod tests {
                 strand: crate::variants::Strand::Minus,
                 phase: 0,
                 protein_offset: 0,
+                transcript_id: None,
+                cds_segments: Vec::new(),
             },
         ];
         let snps = vec![VcfPosition {
@@ -1088,5 +1215,33 @@ mod tests {
         let filtered = filter_genes_with_snps(&genes, &snps);
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].name, "gene1");
+    }
+
+    #[test]
+    fn test_transcript_gene_filter_ignores_intronic_variants() {
+        let genes = vec![Gene {
+            name: "tx_gene".into(),
+            start: 1,
+            end: 20,
+            strand: crate::variants::Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+            transcript_id: Some("tx1".to_string()),
+            cds_segments: vec![
+                CdsSegment { start: 1, end: 4 },
+                CdsSegment { start: 10, end: 14 },
+            ],
+        }];
+        let snps = vec![VcfPosition {
+            position: 7,
+            ref_allele: "A".to_string(),
+            alt_allele: "G".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }];
+
+        assert!(filter_genes_with_snps(&genes, &snps).is_empty());
+        assert!(!gene_overlaps_variant(&genes[0], &snps[0]));
     }
 }

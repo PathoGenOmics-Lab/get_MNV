@@ -180,7 +180,137 @@ fn describe_protein_change(
     (build(protein_pos), build(local_pos))
 }
 
+fn complement_base(base: char) -> char {
+    match base.to_ascii_uppercase() {
+        'A' => 'T',
+        'T' => 'A',
+        'G' => 'C',
+        'C' => 'G',
+        'N' => 'N',
+        other => other,
+    }
+}
+
+fn has_transcript_cds_model(gene: &Gene) -> bool {
+    !gene.cds_segments.is_empty()
+}
+
+fn transcript_sequence_for_gene(
+    gene: &Gene,
+    reference: &crate::io::Reference<'_>,
+) -> Option<String> {
+    if !has_transcript_cds_model(gene) {
+        return None;
+    }
+
+    let mut cds = String::new();
+    for segment in &gene.cds_segments {
+        if segment.start == 0
+            || segment.end == 0
+            || segment.start > segment.end
+            || segment.end > reference.sequence.len()
+        {
+            return None;
+        }
+        let genomic = &reference.sequence[(segment.start - 1)..segment.end];
+        match gene.strand {
+            Strand::Plus => cds.push_str(genomic),
+            Strand::Minus => cds.push_str(&reverse_complement(genomic)),
+        }
+    }
+    Some(cds)
+}
+
+fn transcript_offset_for_position(gene: &Gene, position: usize) -> Option<usize> {
+    if !has_transcript_cds_model(gene) {
+        return None;
+    }
+
+    let mut offset = 0usize;
+    for segment in &gene.cds_segments {
+        if position >= segment.start && position <= segment.end {
+            return Some(match gene.strand {
+                Strand::Plus => offset + position.saturating_sub(segment.start),
+                Strand::Minus => offset + segment.end.saturating_sub(position),
+            });
+        }
+        offset += segment.end.saturating_sub(segment.start) + 1;
+    }
+    None
+}
+
+fn insertion_anchor_in_segment(segment: &CdsSegment, position: usize) -> bool {
+    position >= segment.start && position < segment.end
+}
+
+fn variant_overlaps_coding_model(gene: &Gene, variant: &VcfPosition) -> bool {
+    if !has_transcript_cds_model(gene) {
+        return variant.overlaps_interval(gene.start, gene.end);
+    }
+
+    gene.cds_segments
+        .iter()
+        .any(|segment| variant.overlaps_interval(segment.start, segment.end))
+}
+
+fn variant_touched_transcript_offsets(gene: &Gene, variant: &VcfPosition) -> Vec<usize> {
+    if !has_transcript_cds_model(gene) {
+        return Vec::new();
+    }
+
+    let mut offsets = BTreeSet::new();
+    for component in variant.event().components {
+        match component.kind {
+            AlleleComponentKind::Snp => {
+                if let Some(offset) = transcript_offset_for_position(gene, component.position) {
+                    offsets.insert(offset);
+                }
+            }
+            AlleleComponentKind::Insertion => {
+                for segment in &gene.cds_segments {
+                    if insertion_anchor_in_segment(segment, component.position) {
+                        if let Some(offset) =
+                            transcript_offset_for_position(gene, component.position)
+                        {
+                            offsets.insert(offset);
+                        }
+                    }
+                }
+            }
+            AlleleComponentKind::Deletion
+            | AlleleComponentKind::Delins
+            | AlleleComponentKind::Symbolic => {
+                let component_end =
+                    component.position + component.ref_allele.len().saturating_sub(1);
+                for segment in &gene.cds_segments {
+                    let overlap_start = component.position.max(segment.start);
+                    let overlap_end = component_end.min(segment.end);
+                    if overlap_start <= overlap_end {
+                        for pos in overlap_start..=overlap_end {
+                            if let Some(offset) = transcript_offset_for_position(gene, pos) {
+                                offsets.insert(offset);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    offsets.into_iter().collect()
+}
+
+fn first_touched_transcript_offset(gene: &Gene, variant: &VcfPosition) -> Option<usize> {
+    variant_touched_transcript_offsets(gene, variant)
+        .into_iter()
+        .min()
+}
+
 fn coding_sequence_for_gene(gene: &Gene, reference: &crate::io::Reference<'_>) -> Option<String> {
+    if let Some(transcript_cds) = transcript_sequence_for_gene(gene, reference) {
+        return Some(transcript_cds);
+    }
+
     let (eff_start, eff_end) = effective_bounds(gene);
     if eff_start == 0 || eff_end == 0 || eff_start > eff_end || eff_end > reference.sequence.len() {
         return None;
@@ -192,11 +322,123 @@ fn coding_sequence_for_gene(gene: &Gene, reference: &crate::io::Reference<'_>) -
     })
 }
 
+fn apply_allele_to_transcript(
+    gene: &Gene,
+    reference: &crate::io::Reference<'_>,
+    variant: &crate::io::VcfPosition,
+) -> Option<String> {
+    if !has_transcript_cds_model(gene) {
+        return None;
+    }
+
+    let event = variant.event();
+    if matches!(event.class, AlleleEventClass::Symbolic) {
+        return None;
+    }
+
+    let mut touched_transcript = false;
+    let mut cds = String::new();
+
+    for segment in &gene.cds_segments {
+        if segment.start == 0
+            || segment.end == 0
+            || segment.start > segment.end
+            || segment.end > reference.sequence.len()
+        {
+            return None;
+        }
+
+        let mut snps: BTreeMap<usize, String> = BTreeMap::new();
+        let mut insertions: BTreeMap<usize, String> = BTreeMap::new();
+        let mut deleted: BTreeSet<usize> = BTreeSet::new();
+
+        for component in &event.components {
+            match component.kind {
+                AlleleComponentKind::Snp => {
+                    if component.position >= segment.start && component.position <= segment.end {
+                        match snps.get(&component.position) {
+                            Some(existing)
+                                if !existing.eq_ignore_ascii_case(&component.alt_allele) =>
+                            {
+                                return None;
+                            }
+                            Some(_) => {}
+                            None => {
+                                snps.insert(component.position, component.alt_allele.clone());
+                            }
+                        }
+                        touched_transcript = true;
+                    }
+                }
+                AlleleComponentKind::Insertion => {
+                    if insertion_anchor_in_segment(segment, component.position) {
+                        match insertions.get(&component.position) {
+                            Some(existing)
+                                if !existing.eq_ignore_ascii_case(&component.alt_allele) =>
+                            {
+                                return None;
+                            }
+                            Some(_) => {}
+                            None => {
+                                insertions.insert(component.position, component.alt_allele.clone());
+                            }
+                        }
+                        touched_transcript = true;
+                    }
+                }
+                AlleleComponentKind::Deletion => {
+                    let del_end = component.position + component.ref_allele.len().saturating_sub(1);
+                    let overlap_start = component.position.max(segment.start);
+                    let overlap_end = del_end.min(segment.end);
+                    if overlap_start <= overlap_end {
+                        for pos in overlap_start..=overlap_end {
+                            deleted.insert(pos);
+                        }
+                        touched_transcript = true;
+                    }
+                }
+                AlleleComponentKind::Delins | AlleleComponentKind::Symbolic => return None,
+            }
+        }
+
+        if snps.keys().any(|pos| deleted.contains(pos))
+            || insertions.keys().any(|pos| deleted.contains(pos))
+        {
+            return None;
+        }
+
+        let mut genomic = String::with_capacity(segment.end - segment.start + 1);
+        for pos in segment.start..=segment.end {
+            if !deleted.contains(&pos) {
+                if let Some(alt_base) = snps.get(&pos) {
+                    genomic.push_str(alt_base);
+                } else {
+                    genomic.push(reference.sequence.as_bytes()[pos - 1] as char);
+                }
+            }
+            if let Some(inserted) = insertions.get(&pos) {
+                genomic.push_str(inserted);
+            }
+        }
+
+        match gene.strand {
+            Strand::Plus => cds.push_str(&genomic),
+            Strand::Minus => cds.push_str(&reverse_complement(&genomic)),
+        }
+    }
+
+    touched_transcript.then_some(cds)
+}
+
 fn apply_allele_to_feature(
     gene: &Gene,
     reference: &crate::io::Reference<'_>,
     variant: &crate::io::VcfPosition,
 ) -> Option<String> {
+    if let Some(transcript_alt) = apply_allele_to_transcript(gene, reference, variant) {
+        return Some(transcript_alt);
+    }
+
     let (eff_start, eff_end) = effective_bounds(gene);
     if eff_start == 0 || eff_end == 0 || eff_start > eff_end || eff_end > reference.sequence.len() {
         return None;
@@ -261,7 +503,9 @@ fn apply_allele_to_feature(
         return None;
     }
 
-    if insertions.keys().any(|pos| deleted.contains(pos)) {
+    if snps.keys().any(|pos| deleted.contains(pos))
+        || insertions.keys().any(|pos| deleted.contains(pos))
+    {
         return None;
     }
 
@@ -314,6 +558,23 @@ fn protein_effect_for_indel(
     let (protein_change, local_change) =
         describe_protein_change(&ref_protein, &alt_protein, gene.protein_offset, frameshift);
 
+    let transcript_codon = first_touched_transcript_offset(gene, variant).and_then(|offset| {
+        let codon_start = (offset / 3) * 3;
+        let codon_end = codon_start + 3;
+        let ref_codon = ref_cds.get(codon_start..codon_end).map(str::to_string)?;
+        let alt_codon = alt_cds.get(codon_start..codon_end).map(str::to_string);
+        Some((ref_codon, alt_codon))
+    });
+
+    if let Some((ref_codon, alt_codon)) = transcript_codon {
+        return (
+            vec![protein_change],
+            vec![local_change],
+            Some(ref_codon),
+            alt_codon,
+        );
+    }
+
     let first_codon_start = {
         let (eff_start, eff_end) = effective_bounds(gene);
         let anchor = variant.position.clamp(eff_start, eff_end);
@@ -340,6 +601,36 @@ fn protein_effect_for_indel(
         ref_codon,
         alt_codon,
     )
+}
+
+fn coding_delta_for_variant(
+    gene: &Gene,
+    reference: &crate::io::Reference<'_>,
+    variant: &VcfPosition,
+) -> Option<isize> {
+    let ref_cds = coding_sequence_for_gene(gene, reference)?;
+    let alt_cds = apply_allele_to_feature(gene, reference, variant)?;
+    Some(alt_cds.len() as isize - ref_cds.len() as isize)
+}
+
+fn indel_change_type_for_variant(
+    gene: &Gene,
+    reference: &crate::io::Reference<'_>,
+    variant: &VcfPosition,
+) -> ChangeType {
+    let frameshift = if variant.alt_allele.starts_with('<') {
+        true
+    } else if let Some(delta) = coding_delta_for_variant(gene, reference, variant) {
+        delta % 3 != 0
+    } else {
+        (variant.ref_allele.len() as isize - variant.alt_allele.len() as isize) % 3 != 0
+    };
+
+    if frameshift {
+        ChangeType::FrameshiftIndel
+    } else {
+        ChangeType::InFrameIndel
+    }
 }
 
 fn phased_indel_window(gene: &Gene, variant: &VcfPosition) -> Option<(usize, usize)> {
@@ -584,13 +875,7 @@ fn phased_variant_from_group(
         compound_event.class
     };
 
-    let is_frameshift =
-        (compound.ref_allele.len() as isize - compound.alt_allele.len() as isize) % 3 != 0;
-    let change_type = if is_frameshift {
-        ChangeType::FrameshiftIndel
-    } else {
-        ChangeType::InFrameIndel
-    };
+    let change_type = indel_change_type_for_variant(gene, reference, &compound);
     let event_components = component_labels_from_group(group);
     let (aa_changes, aa_changes_local, ref_codon, alt_codon) =
         protein_effect_for_indel(gene, reference, &compound, genetic_code);
@@ -1029,6 +1314,296 @@ fn codon_bounds_for_position(gene: &Gene, position: usize) -> Option<(usize, usi
     }
 }
 
+#[derive(Debug, Clone)]
+struct TranscriptSnp {
+    snp: Snp,
+    transcript_offset: usize,
+    transcript_alt_base: char,
+}
+
+fn transcript_oriented_base(base: &str, strand: Strand) -> Option<char> {
+    let base = base.chars().next()?;
+    Some(match strand {
+        Strand::Plus => base.to_ascii_uppercase(),
+        Strand::Minus => complement_base(base),
+    })
+}
+
+fn construct_transcript_codon(ref_codon: &str, target_snps: &[&TranscriptSnp]) -> String {
+    let mut codon = ref_codon.chars().collect::<Vec<_>>();
+    for snp in target_snps {
+        let idx = snp.transcript_offset % 3;
+        if let Some(slot) = codon.get_mut(idx) {
+            *slot = snp.transcript_alt_base.to_ascii_uppercase();
+        }
+    }
+    codon.into_iter().collect()
+}
+
+fn process_transcript_codon(
+    gene: &Gene,
+    chrom: &str,
+    ref_codon: &str,
+    codon_start_offset: usize,
+    codon_snps: &[TranscriptSnp],
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> VariantInfo {
+    let mnv_snps = codon_snps.iter().collect::<Vec<_>>();
+    let mnv_codon = construct_transcript_codon(ref_codon, &mnv_snps);
+    let snp_codons = codon_snps
+        .iter()
+        .map(|snp| construct_transcript_codon(ref_codon, &[snp]))
+        .collect::<Vec<_>>();
+    let snp_codon = snp_codons.join(", ");
+
+    let orig_aa = genetic_code.translate_seq(ref_codon.as_bytes());
+    let mut_aa = genetic_code.translate_seq(mnv_codon.as_bytes());
+    let aa_pos = (codon_start_offset / 3) + 1;
+    let combined_aa = iupac_aa(&format!("{orig_aa}{aa_pos}{mut_aa}"));
+    let change_type = ChangeType::from_label(&determine_change_type(&combined_aa));
+
+    let snp_changes = codon_snps
+        .iter()
+        .map(|snp| {
+            let single_codon = construct_transcript_codon(ref_codon, &[snp]);
+            let single_aa = genetic_code.translate_seq(single_codon.as_bytes());
+            iupac_aa(&format!("{orig_aa}{aa_pos}{single_aa}"))
+        })
+        .collect::<Vec<_>>();
+
+    let raw_snps = codon_snps
+        .iter()
+        .map(|snp| snp.snp.clone())
+        .collect::<Vec<_>>();
+
+    VariantInfo {
+        chrom: chrom.to_string(),
+        gene: gene.name.clone(),
+        positions: codon_snps.iter().map(|s| s.snp.position).collect(),
+        ref_bases: codon_snps.iter().map(|s| s.snp.ref_base.clone()).collect(),
+        base_changes: codon_snps.iter().map(|s| s.snp.base.clone()).collect(),
+        aa_changes: vec![combined_aa.clone()],
+        snp_aa_changes: snp_changes.clone(),
+        aa_changes_local: vec![combined_aa],
+        snp_aa_changes_local: snp_changes,
+        variant_type: if codon_snps.len() == 1 {
+            VariantType::Snp
+        } else {
+            VariantType::SnpMnv
+        },
+        change_type,
+        snp_reads: None,
+        snp_forward_reads: None,
+        snp_reverse_reads: None,
+        mnv_reads: None,
+        mnv_forward_reads: None,
+        mnv_reverse_reads: None,
+        mnv_total_reads: None,
+        total_reads: None,
+        total_forward_reads: None,
+        total_reverse_reads: None,
+        mnv_total_forward_reads: None,
+        mnv_total_reverse_reads: None,
+        ref_codon: Some(ref_codon.to_string()),
+        snp_codon: Some(snp_codon),
+        mnv_codon: Some(mnv_codon),
+        original_dp: collect_all_usize(raw_snps.iter().map(|s| s.original_dp)),
+        original_freq: collect_all_f64(raw_snps.iter().map(|s| s.original_freq)),
+        original_info: merge_original_info(&raw_snps),
+        event_class: Some(if codon_snps.len() == 1 {
+            "snp".to_string()
+        } else {
+            "mnv".to_string()
+        }),
+        event_components: codon_snps
+            .iter()
+            .map(|s| format!("SNV:{}:{}>{}", s.snp.position, s.snp.ref_base, s.snp.base))
+            .collect(),
+    }
+}
+
+fn get_mnv_variants_for_transcript(
+    gene: &Gene,
+    snp_list: &[crate::io::VcfPosition],
+    reference: &crate::io::Reference,
+    chrom: &str,
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> Vec<VariantInfo> {
+    let Some(ref_cds) = transcript_sequence_for_gene(gene, reference) else {
+        return Vec::new();
+    };
+
+    let mut variants = Vec::new();
+    let mut codon_to_snps: BTreeMap<usize, Vec<TranscriptSnp>> = BTreeMap::new();
+    let mut indels: Vec<crate::io::VcfPosition> = Vec::new();
+
+    for variant in snp_list
+        .iter()
+        .filter(|variant| variant_overlaps_coding_model(gene, variant))
+    {
+        let substitutions = variant.substitution_components();
+        if !substitutions.is_empty() {
+            for component in substitutions {
+                let Some(offset) = transcript_offset_for_position(gene, component.position) else {
+                    continue;
+                };
+                let Some(transcript_alt_base) =
+                    transcript_oriented_base(&component.alt_allele, gene.strand)
+                else {
+                    continue;
+                };
+                let codon_start = (offset / 3) * 3;
+                let group = codon_to_snps.entry(codon_start).or_default();
+                if !group.iter().any(|snp| snp.transcript_offset == offset) {
+                    group.push(TranscriptSnp {
+                        snp: Snp {
+                            index: component.position,
+                            position: component.position,
+                            ref_base: component.ref_allele,
+                            base: component.alt_allele,
+                            original_dp: variant.original_dp,
+                            original_freq: variant.original_freq,
+                            original_info: variant.original_info.clone(),
+                        },
+                        transcript_offset: offset,
+                        transcript_alt_base,
+                    });
+                } else {
+                    log::debug!(
+                        "Skipping duplicate ALT at transcript offset {} in gene '{}' (multi-allelic split)",
+                        offset,
+                        gene.name
+                    );
+                }
+            }
+        } else {
+            indels.push(variant.clone());
+        }
+    }
+
+    let mut codon_starts = codon_to_snps.keys().copied().collect::<Vec<_>>();
+    codon_starts.sort_unstable();
+
+    for codon_start in codon_starts {
+        let codon_end = codon_start + 3;
+        if codon_end > ref_cds.len() {
+            continue;
+        }
+        let ref_codon = &ref_cds[codon_start..codon_end];
+        let mut codon_snps = codon_to_snps.get(&codon_start).cloned().unwrap_or_default();
+        codon_snps.sort_by_key(|s| s.transcript_offset);
+
+        let overlaps_indel = indels.iter().any(|indel| {
+            variant_touched_transcript_offsets(gene, indel)
+                .into_iter()
+                .any(|offset| offset >= codon_start && offset < codon_end)
+        });
+
+        let mut upstream_shift: isize = 0;
+        let mut has_symbolic_sv = false;
+        for indel in &indels {
+            let Some(first_offset) = first_touched_transcript_offset(gene, indel) else {
+                continue;
+            };
+            if first_offset < codon_start {
+                if indel.alt_allele.starts_with('<') {
+                    has_symbolic_sv = true;
+                } else if let Some(delta) = coding_delta_for_variant(gene, reference, indel) {
+                    upstream_shift += delta;
+                } else {
+                    has_symbolic_sv = true;
+                }
+            }
+        }
+        let is_frameshifted = has_symbolic_sv || upstream_shift % 3 != 0;
+
+        let mut var_info = process_transcript_codon(
+            gene,
+            chrom,
+            ref_codon,
+            codon_start,
+            &codon_snps,
+            genetic_code,
+        );
+
+        if overlaps_indel {
+            var_info.change_type = ChangeType::IndelOverlap;
+            var_info.aa_changes = vec!["Unknown".to_string()];
+            var_info.snp_aa_changes = vec!["Unknown".to_string(); var_info.snp_aa_changes.len()];
+            var_info.aa_changes_local = vec!["Unknown".to_string()];
+            var_info.snp_aa_changes_local =
+                vec!["Unknown".to_string(); var_info.snp_aa_changes_local.len()];
+        } else if is_frameshifted {
+            var_info.change_type = var_info.change_type.with_frameshift();
+            var_info.aa_changes = var_info
+                .aa_changes
+                .into_iter()
+                .map(|s| format!("{s} (fs)"))
+                .collect();
+            var_info.snp_aa_changes = var_info
+                .snp_aa_changes
+                .into_iter()
+                .map(|s| format!("{s} (fs)"))
+                .collect();
+            var_info.aa_changes_local = var_info
+                .aa_changes_local
+                .into_iter()
+                .map(|s| format!("{s} (fs)"))
+                .collect();
+            var_info.snp_aa_changes_local = var_info
+                .snp_aa_changes_local
+                .into_iter()
+                .map(|s| format!("{s} (fs)"))
+                .collect();
+        }
+
+        variants.push(var_info);
+    }
+
+    for indel in indels {
+        let change_type = indel_change_type_for_variant(gene, reference, &indel);
+        let (aa_changes, aa_changes_local, ref_codon, alt_codon) =
+            protein_effect_for_indel(gene, reference, &indel, genetic_code);
+        let (event_class, event_components) = variant_event_metadata(&indel);
+
+        variants.push(VariantInfo {
+            chrom: chrom.to_string(),
+            gene: gene.name.clone(),
+            positions: vec![indel.position],
+            ref_bases: vec![indel.ref_allele.clone()],
+            base_changes: vec![indel.alt_allele.clone()],
+            aa_changes,
+            snp_aa_changes: vec!["-".to_string()],
+            aa_changes_local,
+            snp_aa_changes_local: vec!["-".to_string()],
+            variant_type: VariantType::Indel,
+            change_type,
+            snp_reads: None,
+            snp_forward_reads: None,
+            snp_reverse_reads: None,
+            mnv_reads: None,
+            mnv_forward_reads: None,
+            mnv_reverse_reads: None,
+            mnv_total_reads: None,
+            total_reads: None,
+            total_forward_reads: None,
+            total_reverse_reads: None,
+            mnv_total_forward_reads: None,
+            mnv_total_reverse_reads: None,
+            ref_codon,
+            snp_codon: None,
+            mnv_codon: alt_codon,
+            original_dp: indel.original_dp.map(|value| vec![value]),
+            original_freq: indel.original_freq.map(|value| vec![value]),
+            original_info: indel.original_info.clone(),
+            event_class: Some(event_class),
+            event_components,
+        });
+    }
+
+    variants
+}
+
 pub fn get_mnv_variants_for_gene(
     gene: &Gene,
     snp_list: &[crate::io::VcfPosition],
@@ -1036,6 +1611,10 @@ pub fn get_mnv_variants_for_gene(
     chrom: &str,
     genetic_code: crate::genetic_code::GeneticCode,
 ) -> Vec<VariantInfo> {
+    if has_transcript_cds_model(gene) {
+        return get_mnv_variants_for_transcript(gene, snp_list, reference, chrom, genetic_code);
+    }
+
     let mut variants = Vec::new();
 
     let mut codon_to_snps: BTreeMap<usize, Vec<crate::variants::Snp>> = BTreeMap::new();
@@ -1181,17 +1760,7 @@ pub fn get_mnv_variants_for_gene(
     }
 
     for indel in indels {
-        let is_frameshift = if indel.alt_allele.starts_with('<') {
-            true
-        } else {
-            (indel.ref_allele.len() as isize - indel.alt_allele.len() as isize) % 3 != 0
-        };
-
-        let change_type = if is_frameshift {
-            ChangeType::FrameshiftIndel
-        } else {
-            ChangeType::InFrameIndel
-        };
+        let change_type = indel_change_type_for_variant(gene, reference, &indel);
         let (aa_changes, aa_changes_local, ref_codon, alt_codon) =
             protein_effect_for_indel(gene, reference, &indel, genetic_code);
         let (event_class, event_components) = variant_event_metadata(&indel);
@@ -1284,7 +1853,7 @@ pub fn build_intergenic_variant(chrom: &str, vcf_pos: &crate::io::VcfPosition) -
 mod tests {
     use super::{build_phased_indel_haplotype_variants, codon_bounds_for_position, process_codon};
     use crate::utils::reverse_complement;
-    use crate::variants::{ChangeType, CodonInfo, Gene, Snp, Strand, VariantType};
+    use crate::variants::{CdsSegment, ChangeType, CodonInfo, Gene, Snp, Strand, VariantType};
 
     fn next_u64(seed: &mut u64) -> u64 {
         *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
@@ -1322,6 +1891,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 0,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         for pos in gene.start..=gene.end {
             let bounds = codon_bounds_for_position(&gene, pos).expect("expected codon bounds");
@@ -1340,6 +1911,8 @@ mod tests {
             strand: Strand::Minus,
             phase: 0,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         for pos in gene.start..=gene.end {
             let bounds = codon_bounds_for_position(&gene, pos).expect("expected codon bounds");
@@ -1410,6 +1983,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 0,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         let reference = crate::io::Reference {
             sequence: "ATGAAATTT",
@@ -1439,6 +2014,127 @@ mod tests {
     }
 
     #[test]
+    fn test_transcript_model_groups_mnv_across_exon_junction() {
+        let gene = Gene {
+            name: "tx_cds".to_string(),
+            start: 1,
+            end: 14,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+            transcript_id: Some("tx1".to_string()),
+            cds_segments: vec![
+                CdsSegment { start: 1, end: 4 },
+                CdsSegment { start: 10, end: 14 },
+            ],
+        };
+        let reference = crate::io::Reference {
+            sequence: "ATGACCCCCAATTT",
+        };
+        let variants = crate::variants::get_mnv_variants_for_gene(
+            &gene,
+            &[
+                crate::io::VcfPosition {
+                    position: 4,
+                    ref_allele: "A".to_string(),
+                    alt_allele: "C".to_string(),
+                    original_dp: None,
+                    original_freq: None,
+                    original_info: None,
+                },
+                crate::io::VcfPosition {
+                    position: 10,
+                    ref_allele: "A".to_string(),
+                    alt_allele: "G".to_string(),
+                    original_dp: None,
+                    original_freq: None,
+                    original_info: None,
+                },
+            ],
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+
+        assert_eq!(variants.len(), 1);
+        assert_eq!(variants[0].variant_type, VariantType::SnpMnv);
+        assert_eq!(variants[0].positions, vec![4, 10]);
+        assert_eq!(variants[0].ref_codon.as_deref(), Some("AAA"));
+        assert_eq!(variants[0].mnv_codon.as_deref(), Some("CGA"));
+        assert_eq!(variants[0].aa_changes, vec!["Lys2Arg".to_string()]);
+        assert_eq!(
+            variants[0].event_components,
+            vec!["SNV:4:A>C".to_string(), "SNV:10:A>G".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_transcript_model_restored_frame_does_not_mark_downstream_snp_frameshift() {
+        let gene = Gene {
+            name: "tx_cds".to_string(),
+            start: 1,
+            end: 25,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+            transcript_id: Some("tx1".to_string()),
+            cds_segments: vec![
+                CdsSegment { start: 1, end: 6 },
+                CdsSegment { start: 20, end: 25 },
+            ],
+        };
+        let reference = crate::io::Reference {
+            sequence: "ATGAAAGGGGGGGGGGGGGTTTCCC",
+        };
+        let variants = crate::variants::get_mnv_variants_for_gene(
+            &gene,
+            &[
+                crate::io::VcfPosition {
+                    position: 3,
+                    ref_allele: "G".to_string(),
+                    alt_allele: "GA".to_string(),
+                    original_dp: None,
+                    original_freq: None,
+                    original_info: None,
+                },
+                crate::io::VcfPosition {
+                    position: 20,
+                    ref_allele: "TT".to_string(),
+                    alt_allele: "T".to_string(),
+                    original_dp: None,
+                    original_freq: None,
+                    original_info: None,
+                },
+                crate::io::VcfPosition {
+                    position: 23,
+                    ref_allele: "C".to_string(),
+                    alt_allele: "A".to_string(),
+                    original_dp: None,
+                    original_freq: None,
+                    original_info: None,
+                },
+            ],
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+
+        let snp_row = variants
+            .iter()
+            .find(|variant| variant.positions == vec![23])
+            .expect("downstream SNP row");
+        assert!(!snp_row.aa_changes[0].contains("(fs)"));
+        assert!(!matches!(
+            snp_row.change_type,
+            ChangeType::FrameshiftSynonymous
+                | ChangeType::FrameshiftNonSynonymous
+                | ChangeType::FrameshiftStopGained
+                | ChangeType::FrameshiftStopLost
+                | ChangeType::FrameshiftUnknown
+        ));
+    }
+
+    #[test]
     fn test_indel_reports_event_components_and_frameshift_protein_effect() {
         let gene = Gene {
             name: "cds".to_string(),
@@ -1447,6 +2143,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 0,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         let reference = crate::io::Reference {
             sequence: "ATGAAATTT",
@@ -1482,6 +2180,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 0,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         let reference = crate::io::Reference {
             sequence: "CATGAAATTT",
@@ -1519,6 +2219,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 0,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         let reference = crate::io::Reference {
             sequence: "ATGAAATTTC",
@@ -1550,6 +2252,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 0,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         let reference = crate::io::Reference {
             sequence: "ATGAAATTTCCC",
@@ -1596,6 +2300,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 0,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         let reference = crate::io::Reference {
             sequence: "ATGAAATTT",
@@ -1648,6 +2354,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 0,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         let reference = crate::io::Reference {
             sequence: "ATGAAATTT",
@@ -1699,6 +2407,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 0,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         let reference = crate::io::Reference {
             sequence: "ATGAAATTT",
@@ -1750,6 +2460,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 0,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         let reference = crate::io::Reference {
             sequence: "ATGAAATTTCCC",
@@ -1796,6 +2508,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 2,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         assert!(codon_bounds_for_position(&gene, 100).is_none());
         assert!(codon_bounds_for_position(&gene, 101).is_none());
@@ -1813,6 +2527,8 @@ mod tests {
             strand: Strand::Minus,
             phase: 2,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         assert!(codon_bounds_for_position(&minus, 120).is_none());
         assert!(codon_bounds_for_position(&minus, 119).is_none());
@@ -1829,6 +2545,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 1,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         // Position 100 is in the skipped region, no codon
         assert!(codon_bounds_for_position(&gene, 100).is_none());
@@ -1851,6 +2569,8 @@ mod tests {
             strand: Strand::Minus,
             phase: 1,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         let b516 = codon_bounds_for_position(&gene, 77_794_516).expect("bounds for 516");
         let b517 = codon_bounds_for_position(&gene, 77_794_517).expect("bounds for 517");
@@ -1871,6 +2591,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 0,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         assert!(codon_bounds_for_position(&gene, 50).is_none());
         assert!(codon_bounds_for_position(&gene, 300).is_none());
@@ -1888,6 +2610,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 0,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         let reference = Reference {
             sequence: "ATGATGATG",
@@ -2098,6 +2822,8 @@ mod tests {
             strand: Strand::Plus,
             phase: 0,
             protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
         };
         // Two VCF records at position 101 with different ALTs
         let snps = vec![

@@ -10,8 +10,8 @@ pub mod vcf_fast;
 
 // Re-export public types and functions for backward compatibility.
 pub use annotation::{
-    detect_annotation_format, filter_genes_with_snps, load_genes, preload_gff_genes,
-    AnnotationFormat,
+    detect_annotation_format, filter_genes_with_snps, gene_overlaps_variant, load_genes,
+    preload_gff_genes, AnnotationFormat,
 };
 pub use fasta::{
     load_references, reference_for_chrom, validate_vcf_reference_alleles, Reference, ReferenceMap,

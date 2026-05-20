@@ -67,7 +67,8 @@ get_mnv \
 ```
 
 Use `--gff-features CDS` when you want codon-aware protein annotation from CDS
-features, especially for eukaryotic GFF/GTF files.
+features, especially for eukaryotic GFF/GTF files. CDS rows with
+`transcript_id` or `Parent` are reconstructed as spliced transcript CDS models.
 
 ## Required Arguments
 

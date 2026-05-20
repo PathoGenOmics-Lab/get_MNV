@@ -279,7 +279,8 @@ bash scripts/build_gui_bundle.sh
 ## Limitations
 
 - Designed for small SNV/MNV/indel events against a reference sequence
-- Indel coding effects are reconstructed within the annotated feature that overlaps the event. Codons split across neighbouring CDS rows can only be fully resolved when the selected GFF CDS features provide usable phase/protein-offset context.
+- With `--gff-features CDS`, GFF/GTF records that provide `transcript_id` or `Parent` are reconstructed as spliced CDS models, allowing exon-junction codons and transcript-level indel frameshift context to be annotated.
+- Unphased heterozygous eukaryotic variants still require care: get_MNV reannotates caller alleles, but it does not re-estimate ploidy, genotype likelihoods, or long-range phase.
 - Multiallelic VCF records require `--split-multiallelic` or pre-splitting (`bcftools norm -m -`)
 - Variant contig names must match FASTA and GFF exactly
 - **Multiple transcripts per gene**: when using `--gff-features CDS` with a GFF file that contains multiple transcripts for the same gene, each transcript is annotated independently, producing one output line per transcript per variant. If you want a single line per variant, filter your GFF to keep only the canonical transcript before running get_MNV (e.g., using [AGAT](https://github.com/NBISweden/AGAT) `agat_sp_keep_longest_isoform.pl` or a similar tool)

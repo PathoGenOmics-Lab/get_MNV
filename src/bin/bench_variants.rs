@@ -144,6 +144,8 @@ fn run_synthetic(
         strand: Strand::Plus,
         phase: 0,
         protein_offset: 0,
+        transcript_id: None,
+        cds_segments: Vec::new(),
     };
     let snp_positions: Vec<VcfPosition> = (10..=(gene_end - 10))
         .step_by(10)

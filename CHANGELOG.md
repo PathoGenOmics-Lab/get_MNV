@@ -7,7 +7,7 @@ All notable changes to this project are documented in this file.
 ### Added
 - Added regression coverage for phased MNV-plus-indel haplotypes, verifying that codon MNV rows overlapping an indel are flagged as `Indel overlap` while BAM-supported combined events are emitted as exact `complex_indel` rows.
 - Added an indel/MNV semantics note documenting caller compatibility, boundary rules, current limits, and how exact complex haplotypes are represented.
-- Added a warning for multi-exon CDS transcripts so eukaryotic runs clearly distinguish transcript-offset amino-acid numbering from full transcript-wide haplotype/frameshift reconstruction.
+- Added transcript-aware regression coverage for exon-junction MNV codons and restored-frame indel contexts in multi-exon CDS models.
 
 ### Changed
 - Bumped project, GUI, citation, README, and frontend metadata to version 1.1.4.
@@ -19,6 +19,7 @@ All notable changes to this project are documented in this file.
 - TSV and VCF outputs now include canonical event class/component annotations plus exact BAM-derived event support metrics for indel/complex alleles.
 - The desktop BAM viewer now renders insertion-aware interbase columns, so inserted bases are shown between reference positions with matching coverage, ruler, reference, and read-pileup alignment instead of being hidden inside the anchor base.
 - When a BAM is provided, nearby SNV/MNV rows that phase with an indel on the same reads are now emitted as an additional exact `complex_indel` haplotype row, preserving the original rows while reporting the combined `REF/ALT`, protein effect, and event support.
+- GFF/GTF `CDS` rows with `transcript_id` or `Parent` are now collapsed into spliced transcript CDS models, so codon grouping, MNV amino-acid effects, and indel frameshift context are evaluated against the full coding sequence instead of isolated exon rows.
 
 ### Fixed
 - Resolved the frontend security audit by updating vulnerable transitive packages, including `brace-expansion` 5.0.6.
@@ -28,6 +29,7 @@ All notable changes to this project are documented in this file.
 - Deletions whose VCF anchor falls just outside a CDS/gene feature now still apply the overlapping deleted bases to the feature sequence, preserving frameshift/in-frame protein effects instead of reporting `Unknown`.
 - Insertions anchored at the final base of a CDS/gene feature are no longer treated as if the inserted sequence were inside that feature, and boundary-spanning indels are no longer duplicated as intergenic rows.
 - Indel and complex alleles in coding regions now reconstruct the local alternate CDS sequence, respect strand/phase/protein offset, and report in-frame or frameshift protein effects instead of leaving amino-acid changes blank.
+- Codons split across neighbouring CDS exons can now produce a single transcript-level MNV annotation when the selected GFF/GTF `CDS` records provide a usable transcript model.
 - BAM support for indels is now counted from the CIGAR-derived observed allele across the event span, including inserted sequence and deleted reference bases; exact complex haplotypes now also require the expected insertion/deletion components in the read CIGAR so net-neutral indel complexes are not mistaken for simple MNVs.
 - Phased `complex_indel` rows now preserve the original event component coordinates from the input variants, so ambiguous repeat-context deletions remain consistent with the source VCF/iVar event and the original indel row.
 

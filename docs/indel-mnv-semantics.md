@@ -60,15 +60,15 @@ produce the same sequence as a simple MNV under another alignment.
 ## Eukaryotic CDS Notes
 
 For eukaryotic GFF/GTF annotations, use `--gff-features CDS` so get_MNV can use
-GFF phase and transcript protein offsets. Variants are annotated per overlapping
-CDS row, which keeps exon-local and full-protein amino-acid numbering
-consistent for variants inside that row.
+GFF phase and transcript identifiers. When CDS rows carry `transcript_id` or
+`Parent`, get_MNV builds a spliced CDS model for each transcript and evaluates
+codon grouping, MNV amino-acid effects, and indel frameshift context on that
+full coding sequence.
 
-Multi-exon transcripts still need care. Codons that cross exon junctions and
-SNVs downstream of a transcript-level frameshift can require full transcript
-sequence reconstruction. get_MNV warns when multi-exon CDS transcripts are
-detected because local haplotypes are intentionally bounded to nearby events in
-the current feature, not assembled across an entire transcript.
+This means codons split across exon junctions can be annotated as one
+transcript-level MNV, and downstream SNPs are marked as frameshifted only when
+the net upstream coding indel shift remains out of frame. CDS rows without a
+usable transcript identifier keep the older per-feature behavior.
 
 ## Current Limits
 
@@ -77,15 +77,16 @@ the current feature, not assembled across an entire transcript.
   unless `--normalize-alleles` can trim a shared prefix or suffix. For
   cross-caller comparisons, normalize inputs first with a FASTA-aware tool such
   as `bcftools norm -f ref.fa`.
-- Genotypes, ploidy, phase sets, and genotype likelihoods are preserved only as
-  original INFO/FORMAT context when requested; they are not re-estimated.
+- Genotypes, ploidy, phase sets, and genotype likelihoods are not re-estimated.
+  For diploid/polyploid eukaryotic data, interpret unphased heterozygous
+  exon-level MNVs cautiously unless the VCF or BAM evidence confirms that the
+  alleles are on the same haplotype.
 - Local de novo assembly is out of scope. get_MNV only combines alleles already
   present in the input and, when available, confirmed by BAM read support.
 - Local haplotype discovery is bounded to nearby event windows; very large
   haplotype reconstruction should still be handled by a dedicated caller.
-- Transcript-wide frameshift propagation across multiple CDS exons is not
-  re-estimated; use transcript-aware validation for exon-junction or downstream
-  frameshift cases.
+- Full local assembly remains out of scope: get_MNV reannotates alleles present
+  in the input VCF/iVar file rather than discovering new candidate variants.
 
 ## References
 

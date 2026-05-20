@@ -151,6 +151,12 @@ impl FromStr for Strand {
 }
 
 #[derive(Debug, Clone)]
+pub struct CdsSegment {
+    pub start: usize,
+    pub end: usize,
+}
+
+#[derive(Debug, Clone)]
 pub struct Gene {
     pub name: String,
     pub start: usize,
@@ -170,6 +176,13 @@ pub struct Gene {
     /// annotations) this is always 0 and the historical per-feature numbering
     /// is preserved.
     pub protein_offset: usize,
+    /// Parent transcript identifier for GFF/GTF CDS-derived records. `None`
+    /// for TSV annotations and non-transcript features.
+    pub transcript_id: Option<String>,
+    /// CDS segments belonging to the parent transcript in transcript order.
+    /// Empty for legacy per-feature annotations. When present, codon grouping
+    /// and indel protein effects are computed on the spliced CDS sequence.
+    pub cds_segments: Vec<CdsSegment>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

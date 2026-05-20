@@ -113,8 +113,9 @@ Important details:
 - Coordinates are read from columns 4 and 5.
 - Strand is read from column 7.
 - For `CDS` features, phase from column 8 is used when present.
-- For multi-exon CDS annotations, amino acid numbering is reported against the
-  full transcript when transcript information is available.
+- For `CDS` rows with `transcript_id` or `Parent`, get_MNV builds the spliced
+  CDS sequence for each transcript. Codon grouping, MNV amino-acid effects, and
+  indel frameshift context are then evaluated on the full transcript CDS.
 - If a GFF/GTF contains multiple transcripts for the same gene, one variant can
   produce one output line per overlapping transcript.
 
