@@ -5,7 +5,9 @@
 
 use super::validation::validate_vcf_allele;
 use crate::error::AppResult;
-use crate::variants::{decompose_allele, substitution_components, AlleleComponent, AlleleEvent};
+use crate::variants::{
+    decompose_allele, substitution_components, AlleleComponent, AlleleComponentKind, AlleleEvent,
+};
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader};
 
@@ -41,8 +43,29 @@ impl VcfPosition {
     }
 
     pub fn overlaps_interval(&self, start: usize, end: usize) -> bool {
+        if start == 0 || end == 0 || start > end {
+            return false;
+        }
         let event = self.event();
-        event.affected_start <= end && event.affected_end >= start
+        event
+            .components
+            .iter()
+            .any(|component| match component.kind {
+                AlleleComponentKind::Snp => {
+                    component.position >= start && component.position <= end
+                }
+                AlleleComponentKind::Insertion => {
+                    component.position >= start && component.position < end
+                }
+                AlleleComponentKind::Deletion
+                | AlleleComponentKind::Delins
+                | AlleleComponentKind::Symbolic => {
+                    let component_end = component
+                        .position
+                        .saturating_add(component.ref_allele.len().saturating_sub(1));
+                    component.position <= end && component_end >= start
+                }
+            })
     }
 }
 
@@ -528,3 +551,36 @@ pub fn load_vcf_positions_by_contig(
 
 // BCF input is not supported in the pure-Rust build.
 // Use `bcftools view input.bcf > input.vcf` to convert.
+
+#[cfg(test)]
+mod tests {
+    use super::VcfPosition;
+
+    fn variant(position: usize, ref_allele: &str, alt_allele: &str) -> VcfPosition {
+        VcfPosition {
+            position,
+            ref_allele: ref_allele.to_string(),
+            alt_allele: alt_allele.to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }
+    }
+
+    #[test]
+    fn insertion_overlaps_only_between_interval_bases() {
+        let insertion = variant(10, "A", "AT");
+        assert!(insertion.overlaps_interval(9, 11));
+        assert!(insertion.overlaps_interval(10, 11));
+        assert!(!insertion.overlaps_interval(11, 12));
+        assert!(!insertion.overlaps_interval(10, 10));
+    }
+
+    #[test]
+    fn anchored_deletion_overlaps_deleted_reference_span() {
+        let deletion = variant(10, "AT", "A");
+        assert!(deletion.overlaps_interval(11, 11));
+        assert!(deletion.overlaps_interval(10, 11));
+        assert!(!deletion.overlaps_interval(10, 10));
+    }
+}

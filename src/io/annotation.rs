@@ -122,8 +122,9 @@ pub(crate) fn parse_gff_attributes(attributes: &str) -> HashMap<String, String> 
     parsed
 }
 
-/// Return true when any variant event overlaps the interval. Insertions use
-/// their anchor coordinate; deletions use the deleted reference span.
+/// Return true when any variant event overlaps the interval. Insertions only
+/// overlap when their inserted bases fall between bases inside the interval;
+/// deletions use the deleted reference span.
 pub(crate) fn has_snp_in_interval(snp_list: &[VcfPosition], start: usize, end: usize) -> bool {
     snp_list
         .iter()

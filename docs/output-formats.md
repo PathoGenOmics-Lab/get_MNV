@@ -64,6 +64,11 @@ context row but its amino-acid effect is marked `Unknown` with
 get_MNV emits a separate exact `complex_indel` row with the combined REF/ALT,
 event components, and event read support.
 
+Indel overlap follows VCF interbase semantics. Deletions overlap a feature by
+their deleted reference span. Insertions overlap a feature only when the inserted
+sequence falls between two reference bases inside that feature, so an insertion
+anchored at the final feature base is reported outside that feature.
+
 Example:
 
 ```text

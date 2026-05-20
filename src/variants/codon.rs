@@ -226,7 +226,7 @@ fn apply_allele_to_feature(
                 }
             }
             AlleleComponentKind::Insertion => {
-                if component.position >= eff_start && component.position <= eff_end {
+                if component.position >= eff_start && component.position < eff_end {
                     match insertions.get(&component.position) {
                         Some(existing) if !existing.eq_ignore_ascii_case(&component.alt_allele) => {
                             return None;
@@ -1010,10 +1010,9 @@ pub fn get_mnv_variants_for_gene(
         }
         let codon_seq = &reference.sequence[(codon_start - 1)..codon_end];
 
-        let overlaps_indel = indels.iter().any(|indel| {
-            let event = indel.event();
-            event.affected_start <= codon_end && event.affected_end >= codon_start
-        });
+        let overlaps_indel = indels
+            .iter()
+            .any(|indel| indel.overlaps_interval(codon_start, codon_end));
 
         let mut upstream_shift: isize = 0;
         let mut has_symbolic_sv = false;
@@ -1412,6 +1411,83 @@ mod tests {
         assert_eq!(variants[0].change_type, ChangeType::FrameshiftIndel);
         assert_ne!(variants[0].aa_changes, vec!["Unknown".to_string()]);
         assert!(variants[0].aa_changes[0].contains("fs"));
+    }
+
+    #[test]
+    fn test_insertion_after_cds_end_is_not_coding() {
+        let gene = Gene {
+            name: "cds".to_string(),
+            start: 1,
+            end: 9,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+        };
+        let reference = crate::io::Reference {
+            sequence: "ATGAAATTTC",
+        };
+        let variants = crate::variants::get_mnv_variants_for_gene(
+            &gene,
+            &[crate::io::VcfPosition {
+                position: 9,
+                ref_allele: "T".to_string(),
+                alt_allele: "TA".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            }],
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+
+        assert!(variants.is_empty());
+    }
+
+    #[test]
+    fn test_insertion_after_codon_end_does_not_mask_that_codon_snp() {
+        let gene = Gene {
+            name: "cds".to_string(),
+            start: 1,
+            end: 12,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+        };
+        let reference = crate::io::Reference {
+            sequence: "ATGAAATTTCCC",
+        };
+        let variants = crate::variants::get_mnv_variants_for_gene(
+            &gene,
+            &[
+                crate::io::VcfPosition {
+                    position: 7,
+                    ref_allele: "T".to_string(),
+                    alt_allele: "C".to_string(),
+                    original_dp: None,
+                    original_freq: None,
+                    original_info: None,
+                },
+                crate::io::VcfPosition {
+                    position: 9,
+                    ref_allele: "T".to_string(),
+                    alt_allele: "TA".to_string(),
+                    original_dp: None,
+                    original_freq: None,
+                    original_info: None,
+                },
+            ],
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+        let snp_row = variants
+            .iter()
+            .find(|variant| variant.variant_type == VariantType::Snp)
+            .expect("SNP row");
+
+        assert_ne!(snp_row.change_type, ChangeType::IndelOverlap);
+        assert_ne!(snp_row.aa_changes, vec!["Unknown".to_string()]);
     }
 
     #[test]

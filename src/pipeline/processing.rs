@@ -20,7 +20,7 @@ use lru::LruCache;
 use noodles::bam;
 use noodles::sam::Header;
 use rayon::prelude::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
 #[derive(Debug)]
@@ -557,17 +557,17 @@ pub(crate) fn process_contig(
 
     // Collect intergenic variants (positions not covered by any gene).
     if !args.exclude_intergenic {
-        let mut covered: HashSet<usize> = HashSet::with_capacity(snp_list.len());
+        let mut covered = vec![false; snp_list.len()];
         for gene in &genes {
-            for snp in snp_list {
-                if snp.position >= gene.start && snp.position <= gene.end {
-                    covered.insert(snp.position);
+            for (idx, snp) in snp_list.iter().enumerate() {
+                if snp.overlaps_interval(gene.start, gene.end) {
+                    covered[idx] = true;
                 }
             }
         }
         let mut intergenic_count = 0usize;
-        for snp in snp_list {
-            if !covered.contains(&snp.position) {
+        for (idx, snp) in snp_list.iter().enumerate() {
+            if !covered[idx] {
                 all_variants.push(variants::build_intergenic_variant(contig, snp));
                 intergenic_count += 1;
             }

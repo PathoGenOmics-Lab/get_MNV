@@ -478,8 +478,8 @@ chr1\t6\t.\tA\tAT\t.\tPASS\t.\n",
     let rows = read_tsv_rows(&tmp.join("phase_mnv.MNV.tsv"));
     let mnv_row = find_row(&rows, "mnv", "A, A", "C, G").expect("codon MNV row");
     assert_eq!(mnv_row["Positions"], "4, 5");
-    assert_eq!(mnv_row["Change Type"], "Indel overlap");
-    assert_eq!(mnv_row["AA Changes"], "Unknown");
+    assert_eq!(mnv_row["Change Type"], "Non-synonymous");
+    assert_ne!(mnv_row["AA Changes"], "Unknown");
 
     let compound =
         find_row(&rows, "complex_indel", "AAA", "CGAT").expect("full MNV+insertion haplotype row");
@@ -887,6 +887,44 @@ fn test_e2e_exclude_intergenic() {
         summary_with.global.produced_variants > summary_without.global.produced_variants,
         "excluding intergenic should reduce total variants"
     );
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
+fn test_e2e_deletion_anchored_before_gene_not_intergenic_duplicate() {
+    let tmp = temp_dir("e2e_boundary_del");
+    let vcf_path = tmp.join("boundary.vcf");
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.3\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t1\t.\tCA\tC\t60\tPASS\tDP=12;AF=0.5\n",
+    )
+    .unwrap();
+    fs::write(&ref_path, ">chr1\nCATGAAATTT\n").unwrap();
+    fs::write(&genes_path, "gene1\t2\t10\t+\n").unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("boundary_del".to_string());
+
+    let summary = pipeline::run(&args).expect("pipeline should annotate boundary deletion");
+    assert_eq!(summary.global.indel_variants, 1);
+    assert_eq!(summary.global.intergenic_variants, 0);
+
+    let rows = read_tsv_rows(&tmp.join("boundary_del.MNV.tsv"));
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["Gene"], "gene1");
+    assert_eq!(rows[0]["Event Class"], "deletion");
+    assert_eq!(rows[0]["Event Components"], "DEL:2:A");
+    assert_ne!(rows[0]["AA Changes"], "Unknown");
 
     fs::remove_dir_all(&tmp).ok();
 }

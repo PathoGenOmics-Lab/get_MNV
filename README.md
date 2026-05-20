@@ -257,6 +257,7 @@ MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    MNV           No
 | [Usage](docs/usage.md) | Full CLI reference and examples |
 | [Input formats](docs/input-formats.md) | VCF, FASTA, GFF, TSV, BAM specifications |
 | [Output formats](docs/output-formats.md) | TSV, VCF, BCF, JSON output details |
+| [Indel and MNV semantics](docs/indel-mnv-semantics.md) | How indels, MNVs, boundaries, and complex haplotypes are represented |
 | [Troubleshooting](docs/troubleshooting.md) | Common errors and solutions |
 | [Benchmarking](docs/benchmarking.md) | Performance testing |
 | [Changelog](CHANGELOG.md) | Version history |
