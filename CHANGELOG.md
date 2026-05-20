@@ -7,6 +7,7 @@ All notable changes to this project are documented in this file.
 ### Added
 - Added regression coverage for phased MNV-plus-indel haplotypes, verifying that codon MNV rows overlapping an indel are flagged as `Indel overlap` while BAM-supported combined events are emitted as exact `complex_indel` rows.
 - Added an indel/MNV semantics note documenting caller compatibility, boundary rules, current limits, and how exact complex haplotypes are represented.
+- Added a warning for multi-exon CDS transcripts so eukaryotic runs clearly distinguish transcript-offset amino-acid numbering from full transcript-wide haplotype/frameshift reconstruction.
 
 ### Changed
 - Bumped project, GUI, citation, README, and frontend metadata to version 1.1.4.

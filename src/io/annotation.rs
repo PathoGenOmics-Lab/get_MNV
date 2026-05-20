@@ -411,6 +411,38 @@ pub(crate) fn assign_cds_protein_offsets(records: &mut [GffGeneRecord]) {
     }
 }
 
+pub(crate) fn count_multi_exon_cds_transcripts(records: &[GffGeneRecord]) -> usize {
+    use std::collections::BTreeMap;
+
+    let mut counts: BTreeMap<(String, String), usize> = BTreeMap::new();
+    for rec in records {
+        if rec.feature_type != "CDS" {
+            continue;
+        }
+        let Some(transcript_id) = rec.transcript_id.as_ref() else {
+            continue;
+        };
+        *counts
+            .entry((rec.contig.clone(), transcript_id.clone()))
+            .or_default() += 1;
+    }
+
+    counts.values().filter(|count| **count > 1).count()
+}
+
+fn warn_if_multi_exon_cds_detected(records: &[GffGeneRecord]) {
+    let count = count_multi_exon_cds_transcripts(records);
+    if count > 0 {
+        log::warn!(
+            "Detected {count} multi-exon CDS transcript(s). get_MNV annotates amino-acid \
+             numbering with transcript offsets, but local haplotype reconstruction and \
+             frameshift context are evaluated per overlapping feature/CDS row. Variants \
+             in exon-junction codons or downstream of transcript-level frameshifts should \
+             be interpreted with transcript-aware validation."
+        );
+    }
+}
+
 /// Scan a GFF file once and report whether it contains any CDS row with a
 /// non-zero phase. Used to warn users that they should pass
 /// `--gff-features CDS` when working with eukaryotic annotations.
@@ -448,6 +480,7 @@ pub(crate) fn load_genes_from_gff(
     warn_if_cds_phase_ignored(genes_file, feature_types)?;
     let mut records = parse_gff_gene_records(genes_file, feature_types)?;
     assign_cds_protein_offsets(&mut records);
+    warn_if_multi_exon_cds_detected(&records);
 
     let mut genes: Vec<Gene> = Vec::new();
     let mut parsed_entries = 0usize;
@@ -517,6 +550,7 @@ pub fn preload_gff_genes(
     warn_if_cds_phase_ignored(genes_file, feature_types)?;
     let mut records = parse_gff_gene_records(genes_file, feature_types)?;
     assign_cds_protein_offsets(&mut records);
+    warn_if_multi_exon_cds_detected(&records);
     let total_entries = records.len();
 
     let mut genes_by_contig: HashMap<String, Vec<Gene>> = HashMap::new();
@@ -992,6 +1026,20 @@ mod tests {
             .collect();
         assert_eq!(by_start[&100], 0);
         assert_eq!(by_start[&200], 4);
+    }
+
+    #[test]
+    fn test_count_multi_exon_cds_transcripts() {
+        use crate::variants::Strand;
+        let recs = vec![
+            record("chr1", 10, 30, Strand::Plus, 0, "CDS", Some("T1")),
+            record("chr1", 50, 80, Strand::Plus, 0, "CDS", Some("T1")),
+            record("chr1", 100, 130, Strand::Plus, 0, "CDS", Some("T2")),
+            record("chr1", 200, 230, Strand::Plus, 0, "exon", Some("T3")),
+            record("chr2", 10, 30, Strand::Plus, 0, "CDS", None),
+        ];
+
+        assert_eq!(count_multi_exon_cds_transcripts(&recs), 1);
     }
 
     #[test]

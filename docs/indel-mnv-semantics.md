@@ -57,6 +57,19 @@ local ALT sequence and contain the expected insertion/deletion components. This
 matters for net-neutral combinations, where an insertion plus a deletion can
 produce the same sequence as a simple MNV under another alignment.
 
+## Eukaryotic CDS Notes
+
+For eukaryotic GFF/GTF annotations, use `--gff-features CDS` so get_MNV can use
+GFF phase and transcript protein offsets. Variants are annotated per overlapping
+CDS row, which keeps exon-local and full-protein amino-acid numbering
+consistent for variants inside that row.
+
+Multi-exon transcripts still need care. Codons that cross exon junctions and
+SNVs downstream of a transcript-level frameshift can require full transcript
+sequence reconstruction. get_MNV warns when multi-exon CDS transcripts are
+detected because local haplotypes are intentionally bounded to nearby events in
+the current feature, not assembled across an entire transcript.
+
 ## Current Limits
 
 - Input BCF is not accepted directly. Convert first with `bcftools view`.
@@ -70,6 +83,9 @@ produce the same sequence as a simple MNV under another alignment.
   present in the input and, when available, confirmed by BAM read support.
 - Local haplotype discovery is bounded to nearby event windows; very large
   haplotype reconstruction should still be handled by a dedicated caller.
+- Transcript-wide frameshift propagation across multiple CDS exons is not
+  re-estimated; use transcript-aware validation for exon-junction or downstream
+  frameshift cases.
 
 ## References
 
