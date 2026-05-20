@@ -12,6 +12,7 @@ All notable changes to this project are documented in this file.
 - iVar TSV inputs now keep insertion and deletion rows by converting `+SEQ` and `-SEQ` alleles into VCF-compatible anchored `REF/ALT` alleles using the FASTA reference.
 - TSV and VCF outputs now include canonical event class/component annotations plus exact BAM-derived event support metrics for indel/complex alleles.
 - The desktop BAM viewer now renders insertion-aware interbase columns, so inserted bases are shown between reference positions with matching coverage, ruler, reference, and read-pileup alignment instead of being hidden inside the anchor base.
+- When a BAM is provided, nearby SNV/MNV rows that phase with an indel on the same reads are now emitted as an additional exact `complex_indel` haplotype row, preserving the original rows while reporting the combined `REF/ALT`, protein effect, and event support.
 
 ### Fixed
 - Resolved the frontend security audit by updating vulnerable transitive packages, including `brace-expansion` 5.0.6.

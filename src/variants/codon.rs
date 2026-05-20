@@ -1,9 +1,11 @@
 //! Codon-level variant processing: SNP grouping, MNV detection, and amino
 //! acid change calculation.
 
+use super::event::AlleleComponentKind;
 use super::types::*;
+use crate::io::VcfPosition;
 use crate::utils::{aa_three_letter, determine_change_type, iupac_aa, reverse_complement};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Merge `original_info` from all SNPs in a codon group.
 /// When all SNPs share the same info string, return that single string.
@@ -218,7 +220,7 @@ fn apply_allele_to_feature(
 fn protein_effect_for_indel(
     gene: &Gene,
     reference: &crate::io::Reference<'_>,
-    variant: &crate::io::VcfPosition,
+    variant: &VcfPosition,
     genetic_code: crate::genetic_code::GeneticCode,
 ) -> (Vec<String>, Vec<String>, Option<String>, Option<String>) {
     let Some(ref_cds) = coding_sequence_for_gene(gene, reference) else {
@@ -270,6 +272,292 @@ fn protein_effect_for_indel(
         ref_codon,
         alt_codon,
     )
+}
+
+fn phased_indel_window(gene: &Gene, variant: &VcfPosition) -> Option<(usize, usize)> {
+    let event = variant.event();
+    let (eff_start, eff_end) = effective_bounds(gene);
+    if eff_start == 0 || eff_end == 0 || eff_start > eff_end {
+        return None;
+    }
+
+    let mut windows = Vec::new();
+    for pos in [variant.position, event.affected_start, event.affected_end] {
+        if pos >= eff_start && pos <= eff_end {
+            if let Some(bounds) = codon_bounds_for_position(gene, pos) {
+                windows.push(bounds);
+            }
+        }
+    }
+
+    windows.push((
+        event.affected_start.max(eff_start),
+        event.affected_end.min(eff_end),
+    ));
+
+    if windows.len() == 1 {
+        let start = event.affected_start.saturating_sub(2).max(eff_start);
+        let end = event.affected_end.saturating_add(2).min(eff_end);
+        windows.push((start, end));
+    }
+
+    let start = windows.iter().map(|(start, _)| *start).min()?;
+    let end = windows.iter().map(|(_, end)| *end).max()?;
+    Some((start, end))
+}
+
+fn substitution_variant_in_window(variant: &VcfPosition, start: usize, end: usize) -> bool {
+    variant
+        .substitution_components()
+        .iter()
+        .any(|component| component.position >= start && component.position <= end)
+}
+
+fn compound_allele_from_variants(
+    reference: &crate::io::Reference<'_>,
+    variants: &[&VcfPosition],
+) -> Option<VcfPosition> {
+    if variants.len() < 2 {
+        return None;
+    }
+
+    let mut has_indel = false;
+    let mut has_substitution = false;
+    let mut start = usize::MAX;
+    let mut end = 0usize;
+    let mut snps: BTreeMap<usize, String> = BTreeMap::new();
+    let mut insertions: BTreeMap<usize, String> = BTreeMap::new();
+    let mut deleted: BTreeSet<usize> = BTreeSet::new();
+
+    for variant in variants {
+        let event = variant.event();
+        has_indel |= event.class.has_indel_component();
+        start = start.min(event.affected_start).min(variant.position);
+        end = end
+            .max(event.affected_end)
+            .max(variant.position + variant.ref_allele.len().saturating_sub(1));
+
+        for component in event.components {
+            match component.kind {
+                AlleleComponentKind::Snp => {
+                    has_substitution = true;
+                    if component.ref_allele.len() != 1 || component.alt_allele.len() != 1 {
+                        return None;
+                    }
+                    match snps.get(&component.position) {
+                        Some(existing) if !existing.eq_ignore_ascii_case(&component.alt_allele) => {
+                            return None;
+                        }
+                        Some(_) => {}
+                        None => {
+                            snps.insert(component.position, component.alt_allele);
+                        }
+                    }
+                }
+                AlleleComponentKind::Insertion => {
+                    if let Some(existing) = insertions.get(&component.position) {
+                        if !existing.eq_ignore_ascii_case(&component.alt_allele) {
+                            return None;
+                        }
+                    } else {
+                        insertions.insert(component.position, component.alt_allele);
+                    }
+                }
+                AlleleComponentKind::Deletion => {
+                    let del_end = component.position + component.ref_allele.len().saturating_sub(1);
+                    for pos in component.position..=del_end {
+                        deleted.insert(pos);
+                    }
+                }
+                AlleleComponentKind::Delins | AlleleComponentKind::Symbolic => return None,
+            }
+        }
+    }
+
+    if !has_indel || !has_substitution || start == usize::MAX || end == 0 {
+        return None;
+    }
+    if start == 0 || end > reference.sequence.len() || start > end {
+        return None;
+    }
+    if snps.keys().any(|pos| deleted.contains(pos)) {
+        return None;
+    }
+    if insertions.keys().any(|pos| deleted.contains(pos)) {
+        return None;
+    }
+
+    let ref_allele = reference.sequence[(start - 1)..end].to_string();
+    let mut alt_allele = String::new();
+    for pos in start..=end {
+        if !deleted.contains(&pos) {
+            if let Some(alt_base) = snps.get(&pos) {
+                alt_allele.push_str(alt_base);
+            } else {
+                alt_allele.push(reference.sequence.as_bytes()[pos - 1] as char);
+            }
+        }
+        if let Some(inserted) = insertions.get(&pos) {
+            alt_allele.push_str(inserted);
+        }
+    }
+
+    if ref_allele.eq_ignore_ascii_case(&alt_allele) {
+        return None;
+    }
+
+    Some(VcfPosition {
+        position: start,
+        ref_allele,
+        alt_allele,
+        original_dp: None,
+        original_freq: None,
+        original_info: None,
+    })
+}
+
+fn phased_variant_from_group(
+    gene: &Gene,
+    reference: &crate::io::Reference<'_>,
+    chrom: &str,
+    group: &[&VcfPosition],
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> Option<VariantInfo> {
+    let compound = compound_allele_from_variants(reference, group)?;
+    let event = compound.event();
+    if !event.class.has_indel_component()
+        || !event
+            .components
+            .iter()
+            .any(|component| matches!(component.kind, AlleleComponentKind::Snp))
+    {
+        return None;
+    }
+
+    let is_frameshift =
+        (compound.ref_allele.len() as isize - compound.alt_allele.len() as isize) % 3 != 0;
+    let change_type = if is_frameshift {
+        ChangeType::FrameshiftIndel
+    } else {
+        ChangeType::InFrameIndel
+    };
+    let (aa_changes, aa_changes_local, ref_codon, alt_codon) =
+        protein_effect_for_indel(gene, reference, &compound, genetic_code);
+
+    Some(VariantInfo {
+        chrom: chrom.to_string(),
+        gene: gene.name.clone(),
+        positions: vec![compound.position],
+        ref_bases: vec![compound.ref_allele],
+        base_changes: vec![compound.alt_allele],
+        aa_changes,
+        snp_aa_changes: vec!["-".to_string()],
+        aa_changes_local,
+        snp_aa_changes_local: vec!["-".to_string()],
+        variant_type: VariantType::Indel,
+        change_type,
+        snp_reads: None,
+        snp_forward_reads: None,
+        snp_reverse_reads: None,
+        mnv_reads: None,
+        mnv_forward_reads: None,
+        mnv_reverse_reads: None,
+        mnv_total_reads: None,
+        total_reads: None,
+        total_forward_reads: None,
+        total_reverse_reads: None,
+        mnv_total_forward_reads: None,
+        mnv_total_reverse_reads: None,
+        ref_codon,
+        snp_codon: None,
+        mnv_codon: alt_codon,
+        original_dp: None,
+        original_freq: None,
+        original_info: None,
+        event_class: Some(event.class.as_str().to_string()),
+        event_components: event.component_labels(),
+    })
+}
+
+pub fn build_phased_indel_haplotype_variants(
+    gene: &Gene,
+    snp_list: &[VcfPosition],
+    reference: &crate::io::Reference<'_>,
+    chrom: &str,
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> Vec<VariantInfo> {
+    let gene_variants = snp_list
+        .iter()
+        .filter(|variant| variant.overlaps_interval(gene.start, gene.end))
+        .collect::<Vec<_>>();
+    let indels = gene_variants
+        .iter()
+        .copied()
+        .filter(|variant| variant.event().class.has_indel_component())
+        .collect::<Vec<_>>();
+    let substitutions = gene_variants
+        .iter()
+        .copied()
+        .filter(|variant| !variant.event().class.has_indel_component())
+        .filter(|variant| !variant.substitution_components().is_empty())
+        .collect::<Vec<_>>();
+
+    if indels.is_empty() || substitutions.is_empty() {
+        return Vec::new();
+    }
+
+    let mut out = Vec::new();
+    let mut seen = BTreeSet::new();
+
+    for indel in indels {
+        let Some((window_start, window_end)) = phased_indel_window(gene, indel) else {
+            continue;
+        };
+        let nearby = substitutions
+            .iter()
+            .copied()
+            .filter(|variant| substitution_variant_in_window(variant, window_start, window_end))
+            .collect::<Vec<_>>();
+        if nearby.is_empty() {
+            continue;
+        }
+
+        for substitution in &nearby {
+            let group = [indel, *substitution];
+            if let Some(candidate) =
+                phased_variant_from_group(gene, reference, chrom, &group, genetic_code)
+            {
+                let key = (
+                    candidate.positions[0],
+                    candidate.ref_bases[0].clone(),
+                    candidate.base_changes[0].clone(),
+                );
+                if seen.insert(key) {
+                    out.push(candidate);
+                }
+            }
+        }
+
+        if nearby.len() > 1 {
+            let mut group = Vec::with_capacity(nearby.len() + 1);
+            group.push(indel);
+            group.extend(nearby);
+            if let Some(candidate) =
+                phased_variant_from_group(gene, reference, chrom, &group, genetic_code)
+            {
+                let key = (
+                    candidate.positions[0],
+                    candidate.ref_bases[0].clone(),
+                    candidate.base_changes[0].clone(),
+                );
+                if seen.insert(key) {
+                    out.push(candidate);
+                }
+            }
+        }
+    }
+
+    out
 }
 
 fn construct_codon(codon_info: &CodonInfo, target_snps: &[&Snp]) -> String {
@@ -803,7 +1091,7 @@ pub fn build_intergenic_variant(chrom: &str, vcf_pos: &crate::io::VcfPosition) -
 
 #[cfg(test)]
 mod tests {
-    use super::{codon_bounds_for_position, process_codon};
+    use super::{build_phased_indel_haplotype_variants, codon_bounds_for_position, process_codon};
     use crate::utils::reverse_complement;
     use crate::variants::{ChangeType, CodonInfo, Gene, Snp, Strand, VariantType};
 
@@ -992,6 +1280,101 @@ mod tests {
         assert_eq!(variants[0].event_class.as_deref(), Some("insertion"));
         assert_eq!(variants[0].event_components, vec!["INS:6:+T".to_string()]);
         assert!(variants[0].aa_changes[0].contains("fs"));
+    }
+
+    #[test]
+    fn test_build_phased_indel_haplotype_combines_nearby_snv() {
+        let gene = Gene {
+            name: "cds".to_string(),
+            start: 1,
+            end: 9,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+        };
+        let reference = crate::io::Reference {
+            sequence: "ATGAAATTT",
+        };
+        let variants = vec![
+            crate::io::VcfPosition {
+                position: 4,
+                ref_allele: "A".to_string(),
+                alt_allele: "C".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
+            crate::io::VcfPosition {
+                position: 6,
+                ref_allele: "A".to_string(),
+                alt_allele: "AT".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
+        ];
+
+        let phased = build_phased_indel_haplotype_variants(
+            &gene,
+            &variants,
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+
+        assert_eq!(phased.len(), 1);
+        assert_eq!(phased[0].variant_type, VariantType::Indel);
+        assert_eq!(phased[0].event_class.as_deref(), Some("complex_indel"));
+        assert_eq!(phased[0].positions, vec![4]);
+        assert_eq!(phased[0].ref_bases, vec!["AAA".to_string()]);
+        assert_eq!(phased[0].base_changes, vec!["CAAT".to_string()]);
+        assert_eq!(
+            phased[0].event_components,
+            vec!["SNV:4:A>C".to_string(), "INS:6:+T".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_build_phased_indel_haplotype_ignores_distant_snv() {
+        let gene = Gene {
+            name: "cds".to_string(),
+            start: 1,
+            end: 12,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+        };
+        let reference = crate::io::Reference {
+            sequence: "ATGAAATTTCCC",
+        };
+        let variants = vec![
+            crate::io::VcfPosition {
+                position: 10,
+                ref_allele: "C".to_string(),
+                alt_allele: "G".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
+            crate::io::VcfPosition {
+                position: 6,
+                ref_allele: "A".to_string(),
+                alt_allele: "AT".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
+        ];
+
+        let phased = build_phased_indel_haplotype_variants(
+            &gene,
+            &variants,
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+
+        assert!(phased.is_empty());
     }
 
     #[test]

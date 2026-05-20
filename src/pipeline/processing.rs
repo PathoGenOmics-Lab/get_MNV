@@ -201,6 +201,93 @@ fn annotate_variants_for_gene(
     variants::get_mnv_variants_for_gene(gene, snp_list, reference, contig, genetic_code)
 }
 
+fn variant_allele_key(variant: &VariantInfo) -> Option<(usize, String, String)> {
+    Some((
+        *variant.positions.first()?,
+        variant.ref_bases.first()?.clone(),
+        variant.base_changes.first()?.clone(),
+    ))
+}
+
+fn has_variant_allele(variants: &[VariantInfo], candidate: &VariantInfo) -> bool {
+    let Some(candidate_key) = variant_allele_key(candidate) else {
+        return false;
+    };
+    variants
+        .iter()
+        .filter_map(variant_allele_key)
+        .any(|key| key == candidate_key)
+}
+
+fn count_exact_indel_variant_reads(
+    state: &mut WorkerState,
+    args: &Args,
+    contig: &str,
+    gene: &Gene,
+    variant: &mut VariantInfo,
+) -> AppResult<()> {
+    let bam = match state.bam.as_mut() {
+        Some(b) => b,
+        None => {
+            return Err(AppError::validation(
+                "BAM reader unavailable in worker thread",
+            ))
+        }
+    };
+    let bam_header = match state.bam_header.as_ref() {
+        Some(h) => h,
+        None => {
+            return Err(AppError::validation(
+                "BAM header unavailable in worker thread",
+            ))
+        }
+    };
+    let ref_allele = variant
+        .ref_bases
+        .first()
+        .ok_or_else(|| {
+            AppError::validation(format!(
+                "Missing REF allele for indel at contig '{}' gene '{}'",
+                contig, gene.name
+            ))
+        })?
+        .clone();
+    let alt_allele = variant
+        .base_changes
+        .first()
+        .ok_or_else(|| {
+            AppError::validation(format!(
+                "Missing ALT allele for indel at contig '{}' gene '{}'",
+                contig, gene.name
+            ))
+        })?
+        .clone();
+    let position = *variant.positions.first().ok_or_else(|| {
+        AppError::validation(format!(
+            "Missing position for indel at contig '{}' gene '{}'",
+            contig, gene.name
+        ))
+    })?;
+    let summary = read_count::count_indel_reads(
+        bam,
+        bam_header,
+        contig,
+        position,
+        &ref_allele,
+        &alt_allele,
+        args.min_quality,
+        args.min_mapq,
+    )
+    .map_err(|e| {
+        AppError::validation(format!(
+            "Failed counting indel reads for contig '{}' gene '{}' at position {}: {}",
+            contig, gene.name, position, e
+        ))
+    })?;
+    apply_read_summary(variant, summary);
+    Ok(())
+}
+
 fn count_gene_variant_reads(
     state: &mut WorkerState,
     args: &Args,
@@ -286,65 +373,7 @@ fn count_gene_variant_reads(
 
     for variant in variants {
         if variant.variant_type == VariantType::Indel {
-            let bam = match state.bam.as_mut() {
-                Some(b) => b,
-                None => {
-                    return Err(AppError::validation(
-                        "BAM reader unavailable in worker thread",
-                    ))
-                }
-            };
-            let bam_header = match state.bam_header.as_ref() {
-                Some(h) => h,
-                None => {
-                    return Err(AppError::validation(
-                        "BAM header unavailable in worker thread",
-                    ))
-                }
-            };
-            let ref_allele = variant
-                .ref_bases
-                .first()
-                .ok_or_else(|| {
-                    AppError::validation(format!(
-                        "Missing REF allele for indel at contig '{}' gene '{}'",
-                        contig, gene.name
-                    ))
-                })?
-                .clone();
-            let alt_allele = variant
-                .base_changes
-                .first()
-                .ok_or_else(|| {
-                    AppError::validation(format!(
-                        "Missing ALT allele for indel at contig '{}' gene '{}'",
-                        contig, gene.name
-                    ))
-                })?
-                .clone();
-            let position = *variant.positions.first().ok_or_else(|| {
-                AppError::validation(format!(
-                    "Missing position for indel at contig '{}' gene '{}'",
-                    contig, gene.name
-                ))
-            })?;
-            let summary = read_count::count_indel_reads(
-                bam,
-                bam_header,
-                contig,
-                position,
-                &ref_allele,
-                &alt_allele,
-                args.min_quality,
-                args.min_mapq,
-            )
-            .map_err(|e| {
-                AppError::validation(format!(
-                    "Failed counting indel reads for contig '{}' gene '{}' at position {}: {}",
-                    contig, gene.name, position, e
-                ))
-            })?;
-            apply_read_summary(variant, summary);
+            count_exact_indel_variant_reads(state, args, contig, gene, variant)?;
             continue;
         }
         let Some(cache) = cache.as_ref() else {
@@ -366,6 +395,41 @@ fn count_gene_variant_reads(
     }
 
     Ok((cache_hits, cache_misses))
+}
+
+fn append_supported_phased_indel_haplotypes(
+    state: &mut WorkerState,
+    args: &Args,
+    contig: &str,
+    gene: &Gene,
+    reference: &io::Reference,
+    snp_list: &[VcfPosition],
+    genetic_code: crate::genetic_code::GeneticCode,
+    variants: &mut Vec<VariantInfo>,
+) -> AppResult<()> {
+    if args.dry_run || state.bam.is_none() {
+        return Ok(());
+    }
+
+    let candidates = variants::build_phased_indel_haplotype_variants(
+        gene,
+        snp_list,
+        reference,
+        contig,
+        genetic_code,
+    );
+
+    for mut candidate in candidates {
+        if has_variant_allele(variants, &candidate) {
+            continue;
+        }
+        count_exact_indel_variant_reads(state, args, contig, gene, &mut candidate)?;
+        if candidate.mnv_reads.unwrap_or(0) > 0 {
+            variants.push(candidate);
+        }
+    }
+
+    Ok(())
 }
 
 pub(crate) fn process_contig(
@@ -455,6 +519,16 @@ pub(crate) fn process_contig(
                 }
                 let (cache_hits, cache_misses) =
                     count_gene_variant_reads(state, args, contig, gene, &mut variants)?;
+                append_supported_phased_indel_haplotypes(
+                    state,
+                    args,
+                    contig,
+                    gene,
+                    &reference,
+                    snp_list,
+                    genetic_code,
+                    &mut variants,
+                )?;
                 Ok(WorkerResult {
                     variants,
                     region_cache_hits: cache_hits,
