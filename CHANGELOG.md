@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.1.4] - 2026-05-20
+
+### Changed
+- Bumped project, GUI, citation, README, and frontend metadata to version 1.1.4.
+- Updated the Tauri desktop dependency set to the 2.11 patch line, including `tauri` 2.11.2 and `tauri-plugin-dialog` 2.7.1.
+- Updated frontend lockfile dependencies, including `postcss` 8.5.10.
+
+### Fixed
+- Resolved the frontend security audit by updating vulnerable transitive packages, including `brace-expansion` 5.0.6.
+- Regenerated the Rust lockfile so vulnerable `rand` package entries are no longer present in the resolved dependency graph.
+
 ## [1.1.3] - 2026-05-11
 
 ### Added
