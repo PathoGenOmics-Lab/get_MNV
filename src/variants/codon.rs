@@ -7,6 +7,9 @@ use crate::io::VcfPosition;
 use crate::utils::{aa_three_letter, determine_change_type, iupac_aa, reverse_complement};
 use std::collections::{BTreeMap, BTreeSet};
 
+const LOCAL_HAPLOTYPE_JOIN_DISTANCE: usize = 3;
+const MAX_LOCAL_HAPLOTYPE_VARIANTS: usize = 8;
+
 /// Merge `original_info` from all SNPs in a codon group.
 /// When all SNPs share the same info string, return that single string.
 /// When they differ, concatenate unique info strings with `|` as separator
@@ -371,11 +374,63 @@ fn phased_indel_window(gene: &Gene, variant: &VcfPosition) -> Option<(usize, usi
     Some((start, end))
 }
 
-fn substitution_variant_in_window(variant: &VcfPosition, start: usize, end: usize) -> bool {
-    variant
-        .substitution_components()
-        .iter()
-        .any(|component| component.position >= start && component.position <= end)
+fn haplotype_windows_linked(a: (usize, usize), b: (usize, usize)) -> bool {
+    let a_end = a.1.saturating_add(LOCAL_HAPLOTYPE_JOIN_DISTANCE);
+    let b_end = b.1.saturating_add(LOCAL_HAPLOTYPE_JOIN_DISTANCE);
+    a.0 <= b_end && b.0 <= a_end
+}
+
+fn variant_has_indel_component(variant: &VcfPosition) -> bool {
+    variant.event().class.has_indel_component()
+}
+
+fn group_component_flags(group: &[&VcfPosition]) -> (bool, bool, usize) {
+    let mut has_indel = false;
+    let mut has_substitution = false;
+    let mut indel_components = 0usize;
+
+    for variant in group {
+        for component in variant.event().components {
+            match component.kind {
+                AlleleComponentKind::Snp => has_substitution = true,
+                AlleleComponentKind::Insertion
+                | AlleleComponentKind::Deletion
+                | AlleleComponentKind::Delins
+                | AlleleComponentKind::Symbolic => {
+                    has_indel = true;
+                    indel_components += 1;
+                }
+            }
+        }
+    }
+
+    (has_indel, has_substitution, indel_components)
+}
+
+fn add_phased_candidate(
+    out: &mut Vec<VariantInfo>,
+    seen: &mut BTreeSet<(usize, String, String)>,
+    gene: &Gene,
+    reference: &crate::io::Reference<'_>,
+    chrom: &str,
+    genetic_code: crate::genetic_code::GeneticCode,
+    group: &[&VcfPosition],
+) {
+    let (has_indel, _, _) = group_component_flags(group);
+    if !has_indel || group.len() < 2 {
+        return;
+    }
+    if let Some(candidate) = phased_variant_from_group(gene, reference, chrom, group, genetic_code)
+    {
+        let key = (
+            candidate.positions[0],
+            candidate.ref_bases[0].clone(),
+            candidate.base_changes[0].clone(),
+        );
+        if seen.insert(key) {
+            out.push(candidate);
+        }
+    }
 }
 
 fn compound_allele_from_variants(
@@ -387,7 +442,6 @@ fn compound_allele_from_variants(
     }
 
     let mut has_indel = false;
-    let mut has_substitution = false;
     let mut start = usize::MAX;
     let mut end = 0usize;
     let mut snps: BTreeMap<usize, String> = BTreeMap::new();
@@ -405,7 +459,6 @@ fn compound_allele_from_variants(
         for component in event.components {
             match component.kind {
                 AlleleComponentKind::Snp => {
-                    has_substitution = true;
                     if component.ref_allele.len() != 1 || component.alt_allele.len() != 1 {
                         return None;
                     }
@@ -439,7 +492,7 @@ fn compound_allele_from_variants(
         }
     }
 
-    if !has_indel || !has_substitution || start == usize::MAX || end == 0 {
+    if !has_indel || start == usize::MAX || end == 0 {
         return None;
     }
     if start == 0 || end > reference.sequence.len() || start > end {
@@ -518,15 +571,18 @@ fn phased_variant_from_group(
     genetic_code: crate::genetic_code::GeneticCode,
 ) -> Option<VariantInfo> {
     let compound = compound_allele_from_variants(reference, group)?;
-    let event = compound.event();
-    if !event.class.has_indel_component()
-        || !event
-            .components
-            .iter()
-            .any(|component| matches!(component.kind, AlleleComponentKind::Snp))
-    {
+    let compound_event = compound.event();
+    let (has_indel, has_substitution, indel_components) = group_component_flags(group);
+    if !has_indel {
         return None;
     }
+    let event_class = if group.len() > 1
+        && (has_substitution || indel_components > 1 || !compound_event.class.has_indel_component())
+    {
+        AlleleEventClass::ComplexIndel
+    } else {
+        compound_event.class
+    };
 
     let is_frameshift =
         (compound.ref_allele.len() as isize - compound.alt_allele.len() as isize) % 3 != 0;
@@ -569,7 +625,7 @@ fn phased_variant_from_group(
         original_dp: None,
         original_freq: None,
         original_info: None,
-        event_class: Some(event.class.as_str().to_string()),
+        event_class: Some(event_class.as_str().to_string()),
         event_components,
     })
 }
@@ -581,74 +637,115 @@ pub fn build_phased_indel_haplotype_variants(
     chrom: &str,
     genetic_code: crate::genetic_code::GeneticCode,
 ) -> Vec<VariantInfo> {
-    let gene_variants = snp_list
+    let local_variants = snp_list
         .iter()
         .filter(|variant| variant.overlaps_interval(gene.start, gene.end))
-        .collect::<Vec<_>>();
-    let indels = gene_variants
-        .iter()
-        .copied()
-        .filter(|variant| variant.event().class.has_indel_component())
-        .collect::<Vec<_>>();
-    let substitutions = gene_variants
-        .iter()
-        .copied()
-        .filter(|variant| !variant.event().class.has_indel_component())
-        .filter(|variant| !variant.substitution_components().is_empty())
+        .filter(|variant| {
+            variant_has_indel_component(variant) || !variant.substitution_components().is_empty()
+        })
+        .filter_map(|variant| phased_indel_window(gene, variant).map(|window| (variant, window)))
         .collect::<Vec<_>>();
 
-    if indels.is_empty() || substitutions.is_empty() {
+    if local_variants.len() < 2
+        || !local_variants
+            .iter()
+            .any(|(variant, _)| variant_has_indel_component(variant))
+    {
         return Vec::new();
     }
 
     let mut out = Vec::new();
     let mut seen = BTreeSet::new();
+    let mut visited = vec![false; local_variants.len()];
 
-    for indel in indels {
-        let Some((window_start, window_end)) = phased_indel_window(gene, indel) else {
-            continue;
-        };
-        let nearby = substitutions
-            .iter()
-            .copied()
-            .filter(|variant| substitution_variant_in_window(variant, window_start, window_end))
-            .collect::<Vec<_>>();
-        if nearby.is_empty() {
+    for start_idx in 0..local_variants.len() {
+        if visited[start_idx] {
             continue;
         }
 
-        for substitution in &nearby {
-            let group = [indel, *substitution];
-            if let Some(candidate) =
-                phased_variant_from_group(gene, reference, chrom, &group, genetic_code)
-            {
-                let key = (
-                    candidate.positions[0],
-                    candidate.ref_bases[0].clone(),
-                    candidate.base_changes[0].clone(),
-                );
-                if seen.insert(key) {
-                    out.push(candidate);
+        let mut component = Vec::new();
+        let mut stack = vec![start_idx];
+        visited[start_idx] = true;
+        while let Some(idx) = stack.pop() {
+            component.push(idx);
+            for next_idx in 0..local_variants.len() {
+                if visited[next_idx] {
+                    continue;
+                }
+                if component.iter().any(|component_idx| {
+                    haplotype_windows_linked(
+                        local_variants[*component_idx].1,
+                        local_variants[next_idx].1,
+                    )
+                }) {
+                    visited[next_idx] = true;
+                    stack.push(next_idx);
                 }
             }
         }
 
-        if nearby.len() > 1 {
-            let mut group = Vec::with_capacity(nearby.len() + 1);
-            group.push(indel);
-            group.extend(nearby);
-            if let Some(candidate) =
-                phased_variant_from_group(gene, reference, chrom, &group, genetic_code)
-            {
-                let key = (
-                    candidate.positions[0],
-                    candidate.ref_bases[0].clone(),
-                    candidate.base_changes[0].clone(),
+        if component.len() < 2
+            || !component
+                .iter()
+                .any(|idx| variant_has_indel_component(local_variants[*idx].0))
+        {
+            continue;
+        }
+
+        if component.len() <= MAX_LOCAL_HAPLOTYPE_VARIANTS {
+            let subset_count = 1usize << component.len();
+            for mask in 1usize..subset_count {
+                if mask.count_ones() < 2 {
+                    continue;
+                }
+                let group = component
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(bit, idx)| {
+                        (mask & (1usize << bit) != 0).then_some(local_variants[*idx].0)
+                    })
+                    .collect::<Vec<_>>();
+                add_phased_candidate(
+                    &mut out,
+                    &mut seen,
+                    gene,
+                    reference,
+                    chrom,
+                    genetic_code,
+                    &group,
                 );
-                if seen.insert(key) {
-                    out.push(candidate);
+            }
+        } else {
+            for i in 0..component.len() {
+                for j in (i + 1)..component.len() {
+                    let group = [
+                        local_variants[component[i]].0,
+                        local_variants[component[j]].0,
+                    ];
+                    add_phased_candidate(
+                        &mut out,
+                        &mut seen,
+                        gene,
+                        reference,
+                        chrom,
+                        genetic_code,
+                        &group,
+                    );
                 }
             }
+            let group = component
+                .iter()
+                .map(|idx| local_variants[*idx].0)
+                .collect::<Vec<_>>();
+            add_phased_candidate(
+                &mut out,
+                &mut seen,
+                gene,
+                reference,
+                chrom,
+                genetic_code,
+                &group,
+            );
         }
     }
 
@@ -1590,6 +1687,57 @@ mod tests {
         assert_eq!(
             phased[0].event_components,
             vec!["SNV:4:A>C".to_string(), "DEL:6:A".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_build_phased_indel_haplotype_combines_two_indels() {
+        let gene = Gene {
+            name: "cds".to_string(),
+            start: 1,
+            end: 9,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+        };
+        let reference = crate::io::Reference {
+            sequence: "ATGAAATTT",
+        };
+        let variants = vec![
+            crate::io::VcfPosition {
+                position: 4,
+                ref_allele: "A".to_string(),
+                alt_allele: "AG".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
+            crate::io::VcfPosition {
+                position: 5,
+                ref_allele: "AA".to_string(),
+                alt_allele: "A".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
+        ];
+
+        let phased = build_phased_indel_haplotype_variants(
+            &gene,
+            &variants,
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+
+        assert_eq!(phased.len(), 1);
+        assert_eq!(phased[0].event_class.as_deref(), Some("complex_indel"));
+        assert_eq!(phased[0].positions, vec![4]);
+        assert_eq!(phased[0].ref_bases, vec!["AAA".to_string()]);
+        assert_eq!(phased[0].base_changes, vec!["AGA".to_string()]);
+        assert_eq!(
+            phased[0].event_components,
+            vec!["INS:4:+G".to_string(), "DEL:6:A".to_string()]
         );
     }
 

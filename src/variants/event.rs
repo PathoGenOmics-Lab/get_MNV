@@ -95,6 +95,60 @@ impl AlleleComponent {
     }
 }
 
+pub fn parse_component_label(label: &str) -> Option<AlleleComponent> {
+    let (kind, rest) = label.split_once(':')?;
+    let (position_raw, allele_raw) = rest.split_once(':')?;
+    let position = position_raw
+        .split_once('-')
+        .map(|(start, _)| start)
+        .unwrap_or(position_raw)
+        .parse::<usize>()
+        .ok()?;
+
+    match kind {
+        "SNV" => {
+            let (ref_allele, alt_allele) = allele_raw.split_once('>')?;
+            Some(AlleleComponent {
+                kind: AlleleComponentKind::Snp,
+                position,
+                ref_allele: ref_allele.to_string(),
+                alt_allele: alt_allele.to_string(),
+            })
+        }
+        "INS" => Some(AlleleComponent {
+            kind: AlleleComponentKind::Insertion,
+            position,
+            ref_allele: String::new(),
+            alt_allele: allele_raw.strip_prefix('+')?.to_string(),
+        }),
+        "DEL" => Some(AlleleComponent {
+            kind: AlleleComponentKind::Deletion,
+            position,
+            ref_allele: allele_raw.to_string(),
+            alt_allele: String::new(),
+        }),
+        "DELINS" => {
+            let (ref_allele, alt_allele) = allele_raw.split_once('>')?;
+            Some(AlleleComponent {
+                kind: AlleleComponentKind::Delins,
+                position,
+                ref_allele: ref_allele.to_string(),
+                alt_allele: alt_allele.to_string(),
+            })
+        }
+        "SYMBOLIC" => {
+            let (ref_allele, alt_allele) = allele_raw.split_once('>')?;
+            Some(AlleleComponent {
+                kind: AlleleComponentKind::Symbolic,
+                position,
+                ref_allele: ref_allele.to_string(),
+                alt_allele: alt_allele.to_string(),
+            })
+        }
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlleleEvent {
     pub class: AlleleEventClass,
@@ -294,7 +348,7 @@ pub fn substitution_components(
 
 #[cfg(test)]
 mod tests {
-    use super::{decompose_allele, AlleleComponentKind, AlleleEventClass};
+    use super::{decompose_allele, parse_component_label, AlleleComponentKind, AlleleEventClass};
 
     #[test]
     fn decomposes_mnv() {
@@ -329,5 +383,19 @@ mod tests {
         assert_eq!(event.class, AlleleEventClass::ComplexIndel);
         assert_eq!(event.components.len(), 2);
         assert_eq!(event.component_labels(), vec!["SNV:10:T>G", "DEL:11:C"]);
+    }
+
+    #[test]
+    fn parses_component_labels_roundtrip() {
+        for label in [
+            "SNV:10:A>G",
+            "INS:10:+T",
+            "DEL:11-12:TG",
+            "DELINS:20:AC>G",
+            "SYMBOLIC:30:N><DEL>",
+        ] {
+            let component = parse_component_label(label).expect("component label");
+            assert_eq!(component.label(), label);
+        }
     }
 }

@@ -11,7 +11,7 @@ pub use codon::{
     process_codon,
 };
 pub use event::{
-    decompose_allele, substitution_components, AlleleComponent, AlleleComponentKind, AlleleEvent,
-    AlleleEventClass,
+    decompose_allele, parse_component_label, substitution_components, AlleleComponent,
+    AlleleComponentKind, AlleleEvent, AlleleEventClass,
 };
 pub use types::*;

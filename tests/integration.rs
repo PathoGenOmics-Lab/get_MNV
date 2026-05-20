@@ -494,6 +494,87 @@ chr1\t6\t.\tA\tAT\t.\tPASS\t.\n",
 }
 
 #[test]
+fn test_e2e_vcf_phased_two_indels_require_cigar_components() {
+    let tmp = temp_dir("e2e_phased_two_indels_vcf");
+    let (ref_path, genes_path) = write_phase_reference_files(&tmp);
+    let vcf_path = tmp.join("phase_two_indels.vcf");
+    let bam_path = tmp.join("phase_two_indels.bam");
+
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=12>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t4\t.\tA\tAG\t.\tPASS\t.\n\
+chr1\t5\t.\tAA\tA\t.\tPASS\t.\n",
+    )
+    .unwrap();
+    write_synthetic_bam(
+        &bam_path,
+        12,
+        &[
+            SyntheticRead {
+                name: "full_complex",
+                start: 1,
+                cigar: "4M1I1M1D6M",
+                sequence: "ATGAGATTTCCC",
+            },
+            SyntheticRead {
+                name: "sequence_mimic_snp",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGAGATTTCCC",
+            },
+            SyntheticRead {
+                name: "ins_only",
+                start: 1,
+                cigar: "4M1I8M",
+                sequence: "ATGAGAATTTCCC",
+            },
+            SyntheticRead {
+                name: "del_only",
+                start: 1,
+                cigar: "5M1D6M",
+                sequence: "ATGAATTTCCC",
+            },
+            SyntheticRead {
+                name: "ref",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGAAATTTCCC",
+            },
+        ],
+    );
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.tsv_file = None;
+    args.bam_file = Some(bam_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.gff_file = None;
+    args.threads = Some(1);
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("phase_two_indels".to_string());
+
+    let summary = pipeline::run(&args).expect("phased two-indel pipeline should succeed");
+    assert_eq!(summary.global.snp_records_in_vcf, 2);
+    assert!(
+        summary.global.indel_variants >= 3,
+        "expected original indels plus phased complex haplotype"
+    );
+
+    let rows = read_tsv_rows(&tmp.join("phase_two_indels.MNV.tsv"));
+    let compound = find_row(&rows, "complex_indel", "AAA", "AGA").expect("two-indel haplotype row");
+    assert_eq!(compound["Event Reads"], "1");
+    assert_eq!(compound["Event Depth"], "5");
+    assert!(compound["Event Components"].contains("INS:4:+G"));
+    assert!(compound["Event Components"].contains("DEL:6:A"));
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
 fn test_e2e_vcf_close_indel_and_snv_do_not_phase_without_shared_read() {
     let tmp = temp_dir("e2e_unphased_ins_vcf");
     let (ref_path, genes_path) = write_phase_reference_files(&tmp);

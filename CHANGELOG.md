@@ -13,6 +13,7 @@ All notable changes to this project are documented in this file.
 - Updated the Tauri desktop dependency set to the 2.11 patch line, including `tauri` 2.11.2 and `tauri-plugin-dialog` 2.7.1.
 - Updated frontend lockfile dependencies, including `postcss` 8.5.10.
 - Added allele-level event decomposition for `snp`, `mnv`, `insertion`, `deletion`, `delins`, `complex_indel`, and symbolic alleles so length-changing events that also contain SNV/MNV components are represented as a single local haplotype event.
+- Expanded phased local haplotype discovery from indel-plus-SNV pairs to bounded multi-event windows, allowing supported combinations such as insertion-plus-deletion haplotypes to be emitted as exact `complex_indel` rows.
 - iVar TSV inputs now keep insertion and deletion rows by converting `+SEQ` and `-SEQ` alleles into VCF-compatible anchored `REF/ALT` alleles using the FASTA reference.
 - TSV and VCF outputs now include canonical event class/component annotations plus exact BAM-derived event support metrics for indel/complex alleles.
 - The desktop BAM viewer now renders insertion-aware interbase columns, so inserted bases are shown between reference positions with matching coverage, ruler, reference, and read-pileup alignment instead of being hidden inside the anchor base.
@@ -26,7 +27,7 @@ All notable changes to this project are documented in this file.
 - Deletions whose VCF anchor falls just outside a CDS/gene feature now still apply the overlapping deleted bases to the feature sequence, preserving frameshift/in-frame protein effects instead of reporting `Unknown`.
 - Insertions anchored at the final base of a CDS/gene feature are no longer treated as if the inserted sequence were inside that feature, and boundary-spanning indels are no longer duplicated as intergenic rows.
 - Indel and complex alleles in coding regions now reconstruct the local alternate CDS sequence, respect strand/phase/protein offset, and report in-frame or frameshift protein effects instead of leaving amino-acid changes blank.
-- BAM support for indels is now counted from the CIGAR-derived observed allele across the event span, including inserted sequence and deleted reference bases.
+- BAM support for indels is now counted from the CIGAR-derived observed allele across the event span, including inserted sequence and deleted reference bases; exact complex haplotypes now also require the expected insertion/deletion components in the read CIGAR so net-neutral indel complexes are not mistaken for simple MNVs.
 - Phased `complex_indel` rows now preserve the original event component coordinates from the input variants, so ambiguous repeat-context deletions remain consistent with the source VCF/iVar event and the original indel row.
 
 ## [1.1.3] - 2026-05-11

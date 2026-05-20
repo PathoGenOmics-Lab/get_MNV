@@ -49,6 +49,11 @@ Extra columns when `--bam` is used:
 | `Event Depth` | Reads with an observed allele across the indel/complex event span. |
 | `Event Frequency` | Exact event reads divided by event depth. |
 
+Exact event support is CIGAR-aware. A read must reconstruct the same local ALT
+sequence and, for complex haplotypes, contain the expected insertion and
+deletion components. This prevents net-neutral insertion/deletion combinations
+from being counted as support merely because their sequence looks like an MNV.
+
 Frequency columns are calculated from BAM support. `--min-snp-frequency` and
 `--min-mnv-frequency` use these same BAM-derived values. The filters are
 independent: `--min-snp-frequency` applies to individual SNP observations, and

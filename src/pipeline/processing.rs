@@ -270,11 +270,21 @@ fn count_exact_indel_variant_reads(
             contig, gene.name
         ))
     })?;
+    let mut required_components = variant
+        .event_components
+        .iter()
+        .filter_map(|label| variants::parse_component_label(label))
+        .collect::<Vec<_>>();
+    if required_components.is_empty() {
+        required_components =
+            variants::decompose_allele(position, &ref_allele, &alt_allele).components;
+    }
     let request = read_count::IndelReadCountRequest {
         chrom: contig,
         position,
         ref_allele: &ref_allele,
         alt_allele: &alt_allele,
+        required_components: &required_components,
         min_phred_quality: args.min_quality,
         min_mapq: args.min_mapq,
     };

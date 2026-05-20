@@ -2,6 +2,7 @@
 //! haplotype read support with strand-specific metrics.
 
 use crate::error::{AppError, AppResult};
+use crate::variants::{AlleleComponent, AlleleComponentKind};
 use noodles::bam;
 use noodles::sam::alignment::record::cigar::op::Kind;
 use noodles::sam::Header;
@@ -29,6 +30,7 @@ pub struct IndelReadCountRequest<'a> {
     pub position: usize,
     pub ref_allele: &'a str,
     pub alt_allele: &'a str,
+    pub required_components: &'a [AlleleComponent],
     pub min_phred_quality: u8,
     pub min_mapq: u8,
 }
@@ -144,6 +146,9 @@ fn get_query_pos(rec: &bam::Record, pos: usize) -> Option<usize> {
 struct ObservedAllele {
     allele: String,
     min_quality: u8,
+    bases_by_position: HashMap<usize, char>,
+    insertions_after: HashMap<usize, String>,
+    deleted_positions: HashSet<usize>,
 }
 
 fn observed_allele_for_ref_span(
@@ -230,22 +235,35 @@ fn observed_allele_for_ref_span(
     let mut allele = String::new();
     let mut min_quality = u8::MAX;
     let mut saw_observed_base = false;
+    let mut bases_by_position = HashMap::new();
+    let mut observed_insertions_after = HashMap::new();
+    let mut deleted_positions = HashSet::new();
 
     for idx in 0..ref_len {
+        let reference_pos = pos + idx;
         if let Some((base, q)) = bases[idx] {
-            allele.push(base.to_ascii_uppercase());
+            let base = base.to_ascii_uppercase();
+            allele.push(base);
+            bases_by_position.insert(reference_pos, base);
             min_quality = min_quality.min(q);
             saw_observed_base = true;
         } else if deleted[idx] {
             // Deleted reference bases contribute no query base to the allele.
+            deleted_positions.insert(reference_pos);
         } else {
             return None;
         }
 
+        let mut inserted = String::new();
         for (base, q) in &insertions_after[idx] {
-            allele.push(base.to_ascii_uppercase());
+            let base = base.to_ascii_uppercase();
+            allele.push(base);
+            inserted.push(base);
             min_quality = min_quality.min(*q);
             saw_observed_base = true;
+        }
+        if !inserted.is_empty() {
+            observed_insertions_after.insert(reference_pos, inserted);
         }
     }
 
@@ -255,7 +273,42 @@ fn observed_allele_for_ref_span(
     Some(ObservedAllele {
         allele,
         min_quality,
+        bases_by_position,
+        insertions_after: observed_insertions_after,
+        deleted_positions,
     })
+}
+
+fn observed_supports_components(
+    observed: &ObservedAllele,
+    required_components: &[AlleleComponent],
+) -> bool {
+    required_components
+        .iter()
+        .all(|component| match component.kind {
+            AlleleComponentKind::Snp => {
+                let Some(observed_base) = observed.bases_by_position.get(&component.position)
+                else {
+                    return false;
+                };
+                component
+                    .alt_allele
+                    .chars()
+                    .next()
+                    .is_some_and(|alt| observed_base.eq_ignore_ascii_case(&alt))
+            }
+            AlleleComponentKind::Insertion => observed
+                .insertions_after
+                .get(&component.position)
+                .is_some_and(|inserted| inserted.eq_ignore_ascii_case(&component.alt_allele)),
+            AlleleComponentKind::Deletion => {
+                let del_end = component.position + component.ref_allele.len().saturating_sub(1);
+                (component.position..=del_end)
+                    .all(|position| observed.deleted_positions.contains(&position))
+            }
+            AlleleComponentKind::Delins => true,
+            AlleleComponentKind::Symbolic => false,
+        })
 }
 
 fn increment_directional_count(
@@ -282,6 +335,7 @@ pub fn count_indel_reads(
         position,
         ref_allele,
         alt_allele,
+        required_components,
         min_phred_quality,
         min_mapq,
     } = request;
@@ -343,7 +397,9 @@ pub fn count_indel_reads(
             unique_total_forward.insert(key.clone());
         }
 
-        if observed.allele.eq_ignore_ascii_case(alt_allele) {
+        if observed.allele.eq_ignore_ascii_case(alt_allele)
+            && observed_supports_components(&observed, required_components)
+        {
             unique_alt.insert(key.clone());
             if is_reverse {
                 unique_alt_reverse.insert(key);

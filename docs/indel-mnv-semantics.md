@@ -33,6 +33,8 @@ genotype likelihood modelling.
   complex-indel events.
 - Extra `complex_indel` rows only when the full combined indel/SNV/MNV haplotype
   is observed in BAM reads.
+- Bounded local haplotype windows that can combine multiple nearby events, such
+  as insertion-plus-deletion haplotypes, when exact read support exists.
 
 ## Boundary Rules
 
@@ -50,6 +52,11 @@ context and marks its amino-acid effect as `Unknown` with
 `Change Type = Indel overlap`. If the BAM supports the full combined event,
 get_MNV emits a separate exact `complex_indel` row.
 
+Exact support for complex indels is CIGAR-aware. A read must produce the same
+local ALT sequence and contain the expected insertion/deletion components. This
+matters for net-neutral combinations, where an insertion plus a deletion can
+produce the same sequence as a simple MNV under another alignment.
+
 ## Current Limits
 
 - Input BCF is not accepted directly. Convert first with `bcftools view`.
@@ -61,6 +68,8 @@ get_MNV emits a separate exact `complex_indel` row.
   original INFO/FORMAT context when requested; they are not re-estimated.
 - Local de novo assembly is out of scope. get_MNV only combines alleles already
   present in the input and, when available, confirmed by BAM read support.
+- Local haplotype discovery is bounded to nearby event windows; very large
+  haplotype reconstruction should still be handled by a dedicated caller.
 
 ## References
 
