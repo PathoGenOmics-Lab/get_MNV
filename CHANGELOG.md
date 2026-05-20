@@ -20,6 +20,7 @@ All notable changes to this project are documented in this file.
 - VCF records that already encode an MNV as a multi-base `REF/ALT` allele are now decomposed into codon-level haplotypes instead of being treated as generic indels.
 - Indel and complex alleles in coding regions now reconstruct the local alternate CDS sequence, respect strand/phase/protein offset, and report in-frame or frameshift protein effects instead of leaving amino-acid changes blank.
 - BAM support for indels is now counted from the CIGAR-derived observed allele across the event span, including inserted sequence and deleted reference bases.
+- Phased `complex_indel` rows now preserve the original event component coordinates from the input variants, so ambiguous repeat-context deletions remain consistent with the source VCF/iVar event and the original indel row.
 
 ## [1.1.3] - 2026-05-11
 

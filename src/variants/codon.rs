@@ -416,6 +416,35 @@ fn compound_allele_from_variants(
     })
 }
 
+fn component_kind_sort_key(kind: AlleleComponentKind) -> u8 {
+    match kind {
+        AlleleComponentKind::Snp => 0,
+        AlleleComponentKind::Deletion => 1,
+        AlleleComponentKind::Insertion => 2,
+        AlleleComponentKind::Delins => 3,
+        AlleleComponentKind::Symbolic => 4,
+    }
+}
+
+fn component_labels_from_group(group: &[&VcfPosition]) -> Vec<String> {
+    let mut components = Vec::new();
+    for variant in group {
+        components.extend(variant.event().components);
+    }
+    components.sort_by(|a, b| {
+        a.position
+            .cmp(&b.position)
+            .then_with(|| component_kind_sort_key(a.kind).cmp(&component_kind_sort_key(b.kind)))
+            .then_with(|| a.ref_allele.cmp(&b.ref_allele))
+            .then_with(|| a.alt_allele.cmp(&b.alt_allele))
+    });
+    components.dedup();
+    components
+        .into_iter()
+        .map(|component| component.label())
+        .collect()
+}
+
 fn phased_variant_from_group(
     gene: &Gene,
     reference: &crate::io::Reference<'_>,
@@ -441,6 +470,7 @@ fn phased_variant_from_group(
     } else {
         ChangeType::InFrameIndel
     };
+    let event_components = component_labels_from_group(group);
     let (aa_changes, aa_changes_local, ref_codon, alt_codon) =
         protein_effect_for_indel(gene, reference, &compound, genetic_code);
 
@@ -475,7 +505,7 @@ fn phased_variant_from_group(
         original_freq: None,
         original_info: None,
         event_class: Some(event.class.as_str().to_string()),
-        event_components: event.component_labels(),
+        event_components,
     })
 }
 
@@ -1331,6 +1361,57 @@ mod tests {
         assert_eq!(
             phased[0].event_components,
             vec!["SNV:4:A>C".to_string(), "INS:6:+T".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_build_phased_indel_haplotype_preserves_deletion_component_coordinate() {
+        let gene = Gene {
+            name: "cds".to_string(),
+            start: 1,
+            end: 9,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+        };
+        let reference = crate::io::Reference {
+            sequence: "ATGAAATTT",
+        };
+        let variants = vec![
+            crate::io::VcfPosition {
+                position: 4,
+                ref_allele: "A".to_string(),
+                alt_allele: "C".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
+            crate::io::VcfPosition {
+                position: 5,
+                ref_allele: "AA".to_string(),
+                alt_allele: "A".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
+        ];
+
+        let phased = build_phased_indel_haplotype_variants(
+            &gene,
+            &variants,
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+
+        assert_eq!(phased.len(), 1);
+        assert_eq!(phased[0].event_class.as_deref(), Some("complex_indel"));
+        assert_eq!(phased[0].positions, vec![4]);
+        assert_eq!(phased[0].ref_bases, vec!["AAA".to_string()]);
+        assert_eq!(phased[0].base_changes, vec!["CA".to_string()]);
+        assert_eq!(
+            phased[0].event_components,
+            vec!["SNV:4:A>C".to_string(), "DEL:6:A".to_string()]
         );
     }
 
