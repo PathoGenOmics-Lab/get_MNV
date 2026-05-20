@@ -24,6 +24,15 @@ pub struct ReadCountSummary {
     pub mnv_total_reverse_reads: usize,
 }
 
+pub struct IndelReadCountRequest<'a> {
+    pub chrom: &'a str,
+    pub position: usize,
+    pub ref_allele: &'a str,
+    pub alt_allele: &'a str,
+    pub min_phred_quality: u8,
+    pub min_mapq: u8,
+}
+
 #[derive(Debug, Clone)]
 pub struct RegionObservationCache {
     index_by_position: HashMap<usize, usize>,
@@ -266,13 +275,17 @@ fn increment_directional_count(
 pub fn count_indel_reads(
     bam_reader: &mut bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>,
     header: &Header,
-    chrom: &str,
-    position: usize,
-    ref_allele: &str,
-    alt_allele: &str,
-    min_phred_quality: u8,
-    min_mapq: u8,
+    request: IndelReadCountRequest<'_>,
 ) -> AppResult<ReadCountSummary> {
+    let IndelReadCountRequest {
+        chrom,
+        position,
+        ref_allele,
+        alt_allele,
+        min_phred_quality,
+        min_mapq,
+    } = request;
+
     if position == 0 || ref_allele.is_empty() {
         return Err(AppError::validation(format!(
             "Invalid indel allele for read counting at {chrom}:{position} REF='{ref_allele}' ALT='{alt_allele}'"

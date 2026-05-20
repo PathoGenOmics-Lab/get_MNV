@@ -268,17 +268,15 @@ fn count_exact_indel_variant_reads(
             contig, gene.name
         ))
     })?;
-    let summary = read_count::count_indel_reads(
-        bam,
-        bam_header,
-        contig,
+    let request = read_count::IndelReadCountRequest {
+        chrom: contig,
         position,
-        &ref_allele,
-        &alt_allele,
-        args.min_quality,
-        args.min_mapq,
-    )
-    .map_err(|e| {
+        ref_allele: &ref_allele,
+        alt_allele: &alt_allele,
+        min_phred_quality: args.min_quality,
+        min_mapq: args.min_mapq,
+    };
+    let summary = read_count::count_indel_reads(bam, bam_header, request).map_err(|e| {
         AppError::validation(format!(
             "Failed counting indel reads for contig '{}' gene '{}' at position {}: {}",
             contig, gene.name, position, e
@@ -397,14 +395,18 @@ fn count_gene_variant_reads(
     Ok((cache_hits, cache_misses))
 }
 
+struct PhasedIndelInputs<'a, 'r> {
+    contig: &'a str,
+    gene: &'a Gene,
+    reference: &'a io::Reference<'r>,
+    snp_list: &'a [VcfPosition],
+    genetic_code: crate::genetic_code::GeneticCode,
+}
+
 fn append_supported_phased_indel_haplotypes(
     state: &mut WorkerState,
     args: &Args,
-    contig: &str,
-    gene: &Gene,
-    reference: &io::Reference,
-    snp_list: &[VcfPosition],
-    genetic_code: crate::genetic_code::GeneticCode,
+    inputs: PhasedIndelInputs<'_, '_>,
     variants: &mut Vec<VariantInfo>,
 ) -> AppResult<()> {
     if args.dry_run || state.bam.is_none() {
@@ -412,18 +414,18 @@ fn append_supported_phased_indel_haplotypes(
     }
 
     let candidates = variants::build_phased_indel_haplotype_variants(
-        gene,
-        snp_list,
-        reference,
-        contig,
-        genetic_code,
+        inputs.gene,
+        inputs.snp_list,
+        inputs.reference,
+        inputs.contig,
+        inputs.genetic_code,
     );
 
     for mut candidate in candidates {
         if has_variant_allele(variants, &candidate) {
             continue;
         }
-        count_exact_indel_variant_reads(state, args, contig, gene, &mut candidate)?;
+        count_exact_indel_variant_reads(state, args, inputs.contig, inputs.gene, &mut candidate)?;
         if candidate.mnv_reads.unwrap_or(0) > 0 {
             variants.push(candidate);
         }
@@ -522,11 +524,13 @@ pub(crate) fn process_contig(
                 append_supported_phased_indel_haplotypes(
                     state,
                     args,
-                    contig,
-                    gene,
-                    &reference,
-                    snp_list,
-                    genetic_code,
+                    PhasedIndelInputs {
+                        contig,
+                        gene,
+                        reference: &reference,
+                        snp_list,
+                        genetic_code,
+                    },
                     &mut variants,
                 )?;
                 Ok(WorkerResult {
