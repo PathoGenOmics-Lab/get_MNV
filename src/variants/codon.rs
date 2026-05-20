@@ -1,7 +1,7 @@
 //! Codon-level variant processing: SNP grouping, MNV detection, and amino
 //! acid change calculation.
 
-use super::event::AlleleComponentKind;
+use super::event::{AlleleComponentKind, AlleleEventClass};
 use super::types::*;
 use crate::io::VcfPosition;
 use crate::utils::{aa_three_letter, determine_change_type, iupac_aa, reverse_complement};
@@ -195,21 +195,86 @@ fn apply_allele_to_feature(
     variant: &crate::io::VcfPosition,
 ) -> Option<String> {
     let (eff_start, eff_end) = effective_bounds(gene);
-    if variant.position < eff_start {
-        return None;
-    }
-    let ref_end = variant.position + variant.ref_allele.len().saturating_sub(1);
-    if ref_end > eff_end || eff_end > reference.sequence.len() {
+    if eff_start == 0 || eff_end == 0 || eff_start > eff_end || eff_end > reference.sequence.len() {
         return None;
     }
 
-    let mut genomic = reference.sequence[(eff_start - 1)..eff_end].to_string();
-    let local_start = variant.position - eff_start;
-    let local_end = local_start + variant.ref_allele.len();
-    if local_end > genomic.len() {
+    let event = variant.event();
+    if matches!(event.class, AlleleEventClass::Symbolic) {
         return None;
     }
-    genomic.replace_range(local_start..local_end, &variant.alt_allele);
+
+    let mut snps: BTreeMap<usize, String> = BTreeMap::new();
+    let mut insertions: BTreeMap<usize, String> = BTreeMap::new();
+    let mut deleted: BTreeSet<usize> = BTreeSet::new();
+    let mut touched_feature = false;
+
+    for component in event.components {
+        match component.kind {
+            AlleleComponentKind::Snp => {
+                if component.position >= eff_start && component.position <= eff_end {
+                    match snps.get(&component.position) {
+                        Some(existing) if !existing.eq_ignore_ascii_case(&component.alt_allele) => {
+                            return None;
+                        }
+                        Some(_) => {}
+                        None => {
+                            snps.insert(component.position, component.alt_allele);
+                        }
+                    }
+                    touched_feature = true;
+                }
+            }
+            AlleleComponentKind::Insertion => {
+                if component.position >= eff_start && component.position <= eff_end {
+                    match insertions.get(&component.position) {
+                        Some(existing) if !existing.eq_ignore_ascii_case(&component.alt_allele) => {
+                            return None;
+                        }
+                        Some(_) => {}
+                        None => {
+                            insertions.insert(component.position, component.alt_allele);
+                        }
+                    }
+                    touched_feature = true;
+                }
+            }
+            AlleleComponentKind::Deletion => {
+                let del_end = component.position + component.ref_allele.len().saturating_sub(1);
+                let overlap_start = component.position.max(eff_start);
+                let overlap_end = del_end.min(eff_end);
+                if overlap_start <= overlap_end {
+                    for pos in overlap_start..=overlap_end {
+                        deleted.insert(pos);
+                    }
+                    touched_feature = true;
+                }
+            }
+            AlleleComponentKind::Delins | AlleleComponentKind::Symbolic => return None,
+        }
+    }
+
+    if !touched_feature {
+        return None;
+    }
+
+    if insertions.keys().any(|pos| deleted.contains(pos)) {
+        return None;
+    }
+
+    let mut genomic = String::with_capacity(reference.sequence[(eff_start - 1)..eff_end].len());
+    for pos in eff_start..=eff_end {
+        if !deleted.contains(&pos) {
+            if let Some(alt_base) = snps.get(&pos) {
+                genomic.push_str(alt_base);
+            } else {
+                genomic.push(reference.sequence.as_bytes()[pos - 1] as char);
+            }
+        }
+        if let Some(inserted) = insertions.get(&pos) {
+            genomic.push_str(inserted);
+        }
+    }
 
     Some(match gene.strand {
         Strand::Plus => genomic,
@@ -1309,6 +1374,43 @@ mod tests {
         assert_eq!(variants[0].variant_type, VariantType::Indel);
         assert_eq!(variants[0].event_class.as_deref(), Some("insertion"));
         assert_eq!(variants[0].event_components, vec!["INS:6:+T".to_string()]);
+        assert!(variants[0].aa_changes[0].contains("fs"));
+    }
+
+    #[test]
+    fn test_deletion_anchored_before_cds_keeps_protein_effect() {
+        let gene = Gene {
+            name: "cds".to_string(),
+            start: 2,
+            end: 10,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+        };
+        let reference = crate::io::Reference {
+            sequence: "CATGAAATTT",
+        };
+        let variants = crate::variants::get_mnv_variants_for_gene(
+            &gene,
+            &[crate::io::VcfPosition {
+                position: 1,
+                ref_allele: "CA".to_string(),
+                alt_allele: "C".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            }],
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+
+        assert_eq!(variants.len(), 1);
+        assert_eq!(variants[0].variant_type, VariantType::Indel);
+        assert_eq!(variants[0].event_class.as_deref(), Some("deletion"));
+        assert_eq!(variants[0].event_components, vec!["DEL:2:A".to_string()]);
+        assert_eq!(variants[0].change_type, ChangeType::FrameshiftIndel);
+        assert_ne!(variants[0].aa_changes, vec!["Unknown".to_string()]);
         assert!(variants[0].aa_changes[0].contains("fs"));
     }
 

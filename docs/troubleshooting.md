@@ -74,6 +74,23 @@ or pre-split the VCF:
 bcftools norm -m - input.vcf > split.vcf
 ```
 
+## BCF Input
+
+Example:
+
+```text
+BCF input is not supported. Convert to VCF first
+```
+
+Fix:
+
+```bash
+bcftools view input.bcf > input.vcf
+get_mnv --vcf input.vcf ...
+```
+
+`--bcf` is an output option only; it does not make BCF valid as input.
+
 ## TSV Annotation with Multiple Contigs
 
 Example:

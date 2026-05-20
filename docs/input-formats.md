@@ -18,13 +18,15 @@ The supported variant-call inputs are:
 - VCF (`.vcf` or `.vcf.gz`)
 - iVar variants TSV (`.tsv`)
 
-Use `--vcf` for VCF/BCF files and `--tsv` for iVar `variants.tsv` files.
+Use `--vcf` for plain `.vcf` or BGZF-compressed `.vcf.gz` files and `--tsv`
+for iVar `variants.tsv` files. BCF input is not accepted directly; convert it
+first, for example with `bcftools view input.bcf > input.vcf`.
 Older commands that pass an iVar TSV through `--vcf` are still auto-detected
 when the header has the standard iVar columns.
 
 ### VCF
 
-Use a standard VCF file containing SNV calls.
+Use a standard VCF file containing SNV/MNV calls, indels, or complex alleles.
 
 Requirements:
 

@@ -1,4 +1,4 @@
-//! VCF loading via noodles (for .vcf.gz and .bcf files), metrics extraction,
+//! VCF loading for plain and BGZF-compressed VCF files, metrics extraction,
 //! allele normalisation, and original INFO field preservation.
 //!
 //! Plain `.vcf` files use the fast text parser in `vcf_fast.rs`.

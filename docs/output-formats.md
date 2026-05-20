@@ -58,6 +58,12 @@ threshold.
 Read-count and strand-support filters (`--snp`, `--mnv`, `--min-snp-strand`,
 and `--min-mnv-strand`) follow the same independent SNP/MNV behavior.
 
+When a codon-level MNV overlaps an indel, the MNV row is kept as a positional
+context row but its amino-acid effect is marked `Unknown` with
+`Change Type = Indel overlap`. If BAM reads support the full combined event,
+get_MNV emits a separate exact `complex_indel` row with the combined REF/ALT,
+event components, and event read support.
+
 Example:
 
 ```text
@@ -129,6 +135,7 @@ Write BCF with:
 ```
 
 BCF requires VCF output mode, so use it with `--convert` or `--both`.
+This is output conversion only; BCF is not accepted as an input format.
 
 Default file name:
 

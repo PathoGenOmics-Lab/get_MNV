@@ -146,14 +146,14 @@ Run `get_mnv --help` for the full list of options.
 
 | Argument | What it does |
 |---|---|
-| `--vcf <FILE>` | Variant input file in VCF/BCF format. |
+| `--vcf <FILE>` | Variant input file in plain `.vcf` or BGZF-compressed `.vcf.gz` format. BCF input must be converted to VCF first. |
 | `--tsv <FILE>` | iVar `variants.tsv` input file. |
 | `--bam <FILE>` | Optional sorted and indexed BAM for read support. |
 | `--fasta <FILE>` | Reference FASTA. Contig names must match the variant file. |
 | `--gff <FILE>` | Gene annotation in GFF/GFF3/GTF format. |
 | `--genes <FILE>` | Simple gene annotation TSV. Use instead of `--gff`. |
 | `--gff-features <LIST>` | Feature types to analyze, for example `CDS` or `gene,pseudogene`. |
-| `--quality <N>` | Minimum variant quality. Default: `20`. |
+| `--quality <N>` | Minimum base Phred quality for BAM read support. Default: `20`. |
 | `--min-mapq <N>` | Minimum read mapping quality when using BAM. Default: `0`. |
 | `--snp <N>` | Minimum SNP-supporting reads. Default: `0`. |
 | `--min-snp-frequency <F>` | Minimum BAM-derived SNP frequency, from `0` to `1`. Default: `0`. |
@@ -212,7 +212,7 @@ When a BAM is provided, extra columns report read depth, SNP support, MNV suppor
 | 🧬 MNV detection | Groups SNVs in the same codon and reclassifies as MNVs |
 | 🔬 Accurate AA changes | Computes amino acid changes from the full codon haplotype |
 | 📊 Read support | BAM-based SNP/MNV read counts with strand-specific metrics |
-| 🔍 Strand bias | Fisher exact test (SB, FS, SOR) with configurable filtering |
+| 🔍 Strand bias | Fisher exact p-values for SNP and MNV strand-bias support (`SBP`/`MSBP` in VCF INFO) |
 | 📁 Multiple outputs | TSV, VCF (plain/BGZF+Tabix), BCF, JSON summary, run manifest |
 | ⚡ Parallel | Multi-threaded contig processing with Rayon |
 | 🧪 Genetic codes | 9 NCBI translation tables (1, 2, 3, 4, 5, 6, 11, 12, 25) |
@@ -246,8 +246,8 @@ MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    MNV           No
 
 **Variant types:**
 - **SNP**: single nucleotide change, one SNV per codon
-- **MNV**: all reads carry multiple SNVs together (Multi-Nucleotide Variant)
-- **SNP/MNV**: some reads carry individual SNVs, others carry the MNV combination
+- **MNV**: multiple SNVs are represented as one combined codon haplotype
+- **SNP/MNV**: codon-level row with both individual SNV context and combined MNV haplotype context; with BAM, support columns distinguish the evidence
 - **INDEL**: insertion, deletion, delins, or complex allele; reported with event components, exact BAM support when available, and coding effect when it overlaps an annotated CDS/gene feature
 
 ## Documentation

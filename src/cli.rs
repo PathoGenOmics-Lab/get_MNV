@@ -17,7 +17,7 @@ pub enum VariantInputFormat {
     name = "get_mnv",
     version,
     author = "Paula Ruiz Rodriguez",
-    about = "Identifies SNPs within codons, reclassifies multi-nucleotide variants (MNVs), calculates amino acid changes, and outputs results in TSV/VCF format."
+    about = "Identifies codon-level SNPs/MNVs, annotates indels and complex alleles, calculates amino acid changes, and outputs results in TSV/VCF format."
 )]
 #[command(
     group(
@@ -27,7 +27,7 @@ pub enum VariantInputFormat {
     )
 )]
 pub struct Args {
-    /// Variant input file containing SNPs in VCF/BCF format
+    /// Variant input file containing SNVs/MNVs and indels in plain or BGZF-compressed VCF format
     #[arg(
         short = 'v',
         long = "vcf",
@@ -77,7 +77,7 @@ pub struct Args {
     #[arg(long)]
     pub sample: Option<String>,
 
-    /// Minimum Phred quality (default: 20)
+    /// Minimum base Phred quality for BAM read support (default: 20)
     #[arg(short = 'q', long = "quality", default_value_t = 20)]
     pub min_quality: u8,
 

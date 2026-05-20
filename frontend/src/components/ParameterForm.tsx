@@ -300,7 +300,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
         <ParamGroup title="Quality Filters" accent="#149389">
           <SliderField
             label="Min Phred quality"
-            tip="Minimum base quality score (Phred scale). Variants below this are filtered. 20 ≈ 99% accuracy."
+            tip="Minimum base quality score for BAM read support. Low-quality base observations are ignored. 20 ≈ 99% accuracy."
             value={config.minQuality}
             min={0}
             max={60}
@@ -495,7 +495,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
           />
           <ToggleField
             label="Strand bias INFO"
-            tip="Add strand bias statistics (SB, FS, SOR) to VCF INFO fields for downstream filtering."
+            tip="Add Fisher exact strand-bias p-values to VCF INFO fields (SBP for SNPs, MSBP for MNVs)."
             checked={config.strandBiasInfo}
             onChange={(v) => update("strandBiasInfo", v)}
           />

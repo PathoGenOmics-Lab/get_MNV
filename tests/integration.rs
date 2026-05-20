@@ -1354,6 +1354,17 @@ fn test_e2e_bcf_without_convert_errors() {
 }
 
 #[test]
+fn test_e2e_bcf_input_errors_with_conversion_hint() {
+    let mut args = base_args();
+    args.vcf_file = Some("input.bcf".to_string());
+
+    let err = pipeline::run(&args).expect_err("BCF input should fail");
+    let message = err.to_string();
+    assert!(message.contains("BCF input is not supported"));
+    assert!(message.contains("bcftools view"));
+}
+
+#[test]
 fn test_e2e_frequency_filters_require_bam() {
     let mut args = base_args();
     args.min_snp_frequency = 0.05;

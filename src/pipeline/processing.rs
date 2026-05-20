@@ -85,7 +85,9 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
         VariantInputFormat::Tsv => io::ivar::load_ivar_tsv(variant_file, &references)
             .map_err(reclassify_generic_as_validation)?,
         VariantInputFormat::Vcf | VariantInputFormat::Auto => {
-            // Use fast text parser for plain .vcf files, htslib for .bcf/.vcf.gz
+            // Use the fast text parser for plain .vcf files and the
+            // BGZF-aware parser for .vcf.gz. BCF input is rejected with a
+            // conversion hint.
             if io::vcf_fast::use_fast_parser(variant_file) {
                 io::vcf_fast::load_vcf_text(
                     variant_file,

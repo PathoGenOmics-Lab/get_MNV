@@ -1,8 +1,9 @@
-//! Fast plain-text VCF parser that bypasses htslib for uncompressed `.vcf`
-//! files. Achieves ~10× speedup over htslib by avoiding FFI overhead and
-//! unnecessary header/index parsing.
+//! Fast plain-text VCF parser for uncompressed `.vcf` files. This avoids
+//! unnecessary BGZF/header work and keeps common VCF parsing on the fastest
+//! path.
 //!
-//! Falls back to htslib for `.bcf` and `.vcf.gz` formats.
+//! `.vcf.gz` files are handled by the BGZF-aware parser. BCF input is not
+//! supported; convert BCF to VCF before running get_MNV.
 
 use super::validation::validate_vcf_allele;
 use super::vcf::{normalize_ref_alt, parse_optional_depth, VcfPosition};
@@ -18,7 +19,7 @@ pub fn use_fast_parser(path: &str) -> bool {
 
 /// Parse a plain-text VCF file into positions by contig.
 /// This replicates the behaviour of `load_vcf_positions_by_contig` but operates
-/// on raw text lines instead of htslib records.
+/// on raw text lines instead of the BGZF-aware parser.
 pub fn load_vcf_text(
     vcf_file: &str,
     sample_name: Option<&str>,

@@ -11,8 +11,9 @@ get_mnv \
   (--gff <ANNOTATION_GFF> | --genes <ANNOTATION_TSV>)
 ```
 
-Use `--vcf` for VCF/BCF input and `--tsv` for the `variants.tsv` file produced
-by `ivar variants`.
+Use `--vcf` for plain `.vcf` or BGZF-compressed `.vcf.gz` input and `--tsv`
+for the `variants.tsv` file produced by `ivar variants`. BCF input is not
+accepted directly; convert it to VCF first with `bcftools view`.
 
 ## Common Recipes
 
@@ -72,7 +73,7 @@ features, especially for eukaryotic GFF/GTF files.
 
 | Argument | Meaning |
 |---|---|
-| `--vcf <FILE>` | Variant calls in VCF/BCF format. |
+| `--vcf <FILE>` | Variant calls in plain `.vcf` or `.vcf.gz` format. |
 | `--tsv <FILE>` | iVar `variants.tsv` calls. |
 | `--fasta <FILE>` | Reference FASTA used to call the variants. |
 | `--gff <FILE>` | Gene annotation in GFF/GFF3/GTF format. |
@@ -94,7 +95,7 @@ You must provide either `--gff` or `--genes`.
 
 | Argument | Default | Meaning |
 |---|---:|---|
-| `--quality <N>` | `20` | Minimum variant quality. |
+| `--quality <N>` | `20` | Minimum base Phred quality for BAM read support. |
 | `--min-mapq <N>` | `0` | Minimum mapping quality for BAM reads. |
 | `--snp <N>` | `0` | Minimum SNP-supporting reads. |
 | `--mnv <N>` | `0` | Minimum MNV-supporting reads. |
