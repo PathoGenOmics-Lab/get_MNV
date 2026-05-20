@@ -67,8 +67,9 @@ Filtering:
 - If `PASS` exists, get_MNV keeps truthy values such as `TRUE`, `PASS`, `1`,
   or `YES`.
 - Rows where `REF == ALT` are skipped.
-- iVar indel notation such as `+A` or `-N` is skipped for now. get_MNV is
-  SNV-based.
+- iVar indel notation such as `+SEQ` or `-SEQ` is converted to VCF-like
+  anchored alleles using the FASTA reference, then analysed with the same
+  allele-event model as VCF input.
 - `ALT_FREQ` is reported as original frequency (`OFREQ`). It is separate from
   the BAM-derived frequency filters.
 

@@ -122,10 +122,12 @@ pub(crate) fn parse_gff_attributes(attributes: &str) -> HashMap<String, String> 
     parsed
 }
 
-/// Requires `snp_list` to be sorted by position (guaranteed by `load_vcf_positions_by_contig`).
+/// Return true when any variant event overlaps the interval. Insertions use
+/// their anchor coordinate; deletions use the deleted reference span.
 pub(crate) fn has_snp_in_interval(snp_list: &[VcfPosition], start: usize, end: usize) -> bool {
-    let idx = snp_list.partition_point(|snp| snp.position < start);
-    idx < snp_list.len() && snp_list[idx].position <= end
+    snp_list
+        .iter()
+        .any(|variant| variant.overlaps_interval(start, end))
 }
 
 fn parse_strand(raw: &str, line_number: usize) -> AppResult<crate::variants::Strand> {

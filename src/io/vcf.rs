@@ -5,12 +5,13 @@
 
 use super::validation::validate_vcf_allele;
 use crate::error::AppResult;
+use crate::variants::{decompose_allele, substitution_components, AlleleComponent, AlleleEvent};
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader};
 
 const GET_MNV_INFO_TAGS: &[&str] = &[
     "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
-    "FREQ", "SBP", "MSBP",
+    "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ",
 ];
 
 #[derive(Debug, Clone)]
@@ -21,6 +22,28 @@ pub struct VcfPosition {
     pub original_dp: Option<usize>,
     pub original_freq: Option<f64>,
     pub original_info: Option<String>,
+}
+
+impl VcfPosition {
+    pub fn event(&self) -> AlleleEvent {
+        decompose_allele(self.position, &self.ref_allele, &self.alt_allele)
+    }
+
+    pub fn substitution_components(&self) -> Vec<AlleleComponent> {
+        substitution_components(self.position, &self.ref_allele, &self.alt_allele)
+    }
+
+    pub fn is_single_nucleotide_substitution(&self) -> bool {
+        let components = self.substitution_components();
+        components.len() == 1
+            && self.ref_allele.chars().count() == 1
+            && self.alt_allele.chars().count() == 1
+    }
+
+    pub fn overlaps_interval(&self, start: usize, end: usize) -> bool {
+        let event = self.event();
+        event.affected_start <= end && event.affected_end >= start
+    }
 }
 
 fn parse_optional_freq_token(raw_token: &str) -> Option<f64> {

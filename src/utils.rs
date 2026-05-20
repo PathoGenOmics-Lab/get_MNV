@@ -57,7 +57,7 @@ pub fn determine_change_type(aa_change: &str) -> String {
     }
 }
 
-fn aa_three_letter(code: char) -> &'static str {
+pub(crate) fn aa_three_letter(code: char) -> &'static str {
     match code {
         'A' => "Ala",
         'C' => "Cys",

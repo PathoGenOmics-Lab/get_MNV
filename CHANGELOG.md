@@ -8,10 +8,16 @@ All notable changes to this project are documented in this file.
 - Bumped project, GUI, citation, README, and frontend metadata to version 1.1.4.
 - Updated the Tauri desktop dependency set to the 2.11 patch line, including `tauri` 2.11.2 and `tauri-plugin-dialog` 2.7.1.
 - Updated frontend lockfile dependencies, including `postcss` 8.5.10.
+- Added allele-level event decomposition for `snp`, `mnv`, `insertion`, `deletion`, `delins`, `complex_indel`, and symbolic alleles so length-changing events that also contain SNV/MNV components are represented as a single local haplotype event.
+- iVar TSV inputs now keep insertion and deletion rows by converting `+SEQ` and `-SEQ` alleles into VCF-compatible anchored `REF/ALT` alleles using the FASTA reference.
+- TSV and VCF outputs now include canonical event class/component annotations plus exact BAM-derived event support metrics for indel/complex alleles.
 
 ### Fixed
 - Resolved the frontend security audit by updating vulnerable transitive packages, including `brace-expansion` 5.0.6.
 - Regenerated the Rust lockfile so vulnerable `rand` package entries are no longer present in the resolved dependency graph.
+- VCF records that already encode an MNV as a multi-base `REF/ALT` allele are now decomposed into codon-level haplotypes instead of being treated as generic indels.
+- Indel and complex alleles in coding regions now reconstruct the local alternate CDS sequence, respect strand/phase/protein offset, and report in-frame or frameshift protein effects instead of leaving amino-acid changes blank.
+- BAM support for indels is now counted from the CIGAR-derived observed allele across the event span, including inserted sequence and deleted reference bases.
 
 ## [1.1.3] - 2026-05-11
 

@@ -82,9 +82,8 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
     }
 
     let snp_by_contig = match input_format {
-        VariantInputFormat::Tsv => {
-            io::ivar::load_ivar_tsv(variant_file).map_err(reclassify_generic_as_validation)?
-        }
+        VariantInputFormat::Tsv => io::ivar::load_ivar_tsv(variant_file, &references)
+            .map_err(reclassify_generic_as_validation)?,
         VariantInputFormat::Vcf | VariantInputFormat::Auto => {
             // Use fast text parser for plain .vcf files, htslib for .bcf/.vcf.gz
             if io::vcf_fast::use_fast_parser(variant_file) {
@@ -218,68 +217,141 @@ fn count_gene_variant_reads(
         .filter(|variant| variant.variant_type != VariantType::Indel)
         .flat_map(|variant| variant.positions.iter().copied())
         .collect::<Vec<_>>();
-    if target_positions.is_empty() {
+    let has_indels = variants
+        .iter()
+        .any(|variant| variant.variant_type == VariantType::Indel);
+    if target_positions.is_empty() && !has_indels {
         return Ok((0, 0));
     }
 
     target_positions.sort_unstable();
     target_positions.dedup();
 
-    let cache_key = RegionCacheKey {
-        contig: contig.to_string(),
-        start: gene.start,
-        end: gene.end,
-        positions: target_positions.clone(),
-        min_mapq: args.min_mapq,
-    };
-
-    let (cache, cache_hits, cache_misses) = if let Some(cached) = state.region_cache.get(&cache_key)
-    {
-        (cached.clone(), 1, 0)
+    let mut cache_hits = 0usize;
+    let mut cache_misses = 0usize;
+    let cache = if target_positions.is_empty() {
+        None
     } else {
-        let bam = match state.bam.as_mut() {
-            Some(b) => b,
-            None => {
-                return Err(AppError::validation(
-                    "BAM reader unavailable in worker thread",
-                ))
-            }
+        let cache_key = RegionCacheKey {
+            contig: contig.to_string(),
+            start: gene.start,
+            end: gene.end,
+            positions: target_positions.clone(),
+            min_mapq: args.min_mapq,
         };
-        let bam_header = match state.bam_header.as_ref() {
-            Some(h) => h,
-            None => {
-                return Err(AppError::validation(
-                    "BAM header unavailable in worker thread",
-                ))
-            }
-        };
-        let built = read_count::build_region_observation_cache(
-            bam,
-            bam_header,
-            contig,
-            gene.start,
-            gene.end,
-            &target_positions,
-            args.min_mapq,
-        )
-        .map_err(|e| {
-            AppError::validation(format!(
-                "Failed building read cache for contig '{}' gene '{}' at interval {}-{}: {}",
-                contig, gene.name, gene.start, gene.end, e
-            ))
-        })?;
 
-        let result = built.clone();
-        state.region_cache.put(cache_key, built);
-        (result, 0, 1)
+        let (cache, hits, misses) = if let Some(cached) = state.region_cache.get(&cache_key) {
+            (cached.clone(), 1, 0)
+        } else {
+            let bam = match state.bam.as_mut() {
+                Some(b) => b,
+                None => {
+                    return Err(AppError::validation(
+                        "BAM reader unavailable in worker thread",
+                    ))
+                }
+            };
+            let bam_header = match state.bam_header.as_ref() {
+                Some(h) => h,
+                None => {
+                    return Err(AppError::validation(
+                        "BAM header unavailable in worker thread",
+                    ))
+                }
+            };
+            let built = read_count::build_region_observation_cache(
+                bam,
+                bam_header,
+                contig,
+                gene.start,
+                gene.end,
+                &target_positions,
+                args.min_mapq,
+            )
+            .map_err(|e| {
+                AppError::validation(format!(
+                    "Failed building read cache for contig '{}' gene '{}' at interval {}-{}: {}",
+                    contig, gene.name, gene.start, gene.end, e
+                ))
+            })?;
+
+            let result = built.clone();
+            state.region_cache.put(cache_key, built);
+            (result, 0, 1)
+        };
+        cache_hits += hits;
+        cache_misses += misses;
+        Some(cache)
     };
 
     for variant in variants {
         if variant.variant_type == VariantType::Indel {
+            let bam = match state.bam.as_mut() {
+                Some(b) => b,
+                None => {
+                    return Err(AppError::validation(
+                        "BAM reader unavailable in worker thread",
+                    ))
+                }
+            };
+            let bam_header = match state.bam_header.as_ref() {
+                Some(h) => h,
+                None => {
+                    return Err(AppError::validation(
+                        "BAM header unavailable in worker thread",
+                    ))
+                }
+            };
+            let ref_allele = variant
+                .ref_bases
+                .first()
+                .ok_or_else(|| {
+                    AppError::validation(format!(
+                        "Missing REF allele for indel at contig '{}' gene '{}'",
+                        contig, gene.name
+                    ))
+                })?
+                .clone();
+            let alt_allele = variant
+                .base_changes
+                .first()
+                .ok_or_else(|| {
+                    AppError::validation(format!(
+                        "Missing ALT allele for indel at contig '{}' gene '{}'",
+                        contig, gene.name
+                    ))
+                })?
+                .clone();
+            let position = *variant.positions.first().ok_or_else(|| {
+                AppError::validation(format!(
+                    "Missing position for indel at contig '{}' gene '{}'",
+                    contig, gene.name
+                ))
+            })?;
+            let summary = read_count::count_indel_reads(
+                bam,
+                bam_header,
+                contig,
+                position,
+                &ref_allele,
+                &alt_allele,
+                args.min_quality,
+                args.min_mapq,
+            )
+            .map_err(|e| {
+                AppError::validation(format!(
+                    "Failed counting indel reads for contig '{}' gene '{}' at position {}: {}",
+                    contig, gene.name, position, e
+                ))
+            })?;
+            apply_read_summary(variant, summary);
             continue;
         }
+        let Some(cache) = cache.as_ref() else {
+            continue;
+        };
         let summary = read_count::count_reads_from_cache(
-            &cache,
+            cache,
             &variant.positions,
             &variant.base_changes,
             args.min_quality,

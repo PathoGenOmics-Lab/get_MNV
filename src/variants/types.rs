@@ -245,6 +245,16 @@ pub struct VariantInfo {
     pub original_dp: Option<Vec<usize>>,
     pub original_freq: Option<Vec<f64>>,
     pub original_info: Option<String>,
+    /// Canonical allele event class derived from REF/ALT, e.g. `mnv`,
+    /// `insertion`, `deletion`, `complex_indel`. Kept separate from
+    /// `variant_type` so length-changing events that also contain SNV/MNV
+    /// components can be represented without inventing false downstream MNVs.
+    #[serde(default)]
+    pub event_class: Option<String>,
+    /// Human-readable decomposition of the original allele into event
+    /// components such as `SNV:10:A>G`, `INS:10:+T` or `DEL:11-12:TG`.
+    #[serde(default)]
+    pub event_components: Vec<String>,
 }
 
 #[cfg(test)]

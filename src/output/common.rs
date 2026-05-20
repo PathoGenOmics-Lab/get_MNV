@@ -2,7 +2,7 @@
 //! test, VCF entry formatting, variant shape validation, and header generation.
 
 use crate::error::AppResult;
-use crate::variants::VariantInfo;
+use crate::variants::{VariantInfo, VariantType};
 use std::io::Write;
 
 /// INFO keys emitted by get_mnv itself. Original VCF fields with these names
@@ -27,6 +27,13 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "OFREQ"
             | "DP"
             | "FREQ"
+            | "EC"
+            | "COMP"
+            | "ER"
+            | "ERF"
+            | "ERR"
+            | "EDP"
+            | "EFREQ"
     )
 }
 
@@ -166,12 +173,34 @@ pub(crate) fn build_info_string(
         builder.push("MSBP", format!("{msbp:.6}"));
     }
 
+    if let Some(event_class) = variant.event_class.as_deref() {
+        builder.push("EC", event_class);
+    }
+    if !variant.event_components.is_empty() {
+        builder.push("COMP", variant.event_components.join("|"));
+    }
+
     push_original_metrics(&mut builder, variant, original_index);
 
     if let (Some(dp), Some(support)) = (depth, support_reads) {
         let freq = allele_frequency(support, dp);
         builder.push("DP", dp);
         builder.push("FREQ", format_freq(freq));
+    }
+
+    if variant.variant_type == VariantType::Indel {
+        if let (Some(reads), Some(forward), Some(reverse), Some(depth)) = (
+            variant.mnv_reads,
+            variant.mnv_forward_reads,
+            variant.mnv_reverse_reads,
+            variant.mnv_total_reads,
+        ) {
+            builder.push("ER", reads);
+            builder.push("ERF", forward);
+            builder.push("ERR", reverse);
+            builder.push("EDP", depth);
+            builder.push("EFREQ", format_freq(allele_frequency(reads, depth)));
+        }
     }
 
     // Append original INFO fields from the input VCF (if --keep-original-info).
@@ -470,6 +499,14 @@ pub(crate) fn write_info_header(
     )?;
     writeln!(
         writer,
+        "##INFO=<ID=EC,Number=1,Type=String,Description=\"Canonical allele event class derived from REF/ALT\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=COMP,Number=.,Type=String,Description=\"Allele event components derived from REF/ALT\">"
+    )?;
+    writeln!(
+        writer,
         "##INFO=<ID=ODP,Number=.,Type=Integer,Description=\"Original depth from input VCF\">"
     )?;
     writeln!(
@@ -508,6 +545,26 @@ pub(crate) fn write_info_header(
         writeln!(
             writer,
             "##INFO=<ID=FREQ,Number=1,Type=Float,Description=\"Calculated allele frequency from BAM at the site\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=ER,Number=1,Type=Integer,Description=\"Exact event read count for indel/complex alleles\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=ERF,Number=1,Type=Integer,Description=\"Exact event forward read count for indel/complex alleles\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=ERR,Number=1,Type=Integer,Description=\"Exact event reverse read count for indel/complex alleles\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=EDP,Number=1,Type=Integer,Description=\"Exact event depth for indel/complex alleles\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=EFREQ,Number=1,Type=Float,Description=\"Exact event allele frequency for indel/complex alleles\">"
         )?;
         if include_strand_bias_info {
             writeln!(
@@ -562,6 +619,8 @@ mod tests {
             original_dp: Some(vec![30]),
             original_freq: Some(vec![0.25]),
             original_info: None,
+            event_class: Some("snp".to_string()),
+            event_components: vec!["SNV:100:A>T".to_string()],
         }
     }
 

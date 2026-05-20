@@ -30,6 +30,8 @@ Main columns:
 | `Reference Codon` | Original codon. |
 | `SNP Codon` | Codon with individual SNP substitutions. |
 | `MNV Codon` | Codon with all grouped substitutions. |
+| `Event Class` | Canonical allele event class: `snp`, `mnv`, `insertion`, `deletion`, `delins`, `complex_indel`, or `symbolic`. |
+| `Event Components` | REF/ALT decomposition such as `SNV:10:A>G`, `INS:10:+T`, or `DEL:11-12:TG`. |
 
 Extra columns when `--bam` is used:
 
@@ -42,6 +44,10 @@ Extra columns when `--bam` is used:
 | `Total Reads` | Depth at the variant positions. |
 | `SNP Frequencies` | Per-position SNP frequencies. |
 | `MNV Frequencies` | MNV haplotype frequency. |
+| `Event Reads` | Exact reads supporting an indel/complex event. |
+| `Event Forward/Reverse Reads` | Strand-specific exact event support. |
+| `Event Depth` | Reads with an observed allele across the indel/complex event span. |
+| `Event Frequency` | Exact event reads divided by event depth. |
 
 Frequency columns are calculated from BAM support. `--min-snp-frequency` and
 `--min-mnv-frequency` use these same BAM-derived values. The filters are
@@ -94,12 +100,17 @@ Common INFO fields:
 | `AA` | Amino acid change |
 | `CT` | Change type |
 | `TYPE` | Variant type |
+| `EC` | Canonical allele event class |
+| `COMP` | REF/ALT event components |
 | `ODP` | Original depth from the input variant file |
 | `OFREQ` | Original allele frequency from the input variant file |
 | `SR`, `SRF`, `SRR` | SNP reads: total, forward, reverse |
 | `MR`, `MRF`, `MRR` | MNV reads: total, forward, reverse |
 | `DP` | Depth recalculated from BAM |
 | `FREQ` | Frequency recalculated from BAM |
+| `ER`, `ERF`, `ERR` | Exact indel/complex event reads: total, forward, reverse |
+| `EDP` | Exact event depth for indel/complex alleles |
+| `EFREQ` | Exact event frequency for indel/complex alleles |
 | `SBP` | SNP strand-bias p-value |
 | `MSBP` | MNV strand-bias p-value |
 

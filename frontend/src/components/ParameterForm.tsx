@@ -471,7 +471,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
         <ParamGroup title="Analysis Options" accent="#149389">
           <ToggleField
             label="Normalize alleles"
-            tip="Left-align and trim VCF alleles before analysis. iVar TSV SNVs are already position-based."
+            tip="Left-align and trim VCF alleles before analysis. iVar TSV alleles are converted to VCF-like REF/ALT internally."
             checked={config.normalizeAlleles}
             onChange={(v) => update("normalizeAlleles", v)}
           />

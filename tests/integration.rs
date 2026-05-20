@@ -163,13 +163,16 @@ chr1\t8\tC\t+A\t1\t9\t0.9\t10\tTRUE\n",
     args.output_prefix = Some("ivar_out".to_string());
 
     let summary = pipeline::run(&args).expect("iVar TSV pipeline should succeed");
-    assert_eq!(summary.global.snp_records_in_vcf, 3);
-    assert_eq!(summary.global.produced_variants, 1);
+    assert_eq!(summary.global.snp_records_in_vcf, 4);
+    assert_eq!(summary.global.produced_variants, 2);
     assert_eq!(summary.global.snp_mnv_variants, 1);
+    assert_eq!(summary.global.indel_variants, 1);
 
     let tsv_content = fs::read_to_string(tmp.join("ivar_out.MNV.tsv")).expect("read TSV");
     assert!(tsv_content.contains("4, 5, 6"));
     assert!(tsv_content.contains("SNP/MNV"));
+    assert!(tsv_content.contains("insertion"));
+    assert!(tsv_content.contains("INS:8:+A"));
 
     fs::remove_dir_all(&tmp).ok();
 }

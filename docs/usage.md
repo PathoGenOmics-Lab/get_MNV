@@ -145,7 +145,8 @@ Read-count and strand-support filters follow the same rule: `--snp` and
 ## Notes
 
 - Contig names must match exactly across the variant file, FASTA, GFF, and BAM.
-- iVar TSV parsing keeps passing SNV rows and skips iVar indel notation such as
-  `+A` or `-N`.
+- iVar TSV parsing keeps passing SNV and indel rows. Indel notation such as
+  `+SEQ` or `-SEQ` is converted to VCF-like anchored `REF/ALT` alleles using
+  the FASTA reference.
 - If you use `--genes`, the annotation TSV has no contig column. For
   multi-contig data, prefer `--gff`.

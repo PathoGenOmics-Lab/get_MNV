@@ -131,6 +131,124 @@ fn get_query_pos(rec: &bam::Record, pos: usize) -> Option<usize> {
     None
 }
 
+#[derive(Debug, Clone)]
+struct ObservedAllele {
+    allele: String,
+    min_quality: u8,
+}
+
+fn observed_allele_for_ref_span(
+    rec: &bam::Record,
+    pos: usize,
+    ref_len: usize,
+) -> Option<ObservedAllele> {
+    if pos == 0 || ref_len == 0 {
+        return None;
+    }
+    let target_start = (pos - 1) as i64;
+    let target_end = target_start + ref_len as i64;
+    let rec_start: i64 = rec
+        .alignment_start()
+        .and_then(|p| p.ok())
+        .map(|p| {
+            let v: usize = p.into();
+            v as i64 - 1
+        })
+        .unwrap_or(0);
+
+    let seq = rec.sequence();
+    let qual = rec.quality_scores();
+    let seq_len = seq.len();
+    let mut bases: Vec<Option<(char, u8)>> = vec![None; ref_len];
+    let mut deleted: Vec<bool> = vec![false; ref_len];
+    let mut insertions_after: Vec<Vec<(char, u8)>> = vec![Vec::new(); ref_len];
+
+    let mut ref_pos = rec_start;
+    let mut query_pos = 0usize;
+
+    for op_result in rec.cigar().iter() {
+        let op: noodles::sam::alignment::record::cigar::Op = op_result.ok()?;
+        let len = op.len();
+        match op.kind() {
+            Kind::Match | Kind::SequenceMatch | Kind::SequenceMismatch => {
+                for offset in 0..len {
+                    let current_ref = ref_pos + offset as i64;
+                    if current_ref >= target_start && current_ref < target_end {
+                        let idx = (current_ref - target_start) as usize;
+                        let qidx = query_pos + offset;
+                        if qidx < seq_len {
+                            let base = seq.iter().nth(qidx)? as char;
+                            let q = qual.iter().nth(qidx).unwrap_or(0);
+                            bases[idx] = Some((base, q));
+                        }
+                    }
+                }
+                ref_pos += len as i64;
+                query_pos += len;
+            }
+            Kind::Insertion => {
+                let anchor_ref = ref_pos - 1;
+                if anchor_ref >= target_start && anchor_ref < target_end {
+                    let idx = (anchor_ref - target_start) as usize;
+                    for offset in 0..len {
+                        let qidx = query_pos + offset;
+                        if qidx < seq_len {
+                            let base = seq.iter().nth(qidx)? as char;
+                            let q = qual.iter().nth(qidx).unwrap_or(0);
+                            insertions_after[idx].push((base, q));
+                        }
+                    }
+                }
+                query_pos += len;
+            }
+            Kind::SoftClip => {
+                query_pos += len;
+            }
+            Kind::Deletion | Kind::Skip => {
+                for offset in 0..len {
+                    let current_ref = ref_pos + offset as i64;
+                    if current_ref >= target_start && current_ref < target_end {
+                        let idx = (current_ref - target_start) as usize;
+                        deleted[idx] = true;
+                    }
+                }
+                ref_pos += len as i64;
+            }
+            Kind::HardClip | Kind::Pad => {}
+        }
+    }
+
+    let mut allele = String::new();
+    let mut min_quality = u8::MAX;
+    let mut saw_observed_base = false;
+
+    for idx in 0..ref_len {
+        if let Some((base, q)) = bases[idx] {
+            allele.push(base.to_ascii_uppercase());
+            min_quality = min_quality.min(q);
+            saw_observed_base = true;
+        } else if deleted[idx] {
+            // Deleted reference bases contribute no query base to the allele.
+        } else {
+            return None;
+        }
+
+        for (base, q) in &insertions_after[idx] {
+            allele.push(base.to_ascii_uppercase());
+            min_quality = min_quality.min(*q);
+            saw_observed_base = true;
+        }
+    }
+
+    if !saw_observed_base {
+        return None;
+    }
+    Some(ObservedAllele {
+        allele,
+        min_quality,
+    })
+}
+
 fn increment_directional_count(
     forward_supported: bool,
     reverse_supported: bool,
@@ -143,6 +261,106 @@ fn increment_directional_count(
         (true, true) => *forward_count += 1,
         (false, false) => {}
     }
+}
+
+pub fn count_indel_reads(
+    bam_reader: &mut bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>,
+    header: &Header,
+    chrom: &str,
+    position: usize,
+    ref_allele: &str,
+    alt_allele: &str,
+    min_phred_quality: u8,
+    min_mapq: u8,
+) -> AppResult<ReadCountSummary> {
+    if position == 0 || ref_allele.is_empty() {
+        return Err(AppError::validation(format!(
+            "Invalid indel allele for read counting at {chrom}:{position} REF='{ref_allele}' ALT='{alt_allele}'"
+        )));
+    }
+
+    let end = position + ref_allele.len().saturating_sub(1);
+    let region_str = format!("{chrom}:{position}-{end}");
+    let region: noodles::core::Region = region_str
+        .parse()
+        .map_err(|e| AppError::validation(format!("Invalid region '{region_str}': {e}")))?;
+    let mut query = bam_reader
+        .query(header, &region)
+        .map_err(|e| AppError::validation(format!("BAM query failed for {region_str}: {e}")))?;
+
+    let mut unique_total: HashSet<Rc<ReadKey>> = HashSet::new();
+    let mut unique_total_forward: HashSet<Rc<ReadKey>> = HashSet::new();
+    let mut unique_total_reverse: HashSet<Rc<ReadKey>> = HashSet::new();
+    let mut unique_alt: HashSet<Rc<ReadKey>> = HashSet::new();
+    let mut unique_alt_forward: HashSet<Rc<ReadKey>> = HashSet::new();
+    let mut unique_alt_reverse: HashSet<Rc<ReadKey>> = HashSet::new();
+
+    let mut record = bam::Record::default();
+    while query
+        .read_record(&mut record)
+        .map_err(|e| AppError::validation(format!("BAM read error: {e}")))?
+        != 0
+    {
+        let flags = record.flags();
+        if flags.is_duplicate() || flags.is_secondary() || flags.is_supplementary() {
+            continue;
+        }
+        let mapq = record
+            .mapping_quality()
+            .map(|q: noodles::sam::alignment::record::MappingQuality| q.get())
+            .unwrap_or(255);
+        if mapq < min_mapq {
+            continue;
+        }
+
+        let Some(observed) = observed_allele_for_ref_span(&record, position, ref_allele.len())
+        else {
+            continue;
+        };
+        if observed.min_quality < min_phred_quality {
+            continue;
+        }
+
+        let key = Rc::new(build_read_key(&record));
+        let is_reverse = flags.is_reverse_complemented();
+        unique_total.insert(key.clone());
+        if is_reverse {
+            unique_total_reverse.insert(key.clone());
+        } else {
+            unique_total_forward.insert(key.clone());
+        }
+
+        if observed.allele.eq_ignore_ascii_case(alt_allele) {
+            unique_alt.insert(key.clone());
+            if is_reverse {
+                unique_alt_reverse.insert(key);
+            } else {
+                unique_alt_forward.insert(key);
+            }
+        }
+    }
+
+    let alt_count = unique_alt.len();
+    let alt_forward = unique_alt_forward.len();
+    let alt_reverse = unique_alt_reverse.len();
+    let total = unique_total.len();
+    let total_forward = unique_total_forward.len();
+    let total_reverse = unique_total_reverse.len();
+
+    Ok(ReadCountSummary {
+        snp_counts: vec![alt_count],
+        mnv_count: alt_count,
+        total_reads: vec![total],
+        total_forward_reads: vec![total_forward],
+        total_reverse_reads: vec![total_reverse],
+        snp_forward_counts: vec![alt_forward],
+        snp_reverse_counts: vec![alt_reverse],
+        mnv_forward_count: alt_forward,
+        mnv_reverse_count: alt_reverse,
+        mnv_total_reads: total,
+        mnv_total_forward_reads: total_forward,
+        mnv_total_reverse_reads: total_reverse,
+    })
 }
 
 fn normalize_positions(positions: &[usize]) -> AppResult<Vec<usize>> {

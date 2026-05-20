@@ -2,7 +2,7 @@
 //! acid change calculation.
 
 use super::types::*;
-use crate::utils::{determine_change_type, iupac_aa, reverse_complement};
+use crate::utils::{aa_three_letter, determine_change_type, iupac_aa, reverse_complement};
 use std::collections::BTreeMap;
 
 /// Merge `original_info` from all SNPs in a codon group.
@@ -37,6 +37,239 @@ fn collect_all_f64(values: impl Iterator<Item = Option<f64>>) -> Option<Vec<f64>
         out.push(value?);
     }
     Some(out)
+}
+
+fn event_metadata(position: usize, ref_allele: &str, alt_allele: &str) -> (String, Vec<String>) {
+    let event = crate::variants::decompose_allele(position, ref_allele, alt_allele);
+    (event.class.as_str().to_string(), event.component_labels())
+}
+
+fn variant_event_metadata(variant: &crate::io::VcfPosition) -> (String, Vec<String>) {
+    event_metadata(variant.position, &variant.ref_allele, &variant.alt_allele)
+}
+
+fn translate_cds(seq: &str, genetic_code: crate::genetic_code::GeneticCode) -> String {
+    let mut protein = String::with_capacity(seq.len() / 3);
+    for codon in seq.as_bytes().chunks_exact(3) {
+        let codon = [
+            codon[0].to_ascii_uppercase(),
+            codon[1].to_ascii_uppercase(),
+            codon[2].to_ascii_uppercase(),
+        ];
+        protein.push(genetic_code.translate(&codon));
+    }
+    protein
+}
+
+fn aa_segment_three_letter(segment: &[char]) -> String {
+    segment
+        .iter()
+        .map(|aa| aa_three_letter(*aa))
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+fn describe_protein_change(
+    ref_protein: &str,
+    alt_protein: &str,
+    protein_offset: usize,
+    frameshift: bool,
+) -> (String, String) {
+    if ref_protein == alt_protein {
+        if frameshift {
+            let ref_chars: Vec<char> = ref_protein.chars().collect();
+            let idx = ref_chars.len().saturating_sub(1);
+            let local_pos = idx + 1;
+            let protein_pos = protein_offset + local_pos;
+            let ref_aa = ref_chars.get(idx).copied().unwrap_or('X');
+            return (
+                format!("{}{}fs", aa_three_letter(ref_aa), protein_pos),
+                format!("{}{}fs", aa_three_letter(ref_aa), local_pos),
+            );
+        }
+        return ("Synonymous".to_string(), "Synonymous".to_string());
+    }
+
+    let ref_chars: Vec<char> = ref_protein.chars().collect();
+    let alt_chars: Vec<char> = alt_protein.chars().collect();
+    let mut prefix = 0usize;
+    while prefix < ref_chars.len()
+        && prefix < alt_chars.len()
+        && ref_chars[prefix] == alt_chars[prefix]
+    {
+        prefix += 1;
+    }
+
+    let local_pos = prefix + 1;
+    let protein_pos = protein_offset + local_pos;
+    let ref_aa = ref_chars.get(prefix).copied().unwrap_or('X');
+    let alt_aa = alt_chars.get(prefix).copied().unwrap_or('X');
+
+    if frameshift {
+        let local = format!(
+            "{}{}{}fs",
+            aa_three_letter(ref_aa),
+            local_pos,
+            aa_three_letter(alt_aa)
+        );
+        let protein = format!(
+            "{}{}{}fs",
+            aa_three_letter(ref_aa),
+            protein_pos,
+            aa_three_letter(alt_aa)
+        );
+        return (protein, local);
+    }
+
+    let mut suffix = 0usize;
+    while suffix + prefix < ref_chars.len()
+        && suffix + prefix < alt_chars.len()
+        && ref_chars[ref_chars.len() - 1 - suffix] == alt_chars[alt_chars.len() - 1 - suffix]
+    {
+        suffix += 1;
+    }
+
+    let ref_mid_end = ref_chars.len().saturating_sub(suffix);
+    let alt_mid_end = alt_chars.len().saturating_sub(suffix);
+    let ref_mid = &ref_chars[prefix..ref_mid_end];
+    let alt_mid = &alt_chars[prefix..alt_mid_end];
+
+    let build = |start_pos: usize| -> String {
+        if ref_mid.len() == 1 && alt_mid.len() == 1 {
+            return format!(
+                "{}{}{}",
+                aa_three_letter(ref_mid[0]),
+                start_pos,
+                aa_three_letter(alt_mid[0])
+            );
+        }
+
+        let end_pos = start_pos + ref_mid.len().saturating_sub(1);
+        let ref_start = ref_mid.first().copied().unwrap_or(ref_aa);
+        let ref_end = ref_mid.last().copied().unwrap_or(ref_aa);
+        let ref_range = if start_pos == end_pos {
+            format!("{}{}", aa_three_letter(ref_start), start_pos)
+        } else {
+            format!(
+                "{}{}_{}{}",
+                aa_three_letter(ref_start),
+                start_pos,
+                aa_three_letter(ref_end),
+                end_pos
+            )
+        };
+
+        if ref_mid.is_empty() {
+            let anchor = start_pos.saturating_sub(1);
+            format!(
+                "{anchor}_{start_pos}ins{}",
+                aa_segment_three_letter(alt_mid)
+            )
+        } else if alt_mid.is_empty() {
+            format!("{ref_range}del")
+        } else {
+            format!("{ref_range}delins{}", aa_segment_three_letter(alt_mid))
+        }
+    };
+
+    (build(protein_pos), build(local_pos))
+}
+
+fn coding_sequence_for_gene(gene: &Gene, reference: &crate::io::Reference<'_>) -> Option<String> {
+    let (eff_start, eff_end) = effective_bounds(gene);
+    if eff_start == 0 || eff_end == 0 || eff_start > eff_end || eff_end > reference.sequence.len() {
+        return None;
+    }
+    let genomic = &reference.sequence[(eff_start - 1)..eff_end];
+    Some(match gene.strand {
+        Strand::Plus => genomic.to_string(),
+        Strand::Minus => reverse_complement(genomic),
+    })
+}
+
+fn apply_allele_to_feature(
+    gene: &Gene,
+    reference: &crate::io::Reference<'_>,
+    variant: &crate::io::VcfPosition,
+) -> Option<String> {
+    let (eff_start, eff_end) = effective_bounds(gene);
+    if variant.position < eff_start {
+        return None;
+    }
+    let ref_end = variant.position + variant.ref_allele.len().saturating_sub(1);
+    if ref_end > eff_end || eff_end > reference.sequence.len() {
+        return None;
+    }
+
+    let mut genomic = reference.sequence[(eff_start - 1)..eff_end].to_string();
+    let local_start = variant.position - eff_start;
+    let local_end = local_start + variant.ref_allele.len();
+    if local_end > genomic.len() {
+        return None;
+    }
+    genomic.replace_range(local_start..local_end, &variant.alt_allele);
+
+    Some(match gene.strand {
+        Strand::Plus => genomic,
+        Strand::Minus => reverse_complement(&genomic),
+    })
+}
+
+fn protein_effect_for_indel(
+    gene: &Gene,
+    reference: &crate::io::Reference<'_>,
+    variant: &crate::io::VcfPosition,
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> (Vec<String>, Vec<String>, Option<String>, Option<String>) {
+    let Some(ref_cds) = coding_sequence_for_gene(gene, reference) else {
+        return (
+            vec!["Unknown".to_string()],
+            vec!["Unknown".to_string()],
+            None,
+            None,
+        );
+    };
+    let Some(alt_cds) = apply_allele_to_feature(gene, reference, variant) else {
+        return (
+            vec!["Unknown".to_string()],
+            vec!["Unknown".to_string()],
+            None,
+            None,
+        );
+    };
+
+    let frameshift = (alt_cds.len() as isize - ref_cds.len() as isize) % 3 != 0;
+    let ref_protein = translate_cds(&ref_cds, genetic_code);
+    let alt_protein = translate_cds(&alt_cds, genetic_code);
+    let (protein_change, local_change) =
+        describe_protein_change(&ref_protein, &alt_protein, gene.protein_offset, frameshift);
+
+    let first_codon_start = {
+        let (eff_start, eff_end) = effective_bounds(gene);
+        let anchor = variant.position.clamp(eff_start, eff_end);
+        codon_bounds_for_position(gene, anchor).map(|(start, _)| start)
+    };
+
+    let (ref_codon, alt_codon) = if let Some(codon_start) = first_codon_start {
+        let (eff_start, eff_end) = effective_bounds(gene);
+        let codon_end = codon_start + 2;
+        let local = match gene.strand {
+            Strand::Plus => codon_start.saturating_sub(eff_start),
+            Strand::Minus => eff_end.saturating_sub(codon_end),
+        };
+        let ref_codon = ref_cds.get(local..local + 3).map(str::to_string);
+        let alt_codon = alt_cds.get(local..local + 3).map(str::to_string);
+        (ref_codon, alt_codon)
+    } else {
+        (None, None)
+    };
+
+    (
+        vec![protein_change],
+        vec![local_change],
+        ref_codon,
+        alt_codon,
+    )
 }
 
 fn construct_codon(codon_info: &CodonInfo, target_snps: &[&Snp]) -> String {
@@ -105,6 +338,8 @@ pub fn process_codon(
             original_dp: None,
             original_freq: None,
             original_info: None,
+            event_class: None,
+            event_components: Vec::new(),
         };
     }
     let ref_codon = codon_info.original_codon.clone();
@@ -223,6 +458,16 @@ pub fn process_codon(
         original_dp: collect_all_usize(codon_info.codon_list.iter().map(|s| s.original_dp)),
         original_freq: collect_all_f64(codon_info.codon_list.iter().map(|s| s.original_freq)),
         original_info: merge_original_info(&codon_info.codon_list),
+        event_class: Some(if codon_info.codon_list.len() == 1 {
+            "snp".to_string()
+        } else {
+            "mnv".to_string()
+        }),
+        event_components: codon_info
+            .codon_list
+            .iter()
+            .map(|s| format!("SNV:{}:{}>{}", s.position, s.ref_base, s.base))
+            .collect(),
     }
 }
 
@@ -318,35 +563,36 @@ pub fn get_mnv_variants_for_gene(
 
     for variant in snp_list
         .iter()
-        .filter(|snp| snp.position >= gene.start && snp.position <= gene.end)
+        .filter(|variant| variant.overlaps_interval(gene.start, gene.end))
     {
-        let is_snp = variant.ref_allele.len() == 1
-            && variant.alt_allele.len() == 1
-            && !variant.alt_allele.starts_with('<');
-        if is_snp {
-            if let Some((codon_start, _)) = codon_bounds_for_position(gene, variant.position) {
-                let group = codon_to_snps.entry(codon_start).or_default();
-                // After --split-multiallelic, two ALT alleles at the same
-                // position produce separate VCF records.  Only keep the first
-                // ALT per position within each codon group — otherwise
-                // construct_codon would overwrite the same base twice, and the
-                // MNV annotation would be incorrect.
-                if !group.iter().any(|s| s.position == variant.position) {
-                    group.push(crate::variants::Snp {
-                        index: variant.position,
-                        position: variant.position,
-                        ref_base: variant.ref_allele.clone(),
-                        base: variant.alt_allele.clone(),
-                        original_dp: variant.original_dp,
-                        original_freq: variant.original_freq,
-                        original_info: variant.original_info.clone(),
-                    });
-                } else {
-                    log::debug!(
-                        "Skipping duplicate ALT at position {} in gene '{}' (multi-allelic split)",
-                        variant.position,
-                        gene.name
-                    );
+        let substitutions = variant.substitution_components();
+        if !substitutions.is_empty() {
+            for component in substitutions {
+                if let Some((codon_start, _)) = codon_bounds_for_position(gene, component.position)
+                {
+                    let group = codon_to_snps.entry(codon_start).or_default();
+                    // After --split-multiallelic, two ALT alleles at the same
+                    // position produce separate VCF records.  Only keep the first
+                    // ALT per position within each codon group — otherwise
+                    // construct_codon would overwrite the same base twice, and the
+                    // MNV annotation would be incorrect.
+                    if !group.iter().any(|s| s.position == component.position) {
+                        group.push(crate::variants::Snp {
+                            index: component.position,
+                            position: component.position,
+                            ref_base: component.ref_allele,
+                            base: component.alt_allele,
+                            original_dp: variant.original_dp,
+                            original_freq: variant.original_freq,
+                            original_info: variant.original_info.clone(),
+                        });
+                    } else {
+                        log::debug!(
+                            "Skipping duplicate ALT at position {} in gene '{}' (multi-allelic split)",
+                            component.position,
+                            gene.name
+                        );
+                    }
                 }
             }
         } else {
@@ -382,8 +628,8 @@ pub fn get_mnv_variants_for_gene(
         let codon_seq = &reference.sequence[(codon_start - 1)..codon_end];
 
         let overlaps_indel = indels.iter().any(|indel| {
-            let indel_end = indel.position + indel.ref_allele.len() - 1;
-            indel.position <= codon_end && indel_end >= codon_start
+            let event = indel.event();
+            event.affected_start <= codon_end && event.affected_end >= codon_start
         });
 
         let mut upstream_shift: isize = 0;
@@ -467,6 +713,9 @@ pub fn get_mnv_variants_for_gene(
         } else {
             ChangeType::InFrameIndel
         };
+        let (aa_changes, aa_changes_local, ref_codon, alt_codon) =
+            protein_effect_for_indel(gene, reference, &indel, genetic_code);
+        let (event_class, event_components) = variant_event_metadata(&indel);
 
         variants.push(VariantInfo {
             chrom: chrom.to_string(),
@@ -474,9 +723,9 @@ pub fn get_mnv_variants_for_gene(
             positions: vec![indel.position],
             ref_bases: vec![indel.ref_allele.clone()],
             base_changes: vec![indel.alt_allele.clone()],
-            aa_changes: vec!["-".to_string()],
+            aa_changes,
             snp_aa_changes: vec!["-".to_string()],
-            aa_changes_local: vec!["-".to_string()],
+            aa_changes_local,
             snp_aa_changes_local: vec!["-".to_string()],
             variant_type: VariantType::Indel,
             change_type,
@@ -492,12 +741,14 @@ pub fn get_mnv_variants_for_gene(
             total_reverse_reads: None,
             mnv_total_forward_reads: None,
             mnv_total_reverse_reads: None,
-            ref_codon: None,
+            ref_codon,
             snp_codon: None,
-            mnv_codon: None,
+            mnv_codon: alt_codon,
             original_dp: indel.original_dp.map(|value| vec![value]),
             original_freq: indel.original_freq.map(|value| vec![value]),
             original_info: indel.original_info.clone(),
+            event_class: Some(event_class),
+            event_components,
         });
     }
 
@@ -508,14 +759,11 @@ pub fn get_mnv_variants_for_gene(
 /// genes (intergenic).  The entry preserves the original position, alleles and
 /// any original metrics but has no codon / amino-acid annotation.
 pub fn build_intergenic_variant(chrom: &str, vcf_pos: &crate::io::VcfPosition) -> VariantInfo {
-    let is_snp = vcf_pos.ref_allele.len() == 1
-        && vcf_pos.alt_allele.len() == 1
-        && !vcf_pos.alt_allele.starts_with('<');
-
-    let variant_type = if is_snp {
-        VariantType::Snp
-    } else {
-        VariantType::Indel
+    let event = vcf_pos.event();
+    let variant_type = match event.class {
+        crate::variants::AlleleEventClass::Snp => VariantType::Snp,
+        crate::variants::AlleleEventClass::Mnv => VariantType::Mnv,
+        _ => VariantType::Indel,
     };
 
     VariantInfo {
@@ -548,6 +796,8 @@ pub fn build_intergenic_variant(chrom: &str, vcf_pos: &crate::io::VcfPosition) -
         original_dp: vcf_pos.original_dp.map(|dp| vec![dp]),
         original_freq: vcf_pos.original_freq.map(|freq| vec![freq]),
         original_info: vcf_pos.original_info.clone(),
+        event_class: Some(event.class.as_str().to_string()),
+        event_components: event.component_labels(),
     }
 }
 
@@ -670,6 +920,78 @@ mod tests {
         assert_eq!("+".parse::<Strand>(), Ok(Strand::Plus));
         assert_eq!("-".parse::<Strand>(), Ok(Strand::Minus));
         assert!("?".parse::<Strand>().is_err());
+    }
+
+    #[test]
+    fn test_vcf_mnv_record_is_decomposed_into_codon_haplotype() {
+        let gene = Gene {
+            name: "cds".to_string(),
+            start: 1,
+            end: 9,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+        };
+        let reference = crate::io::Reference {
+            sequence: "ATGAAATTT",
+        };
+        let variants = crate::variants::get_mnv_variants_for_gene(
+            &gene,
+            &[crate::io::VcfPosition {
+                position: 4,
+                ref_allele: "AA".to_string(),
+                alt_allele: "CC".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            }],
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+
+        assert_eq!(variants.len(), 1);
+        assert_eq!(variants[0].positions, vec![4, 5]);
+        assert_eq!(variants[0].event_class.as_deref(), Some("mnv"));
+        assert_eq!(
+            variants[0].event_components,
+            vec!["SNV:4:A>C".to_string(), "SNV:5:A>C".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_indel_reports_event_components_and_frameshift_protein_effect() {
+        let gene = Gene {
+            name: "cds".to_string(),
+            start: 1,
+            end: 9,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+        };
+        let reference = crate::io::Reference {
+            sequence: "ATGAAATTT",
+        };
+        let variants = crate::variants::get_mnv_variants_for_gene(
+            &gene,
+            &[crate::io::VcfPosition {
+                position: 6,
+                ref_allele: "A".to_string(),
+                alt_allele: "AT".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            }],
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+
+        assert_eq!(variants.len(), 1);
+        assert_eq!(variants[0].variant_type, VariantType::Indel);
+        assert_eq!(variants[0].event_class.as_deref(), Some("insertion"));
+        assert_eq!(variants[0].event_components, vec!["INS:6:+T".to_string()]);
+        assert!(variants[0].aa_changes[0].contains("fs"));
     }
 
     #[test]

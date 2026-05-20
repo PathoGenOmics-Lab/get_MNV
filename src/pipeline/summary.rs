@@ -201,6 +201,8 @@ mod tests {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            event_class: Some(vtype.to_string().to_ascii_lowercase()),
+            event_components: Vec::new(),
         }
     }
 

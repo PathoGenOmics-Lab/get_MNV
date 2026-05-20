@@ -440,9 +440,26 @@ impl VcfWriter {
         let ref_base = get_required(&variant.ref_bases, 0, "ref_bases", variant)?;
         let alt_base = get_required(&variant.base_changes, 0, "base_changes", variant)?;
         let pos = *get_required(&variant.positions, 0, "positions", variant)?;
+        let filters = if self.bam_provided {
+            self.build_support_filters(SupportFilterInput {
+                support_reads: variant.mnv_reads.unwrap_or(0),
+                min_reads: self.min_mnv_reads,
+                depth: variant.mnv_total_reads.unwrap_or(0),
+                min_frequency: self.min_mnv_frequency,
+                forward_reads: variant.mnv_forward_reads.unwrap_or(0),
+                reverse_reads: variant.mnv_reverse_reads.unwrap_or(0),
+                min_strand_reads: self.min_mnv_strand_reads,
+                strand_bias_p: None,
+            })
+        } else {
+            Vec::new()
+        };
+        if !self.should_emit_record(&filters) {
+            return Ok(());
+        }
         let info = build_info_string(
             variant,
-            None,
+            variant.aa_changes.first().map(String::as_str),
             VariantType::Indel.as_str(),
             None,
             None,
@@ -453,7 +470,8 @@ impl VcfWriter {
             None,
             variant.original_info.as_deref(),
         );
-        self.write_variant_line(&variant.chrom, pos, ref_base, alt_base, "PASS", &info)
+        let filter = filter_value(&filters);
+        self.write_variant_line(&variant.chrom, pos, ref_base, alt_base, &filter, &info)
     }
 
     fn write_snp(&mut self, variant: &VariantInfo) -> AppResult<()> {
@@ -832,6 +850,8 @@ mod tests {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            event_class: Some("snp".to_string()),
+            event_components: vec!["SNV:10:A>T".to_string()],
         }
     }
 

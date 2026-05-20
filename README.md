@@ -33,15 +33,9 @@ The tool takes:
 - Variant calls: VCF or iVar `variants.tsv`
 - Reference sequence: FASTA
 - Gene annotation: GFF/GFF3/GTF or a simple TSV file
-- Optional aligned reads: BAM, used to count SNP and MNV read support
+- Optional aligned reads: BAM, used to count SNP, MNV, and indel event support
 
 It writes annotated variants as TSV, VCF, or both.
-
-> [!WARNING]
-> get_MNV is designed for SNV/MNV interpretation. VCF insertions and deletions
-> can be reported as `INDEL`, but their codon and amino-acid annotation is
-> limited. iVar TSV indel rows, such as `+A` or `-N`, are skipped. For detailed
-> indel consequence annotation, use a dedicated variant annotation tool.
 
 <p align="center">
   <img src="images/get_mnv_aa.png" alt="MNV amino acid reclassification" width="650" />
@@ -51,8 +45,12 @@ It writes annotated variants as TSV, VCF, or both.
 
 - Groups SNVs by codon and reports SNP, MNV, or SNP/MNV calls
 - Recalculates amino acid changes from the full codon haplotype
-- Reads VCF and iVar TSV variant calls
-- Uses BAM reads, when provided, to count SNP/MNV support and strand bias
+- Decomposes VCF/iVar `REF/ALT` alleles into SNV, MNV, insertion, deletion,
+  delins, and complex indel event components
+- Reads VCF and iVar TSV variant calls, including iVar `+SEQ` and `-SEQ`
+  indel notation
+- Uses BAM reads, when provided, to count SNP/MNV support, exact indel event
+  support, and strand bias
 - Supports 9 NCBI genetic code tables
 - Includes a desktop GUI for drag-and-drop analysis
 
@@ -250,7 +248,7 @@ MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    MNV           No
 - **SNP**: single nucleotide change, one SNV per codon
 - **MNV**: all reads carry multiple SNVs together (Multi-Nucleotide Variant)
 - **SNP/MNV**: some reads carry individual SNVs, others carry the MNV combination
-- **INDEL**: insertion or deletion; detected/reported with limited codon and amino-acid annotation
+- **INDEL**: insertion, deletion, delins, or complex allele; reported with event components, exact BAM support when available, and coding effect when it overlaps an annotated CDS/gene feature
 
 ## Documentation
 
@@ -279,8 +277,8 @@ bash scripts/build_gui_bundle.sh
 
 ## Limitations
 
-- Designed for SNVs against a reference sequence
-- VCF insertions and deletions are detected but not fully codon-annotated; iVar TSV indel notation such as `+A` or `-N` is skipped
+- Designed for small SNV/MNV/indel events against a reference sequence
+- Indel coding effects are reconstructed within the annotated feature that overlaps the event. Codons split across neighbouring CDS rows can only be fully resolved when the selected GFF CDS features provide usable phase/protein-offset context.
 - Multiallelic VCF records require `--split-multiallelic` or pre-splitting (`bcftools norm -m -`)
 - Variant contig names must match FASTA and GFF exactly
 - **Multiple transcripts per gene**: when using `--gff-features CDS` with a GFF file that contains multiple transcripts for the same gene, each transcript is annotated independently, producing one output line per transcript per variant. If you want a single line per variant, filter your GFF to keep only the canonical transcript before running get_MNV (e.g., using [AGAT](https://github.com/NBISweden/AGAT) `agat_sp_keep_longest_isoform.pl` or a similar tool)
