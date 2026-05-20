@@ -440,6 +440,7 @@ pub struct BamViewResponse {
     pub display_start: u64,
     pub display_end: u64,
     pub reference: String,
+    pub columns: Vec<BamViewColumn>,
     pub sites: Vec<BamVariantSite>,
     pub reads: Vec<BamReadView>,
     pub counts: BamSupportCounts,
@@ -447,6 +448,18 @@ pub struct BamViewResponse {
     pub truncated: bool,
     /// Per-position depth from ALL reads (not just the displayed subset).
     pub coverage: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BamViewColumn {
+    pub key: String,
+    pub position: u64,
+    pub kind: String,
+    pub insertion_index: Option<u64>,
+    pub label: String,
+    pub reference_base: String,
+    pub is_variant: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -477,6 +490,18 @@ pub struct BamSupportCounts {
     pub partial: usize,
     pub reference: usize,
     pub other: usize,
+}
+
+#[derive(Debug, Clone)]
+struct RawBamReadView {
+    name: String,
+    strand: String,
+    support: String,
+    start: u64,
+    end: u64,
+    mapq: u8,
+    reference_bases: HashMap<u64, String>,
+    insertions_after: HashMap<u64, Vec<String>>,
 }
 
 fn bam_support_rank(support: &str) -> u8 {
@@ -543,16 +568,74 @@ fn select_bam_reads_for_display(
     (selected, true)
 }
 
-/// Extract the base a read contributes at a given reference position (0-based).
-fn base_at_ref_pos(record: &bam::Record, ref_pos: u64, min_bq: u8) -> Option<String> {
+fn expected_insertion_after(
+    position: u64,
+    ref_allele: &str,
+    alt_allele: &str,
+) -> Option<(u64, usize)> {
+    let ref_chars: Vec<char> = ref_allele.chars().collect();
+    let alt_chars: Vec<char> = alt_allele.chars().collect();
+    if alt_chars.len() <= ref_chars.len() {
+        return None;
+    }
+
+    let min_len = ref_chars.len().min(alt_chars.len());
+    let mut prefix = 0usize;
+    while prefix < min_len && ref_chars[prefix].eq_ignore_ascii_case(&alt_chars[prefix]) {
+        prefix += 1;
+    }
+    let inserted_len = alt_chars.len().saturating_sub(ref_chars.len());
+    let anchor = if prefix == 0 {
+        position
+    } else {
+        position + prefix as u64 - 1
+    };
+    Some((anchor, inserted_len))
+}
+
+fn observed_allele_from_layout(
+    reference_bases: &HashMap<u64, String>,
+    insertions_after: &HashMap<u64, Vec<String>>,
+    position: u64,
+    ref_allele: &str,
+) -> Option<String> {
+    let ref_len = ref_allele.chars().count() as u64;
+    if ref_len == 0 {
+        return None;
+    }
+    let mut allele = String::new();
+    let mut observed_any = false;
+    for offset in 0..ref_len {
+        let pos = position + offset;
+        let base = reference_bases.get(&pos)?;
+        if base != "-" {
+            allele.push_str(base);
+            observed_any = true;
+        }
+        if let Some(inserted) = insertions_after.get(&pos) {
+            for base in inserted {
+                allele.push_str(base);
+                observed_any = true;
+            }
+        }
+    }
+    observed_any.then_some(allele)
+}
+
+fn read_alignment_layout(
+    record: &bam::Record,
+    window_start: u64,
+    window_end: u64,
+    min_bq: u8,
+) -> (HashMap<u64, String>, HashMap<u64, Vec<String>>) {
     let read_start = record
         .alignment_start()
         .and_then(|p| p.ok())
         .map(|p| {
             let v: usize = p.into();
-            v as u64 - 1
+            v as u64
         })
-        .unwrap_or(0);
+        .unwrap_or(1);
 
     let seq = record.sequence();
     let quals = record.quality_scores();
@@ -560,43 +643,187 @@ fn base_at_ref_pos(record: &bam::Record, ref_pos: u64, min_bq: u8) -> Option<Str
 
     let mut r_pos = read_start;
     let mut q_pos: usize = 0;
+    let mut reference_bases: HashMap<u64, String> = HashMap::new();
+    let mut insertions_after: HashMap<u64, Vec<String>> = HashMap::new();
 
     for op_result in cigar.iter() {
         let op = match op_result {
             Ok(o) => o,
-            Err(_) => return None,
+            Err(_) => return (reference_bases, insertions_after),
         };
         let len = op.len() as u64;
         match op.kind() {
             Kind::Match | Kind::SequenceMatch | Kind::SequenceMismatch => {
-                if ref_pos >= r_pos && ref_pos < r_pos + len {
-                    let offset = (ref_pos - r_pos) as usize;
-                    let qi = q_pos + offset;
+                for offset in 0..len {
+                    let pos = r_pos + offset;
+                    if pos < window_start || pos > window_end {
+                        continue;
+                    }
+                    let qi = q_pos + offset as usize;
                     if qi < seq.len() {
                         let bq: u8 = quals.iter().nth(qi).unwrap_or(0);
                         if bq >= min_bq {
-                            let base: u8 = seq.iter().nth(qi)?;
-                            return Some((base as char).to_string());
+                            if let Some(base) = seq.iter().nth(qi) {
+                                reference_bases
+                                    .insert(pos, (base as char).to_ascii_uppercase().to_string());
+                            }
                         }
                     }
-                    return None;
                 }
                 r_pos += len;
                 q_pos += len as usize;
             }
-            Kind::Insertion | Kind::SoftClip => {
+            Kind::Insertion => {
+                let anchor = r_pos.saturating_sub(1);
+                if anchor >= window_start && anchor <= window_end {
+                    let inserted = insertions_after.entry(anchor).or_default();
+                    for offset in 0..len {
+                        let qi = q_pos + offset as usize;
+                        if qi < seq.len() {
+                            let bq: u8 = quals.iter().nth(qi).unwrap_or(0);
+                            if bq >= min_bq {
+                                if let Some(base) = seq.iter().nth(qi) {
+                                    inserted.push((base as char).to_ascii_uppercase().to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+                q_pos += len as usize;
+            }
+            Kind::SoftClip => {
                 q_pos += len as usize;
             }
             Kind::Deletion | Kind::Skip => {
-                if ref_pos >= r_pos && ref_pos < r_pos + len {
-                    return Some("-".to_string());
+                for offset in 0..len {
+                    let pos = r_pos + offset;
+                    if pos >= window_start && pos <= window_end {
+                        reference_bases.insert(pos, "-".to_string());
+                    }
                 }
                 r_pos += len;
             }
             Kind::HardClip | Kind::Pad => {}
         }
     }
-    None
+
+    (reference_bases, insertions_after)
+}
+
+fn classify_layout_support(
+    reference_bases: &HashMap<u64, String>,
+    insertions_after: &HashMap<u64, Vec<String>>,
+    sites: &[BamVariantSite],
+) -> String {
+    let mut matches_alt = 0usize;
+    let mut matches_ref = 0usize;
+    let mut covered_sites = 0usize;
+
+    for site in sites {
+        let Some(observed) = observed_allele_from_layout(
+            reference_bases,
+            insertions_after,
+            site.position,
+            &site.reference_base,
+        ) else {
+            continue;
+        };
+        covered_sites += 1;
+        if observed.eq_ignore_ascii_case(&site.alt_base) {
+            matches_alt += 1;
+        } else if observed.eq_ignore_ascii_case(&site.reference_base) {
+            matches_ref += 1;
+        }
+    }
+
+    let n_sites = sites.len();
+    if covered_sites == 0 {
+        "other"
+    } else if matches_alt == n_sites {
+        "mnv"
+    } else if matches_alt > 0 && matches_alt < n_sites {
+        "partial"
+    } else if matches_ref == n_sites {
+        "reference"
+    } else {
+        "other"
+    }
+    .to_string()
+}
+
+fn build_bam_view_columns(
+    display_start: u64,
+    display_end: u64,
+    reference: &str,
+    sites: &[BamVariantSite],
+    insertion_widths: &HashMap<u64, usize>,
+) -> Vec<BamViewColumn> {
+    debug_assert_eq!(
+        display_end,
+        display_start + reference.chars().count().saturating_sub(1) as u64
+    );
+    let mut variant_positions = BTreeSet::new();
+    let mut variant_insertion_anchors = BTreeSet::new();
+    for site in sites {
+        let ref_len = site.reference_base.chars().count().max(1) as u64;
+        for pos in site.position..site.position + ref_len {
+            variant_positions.insert(pos);
+        }
+        if let Some((anchor, _)) =
+            expected_insertion_after(site.position, &site.reference_base, &site.alt_base)
+        {
+            variant_insertion_anchors.insert(anchor);
+        }
+    }
+    let mut columns = Vec::new();
+    for (idx, base) in reference.chars().enumerate() {
+        let pos = display_start + idx as u64;
+        let is_variant = variant_positions.contains(&pos);
+        columns.push(BamViewColumn {
+            key: format!("ref:{pos}"),
+            position: pos,
+            kind: "ref".to_string(),
+            insertion_index: None,
+            label: pos.to_string(),
+            reference_base: base.to_string(),
+            is_variant,
+        });
+
+        let width = insertion_widths.get(&pos).copied().unwrap_or(0);
+        for insertion_idx in 0..width {
+            columns.push(BamViewColumn {
+                key: format!("ins:{pos}:{}", insertion_idx + 1),
+                position: pos,
+                kind: "ins".to_string(),
+                insertion_index: Some((insertion_idx + 1) as u64),
+                label: format!("+{}", insertion_idx + 1),
+                reference_base: "+".to_string(),
+                is_variant: variant_insertion_anchors.contains(&pos),
+            });
+        }
+    }
+    columns
+}
+
+fn expand_read_bases(read: &RawBamReadView, columns: &[BamViewColumn]) -> Vec<String> {
+    columns
+        .iter()
+        .map(|column| {
+            if column.kind == "ins" {
+                let idx = column.insertion_index.unwrap_or(1).saturating_sub(1) as usize;
+                read.insertions_after
+                    .get(&column.position)
+                    .and_then(|bases| bases.get(idx))
+                    .cloned()
+                    .unwrap_or_else(|| " ".to_string())
+            } else {
+                read.reference_bases
+                    .get(&column.position)
+                    .cloned()
+                    .unwrap_or_else(|| " ".to_string())
+            }
+        })
+        .collect()
 }
 
 /// Read reference sequence from an indexed FASTA file.
@@ -722,13 +949,16 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         ));
     }
 
-    let mut site_map: HashMap<u64, (String, String)> = HashMap::new();
     let mut sites: Vec<BamVariantSite> = Vec::new();
+    let mut insertion_widths: HashMap<u64, usize> = HashMap::new();
     for i in 0..request.positions.len() {
         let pos = request.positions[i];
         let rb = request.ref_bases[i].clone();
         let ab = request.alt_bases[i].clone();
-        site_map.insert(pos, (rb.clone(), ab.clone()));
+        if let Some((anchor, inserted_len)) = expected_insertion_after(pos, &rb, &ab) {
+            let width = insertion_widths.entry(anchor).or_default();
+            *width = (*width).max(inserted_len);
+        }
         sites.push(BamVariantSite {
             position: pos,
             reference_base: rb,
@@ -738,7 +968,6 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
 
     // Frontend and TSV positions are 1-based inclusive. Internally, BAM/FASTA
     // helpers use 0-based reference offsets, so convert only at IO boundaries.
-    let window_len = (request.window_end - request.window_start + 1) as usize;
     let zero_based_start = request.window_start - 1;
     let zero_based_end_exclusive = request.window_end;
     let reference = read_fasta_region(
@@ -766,7 +995,7 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         .query(&header, &region)
         .map_err(|e| format!("BAM query error: {}", e))?;
 
-    let mut all_reads: Vec<BamReadView> = Vec::new();
+    let mut raw_reads: Vec<RawBamReadView> = Vec::new();
     let mut counts = BamSupportCounts::default();
     let mut total_reads: usize = 0;
 
@@ -795,54 +1024,14 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         }
 
         total_reads += 1;
-
-        let mut bases: Vec<String> = Vec::with_capacity(window_len);
-        for off in 0..window_len {
-            let one_based_pos = request.window_start + off as u64;
-            let zero_based_pos = one_based_pos - 1;
-            match base_at_ref_pos(&record, zero_based_pos, min_bq) {
-                Some(b) => bases.push(b),
-                None => bases.push(" ".to_string()),
-            }
+        let (reference_bases, insertions_after) =
+            read_alignment_layout(&record, request.window_start, request.window_end, min_bq);
+        for (&anchor, inserted) in &insertions_after {
+            let width = insertion_widths.entry(anchor).or_default();
+            *width = (*width).max(inserted.len());
         }
 
-        let mut matches_alt = 0usize;
-        let mut matches_ref = 0usize;
-        let mut covered_sites = 0usize;
-        for &pos in &request.positions {
-            if pos < request.window_start || pos > request.window_end {
-                continue;
-            }
-            let off = (pos - request.window_start) as usize;
-            if off < bases.len() {
-                let base = &bases[off];
-                if base == " " || base == "-" {
-                    continue;
-                }
-                covered_sites += 1;
-                if let Some((rb, ab)) = site_map.get(&pos) {
-                    if base.eq_ignore_ascii_case(ab) {
-                        matches_alt += 1;
-                    } else if base.eq_ignore_ascii_case(rb) {
-                        matches_ref += 1;
-                    }
-                }
-            }
-        }
-
-        let n_sites = request.positions.len();
-        let support = if covered_sites == 0 {
-            "other"
-        } else if matches_alt == n_sites {
-            "mnv"
-        } else if matches_alt > 0 && matches_alt < n_sites {
-            "partial"
-        } else if matches_ref == n_sites {
-            "reference"
-        } else {
-            "other"
-        }
-        .to_string();
+        let support = classify_layout_support(&reference_bases, &insertions_after, &sites);
 
         match support.as_str() {
             "mnv" => counts.mnv += 1,
@@ -884,21 +1073,43 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
             })
             .sum();
 
-        all_reads.push(BamReadView {
+        raw_reads.push(RawBamReadView {
             name: read_name,
             strand,
             support,
             start: read_start + 1,
             end: read_start + aligned_len,
             mapq,
-            bases,
+            reference_bases,
+            insertions_after,
         });
     }
 
     counts.total = total_reads;
 
+    let columns = build_bam_view_columns(
+        request.window_start,
+        request.window_end,
+        &reference,
+        &sites,
+        &insertion_widths,
+    );
+
+    let mut all_reads: Vec<BamReadView> = raw_reads
+        .iter()
+        .map(|read| BamReadView {
+            name: read.name.clone(),
+            strand: read.strand.clone(),
+            support: read.support.clone(),
+            start: read.start,
+            end: read.end,
+            mapq: read.mapq,
+            bases: expand_read_bases(read, &columns),
+        })
+        .collect();
+
     let coverage: Vec<u32> = {
-        let mut depths = vec![0u32; window_len];
+        let mut depths = vec![0u32; columns.len()];
         for read in &all_reads {
             for (i, base) in read.bases.iter().enumerate() {
                 if base != " " {
@@ -909,13 +1120,15 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         depths
     };
 
-    let (display_reads, truncated) = select_bam_reads_for_display(all_reads, max_reads);
+    let (display_reads, truncated) =
+        select_bam_reads_for_display(std::mem::take(&mut all_reads), max_reads);
 
     Ok(BamViewResponse {
         chrom: request.chrom,
         display_start: request.window_start,
         display_end: request.window_end,
         reference,
+        columns,
         sites,
         reads: display_reads,
         counts,
@@ -1178,6 +1391,80 @@ mod tests {
 
         assert!(!truncated);
         assert_eq!(supports, vec!["mnv", "partial", "reference", "other"]);
+    }
+
+    #[test]
+    fn test_bam_view_columns_include_insertion_slots() {
+        let sites = vec![BamVariantSite {
+            position: 11,
+            reference_base: "C".to_string(),
+            alt_base: "CTT".to_string(),
+        }];
+        let mut insertion_widths = HashMap::new();
+        let (anchor, width) = expected_insertion_after(11, "C", "CTT").expect("expected insertion");
+        insertion_widths.insert(anchor, width);
+
+        let columns = build_bam_view_columns(10, 12, "ACG", &sites, &insertion_widths);
+        let keys: Vec<&str> = columns.iter().map(|column| column.key.as_str()).collect();
+
+        assert_eq!(
+            keys,
+            vec!["ref:10", "ref:11", "ins:11:1", "ins:11:2", "ref:12"]
+        );
+        assert_eq!(columns[2].label, "+1");
+        assert!(columns[2].is_variant);
+    }
+
+    #[test]
+    fn test_bam_view_expands_reads_into_insertion_slots() {
+        let columns =
+            build_bam_view_columns(10, 12, "ACG", &[], &HashMap::from([(11_u64, 2_usize)]));
+        let read = RawBamReadView {
+            name: "read_1".to_string(),
+            strand: "+".to_string(),
+            support: "mnv".to_string(),
+            start: 10,
+            end: 12,
+            mapq: 60,
+            reference_bases: HashMap::from([
+                (10, "A".to_string()),
+                (11, "C".to_string()),
+                (12, "G".to_string()),
+            ]),
+            insertions_after: HashMap::from([(11, vec!["T".to_string(), "T".to_string()])]),
+        };
+
+        assert_eq!(
+            expand_read_bases(&read, &columns),
+            vec![
+                "A".to_string(),
+                "C".to_string(),
+                "T".to_string(),
+                "T".to_string(),
+                "G".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn test_bam_view_classifies_insertion_support_from_layout() {
+        let sites = vec![BamVariantSite {
+            position: 11,
+            reference_base: "C".to_string(),
+            alt_base: "CTT".to_string(),
+        }];
+        let reference_bases = HashMap::from([(11, "C".to_string())]);
+        let alt_insertions = HashMap::from([(11, vec!["T".to_string(), "T".to_string()])]);
+        let reference_insertions: HashMap<u64, Vec<String>> = HashMap::new();
+
+        assert_eq!(
+            classify_layout_support(&reference_bases, &alt_insertions, &sites),
+            "mnv"
+        );
+        assert_eq!(
+            classify_layout_support(&reference_bases, &reference_insertions, &sites),
+            "reference"
+        );
     }
 
     #[test]

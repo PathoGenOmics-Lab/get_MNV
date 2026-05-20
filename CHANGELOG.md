@@ -11,6 +11,7 @@ All notable changes to this project are documented in this file.
 - Added allele-level event decomposition for `snp`, `mnv`, `insertion`, `deletion`, `delins`, `complex_indel`, and symbolic alleles so length-changing events that also contain SNV/MNV components are represented as a single local haplotype event.
 - iVar TSV inputs now keep insertion and deletion rows by converting `+SEQ` and `-SEQ` alleles into VCF-compatible anchored `REF/ALT` alleles using the FASTA reference.
 - TSV and VCF outputs now include canonical event class/component annotations plus exact BAM-derived event support metrics for indel/complex alleles.
+- The desktop BAM viewer now renders insertion-aware interbase columns, so inserted bases are shown between reference positions with matching coverage, ruler, reference, and read-pileup alignment instead of being hidden inside the anchor base.
 
 ### Fixed
 - Resolved the frontend security audit by updating vulnerable transitive packages, including `brace-expansion` 5.0.6.

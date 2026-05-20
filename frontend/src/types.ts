@@ -45,6 +45,16 @@ export interface BamVariantSite {
   altBase: string;
 }
 
+export interface BamViewColumn {
+  key: string;
+  position: number;
+  kind: "ref" | "ins";
+  insertionIndex?: number;
+  label: string;
+  referenceBase: string;
+  isVariant: boolean;
+}
+
 export interface BamReadView {
   name: string;
   strand: string;
@@ -68,6 +78,7 @@ export interface BamViewResponse {
   displayStart: number;
   displayEnd: number;
   reference: string;
+  columns: BamViewColumn[];
   sites: BamVariantSite[];
   reads: BamReadView[];
   counts: BamSupportCounts;
