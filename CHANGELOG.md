@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## [1.1.4] - 2026-05-20
 
+### Added
+- Added regression coverage for phased MNV-plus-indel haplotypes, verifying that codon MNV rows overlapping an indel are flagged as `Indel overlap` while BAM-supported combined events are emitted as exact `complex_indel` rows.
+
 ### Changed
 - Bumped project, GUI, citation, README, and frontend metadata to version 1.1.4.
 - Updated the Tauri desktop dependency set to the 2.11 patch line, including `tauri` 2.11.2 and `tauri-plugin-dialog` 2.7.1.
