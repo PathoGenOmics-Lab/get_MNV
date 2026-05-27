@@ -276,6 +276,26 @@ bash scripts/build_get_mnv.sh
 bash scripts/build_gui_bundle.sh
 ```
 
+### End-to-end scenario tests
+
+`tests/scenarios/` contains a Python harness that builds synthetic FASTA,
+GFF, VCF (or iVar TSV) and BAM inputs from declarative scenarios, runs
+the compiled `get_mnv` binary, and checks each TSV output against
+expected rows. The suite currently covers 30 scenarios including
+codon-level SNP/MNV grouping, frameshift propagation, complex_indel
+haplotype emission, negative-strand and multi-exon CDS annotation,
+multiallelic split, and iVar TSV input.
+
+```bash
+cargo build                                # produces target/debug/get_mnv
+python3 tests/scenarios/run.py             # run all 30 scenarios
+python3 tests/scenarios/run.py 22 27       # run a subset by name prefix
+```
+
+Requires `samtools` on `PATH` (or `SAMTOOLS=/path/to/samtools`). See
+[tests/scenarios/README.md](tests/scenarios/README.md) for the full list
+of validated cases, the mini-genome layout, and how to add new scenarios.
+
 ## Limitations
 
 - Designed for small SNV/MNV/indel events against a reference sequence
