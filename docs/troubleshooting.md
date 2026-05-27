@@ -74,6 +74,11 @@ or pre-split the VCF:
 bcftools norm -m - input.vcf > split.vcf
 ```
 
+`--split-multiallelic` emits one annotated row per ALT, even when multiple
+alts share the same codon position. Each row reports its own amino-acid
+effect, codon, and BAM-derived read support. Pre-splitting the VCF with
+`bcftools norm -m -` produces the same output.
+
 ## BCF Input
 
 Example:

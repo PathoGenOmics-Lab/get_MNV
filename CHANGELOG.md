@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **Scientific**: `--split-multiallelic` no longer silently drops alternate ALT alleles when two or more alts share the same codon position. Each alt now produces an independent annotation row with its own AA effect, codon, and BAM-derived read support, instead of keeping only the first alt and discarding the rest. True duplicates (same position + same alt) still collapse to a single row.
+
+### Changed
+- `get_mnv_variants_for_gene` and `get_mnv_variants_for_transcript` now build a list of mutually-exclusive codon interpretations per codon start. Multi-allelic positions expand the interpretation set as a Cartesian product, deduplicated by `(position, alt)` keys, so a codon that contains N independent alts emits N output rows.
+
 ## [1.1.4] - 2026-05-20
 
 ### Added

@@ -10,6 +10,109 @@ use std::collections::{BTreeMap, BTreeSet};
 const LOCAL_HAPLOTYPE_JOIN_DISTANCE: usize = 3;
 const MAX_LOCAL_HAPLOTYPE_VARIANTS: usize = 8;
 
+/// Merge a new SNP into a set of alternative codon interpretations.
+///
+/// `groups` is a list of mutually-exclusive interpretations of the SNVs at
+/// a single codon. Each interpretation is a Vec<Snp> of compatible SNVs.
+///
+/// For an incoming `snp`:
+///   - For each existing interpretation that has no SNP at `snp.position`,
+///     add `snp` to that interpretation (always compatible).
+///   - For each existing interpretation that already has `snp.position` with
+///     the SAME alt base, keep it unchanged (true duplicate).
+///   - For each existing interpretation that already has `snp.position` with
+///     a DIFFERENT alt base (multi-allelic alternative), KEEP the original
+///     and ADD a new interpretation that replaces that position with `snp`.
+///
+/// The result is the Cartesian product over multi-allelic positions, with
+/// interpretations dedup'd by the sorted (pos, alt) key.
+fn merge_snp_into_groups(groups: &mut Vec<Vec<Snp>>, snp: Snp) {
+    if groups.is_empty() {
+        groups.push(vec![snp]);
+        return;
+    }
+    let mut new_groups: Vec<Vec<Snp>> = Vec::with_capacity(groups.len() * 2);
+    let mut seen: BTreeSet<Vec<(usize, String)>> = BTreeSet::new();
+
+    let push_if_new = |g: Vec<Snp>,
+                       new_groups: &mut Vec<Vec<Snp>>,
+                       seen: &mut BTreeSet<Vec<(usize, String)>>| {
+        let mut key: Vec<(usize, String)> =
+            g.iter().map(|s| (s.position, s.base.clone())).collect();
+        key.sort();
+        if seen.insert(key) {
+            new_groups.push(g);
+        }
+    };
+
+    for group in groups.iter() {
+        if let Some(idx) = group.iter().position(|s| s.position == snp.position) {
+            if group[idx].base == snp.base {
+                push_if_new(group.clone(), &mut new_groups, &mut seen);
+            } else {
+                // Multi-allelic alternative: keep original and add a clone
+                // with the alt replaced. Both are valid interpretations.
+                push_if_new(group.clone(), &mut new_groups, &mut seen);
+                let mut alt_group = group.clone();
+                alt_group[idx] = snp.clone();
+                push_if_new(alt_group, &mut new_groups, &mut seen);
+            }
+        } else {
+            let mut new_group = group.clone();
+            new_group.push(snp.clone());
+            push_if_new(new_group, &mut new_groups, &mut seen);
+        }
+    }
+    *groups = new_groups;
+}
+
+/// Transcript-coordinates variant of merge_snp_into_groups.
+fn merge_transcript_snp_into_groups(
+    groups: &mut Vec<Vec<TranscriptSnp>>,
+    snp: TranscriptSnp,
+) {
+    if groups.is_empty() {
+        groups.push(vec![snp]);
+        return;
+    }
+    let mut new_groups: Vec<Vec<TranscriptSnp>> = Vec::with_capacity(groups.len() * 2);
+    let mut seen: BTreeSet<Vec<(usize, String)>> = BTreeSet::new();
+
+    let push_if_new = |g: Vec<TranscriptSnp>,
+                       new_groups: &mut Vec<Vec<TranscriptSnp>>,
+                       seen: &mut BTreeSet<Vec<(usize, String)>>| {
+        let mut key: Vec<(usize, String)> = g
+            .iter()
+            .map(|s| (s.transcript_offset, s.transcript_alt_base.to_string()))
+            .collect();
+        key.sort();
+        if seen.insert(key) {
+            new_groups.push(g);
+        }
+    };
+
+    for group in groups.iter() {
+        if let Some(idx) = group
+            .iter()
+            .position(|s| s.transcript_offset == snp.transcript_offset)
+        {
+            if group[idx].transcript_alt_base == snp.transcript_alt_base {
+                push_if_new(group.clone(), &mut new_groups, &mut seen);
+            } else {
+                push_if_new(group.clone(), &mut new_groups, &mut seen);
+                let mut alt_group = group.clone();
+                alt_group[idx] = snp.clone();
+                push_if_new(alt_group, &mut new_groups, &mut seen);
+            }
+        } else {
+            let mut new_group = group.clone();
+            new_group.push(snp.clone());
+            push_if_new(new_group, &mut new_groups, &mut seen);
+        }
+    }
+    *groups = new_groups;
+}
+
 /// Merge `original_info` from all SNPs in a codon group.
 /// When all SNPs share the same info string, return that single string.
 /// When they differ, concatenate unique info strings with `|` as separator
@@ -1434,7 +1537,9 @@ fn get_mnv_variants_for_transcript(
     };
 
     let mut variants = Vec::new();
-    let mut codon_to_snps: BTreeMap<usize, Vec<TranscriptSnp>> = BTreeMap::new();
+    // See merge_snp_into_groups for the multi-allelic alternative interpretation
+    // logic. Each codon_start maps to a list of mutually-exclusive groups.
+    let mut codon_to_groups: BTreeMap<usize, Vec<Vec<TranscriptSnp>>> = BTreeMap::new();
     let mut indels: Vec<crate::io::VcfPosition> = Vec::new();
 
     for variant in snp_list
@@ -1453,44 +1558,39 @@ fn get_mnv_variants_for_transcript(
                     continue;
                 };
                 let codon_start = (offset / 3) * 3;
-                let group = codon_to_snps.entry(codon_start).or_default();
-                if !group.iter().any(|snp| snp.transcript_offset == offset) {
-                    group.push(TranscriptSnp {
-                        snp: Snp {
-                            index: component.position,
-                            position: component.position,
-                            ref_base: component.ref_allele,
-                            base: component.alt_allele,
-                            original_dp: variant.original_dp,
-                            original_freq: variant.original_freq,
-                            original_info: variant.original_info.clone(),
-                        },
-                        transcript_offset: offset,
-                        transcript_alt_base,
-                    });
-                } else {
-                    log::debug!(
-                        "Skipping duplicate ALT at transcript offset {} in gene '{}' (multi-allelic split)",
-                        offset,
-                        gene.name
-                    );
-                }
+                let new_snp = TranscriptSnp {
+                    snp: Snp {
+                        index: component.position,
+                        position: component.position,
+                        ref_base: component.ref_allele,
+                        base: component.alt_allele,
+                        original_dp: variant.original_dp,
+                        original_freq: variant.original_freq,
+                        original_info: variant.original_info.clone(),
+                    },
+                    transcript_offset: offset,
+                    transcript_alt_base,
+                };
+                let groups = codon_to_groups.entry(codon_start).or_default();
+                merge_transcript_snp_into_groups(groups, new_snp);
             }
         } else {
             indels.push(variant.clone());
         }
     }
 
-    let mut codon_starts = codon_to_snps.keys().copied().collect::<Vec<_>>();
+    let mut codon_starts = codon_to_groups.keys().copied().collect::<Vec<_>>();
     codon_starts.sort_unstable();
 
     for codon_start in codon_starts {
+        let groups = codon_to_groups.get(&codon_start).cloned().unwrap_or_default();
+        for codon_snps in groups {
         let codon_end = codon_start + 3;
         if codon_end > ref_cds.len() {
             continue;
         }
         let ref_codon = &ref_cds[codon_start..codon_end];
-        let mut codon_snps = codon_to_snps.get(&codon_start).cloned().unwrap_or_default();
+        let mut codon_snps = codon_snps;
         codon_snps.sort_by_key(|s| s.transcript_offset);
 
         let overlaps_indel = indels.iter().any(|indel| {
@@ -1558,6 +1658,7 @@ fn get_mnv_variants_for_transcript(
         }
 
         variants.push(var_info);
+        }
     }
 
     for indel in indels {
@@ -1617,7 +1718,11 @@ pub fn get_mnv_variants_for_gene(
 
     let mut variants = Vec::new();
 
-    let mut codon_to_snps: BTreeMap<usize, Vec<crate::variants::Snp>> = BTreeMap::new();
+    // Each codon_start maps to a list of mutually-exclusive interpretations.
+    // After --split-multiallelic, two ALT alleles at the same position
+    // produce alternative interpretations of the same codon: each is
+    // processed independently to emit one row per multi-allelic combination.
+    let mut codon_to_groups: BTreeMap<usize, Vec<Vec<crate::variants::Snp>>> = BTreeMap::new();
     let mut indels: Vec<crate::io::VcfPosition> = Vec::new();
 
     for variant in snp_list
@@ -1629,29 +1734,17 @@ pub fn get_mnv_variants_for_gene(
             for component in substitutions {
                 if let Some((codon_start, _)) = codon_bounds_for_position(gene, component.position)
                 {
-                    let group = codon_to_snps.entry(codon_start).or_default();
-                    // After --split-multiallelic, two ALT alleles at the same
-                    // position produce separate VCF records.  Only keep the first
-                    // ALT per position within each codon group — otherwise
-                    // construct_codon would overwrite the same base twice, and the
-                    // MNV annotation would be incorrect.
-                    if !group.iter().any(|s| s.position == component.position) {
-                        group.push(crate::variants::Snp {
-                            index: component.position,
-                            position: component.position,
-                            ref_base: component.ref_allele,
-                            base: component.alt_allele,
-                            original_dp: variant.original_dp,
-                            original_freq: variant.original_freq,
-                            original_info: variant.original_info.clone(),
-                        });
-                    } else {
-                        log::debug!(
-                            "Skipping duplicate ALT at position {} in gene '{}' (multi-allelic split)",
-                            component.position,
-                            gene.name
-                        );
-                    }
+                    let snp = crate::variants::Snp {
+                        index: component.position,
+                        position: component.position,
+                        ref_base: component.ref_allele,
+                        base: component.alt_allele,
+                        original_dp: variant.original_dp,
+                        original_freq: variant.original_freq,
+                        original_info: variant.original_info.clone(),
+                    };
+                    let groups = codon_to_groups.entry(codon_start).or_default();
+                    merge_snp_into_groups(groups, snp);
                 }
             }
         } else {
@@ -1659,18 +1752,19 @@ pub fn get_mnv_variants_for_gene(
         }
     }
 
-    if codon_to_snps.is_empty() && indels.is_empty() {
+    if codon_to_groups.is_empty() && indels.is_empty() {
         return variants;
     }
 
-    let mut codon_starts: Vec<usize> = codon_to_snps.keys().copied().collect();
+    let mut codon_starts: Vec<usize> = codon_to_groups.keys().copied().collect();
     match gene.strand {
         Strand::Plus => codon_starts.sort_unstable(),
         Strand::Minus => codon_starts.sort_unstable_by(|a, b| b.cmp(a)),
     }
 
     for codon_start in codon_starts {
-        let codon_snps = codon_to_snps.get(&codon_start).cloned().unwrap_or_default();
+        let groups = codon_to_groups.get(&codon_start).cloned().unwrap_or_default();
+        for codon_snps in groups {
         if codon_snps.is_empty() {
             continue;
         }
@@ -1757,6 +1851,7 @@ pub fn get_mnv_variants_for_gene(
         }
 
         variants.push(var_info);
+        }
     }
 
     for indel in indels {
@@ -2809,9 +2904,10 @@ mod tests {
     }
 
     #[test]
-    fn test_duplicate_position_dedup() {
-        // After --split-multiallelic, two ALTs at the same position should
-        // not both appear in the same codon group.
+    fn test_multiallelic_position_emits_one_row_per_alt() {
+        // After --split-multiallelic, two ALTs at the same position must
+        // each produce an independent VariantInfo row (one per alt). True
+        // duplicates (same position + same alt) remain deduplicated.
         use crate::io::{Reference, VcfPosition};
         use crate::variants::get_mnv_variants_for_gene;
 
@@ -2825,7 +2921,7 @@ mod tests {
             transcript_id: None,
             cds_segments: Vec::new(),
         };
-        // Two VCF records at position 101 with different ALTs
+        // Two VCF records at position 101 with different ALTs (T and G)
         let snps = vec![
             VcfPosition {
                 position: 101,
@@ -2853,13 +2949,63 @@ mod tests {
             "chr1",
             crate::genetic_code::GeneticCode::default(),
         );
-        // Should produce exactly 1 variant (first ALT wins, duplicate skipped)
         assert_eq!(
             variants.len(),
-            1,
-            "Duplicate position should be deduplicated"
+            2,
+            "Two multi-allelic alts at the same position must produce two rows"
         );
-        assert_eq!(variants[0].positions.len(), 1);
-        assert_eq!(variants[0].base_changes[0], "T"); // first ALT kept
+        let mut base_changes: Vec<String> = variants
+            .iter()
+            .map(|v| v.base_changes[0].clone())
+            .collect();
+        base_changes.sort();
+        assert_eq!(base_changes, vec!["G".to_string(), "T".to_string()]);
+    }
+
+    #[test]
+    fn test_true_duplicate_position_still_dedup() {
+        // Two records with the same position AND same alt remain a single row.
+        use crate::io::{Reference, VcfPosition};
+        use crate::variants::get_mnv_variants_for_gene;
+
+        let gene = Gene {
+            name: "geneA".to_string(),
+            start: 100,
+            end: 111,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
+        };
+        let snps = vec![
+            VcfPosition {
+                position: 101,
+                ref_allele: "A".to_string(),
+                alt_allele: "T".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
+            VcfPosition {
+                position: 101,
+                ref_allele: "A".to_string(),
+                alt_allele: "T".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            },
+        ];
+        let seq = "N".repeat(99) + "ATGATGATGATG";
+        let reference = Reference { sequence: &seq };
+        let variants = get_mnv_variants_for_gene(
+            &gene,
+            &snps,
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+        assert_eq!(variants.len(), 1, "True duplicate must be deduplicated");
+        assert_eq!(variants[0].base_changes[0], "T");
     }
 }

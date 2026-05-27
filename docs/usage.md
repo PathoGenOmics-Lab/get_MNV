@@ -142,7 +142,7 @@ Read-count and strand-support filters follow the same rule: `--snp` and
 | `--dry-run` | Validate inputs without writing output files. |
 | `--threads <N>` | Number of worker threads. Default: automatic. |
 | `--normalize-alleles` | Trim shared REF/ALT context before processing. |
-| `--split-multiallelic` | Split multiallelic VCF records inside get_MNV. |
+| `--split-multiallelic` | Split multiallelic VCF records inside get_MNV. Each ALT becomes an independent annotation row, including alts that share the same codon position. |
 
 ## Notes
 
