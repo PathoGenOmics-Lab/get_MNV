@@ -187,6 +187,20 @@ fn normalize_ivar_allele(
         let deleted_len = deleted_raw.chars().count();
         let deleted_from_ref = reference_slice(references, chrom, pos, deleted_len, record_idx)?;
 
+        // The deletion is anchored using reference coordinates, so the bases
+        // iVar reports as deleted must match the reference at POS..POS+len. A
+        // mismatch means the FASTA does not correspond to the iVar run (or the
+        // coordinates are off) and would otherwise silently mis-place the
+        // deletion; fail fast instead.
+        if !deleted_raw.eq_ignore_ascii_case(deleted_from_ref) {
+            return Err(format!(
+                "iVar record {record_idx}: deletion at {chrom}:{pos} lists deleted bases \
+                 '{deleted_raw}' but the reference reads '{deleted_from_ref}' there. \
+                 Check that the FASTA matches the iVar run."
+            )
+            .into());
+        }
+
         if pos > 1 {
             let anchor = reference_base(references, chrom, pos - 1, record_idx)?;
             return Ok(Some((
