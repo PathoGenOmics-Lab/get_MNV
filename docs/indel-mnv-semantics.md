@@ -88,6 +88,36 @@ usable transcript identifier keep the older per-feature behavior.
 - Full local assembly remains out of scope: get_MNV reannotates alleles present
   in the input VCF/iVar file rather than discovering new candidate variants.
 
+## Tuning Knobs
+
+These optional flags change indel-aware behaviour. All default to the historical
+behaviour, so existing pipelines are unaffected unless a flag is set.
+
+- `--frameshift-min-freq <0.0-1.0>` (default `0.0`): minimum allele frequency an
+  *upstream* indel must reach before it shifts the reading frame of downstream
+  SNV/MNV codons (the `(fs)` marker and frameshift change types). The default
+  propagates from every indel regardless of frequency. For intra-host / mixed
+  populations, raising this avoids relabelling a high-frequency downstream
+  substitution as frameshifted because of a low-frequency upstream indel that is
+  almost certainly on a different molecule. Frameshift propagation is positional,
+  not read-phased, so this is a coarse but useful guard.
+- `--indel-anchor-depth` (default off): count indel locus depth (the `EDP`/`EFREQ`
+  denominator) from reads that observe the anchor base, instead of only reads
+  that fully span the REF allele. Reduces depth under-counting and `EFREQ` bias
+  for multi-base deletions, where partially-overlapping reads are otherwise
+  dropped from the denominator.
+- `--phased-indel-min-reads <N>` (default `1`) and
+  `--phased-indel-min-freq <0.0-1.0>` (default `0.0`): minimum BAM support a
+  phased indel/complex haplotype row must have to be emitted. Local windows can
+  enumerate many overlapping sub-haplotypes; raising these suppresses
+  low-confidence rows from dense variant clusters.
+
+When an indel that has read coverage produces zero exact-CIGAR support, get_MNV
+emits a warning: this usually means the input indel is not left-aligned the same
+way as the BAM (common in homopolymers/tandem repeats). Normalise the input
+first with a FASTA-aware tool (`bcftools norm -f ref.fa`) so the allele matches
+the read alignment.
+
 ## References
 
 - FreeBayes: https://github.com/freebayes/freebayes
