@@ -199,8 +199,16 @@ fn annotate_variants_for_gene(
     reference: &io::Reference,
     contig: &str,
     genetic_code: crate::genetic_code::GeneticCode,
+    indel_config: &variants::IndelAnnotationConfig,
 ) -> Vec<VariantInfo> {
-    variants::get_mnv_variants_for_gene(gene, snp_list, reference, contig, genetic_code)
+    variants::get_mnv_variants_for_gene_with_config(
+        gene,
+        snp_list,
+        reference,
+        contig,
+        genetic_code,
+        indel_config,
+    )
 }
 
 fn variant_allele_key(variant: &VariantInfo) -> Option<(usize, String, String)> {
@@ -287,6 +295,7 @@ fn count_exact_indel_variant_reads(
         required_components: &required_components,
         min_phred_quality: args.min_quality,
         min_mapq: args.min_mapq,
+        anchor_depth: args.indel_anchor_depth,
     };
     let summary = read_count::count_indel_reads(bam, bam_header, request).map_err(|e| {
         AppError::validation(format!(
@@ -294,6 +303,22 @@ fn count_exact_indel_variant_reads(
             contig, gene.name, position, e
         ))
     })?;
+    // Silent-failure guard: the locus is covered but no read reproduces the
+    // exact indel allele/CIGAR. This frequently means the input indel is not
+    // left-aligned the same way as the BAM (common in homopolymers/tandem
+    // repeats), so the exact-anchor match yields zero support.
+    if summary.mnv_total_reads > 0 && summary.mnv_count == 0 {
+        log::warn!(
+            "Indel at {}:{} {}>{} has {} spanning read(s) but 0 with exact CIGAR support. \
+             If it lies in a homopolymer/repeat, left-align the input first \
+             (e.g. `bcftools norm -f ref.fa`) so the allele matches the read alignment.",
+            contig,
+            position,
+            ref_allele,
+            alt_allele,
+            summary.mnv_total_reads
+        );
+    }
     apply_read_summary(variant, summary);
     Ok(())
 }
@@ -438,7 +463,17 @@ fn append_supported_phased_indel_haplotypes(
             continue;
         }
         count_exact_indel_variant_reads(state, args, inputs.contig, inputs.gene, &mut candidate)?;
-        if candidate.mnv_reads.unwrap_or(0) > 0 {
+        let reads = candidate.mnv_reads.unwrap_or(0);
+        let depth = candidate.mnv_total_reads.unwrap_or(0);
+        let freq = if depth > 0 {
+            reads as f64 / depth as f64
+        } else {
+            0.0
+        };
+        // Defaults (min_reads = 1, min_freq = 0.0) reproduce the historical
+        // "emit if any read supports it" rule; raising either suppresses
+        // low-confidence phased haplotypes from dense local windows.
+        if reads >= args.phased_indel_min_reads && freq >= args.phased_indel_min_freq {
             variants.push(candidate);
         }
     }
@@ -526,8 +561,17 @@ pub(crate) fn process_contig(
                 let state = state_result
                     .as_mut()
                     .map_err(|err| AppError::validation(err.to_string()))?;
-                let mut variants =
-                    annotate_variants_for_gene(gene, snp_list, &reference, contig, genetic_code);
+                let indel_config = variants::IndelAnnotationConfig {
+                    frameshift_min_freq: args.frameshift_min_freq,
+                };
+                let mut variants = annotate_variants_for_gene(
+                    gene,
+                    snp_list,
+                    &reference,
+                    contig,
+                    genetic_code,
+                    &indel_config,
+                );
                 if variants.is_empty() {
                     return Ok(WorkerResult::default());
                 }

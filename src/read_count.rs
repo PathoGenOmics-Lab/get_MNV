@@ -33,6 +33,11 @@ pub struct IndelReadCountRequest<'a> {
     pub required_components: &'a [AlleleComponent],
     pub min_phred_quality: u8,
     pub min_mapq: u8,
+    /// When true, locus depth (the EDP/EFREQ denominator) counts every read that
+    /// observes the anchor base at sufficient quality, instead of only reads
+    /// that fully span the REF allele. Reduces depth under-counting / EFREQ bias
+    /// for multi-base deletions. Defaults to false (historical behaviour).
+    pub anchor_depth: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -140,6 +145,15 @@ fn get_query_pos(rec: &bam::Record, pos: usize) -> Option<usize> {
         }
     }
     None
+}
+
+/// Phred quality of the read base aligned to 1-based reference `position`, or
+/// `None` if the position is not covered by an aligned (match) base in this read
+/// (deletion, skip, soft-clip, or outside the alignment).
+fn anchor_base_quality(rec: &bam::Record, position: usize) -> Option<u8> {
+    let qidx = get_query_pos(rec, position)?;
+    let qual = rec.quality_scores();
+    Some(qual.iter().nth(qidx).unwrap_or(0))
 }
 
 #[derive(Debug, Clone)]
@@ -338,6 +352,7 @@ pub fn count_indel_reads(
         required_components,
         min_phred_quality,
         min_mapq,
+        anchor_depth,
     } = request;
 
     if position == 0 || ref_allele.is_empty() {
@@ -380,31 +395,55 @@ pub fn count_indel_reads(
             continue;
         }
 
-        let Some(observed) = observed_allele_for_ref_span(&record, position, ref_allele.len())
-        else {
-            continue;
+        let observed = observed_allele_for_ref_span(&record, position, ref_allele.len());
+
+        // Depth (denominator) eligibility. By default a read must fully span the
+        // REF allele with every base either observed or deleted. With
+        // `anchor_depth` we instead count any read that observes the anchor base
+        // at sufficient quality, so reads that only partially overlap a
+        // multi-base deletion still contribute to the locus depth (and thus to a
+        // less biased EFREQ).
+        let counts_for_depth = if anchor_depth {
+            anchor_base_quality(&record, position).is_some_and(|q| q >= min_phred_quality)
+        } else {
+            observed
+                .as_ref()
+                .is_some_and(|o| o.min_quality >= min_phred_quality)
         };
-        if observed.min_quality < min_phred_quality {
-            continue;
+
+        if !counts_for_depth {
+            // In the default mode this also means the read cannot support the
+            // ALT allele (no full-span observation), so skipping is safe. In
+            // anchor-depth mode a read that fails the anchor-quality gate is not
+            // counted toward depth, and ALT support below is gated on its own
+            // full-span observation.
+            if !anchor_depth {
+                continue;
+            }
         }
 
         let key = Rc::new(build_read_key(&record));
         let is_reverse = flags.is_reverse_complemented();
-        unique_total.insert(key.clone());
-        if is_reverse {
-            unique_total_reverse.insert(key.clone());
-        } else {
-            unique_total_forward.insert(key.clone());
+        if counts_for_depth {
+            unique_total.insert(key.clone());
+            if is_reverse {
+                unique_total_reverse.insert(key.clone());
+            } else {
+                unique_total_forward.insert(key.clone());
+            }
         }
 
-        if observed.allele.eq_ignore_ascii_case(alt_allele)
-            && observed_supports_components(&observed, required_components)
-        {
-            unique_alt.insert(key.clone());
-            if is_reverse {
-                unique_alt_reverse.insert(key);
-            } else {
-                unique_alt_forward.insert(key);
+        if let Some(observed) = observed.as_ref() {
+            if observed.min_quality >= min_phred_quality
+                && observed.allele.eq_ignore_ascii_case(alt_allele)
+                && observed_supports_components(observed, required_components)
+            {
+                unique_alt.insert(key.clone());
+                if is_reverse {
+                    unique_alt_reverse.insert(key);
+                } else {
+                    unique_alt_forward.insert(key);
+                }
             }
         }
     }

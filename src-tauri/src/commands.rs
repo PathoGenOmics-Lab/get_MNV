@@ -120,6 +120,12 @@ impl AnalysisConfig {
             min_snp_strand_reads: self.min_snp_strand_reads.unwrap_or(0),
             min_mnv_strand_reads: self.min_mnv_strand_reads.unwrap_or(0),
             min_strand_bias_p: self.min_strand_bias_p.unwrap_or(0.0),
+            // Indel-annotation knobs are not yet exposed in the desktop UI; use
+            // the same defaults as the CLI so behaviour is unchanged.
+            frameshift_min_freq: 0.0,
+            indel_anchor_depth: false,
+            phased_indel_min_reads: 1,
+            phased_indel_min_freq: 0.0,
             dry_run: self.dry_run.unwrap_or(false),
             strict: self.strict.unwrap_or(false),
             split_multiallelic: self.split_multiallelic.unwrap_or(false),

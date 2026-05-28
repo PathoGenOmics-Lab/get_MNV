@@ -121,6 +121,30 @@ pub struct Args {
     #[arg(long = "min-strand-bias-p", default_value_t = 0.0)]
     pub min_strand_bias_p: f64,
 
+    /// Minimum allele frequency (0.0-1.0) an upstream indel must reach to mark
+    /// downstream SNV/MNV codons as frameshifted. Default 0.0 propagates from
+    /// every indel (historical behaviour); raise it to avoid relabelling
+    /// high-frequency downstream substitutions because of a low-frequency
+    /// upstream indel that is likely on a different molecule (intra-host data).
+    #[arg(long = "frameshift-min-freq", default_value_t = 0.0)]
+    pub frameshift_min_freq: f64,
+
+    /// Count indel locus depth (EDP/EFREQ denominator) from reads observing the
+    /// anchor base, instead of only reads that fully span the REF allele.
+    /// Reduces depth under-counting and EFREQ bias for multi-base deletions.
+    #[arg(long = "indel-anchor-depth")]
+    pub indel_anchor_depth: bool,
+
+    /// Minimum BAM-supporting reads required to emit a phased indel/complex
+    /// haplotype row (default: 1).
+    #[arg(long = "phased-indel-min-reads", default_value_t = 1)]
+    pub phased_indel_min_reads: usize,
+
+    /// Minimum BAM-derived frequency (0.0-1.0) required to emit a phased
+    /// indel/complex haplotype row (default: 0.0).
+    #[arg(long = "phased-indel-min-freq", default_value_t = 0.0)]
+    pub phased_indel_min_freq: f64,
+
     /// Parse and validate inputs, print per-contig summary, and skip writing TSV/VCF outputs
     #[arg(long = "dry-run")]
     pub dry_run: bool,

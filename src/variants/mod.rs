@@ -8,7 +8,7 @@ mod types;
 // Re-export all public types and functions
 pub use codon::{
     build_intergenic_variant, build_phased_indel_haplotype_variants, get_mnv_variants_for_gene,
-    process_codon,
+    get_mnv_variants_for_gene_with_config, process_codon, IndelAnnotationConfig,
 };
 pub use event::{
     decompose_allele, parse_component_label, substitution_components, AlleleComponent,

@@ -10,6 +10,39 @@ use std::collections::{BTreeMap, BTreeSet};
 const LOCAL_HAPLOTYPE_JOIN_DISTANCE: usize = 3;
 const MAX_LOCAL_HAPLOTYPE_VARIANTS: usize = 8;
 
+/// Knobs for indel-aware annotation that can change scientific output. The
+/// `Default` impl reproduces the historical behaviour exactly, so callers that
+/// do not opt in (tests, benchmarks, the public `get_mnv_variants_for_gene`
+/// wrapper) see no change.
+#[derive(Debug, Clone, Copy)]
+pub struct IndelAnnotationConfig {
+    /// Minimum allele frequency an *upstream* indel must reach to contribute to
+    /// downstream frameshift propagation. `0.0` (default) propagates from every
+    /// indel regardless of frequency, matching the original behaviour. Raising
+    /// it avoids relabelling high-frequency downstream SNV/MNV codons as
+    /// frameshifted because of a low-frequency upstream indel that is almost
+    /// certainly on a different molecule (relevant for intra-host data).
+    pub frameshift_min_freq: f64,
+}
+
+impl Default for IndelAnnotationConfig {
+    fn default() -> Self {
+        Self {
+            frameshift_min_freq: 0.0,
+        }
+    }
+}
+
+/// Whether an upstream indel is allowed to contribute to downstream frameshift
+/// propagation under the configured frequency gate. Indels without a known
+/// frequency always pass (we cannot filter what we cannot measure).
+fn indel_passes_frameshift_gate(indel: &VcfPosition, config: &IndelAnnotationConfig) -> bool {
+    match indel.original_freq {
+        Some(freq) => freq >= config.frameshift_min_freq,
+        None => true,
+    }
+}
+
 /// Merge a new SNP into a set of alternative codon interpretations.
 ///
 /// `groups` is a list of mutually-exclusive interpretations of the SNVs at
@@ -632,14 +665,36 @@ fn apply_allele_to_feature(
     })
 }
 
+/// Detect whether an in-frame indel creates or removes a stop codon by
+/// comparing the number of stop residues (`*`) in the reference and alternate
+/// translations. Counting stops (rather than comparing positions) avoids a
+/// false "stop gained" for ordinary in-frame deletions, whose terminal stop
+/// simply shifts to a lower index in a shorter protein.
+fn indel_stop_effect(ref_protein: &str, alt_protein: &str) -> Option<ChangeType> {
+    let ref_stops = ref_protein.matches('*').count();
+    let alt_stops = alt_protein.matches('*').count();
+    if alt_stops > ref_stops {
+        Some(ChangeType::StopGained)
+    } else if ref_stops > 0 && alt_stops < ref_stops {
+        Some(ChangeType::StopLost)
+    } else {
+        None
+    }
+}
+
 fn protein_effect_for_indel(
     gene: &Gene,
     reference: &crate::io::Reference<'_>,
     variant: &VcfPosition,
     genetic_code: crate::genetic_code::GeneticCode,
-) -> (Vec<String>, Vec<String>, Option<String>, Option<String>) {
+) -> (ChangeType, Vec<String>, Vec<String>, Option<String>, Option<String>) {
+    // Base classification (frameshift vs in-frame, symbolic handling). When the
+    // alternate CDS can be reconstructed we may refine this to Stop gained/lost.
+    let base_change_type = indel_change_type_for_variant(gene, reference, variant);
+
     let Some(ref_cds) = coding_sequence_for_gene(gene, reference) else {
         return (
+            base_change_type,
             vec!["Unknown".to_string()],
             vec!["Unknown".to_string()],
             None,
@@ -648,6 +703,7 @@ fn protein_effect_for_indel(
     };
     let Some(alt_cds) = apply_allele_to_feature(gene, reference, variant) else {
         return (
+            base_change_type,
             vec!["Unknown".to_string()],
             vec!["Unknown".to_string()],
             None,
@@ -658,6 +714,18 @@ fn protein_effect_for_indel(
     let frameshift = (alt_cds.len() as isize - ref_cds.len() as isize) % 3 != 0;
     let ref_protein = translate_cds(&ref_cds, genetic_code);
     let alt_protein = translate_cds(&alt_cds, genetic_code);
+
+    // For in-frame indels, refine the change type when the event creates or
+    // removes a stop codon (otherwise these high-impact events are hidden under
+    // the generic "In-frame Indel" label). Frameshifts keep the frameshift label
+    // because they almost always introduce a downstream stop, so flagging them
+    // as "stop gained" would be uninformative.
+    let change_type = if frameshift {
+        base_change_type
+    } else {
+        indel_stop_effect(&ref_protein, &alt_protein).unwrap_or(base_change_type)
+    };
+
     let (protein_change, local_change) =
         describe_protein_change(&ref_protein, &alt_protein, gene.protein_offset, frameshift);
 
@@ -671,6 +739,7 @@ fn protein_effect_for_indel(
 
     if let Some((ref_codon, alt_codon)) = transcript_codon {
         return (
+            change_type,
             vec![protein_change],
             vec![local_change],
             Some(ref_codon),
@@ -699,6 +768,7 @@ fn protein_effect_for_indel(
     };
 
     (
+        change_type,
         vec![protein_change],
         vec![local_change],
         ref_codon,
@@ -978,9 +1048,8 @@ fn phased_variant_from_group(
         compound_event.class
     };
 
-    let change_type = indel_change_type_for_variant(gene, reference, &compound);
     let event_components = component_labels_from_group(group);
-    let (aa_changes, aa_changes_local, ref_codon, alt_codon) =
+    let (change_type, aa_changes, aa_changes_local, ref_codon, alt_codon) =
         protein_effect_for_indel(gene, reference, &compound, genetic_code);
 
     Some(VariantInfo {
@@ -1078,6 +1147,17 @@ pub fn build_phased_indel_haplotype_variants(
                 .any(|idx| variant_has_indel_component(local_variants[*idx].0))
         {
             continue;
+        }
+
+        if component.len() > MAX_LOCAL_HAPLOTYPE_VARIANTS {
+            log::warn!(
+                "Local haplotype window in gene '{}' has {} linked variants (> {} limit): \
+                 enumerating only pairwise and full-set combinations, so some intermediate \
+                 phased haplotypes may not be reported.",
+                gene.name,
+                component.len(),
+                MAX_LOCAL_HAPLOTYPE_VARIANTS
+            );
         }
 
         if component.len() <= MAX_LOCAL_HAPLOTYPE_VARIANTS {
@@ -1531,6 +1611,7 @@ fn get_mnv_variants_for_transcript(
     reference: &crate::io::Reference,
     chrom: &str,
     genetic_code: crate::genetic_code::GeneticCode,
+    config: &IndelAnnotationConfig,
 ) -> Vec<VariantInfo> {
     let Some(ref_cds) = transcript_sequence_for_gene(gene, reference) else {
         return Vec::new();
@@ -1606,6 +1687,11 @@ fn get_mnv_variants_for_transcript(
                 continue;
             };
             if first_offset < codon_start {
+                // Only let sufficiently frequent upstream indels shift the frame
+                // of downstream codons (see IndelAnnotationConfig).
+                if !indel_passes_frameshift_gate(indel, config) {
+                    continue;
+                }
                 if indel.alt_allele.starts_with('<') {
                     has_symbolic_sv = true;
                 } else if let Some(delta) = coding_delta_for_variant(gene, reference, indel) {
@@ -1662,8 +1748,7 @@ fn get_mnv_variants_for_transcript(
     }
 
     for indel in indels {
-        let change_type = indel_change_type_for_variant(gene, reference, &indel);
-        let (aa_changes, aa_changes_local, ref_codon, alt_codon) =
+        let (change_type, aa_changes, aa_changes_local, ref_codon, alt_codon) =
             protein_effect_for_indel(gene, reference, &indel, genetic_code);
         let (event_class, event_components) = variant_event_metadata(&indel);
 
@@ -1712,8 +1797,36 @@ pub fn get_mnv_variants_for_gene(
     chrom: &str,
     genetic_code: crate::genetic_code::GeneticCode,
 ) -> Vec<VariantInfo> {
+    get_mnv_variants_for_gene_with_config(
+        gene,
+        snp_list,
+        reference,
+        chrom,
+        genetic_code,
+        &IndelAnnotationConfig::default(),
+    )
+}
+
+/// Like [`get_mnv_variants_for_gene`] but with explicit indel-annotation
+/// configuration (e.g. the upstream-indel frequency gate for frameshift
+/// propagation). The no-config wrapper above preserves historical behaviour.
+pub fn get_mnv_variants_for_gene_with_config(
+    gene: &Gene,
+    snp_list: &[crate::io::VcfPosition],
+    reference: &crate::io::Reference,
+    chrom: &str,
+    genetic_code: crate::genetic_code::GeneticCode,
+    config: &IndelAnnotationConfig,
+) -> Vec<VariantInfo> {
     if has_transcript_cds_model(gene) {
-        return get_mnv_variants_for_transcript(gene, snp_list, reference, chrom, genetic_code);
+        return get_mnv_variants_for_transcript(
+            gene,
+            snp_list,
+            reference,
+            chrom,
+            genetic_code,
+            config,
+        );
     }
 
     let mut variants = Vec::new();
@@ -1794,8 +1907,19 @@ pub fn get_mnv_variants_for_gene(
             };
 
             if is_upstream {
+                // Only sufficiently frequent upstream indels shift the frame of
+                // downstream codons (see IndelAnnotationConfig).
+                if !indel_passes_frameshift_gate(indel, config) {
+                    continue;
+                }
                 if indel.alt_allele.starts_with('<') {
                     has_symbolic_sv = true;
+                } else if let Some(delta) = coding_delta_for_variant(gene, reference, indel) {
+                    // CDS-clipped coding-length change, consistent with the
+                    // transcript model. For indels that span the gene/CDS
+                    // boundary this counts only the in-CDS portion, unlike the
+                    // raw allele-length difference used previously.
+                    upstream_shift += delta;
                 } else {
                     upstream_shift +=
                         (indel.alt_allele.len() as isize) - (indel.ref_allele.len() as isize);
@@ -1855,8 +1979,7 @@ pub fn get_mnv_variants_for_gene(
     }
 
     for indel in indels {
-        let change_type = indel_change_type_for_variant(gene, reference, &indel);
-        let (aa_changes, aa_changes_local, ref_codon, alt_codon) =
+        let (change_type, aa_changes, aa_changes_local, ref_codon, alt_codon) =
             protein_effect_for_indel(gene, reference, &indel, genetic_code);
         let (event_class, event_components) = variant_event_metadata(&indel);
 
@@ -2264,6 +2387,167 @@ mod tests {
         assert_eq!(variants[0].event_class.as_deref(), Some("insertion"));
         assert_eq!(variants[0].event_components, vec!["INS:6:+T".to_string()]);
         assert!(variants[0].aa_changes[0].contains("fs"));
+    }
+
+    // H8: an in-frame insertion on a minus-strand gene must be recognised as
+    // in-frame (length change is strand-invariant) and must not be mislabelled
+    // as a frameshift. Genomic AAATTTCAT reverse-complements to the CDS
+    // ATGAAATTT (Met-Lys-Phe).
+    #[test]
+    fn test_minus_strand_inframe_insertion_is_inframe() {
+        let gene = Gene {
+            name: "cds".to_string(),
+            start: 1,
+            end: 9,
+            strand: Strand::Minus,
+            phase: 0,
+            protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
+        };
+        let reference = crate::io::Reference {
+            sequence: "AAATTTCAT",
+        };
+        let variants = crate::variants::get_mnv_variants_for_gene(
+            &gene,
+            &[crate::io::VcfPosition {
+                position: 4,
+                ref_allele: "T".to_string(),
+                alt_allele: "TGGG".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            }],
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+
+        assert_eq!(variants.len(), 1);
+        assert_eq!(variants[0].variant_type, VariantType::Indel);
+        assert_eq!(variants[0].event_class.as_deref(), Some("insertion"));
+        assert_eq!(variants[0].event_components, vec!["INS:4:+GGG".to_string()]);
+        assert_eq!(variants[0].change_type, ChangeType::InFrameIndel);
+        assert!(!variants[0].aa_changes[0].contains("fs"));
+    }
+
+    // H5: an in-frame insertion that introduces a stop codon must be classified
+    // as Stop gained rather than the generic In-frame Indel. Inserting TAA after
+    // the start codon of ATGAAATTT yields ATG-TAA-AAA-TTT (Met-*-Lys-Phe).
+    #[test]
+    fn test_inframe_insertion_creating_stop_is_stop_gained() {
+        let gene = Gene {
+            name: "cds".to_string(),
+            start: 1,
+            end: 9,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
+        };
+        let reference = crate::io::Reference {
+            sequence: "ATGAAATTT",
+        };
+        let variants = crate::variants::get_mnv_variants_for_gene(
+            &gene,
+            &[crate::io::VcfPosition {
+                position: 3,
+                ref_allele: "G".to_string(),
+                alt_allele: "GTAA".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            }],
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+
+        assert_eq!(variants.len(), 1);
+        assert_eq!(variants[0].variant_type, VariantType::Indel);
+        assert_eq!(variants[0].change_type, ChangeType::StopGained);
+    }
+
+    // H1: a low-frequency upstream frameshift indel must not relabel a
+    // high-frequency downstream SNV as frameshifted once the frequency gate is
+    // raised above the indel frequency.
+    #[test]
+    fn test_frameshift_frequency_gate_skips_low_freq_upstream_indel() {
+        let gene = Gene {
+            name: "cds".to_string(),
+            start: 1,
+            end: 12,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+            transcript_id: None,
+            cds_segments: Vec::new(),
+        };
+        let reference = crate::io::Reference {
+            sequence: "ATGAAATTTGGG",
+        };
+        // Upstream 1bp deletion (pos 4, low freq) + downstream SNV in codon 4
+        // (pos 11, high freq).
+        let variants_in = [
+            crate::io::VcfPosition {
+                position: 3,
+                ref_allele: "GA".to_string(),
+                alt_allele: "G".to_string(),
+                original_dp: None,
+                original_freq: Some(0.05),
+                original_info: None,
+            },
+            crate::io::VcfPosition {
+                position: 11,
+                ref_allele: "G".to_string(),
+                alt_allele: "A".to_string(),
+                original_dp: None,
+                original_freq: Some(0.95),
+                original_info: None,
+            },
+        ];
+
+        let find_snp = |variants: &[crate::variants::VariantInfo]| -> crate::variants::VariantInfo {
+            variants
+                .iter()
+                .find(|v| v.variant_type == VariantType::Snp)
+                .expect("downstream SNP row")
+                .clone()
+        };
+
+        // Default config (no gate): the downstream SNV is marked frameshifted.
+        let default_variants = crate::variants::get_mnv_variants_for_gene(
+            &gene,
+            &variants_in,
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+        let default_snp = find_snp(&default_variants);
+        assert!(
+            default_snp.aa_changes[0].contains("fs"),
+            "without gate the downstream SNP should be frameshifted, got {:?}",
+            default_snp.aa_changes
+        );
+
+        // Gate above the indel frequency: the downstream SNV is NOT frameshifted.
+        let gated_variants = crate::variants::get_mnv_variants_for_gene_with_config(
+            &gene,
+            &variants_in,
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+            &crate::variants::IndelAnnotationConfig {
+                frameshift_min_freq: 0.5,
+            },
+        );
+        let gated_snp = find_snp(&gated_variants);
+        assert!(
+            !gated_snp.aa_changes[0].contains("fs"),
+            "with gate the downstream SNP should not be frameshifted, got {:?}",
+            gated_snp.aa_changes
+        );
     }
 
     #[test]
