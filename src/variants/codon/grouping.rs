@@ -57,22 +57,19 @@ pub(super) fn merge_snp_into_groups(groups: &mut Vec<Vec<Snp>>, snp: Snp) {
     }
     *groups = new_groups;
 }
-/// Merge `original_info` from all SNPs in a codon group.
-/// When all SNPs share the same info string, return that single string.
-/// When they differ, concatenate unique info strings with `|` as separator
-/// so no original INFO data is lost for MNV records.
+/// Representative `original_info` for the SNPs that form a codon group.
+///
+/// When the SNVs come from VCF records with *different* INFO, two independent
+/// INFO field-sets cannot be combined into one valid INFO column: joining them
+/// (the previous behaviour) produced malformed entries such as `AF=0.5|DP=12`
+/// and duplicate keys once re-split on `;`/`=`. Use the first record's INFO as
+/// the representative for the combined row; when every SNV shares the same INFO
+/// (the common case) this is exactly that shared string.
 pub(super) fn merge_original_info(snps: &[Snp]) -> Option<String> {
-    let infos: Vec<&str> = snps
-        .iter()
+    snps.iter()
         .filter_map(|s| s.original_info.as_deref())
-        .collect();
-    if infos.is_empty() {
-        return None;
-    }
-    // Deduplicate while preserving order
-    let mut seen = std::collections::HashSet::new();
-    let unique: Vec<&str> = infos.into_iter().filter(|s| seen.insert(*s)).collect();
-    Some(unique.join("|"))
+        .next()
+        .map(str::to_string)
 }
 
 pub(super) fn collect_all_usize(values: impl Iterator<Item = Option<usize>>) -> Option<Vec<usize>> {
@@ -102,4 +99,44 @@ pub(super) fn event_metadata(
 
 pub(super) fn variant_event_metadata(variant: &crate::io::VcfPosition) -> (String, Vec<String>) {
     event_metadata(variant.position, &variant.ref_allele, &variant.alt_allele)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::merge_original_info;
+    use crate::variants::Snp;
+
+    fn snp(original_info: Option<&str>) -> Snp {
+        Snp {
+            index: 1,
+            position: 1,
+            ref_base: "A".to_string(),
+            base: "T".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: original_info.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn test_merge_original_info_shared_value() {
+        let snps = vec![snp(Some("DP=10;AF=0.5")), snp(Some("DP=10;AF=0.5"))];
+        assert_eq!(merge_original_info(&snps).as_deref(), Some("DP=10;AF=0.5"));
+    }
+
+    #[test]
+    fn test_merge_original_info_divergent_keeps_first_without_pipe() {
+        // Regression: differing INFO from two source records must not be joined
+        // with '|' (which corrupts the INFO column once re-split on ';'/'='); the
+        // first record's INFO is used as the representative for the MNV row.
+        let snps = vec![snp(Some("DP=10;AF=0.5")), snp(Some("DP=12;AF=0.6"))];
+        let merged = merge_original_info(&snps).expect("some info");
+        assert_eq!(merged, "DP=10;AF=0.5");
+        assert!(!merged.contains('|'));
+    }
+
+    #[test]
+    fn test_merge_original_info_none_when_absent() {
+        assert_eq!(merge_original_info(&[snp(None), snp(None)]), None);
+    }
 }
