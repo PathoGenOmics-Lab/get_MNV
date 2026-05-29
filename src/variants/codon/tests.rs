@@ -216,6 +216,80 @@ fn test_transcript_model_groups_mnv_across_exon_junction() {
 }
 
 #[test]
+fn test_transcript_synonymous_snp_is_synonymous() {
+    // Regression: the transcript/CDS path classified the change type from the
+    // three-letter IUPAC string ("Leu2Leu"), so `determine_change_type` compared
+    // 'L' vs 'u' and reported every synonymous codon as Non-synonymous. A
+    // synonymous Lys (AAA -> AAG) must classify as Synonymous.
+    let gene = Gene {
+        name: "tx_cds".to_string(),
+        start: 1,
+        end: 9,
+        strand: Strand::Plus,
+        phase: 0,
+        protein_offset: 0,
+        transcript_id: Some("tx1".to_string()),
+        cds_segments: vec![CdsSegment { start: 1, end: 9 }],
+    };
+    let reference = crate::io::Reference {
+        sequence: "ATGAAATTT", // Met-Lys-Phe
+    };
+    let variants = crate::variants::get_mnv_variants_for_gene(
+        &gene,
+        &[crate::io::VcfPosition {
+            position: 6, // 3rd base of codon 2: AAA -> AAG, both Lys
+            ref_allele: "A".to_string(),
+            alt_allele: "G".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }],
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+    assert_eq!(variants.len(), 1);
+    assert_eq!(variants[0].change_type, ChangeType::Synonymous);
+    assert_eq!(variants[0].aa_changes, vec!["Lys2Lys".to_string()]);
+}
+
+#[test]
+fn test_transcript_start_lost_snp_is_start_lost() {
+    // Regression: the same three-letter classification bug also hid Start-lost
+    // calls on the transcript path (Met1 -> Thr was reported Non-synonymous).
+    let gene = Gene {
+        name: "tx_cds".to_string(),
+        start: 1,
+        end: 9,
+        strand: Strand::Plus,
+        phase: 0,
+        protein_offset: 0,
+        transcript_id: Some("tx1".to_string()),
+        cds_segments: vec![CdsSegment { start: 1, end: 9 }],
+    };
+    let reference = crate::io::Reference {
+        sequence: "ATGAAATTT",
+    };
+    let variants = crate::variants::get_mnv_variants_for_gene(
+        &gene,
+        &[crate::io::VcfPosition {
+            position: 2, // ATG -> ACG: Met1 -> Thr (start lost)
+            ref_allele: "T".to_string(),
+            alt_allele: "C".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }],
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+    assert_eq!(variants.len(), 1);
+    assert_eq!(variants[0].change_type, ChangeType::StartLost);
+    assert_eq!(variants[0].aa_changes, vec!["Met1Thr".to_string()]);
+}
+
+#[test]
 fn test_transcript_model_restored_frame_does_not_mark_downstream_snp_frameshift() {
     let gene = Gene {
         name: "tx_cds".to_string(),

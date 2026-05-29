@@ -59,8 +59,13 @@ pub(super) fn process_transcript_codon(
     let orig_aa = genetic_code.translate_seq(ref_codon.as_bytes());
     let mut_aa = genetic_code.translate_seq(mnv_codon.as_bytes());
     let aa_pos = (codon_start_offset / 3) + 1;
-    let combined_aa = iupac_aa(&format!("{orig_aa}{aa_pos}{mut_aa}"));
-    let change_type = ChangeType::from_label(&determine_change_type(&combined_aa));
+    // Classify from the one-letter form (e.g. "L2L", "M1T"); `determine_change_type`
+    // inspects the first/last character, so it must NOT receive the three-letter
+    // IUPAC string (which would turn "Leu2Leu" into a spurious Non-synonymous and
+    // hide synonymous / start-lost calls). The IUPAC form is kept only for display.
+    let combined_change = format!("{orig_aa}{aa_pos}{mut_aa}");
+    let combined_aa = iupac_aa(&combined_change);
+    let change_type = ChangeType::from_label(&determine_change_type(&combined_change));
 
     let snp_changes = codon_snps
         .iter()
