@@ -2,14 +2,6 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
-
-### Fixed
-- **Scientific**: `--split-multiallelic` no longer silently drops alternate ALT alleles when two or more alts share the same codon position. Each alt now produces an independent annotation row with its own AA effect, codon, and BAM-derived read support, instead of keeping only the first alt and discarding the rest. True duplicates (same position + same alt) still collapse to a single row.
-
-### Changed
-- `get_mnv_variants_for_gene` and `get_mnv_variants_for_transcript` now build a list of mutually-exclusive codon interpretations per codon start. Multi-allelic positions expand the interpretation set as a Cartesian product, deduplicated by `(position, alt)` keys, so a codon that contains N independent alts emits N output rows.
-
 ## [1.1.4] - 2026-05-20
 
 ### Added
@@ -18,6 +10,9 @@ All notable changes to this project are documented in this file.
 - Added transcript-aware regression coverage for exon-junction MNV codons and restored-frame indel contexts in multi-exon CDS models.
 
 ### Changed
+- Added a tuned `[profile.release]` (thin LTO, single codegen unit) and wrapped plain (non-BGZF) VCF output in a buffered writer with an explicit flush, for faster production builds and record emission.
+- Pinned `sha2` to the stable `0.10` line (previously a `0.11` pre-release), removing a duplicate hashing dependency stack from the resolved graph.
+- `get_mnv_variants_for_gene` and `get_mnv_variants_for_transcript` now build a list of mutually-exclusive codon interpretations per codon start. Multi-allelic positions expand the interpretation set as a Cartesian product, deduplicated by `(position, alt)` keys, so a codon that contains N independent alts emits N output rows.
 - Bumped project, GUI, citation, README, and frontend metadata to version 1.1.4.
 - Updated the Tauri desktop dependency set to the 2.11 patch line, including `tauri` 2.11.2 and `tauri-plugin-dialog` 2.7.1.
 - Updated frontend lockfile dependencies, including `postcss` 8.5.10.
@@ -30,6 +25,9 @@ All notable changes to this project are documented in this file.
 - GFF/GTF `CDS` rows with `transcript_id` or `Parent` are now collapsed into spliced transcript CDS models, so codon grouping, MNV amino-acid effects, and indel frameshift context are evaluated against the full coding sequence instead of isolated exon rows.
 
 ### Fixed
+- **Scientific**: `--split-multiallelic` no longer silently drops alternate ALT alleles when two or more alts share the same codon position. Each alt now produces an independent annotation row with its own AA effect, codon, and BAM-derived read support; true duplicates (same position + same alt) still collapse to one row.
+- VCF output INFO values (`GENE`, `AA`, `CT`, `TYPE`, `EC`, `COMP`) are now percent-encoded for the structurally reserved characters (`;`, `=`, `,`, `%`, and tab/newline/CR), so GFF gene names containing those characters can no longer corrupt the INFO column or spawn bogus keys.
+- `--keep-original-info` now subsets per-allele (`Number=A/R/G`) INFO fields to the split allele when a multiallelic record is divided, instead of copying the whole array onto each single-ALT output record (which produced a cardinality-invalid VCF that `bcftools` rejects).
 - Resolved the frontend security audit by updating vulnerable transitive packages, including `brace-expansion` 5.0.6.
 - Regenerated the Rust lockfile so vulnerable `rand` package entries are no longer present in the resolved dependency graph.
 - Corrected CLI, GUI, and documentation wording for BCF input, BAM base-quality filtering, strand-bias INFO tags, and MNV rows that overlap indels.
