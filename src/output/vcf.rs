@@ -89,7 +89,8 @@ impl VcfWriter {
         let mut writer: Box<dyn Write> = if bgzf_output {
             Box::new(noodles::bgzf::io::Writer::new(File::create(&out_file)?))
         } else {
-            Box::new(File::create(&out_file)?)
+            // Buffer plain-VCF output so each record is not a separate write(2).
+            Box::new(std::io::BufWriter::new(File::create(&out_file)?))
         };
 
         writeln!(writer, "##fileformat=VCFv4.2")?;
@@ -173,6 +174,13 @@ impl VcfWriter {
             emit_filtered,
             include_strand_bias_info,
         })
+    }
+
+    /// Flush buffered output. Must be called before the writer is dropped so a
+    /// flush error is reported instead of being swallowed by `BufWriter::drop`.
+    pub fn flush(&mut self) -> AppResult<()> {
+        self.writer.flush()?;
+        Ok(())
     }
 
     fn write_variant_line(

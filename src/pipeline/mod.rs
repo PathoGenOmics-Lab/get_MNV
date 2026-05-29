@@ -180,6 +180,9 @@ fn run_single(
     summary.timings.emit_ms = emit_ms;
     summary.timings.total_ms = total_start.elapsed().as_secs_f64() * 1000.0;
 
+    if let Some(writer) = vcf_writer.as_mut() {
+        writer.flush()?;
+    }
     drop(tsv_writer);
     drop(vcf_writer);
 
