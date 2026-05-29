@@ -28,14 +28,14 @@ __y Mireia Coscolla<sup>1</sup>__
 
 ## ¿Qué es get_MNV?
 
-get_MNV encuentra casos en los que dos o más SNV caen en el mismo codón y deben interpretarse de forma conjunta. Estos cambios combinados pueden producir un efecto distinto sobre el aminoácido que los SNV individuales por separado.
+get_MNV detecta los casos en que dos o más SNV caen en el mismo codón y deben interpretarse de forma conjunta. Estos cambios combinados pueden producir un efecto sobre el aminoácido distinto del de cada SNV por separado.
 
-La herramienta toma:
+La herramienta toma como entrada:
 
 - Llamadas de variantes: VCF o `variants.tsv` de iVar
 - Secuencia de referencia: FASTA
 - Anotación de genes: GFF/GFF3/GTF o un archivo TSV simple
-- Lecturas alineadas opcionales: BAM, usadas para contar el soporte de eventos SNP, MNV e indel
+- Lecturas alineadas opcionales: BAM, que se usan para contar el soporte de eventos SNP, MNV e indel
 
 Escribe las variantes anotadas en formato TSV, VCF o ambos.
 
@@ -45,22 +45,22 @@ Escribe las variantes anotadas en formato TSV, VCF o ambos.
 
 **Características principales:**
 
-- Agrupa los SNV por codón y reporta llamadas SNP, MNV o SNP/MNV
+- Agrupa los SNV por codón y notifica llamadas SNP, MNV o SNP/MNV
 - Recalcula los cambios de aminoácido a partir del haplotipo completo del codón
-- Descompone los alelos `REF/ALT` de VCF/iVar en componentes de evento SNV, MNV, inserción, deleción,
+- Descompone los alelos `REF/ALT` de VCF/iVar en componentes de evento de tipo SNV, MNV, inserción, deleción,
   delins e indel complejo
-- Lee llamadas de variantes de VCF y de TSV de iVar, incluyendo la notación de indels
+- Lee llamadas de variantes en VCF y en TSV de iVar, incluida la notación de indels
   `+SEQ` y `-SEQ` de iVar
-- Usa las lecturas del BAM, cuando se proporciona, para contar el soporte SNP/MNV, el soporte exacto de eventos
+- Cuando se proporciona un BAM, usa sus lecturas para contar el soporte SNP/MNV, el soporte exacto de eventos
   indel y el sesgo de hebra
 - Admite 9 tablas de código genético del NCBI
-- Incluye una GUI de escritorio para análisis mediante arrastrar y soltar
+- Incluye una GUI de escritorio para analizar mediante arrastrar y soltar
 
 ## Instalación
 
 ### GUI de escritorio
 
-Descarga la última versión para tu plataforma:
+Descarga la última release para tu plataforma:
 
 | Plataforma | Descarga |
 |---|---|
@@ -70,9 +70,9 @@ Descarga la última versión para tu plataforma:
 | 🪟 Windows | [**Página de releases**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
 
 > [!NOTE]
-> **Usuarios de macOS**: La aplicación no está firmada con un certificado de Apple Developer. En el primer arranque, haz clic derecho sobre la app → **Abrir** → haz clic en **Abrir** en el cuadro de diálogo. Consulta el [soporte de Apple](https://support.apple.com/en-us/HT202491) para más detalles.
+> **Usuarios de macOS**: La aplicación no está firmada con un certificado de Apple Developer. La primera vez que la abras, haz clic derecho sobre ella → **Abrir** → haz clic en **Abrir** en el cuadro de diálogo. Consulta el [soporte de Apple](https://support.apple.com/en-us/HT202491) para más detalles.
 
-Todas las versiones están disponibles en la [página de releases](https://github.com/PathoGenOmics-Lab/get_MNV/releases).
+Todas las releases están disponibles en la [página de releases](https://github.com/PathoGenOmics-Lab/get_MNV/releases).
 
 ### Línea de comandos
 
@@ -117,7 +117,7 @@ get_mnv \
   --gff genes.gff3
 ```
 
-Usa `--tsv` para el archivo `variants.tsv` producido por `ivar variants`.
+Usa `--tsv` para el archivo `variants.tsv` que genera `ivar variants`.
 
 ### Con soporte de lecturas de BAM
 
@@ -148,33 +148,33 @@ Ejecuta `get_mnv --help` para ver la lista completa de opciones.
 
 | Argumento | Qué hace |
 |---|---|
-| `--vcf <FILE>` | Archivo de entrada de variantes en formato `.vcf` plano o `.vcf.gz` comprimido con BGZF. La entrada BCF debe convertirse antes a VCF. |
-| `--tsv <FILE>` | Archivo de entrada `variants.tsv` de iVar. |
-| `--bam <FILE>` | BAM ordenado e indexado opcional para el soporte de lecturas. |
+| `--vcf <FILE>` | Archivo de variantes de entrada en formato `.vcf` plano o `.vcf.gz` comprimido con BGZF. La entrada BCF debe convertirse antes a VCF. |
+| `--tsv <FILE>` | Archivo `variants.tsv` de iVar de entrada. |
+| `--bam <FILE>` | BAM ordenado e indexado, opcional, para el soporte de lecturas. |
 | `--fasta <FILE>` | FASTA de referencia. Los nombres de los contigs deben coincidir con el archivo de variantes. |
 | `--gff <FILE>` | Anotación de genes en formato GFF/GFF3/GTF. |
 | `--genes <FILE>` | Anotación de genes en TSV simple. Úsalo en lugar de `--gff`. |
 | `--gff-features <LIST>` | Tipos de feature a analizar, por ejemplo `CDS` o `gene,pseudogene`. |
 | `--quality <N>` | Calidad Phred de base mínima para el soporte de lecturas del BAM. Por defecto: `20`. |
-| `--min-mapq <N>` | Calidad de mapeo de lectura mínima al usar BAM. Por defecto: `0`. |
+| `--min-mapq <N>` | Calidad de mapeo mínima de las lecturas al usar BAM. Por defecto: `0`. |
 | `--snp <N>` | Número mínimo de lecturas que soportan el SNP. Por defecto: `0`. |
 | `--min-snp-frequency <F>` | Frecuencia mínima de SNP derivada del BAM, de `0` a `1`. Por defecto: `0`. |
-| `--min-snp-strand <N>` | Número mínimo de lecturas que soportan el SNP requeridas en cada hebra. Por defecto: `0`. |
+| `--min-snp-strand <N>` | Número mínimo de lecturas que soportan el SNP exigido en cada hebra. Por defecto: `0`. |
 | `--mnv <N>` | Número mínimo de lecturas que soportan el MNV. Por defecto: `0`. |
 | `--min-mnv-frequency <F>` | Frecuencia mínima del haplotipo MNV derivada del BAM, de `0` a `1`. Por defecto: `0`. |
-| `--min-mnv-strand <N>` | Número mínimo de lecturas que soportan el MNV requeridas en cada hebra. Por defecto: `0`. |
+| `--min-mnv-strand <N>` | Número mínimo de lecturas que soportan el MNV exigido en cada hebra. Por defecto: `0`. |
 | `--both` | Escribe las salidas TSV y VCF a la vez. |
 | `--summary-json <FILE>` | Escribe un resumen de la ejecución legible por máquina. |
 | `--run-manifest <FILE>` | Escribe el comando, la versión, las entradas, las salidas y las sumas de comprobación. |
 
 Los filtros de frecuencia usan el soporte de lecturas recalculado a partir de `--bam`, no el valor
-`OFREQ` original de la entrada VCF/iVar. Usa valores como `0.05` para 5% o `0.20`
-para 20%. Cuando se solicita salida VCF, los registros de baja frecuencia se omiten por
-defecto o se marcan con `FILTER=LowFrequency` cuando `--emit-filtered` está activado.
-Los filtros de frecuencia de SNP y MNV son independientes: `--min-snp-frequency` se aplica a
+`OFREQ` original de la entrada VCF/iVar. Usa valores como `0.05` para el 5% o `0.20`
+para el 20%. Cuando se solicita salida VCF, los registros de baja frecuencia se omiten por
+defecto o se marcan con `FILTER=LowFrequency` si `--emit-filtered` está activado.
+Los filtros de frecuencia de SNP y de MNV son independientes: `--min-snp-frequency` se aplica a
 las observaciones individuales de SNP, mientras que `--min-mnv-frequency` se aplica al haplotipo
-MNV fasado. En las llamadas mixtas `SNP/MNV`, un haplotipo MNV fuerte no se elimina
-solo porque las observaciones individuales de SNP estén por debajo del umbral de SNP.
+MNV en fase. En las llamadas mixtas `SNP/MNV`, un haplotipo MNV sólido no se elimina
+solo porque las observaciones individuales de SNP queden por debajo del umbral de SNP.
 Los filtros de conteo de lecturas y de soporte por hebra son independientes del mismo modo:
 `--snp` y `--min-snp-strand` se aplican a las observaciones de SNP, mientras que `--mnv` y
 `--min-mnv-strand` se aplican al haplotipo MNV.
@@ -198,14 +198,14 @@ Los campos de salida más importantes son:
 | Columna | Significado |
 |---|---|
 | `Chromosome` | Nombre del contig |
-| `Gene` | Nombre del gen o feature |
+| `Gene` | Nombre del gen o de la feature |
 | `Positions` | Una posición para los SNP, varias posiciones para los MNV |
 | `Base Changes` | Bases alternativas |
 | `AA Changes` | Cambio de aminoácido tras combinar los SNV del codón |
 | `Variant Type` | `SNP`, `MNV`, `SNP/MNV` o `INDEL` |
 | `Change Type` | Sinónimo, no sinónimo, ganancia/pérdida de codón de stop, desconocido, etc. |
 
-Cuando se proporciona un BAM, columnas adicionales reportan la profundidad de lecturas, el soporte SNP, el soporte MNV, la frecuencia y los conteos por hebra.
+Cuando se proporciona un BAM, hay columnas adicionales que indican la profundidad de lecturas, el soporte SNP, el soporte MNV, la frecuencia y los conteos por hebra.
 
 ## Características
 
@@ -213,22 +213,22 @@ Cuando se proporciona un BAM, columnas adicionales reportan la profundidad de le
 |---|---|
 | 🧬 Detección de MNV | Agrupa los SNV del mismo codón y los reclasifica como MNV |
 | 🔬 Cambios de AA precisos | Calcula los cambios de aminoácido a partir del haplotipo completo del codón |
-| 📊 Soporte de lecturas | Conteos de lecturas SNP/MNV basados en BAM con métricas específicas por hebra |
-| 🔍 Sesgo de hebra | Valores p de la prueba exacta de Fisher para el soporte de sesgo de hebra de SNP y MNV (`SBP`/`MSBP` en el INFO del VCF) |
+| 📊 Soporte de lecturas | Conteos de lecturas SNP/MNV basados en BAM, con métricas específicas por hebra |
+| 🔍 Sesgo de hebra | Valores p de la prueba exacta de Fisher para el soporte de sesgo de hebra de SNP y MNV (`SBP`/`MSBP` en el campo INFO del VCF) |
 | 📁 Múltiples salidas | TSV, VCF (plano/BGZF+Tabix), BCF, resumen JSON, manifiesto de ejecución |
 | ⚡ Paralelo | Procesamiento de contigs multihilo con Rayon |
 | 🧪 Códigos genéticos | 9 tablas de traducción del NCBI (1, 2, 3, 4, 5, 6, 11, 12, 25) |
-| 🧩 Entrada flexible | Llamadas de variantes de VCF o TSV de iVar; anotaciones GFF3/GTF o TSV; VCF multicontig y multimuestra |
-| ✅ Validación | Modo de simulación (dry-run), métricas estrictas, sumas de comprobación de entradas, JSON de errores |
-| 🖥️ GUI de escritorio | Aplicación nativa de Tauri con arrastrar y soltar, visor de pistas genómicas, modo oscuro |
+| 🧩 Entrada flexible | Llamadas de variantes en VCF o TSV de iVar; anotaciones GFF3/GTF o TSV; VCF multicontig y multimuestra |
+| ✅ Validación | Modo de simulación (dry-run), métricas estrictas, sumas de comprobación de las entradas, JSON de errores |
+| 🖥️ GUI de escritorio | Aplicación nativa de Tauri con arrastrar y soltar, visor de pistas genómicas y modo oscuro |
 
 ## GUI de escritorio
 
 La aplicación de escritorio ofrece el mismo flujo de trabajo de análisis en una interfaz visual:
 
-- Suelta archivos de variantes VCF o TSV de iVar
-- Suelta archivos FASTA, GFF/GTF/GFF3 y BAM opcional
-- Elige los parámetros comunes desde el formulario
+- Suelta los archivos de variantes VCF o TSV de iVar
+- Suelta los archivos FASTA, GFF/GTF/GFF3 y el BAM opcional
+- Elige los parámetros comunes en el formulario
 - Ejecuta una muestra o varias muestras emparejadas
 - Inspecciona, filtra y exporta los resultados
 
@@ -249,11 +249,11 @@ MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    MNV           No
 **Tipos de variante:**
 - **SNP**: cambio de un solo nucleótido, un SNV por codón
 - **MNV**: varios SNV se representan como un único haplotipo de codón combinado
-- **SNP/MNV**: fila a nivel de codón con el contexto del SNV individual y el contexto del haplotipo MNV combinado a la vez; con BAM, las columnas de soporte distinguen la evidencia
-- **INDEL**: inserción, deleción, delins o alelo complejo; se reporta con los componentes del evento, el soporte exacto del BAM cuando está disponible y el efecto codificante cuando solapa con un feature CDS/gen anotado
+- **SNP/MNV**: fila a nivel de codón con el contexto del SNV individual y el del haplotipo MNV combinado a la vez; con BAM, las columnas de soporte distinguen la evidencia
+- **INDEL**: inserción, deleción, delins o alelo complejo; se notifica con los componentes del evento, el soporte exacto del BAM cuando está disponible y el efecto codificante cuando solapa con una feature CDS/gen anotada
 
-Un conjunto de datos de *M. tuberculosis* listo para ejecutar (referencia, genes, VCF y un BAM
-de demostración diminuto para el visor de lecturas) está en [`example/`](example/README.es.md).
+En [`example/`](example/README.es.md) tienes un conjunto de datos de *M. tuberculosis* listo para ejecutar (referencia, genes, VCF y un BAM
+de demostración diminuto para el visor de lecturas).
 
 ## Documentación
 
@@ -283,10 +283,10 @@ bash scripts/build_gui_bundle.sh
 
 ### Pruebas de escenarios de extremo a extremo
 
-`tests/scenarios/` contiene un arnés en Python que construye entradas sintéticas FASTA,
+`tests/scenarios/` contiene un arnés en Python que construye entradas sintéticas de FASTA,
 GFF, VCF (o TSV de iVar) y BAM a partir de escenarios declarativos, ejecuta
 el binario `get_mnv` compilado y comprueba cada salida TSV frente a las
-filas esperadas. La suite cubre actualmente 30 escenarios, incluyendo
+filas esperadas. La suite cubre actualmente 30 escenarios, entre ellos
 la agrupación SNP/MNV a nivel de codón, la propagación de frameshift, la emisión de
 haplotipos complex_indel, la anotación de CDS en hebra negativa y multiexón,
 la división de multialélicos y la entrada de TSV de iVar.
@@ -303,12 +303,12 @@ de casos validados, la disposición del mini-genoma y cómo añadir nuevos escen
 
 ## Limitaciones
 
-- Diseñado para eventos pequeños SNV/MNV/indel frente a una secuencia de referencia
-- Con `--gff-features CDS`, los registros GFF/GTF que aportan `transcript_id` o `Parent` se reconstruyen como modelos de CDS empalmados, lo que permite anotar codones en uniones de exones y el contexto de frameshift de indels a nivel de transcrito.
-- Las variantes heterocigotas eucariotas no fasadas siguen requiriendo cuidado: get_MNV reanota los alelos del llamador de variantes, pero no reestima la ploidía, las verosimilitudes de genotipo ni el fasado de largo alcance.
+- Está diseñado para eventos pequeños de tipo SNV/MNV/indel frente a una secuencia de referencia
+- Con `--gff-features CDS`, los registros GFF/GTF que aportan `transcript_id` o `Parent` se reconstruyen como modelos de CDS empalmados, lo que permite anotar codones en uniones de exones y el contexto de frameshift de los indels a nivel de transcrito.
+- Las variantes heterocigotas eucariotas sin fase siguen requiriendo cuidado: get_MNV reanota los alelos del llamador de variantes, pero no reestima la ploidía, las verosimilitudes de genotipo ni la fase de largo alcance.
 - Los registros VCF multialélicos requieren `--split-multiallelic` o una división previa (`bcftools norm -m -`)
 - Los nombres de los contigs de las variantes deben coincidir exactamente con el FASTA y el GFF
-- **Múltiples transcritos por gen**: al usar `--gff-features CDS` con un archivo GFF que contiene varios transcritos para el mismo gen, cada transcrito se anota de forma independiente, produciendo una línea de salida por transcrito y por variante. Si quieres una sola línea por variante, filtra tu GFF para conservar solo el transcrito canónico antes de ejecutar get_MNV (por ejemplo, usando [AGAT](https://github.com/NBISweden/AGAT) `agat_sp_keep_longest_isoform.pl` o una herramienta similar)
+- **Múltiples transcritos por gen**: al usar `--gff-features CDS` con un archivo GFF que contiene varios transcritos para el mismo gen, cada transcrito se anota de forma independiente, lo que produce una línea de salida por transcrito y por variante. Si quieres una sola línea por variante, filtra tu GFF para conservar solo el transcrito canónico antes de ejecutar get_MNV (por ejemplo, con [AGAT](https://github.com/NBISweden/AGAT) `agat_sp_keep_longest_isoform.pl` o una herramienta similar)
 
 ## Citación
 

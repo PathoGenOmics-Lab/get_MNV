@@ -18,7 +18,7 @@ Columnas principales:
 |---|---|
 | `Chromosome` | Nombre del contig |
 | `Gene` | Nombre del gen o de la característica. Las variantes intergénicas se marcan como `intergenic`. |
-| `Positions` | Una posición para los SNP, varias posiciones separadas por comas para los MNV. |
+| `Positions` | Una posición para los SNP y varias posiciones separadas por comas para los MNV. |
 | `Reference Bases` | Bases de referencia en esas posiciones. |
 | `Base Changes` | Bases alternativas. |
 | `AA Changes` | Cambio de aminoácido tras combinar todos los SNV del codón. |
@@ -38,41 +38,41 @@ Columnas adicionales cuando se usa `--bam`:
 | Columna | Significado |
 |---|---|
 | `SNP Reads` | Lecturas que respaldan cada SNV individual. |
-| `SNP Forward/Reverse Reads` | Soporte de SNP específico de la hebra. |
+| `SNP Forward/Reverse Reads` | Soporte de SNP por hebra. |
 | `MNV Reads` | Lecturas que respaldan el haplotipo MNV completo. |
-| `MNV Forward/Reverse Reads` | Soporte de MNV específico de la hebra. |
+| `MNV Forward/Reverse Reads` | Soporte de MNV por hebra. |
 | `Total Reads` | Profundidad en las posiciones de la variante. |
 | `SNP Frequencies` | Frecuencias de SNP por posición. |
 | `MNV Frequencies` | Frecuencia del haplotipo MNV. |
 | `Event Reads` | Lecturas exactas que respaldan un evento indel/complejo. |
-| `Event Forward/Reverse Reads` | Soporte exacto del evento específico de la hebra. |
+| `Event Forward/Reverse Reads` | Soporte exacto del evento por hebra. |
 | `Event Depth` | Lecturas con un alelo observado a lo largo del tramo del evento indel/complejo. |
 | `Event Frequency` | Lecturas exactas del evento divididas por la profundidad del evento. |
 
 El soporte exacto del evento tiene en cuenta el CIGAR. Una lectura debe reconstruir la misma
-secuencia ALT local y, para los haplotipos complejos, contener los componentes de inserción
-y deleción esperados. Esto evita que las combinaciones de inserción/deleción netamente neutras
-se cuenten como soporte solo porque su secuencia parezca un MNV.
+secuencia ALT local y, en el caso de los haplotipos complejos, contener los componentes de inserción
+y deleción esperados. Esto evita que las combinaciones de inserción/deleción de efecto neutro
+se contabilicen como soporte solo porque su secuencia se parezca a un MNV.
 
-Las columnas de frecuencia se calculan a partir del soporte del BAM. `--min-snp-frequency` y
+Las columnas de frecuencia se calculan a partir del soporte de lecturas del BAM. `--min-snp-frequency` y
 `--min-mnv-frequency` usan estos mismos valores derivados del BAM. Los filtros son
-independientes: `--min-snp-frequency` se aplica a las observaciones de SNP individuales, y
-`--min-mnv-frequency` se aplica a los haplotipos MNV fasados. En las llamadas mixtas `SNP/MNV`,
-una fila o registro VCF se conserva cuando cualquiera de los componentes supera su propio
+independientes: `--min-snp-frequency` se aplica a las observaciones de SNP individuales y
+`--min-mnv-frequency` se aplica a los haplotipos MNV en fase. En las llamadas mixtas `SNP/MNV`,
+una fila o registro VCF se conserva cuando cualquiera de los dos componentes supera su propio
 umbral activo.
 Los filtros de recuento de lecturas y de soporte de hebra (`--snp`, `--mnv`, `--min-snp-strand`
-y `--min-mnv-strand`) siguen el mismo comportamiento independiente de SNP/MNV.
+y `--min-mnv-strand`) siguen el mismo comportamiento independiente para SNP y MNV.
 
-Cuando un MNV a nivel de codón se solapa con un indel, la fila del MNV se conserva como una fila
+Cuando un MNV a nivel de codón se solapa con un indel, la fila del MNV se conserva como fila
 de contexto posicional, pero su efecto a nivel de aminoácido se marca como `Unknown` con
 `Change Type = Indel overlap`. Si las lecturas del BAM respaldan el evento combinado completo,
 get_MNV emite una fila `complex_indel` exacta aparte con el REF/ALT combinado, los
 componentes del evento y el soporte de lecturas del evento.
 
-El solapamiento de indel sigue la semántica interbase de VCF. Las deleciones se solapan con una
-característica por su tramo de referencia eliminado. Las inserciones se solapan con una característica
-solo cuando la secuencia insertada cae entre dos bases de referencia dentro de esa característica, de
-modo que una inserción anclada en la última base de la característica se reporta fuera de esa característica.
+El solapamiento del indel sigue la semántica interbase de VCF. Las deleciones se solapan con una
+característica a lo largo del tramo de referencia eliminado. Las inserciones solo se solapan con una
+característica cuando la secuencia insertada cae entre dos bases de referencia situadas dentro de ella, de
+modo que una inserción anclada en la última base de la característica se reporta fuera de esta.
 
 Ejemplo:
 
@@ -102,7 +102,7 @@ Nombre de archivo por defecto:
 <input_name>.MNV.vcf
 ```
 
-Usa `--vcf-gz` para salida comprimida:
+Usa `--vcf-gz` para obtener salida comprimida:
 
 ```text
 <input_name>.MNV.vcf.gz
@@ -131,8 +131,8 @@ Campos INFO comunes:
 | `MSBP` | Valor p del sesgo de hebra de MNV |
 
 La cabecera del VCF registra la versión de get_MNV, la línea de comandos y los umbrales usados.
-Cuando `--emit-filtered` está habilitado, los registros VCF por debajo de los umbrales de soporte de
-lecturas, frecuencia, soporte de hebra o sesgo de hebra se escriben con etiquetas FILTER como
+Cuando `--emit-filtered` está habilitado, los registros VCF que quedan por debajo de los umbrales de
+soporte de lecturas, frecuencia, soporte de hebra o sesgo de hebra se escriben con etiquetas FILTER como
 `LowSupport`, `LowFrequency`, `StrandSupport` o `StrandBias`; de lo contrario, se omiten.
 
 ## Salida BCF
@@ -178,7 +178,7 @@ Escribe con:
 --run-manifest run.manifest.json
 ```
 
-Incluye el resumen más:
+Incluye el resumen y, además:
 
 - Línea de comandos
 - Versión de la herramienta
@@ -193,7 +193,7 @@ Escribe los errores como JSON con:
 --error-json run.error.json
 ```
 
-Esto es útil en pipelines automatizados.
+Esto resulta útil en pipelines automatizados.
 
 ## Notas
 
@@ -206,4 +206,4 @@ Esto es útil en pipelines automatizados.
   no se elimina por un umbral de frecuencia de SNP más estricto.
 - Los filtros de soporte de lecturas y de soporte de hebra de SNP y MNV también son independientes.
 - `--sample all` escribe un conjunto de salida por cada muestra del VCF.
-- `--keep-original-info` conserva los campos INFO que no son de get_MNV del VCF de entrada.
+- `--keep-original-info` conserva los campos INFO del VCF de entrada que no son de get_MNV.

@@ -1,7 +1,7 @@
 # Formatos de entrada
 
 get_MNV necesita tres archivos: llamadas de variantes, un FASTA de referencia y
-anotación de genes. Un archivo BAM es opcional.
+anotación de genes. El archivo BAM es opcional.
 
 ## 1. Llamadas de variantes
 
@@ -18,12 +18,12 @@ Las entradas de llamadas de variantes admitidas son:
 - VCF (`.vcf` o `.vcf.gz`)
 - TSV de variantes de iVar (`.tsv`)
 
-Usa `--vcf` para archivos `.vcf` simples o `.vcf.gz` comprimidos con BGZF y
+Usa `--vcf` para archivos `.vcf` simples o `.vcf.gz` comprimidos con BGZF, y
 `--tsv` para archivos `variants.tsv` de iVar. La entrada BCF no se acepta
-directamente; conviértela primero, por ejemplo con
+directamente; conviértela antes, por ejemplo con
 `bcftools view input.bcf > input.vcf`.
-Los comandos antiguos que pasan un TSV de iVar a través de `--vcf` se siguen
-detectando automáticamente cuando la cabecera tiene las columnas estándar de
+Los comandos antiguos que pasan un TSV de iVar mediante `--vcf` se siguen
+detectando de forma automática cuando la cabecera tiene las columnas estándar de
 iVar.
 
 ### VCF
@@ -33,23 +33,23 @@ complejos.
 
 Requisitos:
 
-- Los nombres de contig del VCF deben coincidir con los nombres de contig del
-  FASTA y del GFF/GTF.
+- Los nombres de contig del VCF deben coincidir con los del FASTA y los del
+  GFF/GTF.
 - Los alelos REF deben coincidir con la secuencia del FASTA.
-- Los registros multialélicos deben dividirse previamente, o bien ejecutar con
-  `--split-multiallelic`.
+- Los registros multialélicos deben dividirse previamente, o bien hay que
+  ejecutar con `--split-multiallelic`.
 
-get_MNV puede leer las métricas originales de profundidad/frecuencia desde
-campos INFO o FORMAT comunes, incluidos `DP`, `AF`, `FREQ`, `AD`, `AO` y `RO`.
+get_MNV puede leer las métricas originales de profundidad y frecuencia desde
+campos INFO o FORMAT habituales, como `DP`, `AF`, `FREQ`, `AD`, `AO` y `RO`.
 
-Estos valores de frecuencia de entrada se conservan para el reporte como
-`OFREQ`. Los filtros de frecuencia de la línea de comandos
-(`--min-snp-frequency`, `--min-mnv-frequency`) usan en su lugar el soporte de
-lecturas derivado del BAM, por lo que requieren `--bam`.
+Estos valores de frecuencia de entrada se conservan en el informe como `OFREQ`.
+Los filtros de frecuencia de la línea de comandos (`--min-snp-frequency`,
+`--min-mnv-frequency`) usan en su lugar el soporte de lecturas derivado del BAM,
+por lo que requieren `--bam`.
 
 ### TSV de iVar
 
-Usa el TSV producido por `ivar variants`.
+Usa el TSV generado por `ivar variants`.
 
 Columnas obligatorias:
 
@@ -66,19 +66,19 @@ Columnas opcionales que se usan cuando están presentes:
 |---|---|
 | `TOTAL_DP` | Profundidad original (`ODP`) |
 | `ALT_FREQ` | Frecuencia original (`OFREQ`) |
-| `REF_DP`, `ALT_DP` | Se usan para inferir profundidad/frecuencia si es necesario |
-| `PASS` | Se usa para conservar las filas que pasan |
+| `REF_DP`, `ALT_DP` | Sirven para inferir profundidad y frecuencia si hace falta |
+| `PASS` | Sirve para conservar las filas que pasan el filtro |
 
 Filtrado:
 
-- Si existe `PASS`, get_MNV conserva los valores verdaderos como `TRUE`, `PASS`,
-  `1` o `YES`.
-- Las filas donde `REF == ALT` se omiten.
-- La notación de indels de iVar como `+SEQ` o `-SEQ` se convierte a alelos
-  anclados al estilo VCF usando la referencia FASTA, y luego se analiza con el
-  mismo modelo de eventos de alelo que la entrada VCF.
-- `ALT_FREQ` se reporta como frecuencia original (`OFREQ`). Es independiente de
-  los filtros de frecuencia derivados del BAM.
+- Si existe `PASS`, get_MNV conserva los valores con sentido verdadero, como
+  `TRUE`, `PASS`, `1` o `YES`.
+- Las filas donde `REF == ALT` se descartan.
+- La notación de indels de iVar como `+SEQ` o `-SEQ` se convierte en alelos
+  anclados al estilo VCF usando la referencia FASTA y, a continuación, se analiza
+  con el mismo modelo de eventos de alelo que la entrada VCF.
+- `ALT_FREQ` se incluye en el informe como frecuencia original (`OFREQ`), y es
+  independiente de los filtros de frecuencia derivados del BAM.
 
 ## 2. FASTA de referencia
 
@@ -93,7 +93,7 @@ Requisitos:
 - Los IDs de registro del FASTA deben coincidir con los nombres de contig de las
   variantes.
 - Las bases deben ser bases de ADN IUPAC válidas.
-- No se permiten nombres de contig duplicados.
+- No se admiten nombres de contig duplicados.
 
 ## 3. Anotación de genes
 
@@ -118,20 +118,20 @@ Detalles importantes:
 
 - Las coordenadas se leen de las columnas 4 y 5.
 - La hebra se lee de la columna 7.
-- Para las features `CDS`, se usa la fase de la columna 8 cuando está presente.
-- Para las filas `CDS` con `transcript_id` o `Parent`, get_MNV construye la
-  secuencia CDS empalmada para cada transcrito. La agrupación de codones, los
-  efectos de aminoácidos de los MNV y el contexto de frameshift de los indels se
-  evalúan entonces sobre el CDS completo del transcrito.
-- Si un GFF/GTF contiene múltiples transcritos para el mismo gen, una variante
+- En las features `CDS`, se usa la fase de la columna 8 cuando está presente.
+- En las filas `CDS` con `transcript_id` o `Parent`, get_MNV construye la
+  secuencia CDS empalmada de cada transcrito. La agrupación de codones, los
+  efectos sobre el aminoácido de los MNV y el contexto de frameshift de los
+  indels se evalúan entonces sobre el CDS completo del transcrito.
+- Si un GFF/GTF contiene varios transcritos para el mismo gen, una sola variante
   puede producir una línea de salida por cada transcrito solapante.
 
-Los nombres de genes se leen de atributos comunes como `gene_name`, `gene`,
+Los nombres de genes se leen de atributos habituales como `gene_name`, `gene`,
 `Name`, `locus_tag`, `gene_id` e `ID`.
 
 ### Anotación TSV simple
 
-Usa `--genes` para un archivo de anotación pequeño y simple:
+Usa `--genes` para un archivo de anotación pequeño y sencillo:
 
 ```bash
 --genes genes.tsv
@@ -156,13 +156,13 @@ Formato opcional de cinco columnas con fase:
 GeneName	GeneStart	GeneEnd	Strand	Phase
 ```
 
-La fase puede ser `0`, `1`, `2` o `.`. Si se omite la columna de fase, su valor
-por defecto es `0`.
+La fase puede ser `0`, `1`, `2` o `.`. Si se omite la columna de fase, toma el
+valor `0` por defecto.
 
 Limitaciones de la anotación TSV:
 
 - No tiene columna de contig.
-- Para datos multi-contig, usa GFF/GTF o restringe la ejecución con `--chrom`.
+- Para datos multi-contig, usa GFF/GTF o limita la ejecución con `--chrom`.
 
 ## 4. Lecturas BAM (opcional)
 
@@ -174,18 +174,18 @@ Pasa las lecturas BAM con:
 
 Cuando se proporciona un BAM, get_MNV calcula:
 
-- Soporte de lecturas de SNP
-- Soporte de lecturas del haplotipo MNV
-- Profundidad total y frecuencia
-- Recuentos de hebra directa/reversa
+- El soporte de lecturas de los SNP
+- El soporte de lecturas del haplotipo MNV
+- La profundidad total y la frecuencia
+- Los recuentos por hebra directa e inversa
 - Estadísticas opcionales de sesgo de hebra
 
 Requisitos:
 
 - El BAM debe estar ordenado.
 - El BAM debe estar indexado (`.bai`).
-- Los nombres de contig del BAM deben coincidir con el archivo de variantes y el
-  FASTA.
+- Los nombres de contig del BAM deben coincidir con los del archivo de variantes
+  y los del FASTA.
 - Las lecturas duplicadas, secundarias y suplementarias se ignoran.
 
 ## Nombres de contig

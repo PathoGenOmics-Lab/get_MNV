@@ -14,8 +14,8 @@ Solución:
 
 - Asegúrate de usar los mismos nombres de contig en el archivo de variantes, el
   FASTA, el GFF/GTF y el BAM.
-- Los nombres distinguen entre mayúsculas y minúsculas.
-- `chr1` y `1` son nombres diferentes.
+- Los nombres distinguen mayúsculas de minúsculas.
+- `chr1` y `1` son nombres distintos.
 
 ## El REF del VCF no coincide con el FASTA
 
@@ -27,8 +27,8 @@ Ejemplo:
 
 Solución:
 
-- Comprueba que el VCF se llamó contra el mismo FASTA de referencia.
-- Comprueba que las coordenadas y los nombres de contig no se cambiaron después
+- Comprueba que el VCF se generó a partir del mismo FASTA de referencia.
+- Comprueba que las coordenadas y los nombres de contig no se modificaron después
   de la llamada de variantes.
 
 ## No se detecta el TSV de iVar
@@ -36,7 +36,7 @@ Solución:
 Solución:
 
 - Pasa el archivo con `--tsv sample_variants.tsv`.
-- Comprueba que el encabezado del TSV contiene al menos `REGION`, `POS`, `REF` y
+- Comprueba que la cabecera del TSV contiene al menos `REGION`, `POS`, `REF` y
   `ALT`.
 - Si el archivo es en realidad un TSV de anotación de genes, pásalo con
   `--genes`, no con `--tsv`.
@@ -75,8 +75,8 @@ bcftools norm -m - input.vcf > split.vcf
 ```
 
 `--split-multiallelic` emite una fila anotada por cada ALT, incluso cuando
-varios alts comparten la misma posición de codón. Cada fila reporta su propio
-efecto en el aminoácido, su codón y el soporte de lecturas derivado del BAM.
+varios alts comparten la misma posición de codón. Cada fila indica su propio
+efecto sobre el aminoácido, su codón y el soporte de lecturas derivado del BAM.
 Dividir el VCF de antemano con `bcftools norm -m -` produce la misma salida.
 
 ## Entrada BCF
@@ -120,7 +120,7 @@ Sample '<name>' not found in VCF header
 
 Solución:
 
-- Comprueba el nombre de la muestra en el encabezado del VCF.
+- Comprueba el nombre de la muestra en la cabecera del VCF.
 - Omite `--sample` para usar la primera muestra.
 - Usa `--sample all` solo cuando el VCF tiene columnas de muestra.
 
@@ -135,28 +135,32 @@ Ejemplo:
 Solución:
 
 - Desactiva `--strict`, o
-- Asegúrate de que cada variante tenga métricas de profundidad y frecuencia que get_MNV pueda leer.
+- Asegúrate de que cada variante tenga métricas de profundidad y frecuencia que
+  get_MNV pueda leer.
 
 ## Filtrado por frecuencia de alelos
 
 Usa `--min-snp-frequency <F>` para los registros SNP y `--min-mnv-frequency <F>`
-para los haplotipos MNV. Los valores son fracciones de `0` a `1`, por lo que `0.05` significa 5%.
+para los haplotipos MNV. Los valores son fracciones de `0` a `1`, así que `0.05`
+significa el 5 %.
 
 Estos filtros requieren `--bam` porque get_MNV los calcula a partir del soporte
 de lecturas. No usan el valor `OFREQ` original del VCF/iVar.
 Los umbrales de SNP y MNV son independientes. En llamadas mixtas `SNP/MNV`,
 `--min-snp-frequency` filtra las observaciones de SNP y `--min-mnv-frequency`
-filtra el haplotipo MNV fasado; un MNV fuerte no debería desaparecer solo
-porque las observaciones individuales de SNP estén por debajo del umbral de SNP.
+filtra el haplotipo MNV en fase; un MNV fuerte no debería desaparecer solo
+porque las observaciones individuales de SNP queden por debajo del umbral de SNP.
 
 Soluciones comunes:
 
-- Si ves un error `requires --bam`, añade un BAM ordenado/indexado o elimina los
-  filtros de frecuencia.
-- Si quieres filtrar por la frecuencia de alelos original del llamador (`OFREQ`),
-  prefiltra el VCF o el TSV de iVar antes de ejecutar get_MNV.
-- Combina los filtros de frecuencia con filtros de soporte de lecturas como `--snp`, `--mnv`,
-  `--min-snp-strand` y `--min-mnv-strand` para obtener llamadas más estrictas.
+- Si ves un error `requires --bam`, añade un BAM ordenado e indexado o elimina
+  los filtros de frecuencia.
+- Si quieres filtrar por la frecuencia de alelos original del programa de llamada
+  de variantes (`OFREQ`), prefiltra el VCF o el TSV de iVar antes de ejecutar
+  get_MNV.
+- Combina los filtros de frecuencia con filtros de soporte de lecturas como
+  `--snp`, `--mnv`, `--min-snp-strand` y `--min-mnv-strand` para obtener llamadas
+  más estrictas.
 
 ## El directorio de salida no admite escritura
 

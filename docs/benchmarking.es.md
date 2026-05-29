@@ -17,7 +17,7 @@ cargo run --release --bin bench_variants -- \
 
 ## Benchmark con conjunto de datos
 
-Ejecútalo contra un conjunto de datos real con exportación a CSV:
+Ejecútalo sobre un conjunto de datos real y exporta los resultados a CSV:
 
 ```bash
 cargo run --release --bin bench_variants -- \
@@ -28,18 +28,18 @@ cargo run --release --bin bench_variants -- \
   --max-avg-ms 200
 ```
 
-Esto añade una fila por ejecución a `benchmark.csv`.
+Esto añade una fila por cada ejecución a `benchmark.csv`.
 
 ## Opciones del benchmark
 
-| Argument | Default | Description |
+| Argumento | Por defecto | Descripción |
 |----------|---------|-------------|
-| `--warmup <N>` | 5 | Iteraciones de calentamiento (no medidas) |
+| `--warmup <N>` | 5 | Iteraciones de calentamiento (no se miden) |
 | `--iters <N>` | 30 | Iteraciones medidas |
 | `--threads <N>` | 1 | Hilos de trabajo |
 | `--dataset <DIR>` | none | Ruta al directorio del conjunto de datos (FASTA + VCF + anotación) |
-| `--contig <NAME>` | all | Restringe a un único contig |
-| `--csv <FILE>` | none | Añade los resultados en CSV |
+| `--contig <NAME>` | all | Limita la ejecución a un solo contig |
+| `--csv <FILE>` | none | Añade los resultados a un CSV |
 | `--max-avg-ms <MS>` | none | Falla si la media supera el umbral (detección de regresiones) |
 | `--synthetic-scale <N>` | 1 | Factor de escala para el número sintético de genes/SNP |
 
