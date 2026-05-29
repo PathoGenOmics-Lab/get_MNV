@@ -92,6 +92,10 @@ impl TsvFilterConfig {
     fn has_active_snp_filters(self) -> bool {
         self.min_snp_reads > 0 || self.min_snp_frequency > 0.0 || self.min_snp_strand_reads > 0
     }
+
+    fn has_active_mnv_filters(self) -> bool {
+        self.min_mnv_reads > 0 || self.min_mnv_frequency > 0.0 || self.min_mnv_strand_reads > 0
+    }
 }
 
 pub struct TsvWriterConfig<'a> {
@@ -135,6 +139,17 @@ fn passes_filters(variant: &VariantInfo, filters: TsvFilterConfig) -> AppResult<
     if !filters.has_active_filters() {
         return Ok(true);
     }
+    // Intergenic variants carry no recomputed read support, so they cannot
+    // satisfy a read-based filter. Drop them when the filters relevant to their
+    // variant type are active (indels/MNV use the MNV filters, SNPs the SNP
+    // filters); keep them otherwise. Checked before the indel branch so an
+    // intergenic indel is filtered consistently with an intergenic SNP.
+    if is_intergenic(variant) {
+        return Ok(match variant.variant_type {
+            VariantType::Indel | VariantType::Mnv => !filters.has_active_mnv_filters(),
+            VariantType::Snp | VariantType::SnpMnv => !filters.has_active_snp_filters(),
+        });
+    }
     if variant.variant_type == VariantType::Indel {
         if variant.mnv_reads.is_some() || variant.mnv_total_reads.is_some() {
             return Ok(mnv_component_passes_filters(
@@ -144,9 +159,6 @@ fn passes_filters(variant: &VariantInfo, filters: TsvFilterConfig) -> AppResult<
             ));
         }
         return Ok(true);
-    }
-    if is_intergenic(variant) {
-        return Ok(!filters.has_active_snp_filters());
     }
 
     let bam_vectors = snp_bam_vectors(variant)?;
@@ -552,6 +564,47 @@ mod tests {
             row[8], "Val26His",
             "Local SNP AA Changes should be exon-local"
         );
+    }
+
+    fn intergenic_indel() -> VariantInfo {
+        // As produced by build_intergenic_variant: no recomputed read support.
+        let mut v = variant_with_reads();
+        v.gene = "intergenic".to_string();
+        v.variant_type = VariantType::Indel;
+        v.positions = vec![10];
+        v.ref_bases = vec!["AC".to_string()];
+        v.base_changes = vec!["A".to_string()];
+        v.snp_reads = None;
+        v.snp_forward_reads = None;
+        v.snp_reverse_reads = None;
+        v.mnv_reads = None;
+        v.mnv_forward_reads = None;
+        v.mnv_reverse_reads = None;
+        v.mnv_total_reads = None;
+        v.total_reads = None;
+        v.total_forward_reads = None;
+        v.total_reverse_reads = None;
+        v.mnv_total_forward_reads = None;
+        v.mnv_total_reverse_reads = None;
+        v.event_class = Some("deletion".to_string());
+        v
+    }
+
+    #[test]
+    fn test_intergenic_indel_respects_mnv_filters() {
+        // Regression: an intergenic indel carries no recomputed read support, so
+        // it must be dropped when the relevant (MNV) filters are active, the same
+        // way an intergenic SNP is dropped under active SNP filters - instead of
+        // being kept unconditionally by the indel branch.
+        let variant = intergenic_indel();
+        // No filters -> kept.
+        assert!(passes_filters(&variant, filters(0, 0.0, 0, 0.0, 0, 0)).unwrap());
+        // Active MNV frequency / read / strand filters -> dropped.
+        assert!(!passes_filters(&variant, filters(0, 0.0, 0, 0.20, 0, 0)).unwrap());
+        assert!(!passes_filters(&variant, filters(0, 0.0, 2, 0.0, 0, 0)).unwrap());
+        assert!(!passes_filters(&variant, filters(0, 0.0, 0, 0.0, 0, 1)).unwrap());
+        // A SNP-only filter does not affect an intergenic indel.
+        assert!(passes_filters(&variant, filters(5, 0.0, 0, 0.0, 0, 0)).unwrap());
     }
 
     #[test]
