@@ -64,11 +64,15 @@ plugins:
           site_name: get_MNV
           nav_translations:
             Home: Inicio
+            Getting Started: Primeros pasos
             Usage: Uso
+            CLI Reference: Referencia de CLI
             Input Formats: Formatos de entrada
             Output Formats: Formatos de salida
             Indel & MNV Semantics: Semántica de indels y MNV
+            Desktop GUI: GUI de escritorio
             Troubleshooting: Resolución de problemas
+            FAQ: Preguntas frecuentes
             Benchmarking: Rendimiento
 
 markdown_extensions:
@@ -103,9 +107,13 @@ extra:
 
 nav:
   - Home: index.md
+  - Getting Started: getting-started.md
   - Usage: usage.md
+  - CLI Reference: cli-reference.md
   - Input Formats: input-formats.md
   - Output Formats: output-formats.md
   - Indel & MNV Semantics: indel-mnv-semantics.md
+  - Desktop GUI: gui.md
   - Troubleshooting: troubleshooting.md
+  - FAQ: faq.md
   - Benchmarking: benchmarking.md
