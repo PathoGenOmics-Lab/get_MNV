@@ -56,6 +56,14 @@ pub(super) fn transcript_offset_for_position(gene: &Gene, position: usize) -> Op
     None
 }
 
+/// Whether an insertion anchored at `position` falls strictly inside this CDS
+/// segment. The upper bound is exclusive (`< segment.end`) on purpose: a VCF
+/// insertion places the inserted bases *after* the anchor, so an anchor at the
+/// segment's last base sits on the exon|intron boundary, where the inserted
+/// sequence is genomically ambiguous between "end of this exon" and "start of
+/// the intron" (spliced out). Such boundary insertions are intentionally left
+/// out of the spliced-CDS model rather than assigned a possibly-wrong codon;
+/// they surface as intergenic instead. Anchors inside an exon are unaffected.
 pub(super) fn insertion_anchor_in_segment(segment: &CdsSegment, position: usize) -> bool {
     position >= segment.start && position < segment.end
 }

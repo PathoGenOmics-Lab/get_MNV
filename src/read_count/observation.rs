@@ -98,6 +98,12 @@ pub(super) fn anchor_base_quality(rec: &bam::Record, position: usize) -> Option<
         // silently failing every quality gate.
         return Some(u8::MAX);
     }
+    // Defensive: a malformed CIGAR whose query length exceeds the stored
+    // sequence could yield an index past the quality scores. Treat that as "no
+    // observation" rather than reading a bogus quality.
+    if qidx >= rec.sequence().len() {
+        return None;
+    }
     Some(qual.iter().nth(qidx).unwrap_or(0))
 }
 
