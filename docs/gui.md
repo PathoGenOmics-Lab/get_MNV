@@ -26,6 +26,12 @@ Download the latest build for your platform from the
 
 ## Genomic track viewer
 
+<div style="text-align: center;" markdown>
+![get_MNV genomic track viewer: codon tracks and the read pileup for an MNV](assets/gui-track-viewer.png){ width="840" }
+</div>
+
+*The track viewer for an MNV (`GCT → TCA`, Ala10Ser): codon tracks plus the read pileup, with the ALT bases highlighted across all 20 supporting reads.*
+
 Selecting a variant row opens an IGV-style view that lines up, column by column:
 
 - a **ruler** marking the variant positions and the displayed window;

@@ -28,6 +28,12 @@ Descarga la última versión para tu plataforma desde la
 
 ## Visor de pistas genómicas
 
+<div style="text-align: center;" markdown>
+![Visor de pistas genómicas de get_MNV: pistas de codones y pileup de lecturas de un MNV](assets/gui-track-viewer.png){ width="840" }
+</div>
+
+*El visor de pistas para un MNV (`GCT → TCA`, Ala10Ser): pistas de codones y el pileup de lecturas, con las bases ALT resaltadas en las 20 lecturas que dan soporte.*
+
 Al seleccionar una fila de variante se abre una vista de estilo IGV que alinea, columna a columna:
 
 - una **regla** que marca las posiciones de la variante y la ventana mostrada;
