@@ -312,6 +312,16 @@ pub fn run_with_progress(
             "--min-mnv-frequency must be between 0 and 1",
         ));
     }
+    if !(0.0..=1.0).contains(&args.frameshift_min_freq) {
+        return Err(AppError::config(
+            "--frameshift-min-freq must be between 0 and 1 (it is an allele frequency, not a percentage)",
+        ));
+    }
+    if !(0.0..=1.0).contains(&args.phased_indel_min_freq) {
+        return Err(AppError::config(
+            "--phased-indel-min-freq must be between 0 and 1 (it is an allele frequency, not a percentage)",
+        ));
+    }
     if (args.min_snp_frequency > 0.0 || args.min_mnv_frequency > 0.0) && args.bam_file.is_none() {
         return Err(AppError::config(
             "--min-snp-frequency and --min-mnv-frequency require --bam because frequencies are calculated from read support",

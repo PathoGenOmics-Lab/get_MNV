@@ -1605,6 +1605,27 @@ fn test_e2e_frequency_filters_require_bam() {
     assert!(err.to_string().contains("require --bam"));
 }
 
+#[test]
+fn test_e2e_frameshift_min_freq_out_of_range_errors() {
+    // A common mistake is passing a percentage (50) instead of a fraction (0.5),
+    // which previously silently disabled all frameshift propagation. It must now
+    // be rejected like the other frequency flags.
+    let mut args = base_args();
+    args.frameshift_min_freq = 50.0;
+    let err =
+        pipeline::run(&args).expect_err("out-of-range --frameshift-min-freq should be rejected");
+    assert!(err.to_string().contains("frameshift-min-freq"));
+}
+
+#[test]
+fn test_e2e_phased_indel_min_freq_out_of_range_errors() {
+    let mut args = base_args();
+    args.phased_indel_min_freq = 1.5;
+    let err =
+        pipeline::run(&args).expect_err("out-of-range --phased-indel-min-freq should be rejected");
+    assert!(err.to_string().contains("phased-indel-min-freq"));
+}
+
 // ---------------------------------------------------------------------------
 // T6: Fast text parser produces same output as htslib
 // ---------------------------------------------------------------------------
