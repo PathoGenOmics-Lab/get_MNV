@@ -398,7 +398,7 @@ pub fn list_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
     // Parse header to find #CHROM line
     for line_result in reader.lines() {
         let line = line_result?;
-        if line.starts_with("#CHROM") {
+        if line.starts_with("#CHROM") || line.starts_with("#chrom") {
             let fields: Vec<&str> = line.split('\t').collect();
             if fields.len() > 9 {
                 return Ok(fields[9..].iter().map(|s| s.to_string()).collect());
@@ -521,13 +521,18 @@ pub fn load_vcf_positions_by_contig(
 
     for line_result in reader.lines() {
         let line = line_result?;
-        if line.starts_with("#CHROM") {
+        if line.starts_with("#CHROM") || line.starts_with("#chrom") {
             header_seen = true;
         }
         let fields = match parse_vcf_line(&line) {
             Some(f) => f,
             None => continue,
         };
+        // Skip any data line appearing before the #CHROM header, matching the
+        // plain-text fast parser. A well-formed VCF has no records before it.
+        if !header_seen {
+            continue;
+        }
         record_idx += 1;
 
         if fields.len() < 8 {
@@ -653,6 +658,44 @@ mod tests {
             original_freq: None,
             original_info: None,
         }
+    }
+
+    #[test]
+    fn test_list_vcf_samples_accepts_lowercase_chrom_header() {
+        use std::io::Write;
+        let path =
+            std::env::temp_dir().join(format!("get_mnv_lc_samples_{}.vcf", std::process::id()));
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "##fileformat=VCFv4.2").unwrap();
+        writeln!(
+            f,
+            "#chrom\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE_A"
+        )
+        .unwrap();
+        drop(f);
+        let samples = super::list_vcf_samples(path.to_str().unwrap()).unwrap();
+        assert_eq!(samples, vec!["SAMPLE_A".to_string()]);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_load_vcf_accepts_lowercase_chrom_and_skips_preheader_data() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join(format!("get_mnv_lc_load_{}.vcf", std::process::id()));
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "##fileformat=VCFv4.2").unwrap();
+        // A stray data-shaped line before the header must be ignored, and a
+        // lowercase #chrom header must be accepted (parity with the fast parser).
+        writeln!(f, "chr1\t1\t.\tA\tG\t.\tPASS\t.").unwrap();
+        writeln!(f, "#chrom\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO").unwrap();
+        writeln!(f, "chr1\t5\t.\tA\tT\t.\tPASS\t.").unwrap();
+        drop(f);
+        let by_contig =
+            super::load_vcf_positions_by_contig(path.to_str().unwrap(), None, false, false, false)
+                .unwrap();
+        assert_eq!(by_contig.get("chr1").map(std::vec::Vec::len), Some(1));
+        assert_eq!(by_contig["chr1"][0].position, 5);
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]
