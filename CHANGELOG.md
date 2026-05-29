@@ -30,6 +30,8 @@ All notable changes to this project are documented in this file.
 - `--keep-original-info` now subsets per-allele (`Number=A/R/G`) INFO fields to the split allele when a multiallelic record is divided, instead of copying the whole array onto each single-ALT output record (which produced a cardinality-invalid VCF that `bcftools` rejects).
 - The BAM is now validated up front (exists, is coordinate-sorted/indexed, header readable) before any output file is created, so a missing index fails fast with an actionable message instead of erroring lazily inside a worker thread after partial output was already written.
 - Output is now transactional: if a run errors after the output files are created, the partial `.MNV.tsv` / `.MNV.vcf` / BCF files are removed on exit so downstream tooling never consumes a truncated file.
+- BAM region queries are now built with the structured noodles `Region` API instead of a `chrom:start-end` string, so contig names containing `:` (e.g. HLA allele contigs) are queried at the correct coordinates instead of being misparsed.
+- The BGZF VCF parser now rejects `POS=0` and a missing `#CHROM` header line, matching the plain-text fast parser so both code paths validate inputs identically.
 - Resolved the frontend security audit by updating vulnerable transitive packages, including `brace-expansion` 5.0.6.
 - Regenerated the Rust lockfile so vulnerable `rand` package entries are no longer present in the resolved dependency graph.
 - Corrected CLI, GUI, and documentation wording for BCF input, BAM base-quality filtering, strand-bias INFO tags, and MNV rows that overlap indels.

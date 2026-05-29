@@ -339,6 +339,18 @@ fn increment_directional_count(
     }
 }
 
+/// Build a coordinate region for a BAM query using the structured API, so a
+/// contig name containing ':' (e.g. HLA allele contigs) is not misparsed by the
+/// `chrom:start-end` string form.
+fn build_region(chrom: &str, start: usize, end: usize) -> AppResult<noodles::core::Region> {
+    use noodles::core::Position;
+    let start_pos = Position::try_from(start)
+        .map_err(|e| AppError::validation(format!("Invalid region start {chrom}:{start}: {e}")))?;
+    let end_pos = Position::try_from(end)
+        .map_err(|e| AppError::validation(format!("Invalid region end {chrom}:{end}: {e}")))?;
+    Ok(noodles::core::Region::new(chrom, start_pos..=end_pos))
+}
+
 pub fn count_indel_reads(
     bam_reader: &mut bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>,
     header: &Header,
@@ -362,13 +374,10 @@ pub fn count_indel_reads(
     }
 
     let end = position + ref_allele.len().saturating_sub(1);
-    let region_str = format!("{chrom}:{position}-{end}");
-    let region: noodles::core::Region = region_str
-        .parse()
-        .map_err(|e| AppError::validation(format!("Invalid region '{region_str}': {e}")))?;
-    let mut query = bam_reader
-        .query(header, &region)
-        .map_err(|e| AppError::validation(format!("BAM query failed for {region_str}: {e}")))?;
+    let region = build_region(chrom, position, end)?;
+    let mut query = bam_reader.query(header, &region).map_err(|e| {
+        AppError::validation(format!("BAM query failed for {chrom}:{position}-{end}: {e}"))
+    })?;
 
     let mut unique_total: HashSet<Rc<ReadKey>> = HashSet::new();
     let mut unique_total_forward: HashSet<Rc<ReadKey>> = HashSet::new();
@@ -522,15 +531,13 @@ pub fn build_region_observation_cache(
 
     let mut reads: Vec<CachedReadObservation> = Vec::new();
 
-    // Build region query string: chrom:start-end (1-based, inclusive)
-    let region_str = format!("{chrom}:{region_start}-{region_end}");
-    let region: noodles::core::Region = region_str
-        .parse()
-        .map_err(|e| AppError::validation(format!("Invalid region '{region_str}': {e}")))?;
-
-    let mut query = bam_reader
-        .query(header, &region)
-        .map_err(|e| AppError::validation(format!("BAM query failed for {region_str}: {e}")))?;
+    // Structured region (1-based, inclusive) — avoids misparsing ':' in contig names.
+    let region = build_region(chrom, region_start, region_end)?;
+    let mut query = bam_reader.query(header, &region).map_err(|e| {
+        AppError::validation(format!(
+            "BAM query failed for {chrom}:{region_start}-{region_end}: {e}"
+        ))
+    })?;
 
     let mut record = bam::Record::default();
     while query

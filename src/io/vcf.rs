@@ -517,9 +517,13 @@ pub fn load_vcf_positions_by_contig(
     let mut positions_by_contig: HashMap<String, Vec<VcfPosition>> = HashMap::new();
     let mut split_count = 0usize;
     let mut record_idx = 0usize;
+    let mut header_seen = false;
 
     for line_result in reader.lines() {
         let line = line_result?;
+        if line.starts_with("#CHROM") {
+            header_seen = true;
+        }
         let fields = match parse_vcf_line(&line) {
             Some(f) => f,
             None => continue,
@@ -537,6 +541,12 @@ pub fn load_vcf_positions_by_contig(
                 record_idx, fields[1]
             )
         })?;
+        if pos == 0 {
+            return Err(format!(
+                "Invalid VCF position 0 at record {record_idx} (VCF coordinates are 1-based)"
+            )
+            .into());
+        }
         let ref_allele = fields[3];
         let alt_field = fields[4];
         let info = fields[7];
@@ -610,6 +620,10 @@ pub fn load_vcf_positions_by_contig(
         if alts.len() > 1 {
             split_count += alts.len() - 1;
         }
+    }
+
+    if !header_seen {
+        return Err("No #CHROM header line found in VCF".into());
     }
 
     for values in positions_by_contig.values_mut() {
