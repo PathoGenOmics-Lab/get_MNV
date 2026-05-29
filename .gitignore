@@ -14,3 +14,7 @@ src-tauri/gen/
 minimal_example.tar.gz
 minimal_example/
 /test_pancreas/
+
+# Documentation site (MkDocs)
+/.venv-docs/
+/site/

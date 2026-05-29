@@ -1,0 +1,6 @@
+# Documentation site build dependencies (Material for MkDocs + i18n).
+#   python3 -m venv .venv-docs
+#   .venv-docs/bin/pip install -r docs/requirements.txt
+#   .venv-docs/bin/mkdocs serve
+mkdocs-material~=9.7
+mkdocs-static-i18n~=1.3
