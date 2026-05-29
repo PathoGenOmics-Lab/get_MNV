@@ -96,7 +96,7 @@ DESC = {
     "16_no_bam_coverage": "VCF SNV at pos 28 (geneA) with 0 reads covering it in the BAM.",
     "17_min_snp_frequency_filter": "SNV at 10% frequency (2/20 reads) filtered out by --min-snp-frequency 0.5 → 0 rows.",
     "18_stop_gained_via_mnv": "Stop-gained via a 3-SNV MNV: codon 50 GCT→TAA (Ala50Ter).",
-    "19_start_codon_altered": "SNV in the start codon ATG: pos 2 T>C → ACG (Met1Thr). NOTE: reported as Non-synonymous, not 'Start lost'.",
+    "19_start_codon_altered": "SNV in the start codon ATG: pos 2 T>C → ACG (Met1Thr) → Change Type 'Start lost'.",
     "20_stop_lost": "Stop-lost: codon 100 TAA→CAA (pos 298 T>C, Ter100Gln).",
     "21_intron_variant": "SNV in the geneC intron (pos 950 T>A): reported as intergenic under --gff-features CDS.",
     "22_multiallelic_split": "Multiallelic SNV pos 28 G>A,T with --split-multiallelic: 2 independent SNV rows (G>A Ala10Thr + G>T Ala10Ser).",

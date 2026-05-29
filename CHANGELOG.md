@@ -10,6 +10,7 @@ All notable changes to this project are documented in this file.
 - Added transcript-aware regression coverage for exon-junction MNV codons and restored-frame indel contexts in multi-exon CDS models.
 
 ### Changed
+- SNVs/MNVs that alter the initiator Met (protein position 1) are now reported with Change Type `Start lost` instead of `Non-synonymous`, matching standard annotators. The reported amino-acid change was already correct; only the classification label changes. `Met1` → stop is still `Stop gained`.
 - Added a tuned `[profile.release]` (thin LTO, single codegen unit) and wrapped plain (non-BGZF) VCF output in a buffered writer with an explicit flush, for faster production builds and record emission.
 - Pinned `sha2` to the stable `0.10` line (previously a `0.11` pre-release), removing a duplicate hashing dependency stack from the resolved graph.
 - `get_mnv_variants_for_gene` and `get_mnv_variants_for_transcript` now build a list of mutually-exclusive codon interpretations per codon start. Multi-allelic positions expand the interpretation set as a Cartesian product, deduplicated by `(position, alt)` keys, so a codon that contains N independent alts emits N output rows.

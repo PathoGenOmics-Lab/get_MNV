@@ -3146,6 +3146,7 @@ mod tests {
             result.change_type,
             ChangeType::Synonymous
                 | ChangeType::NonSynonymous
+                | ChangeType::StartLost
                 | ChangeType::StopGained
                 | ChangeType::StopLost
                 | ChangeType::Unknown

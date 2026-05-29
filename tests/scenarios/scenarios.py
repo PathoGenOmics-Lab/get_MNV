@@ -874,7 +874,7 @@ scenario_stop_gained = Scenario(
 # especifica "Start lost" para SNVs en el codon inicial. La AA si es correcta.
 scenario_start_lost = Scenario(
     name="19_start_codon_altered",
-    description="SNV en codon de inicio ATG: pos 2 T>C -> ACG (Met1Thr). NOTA: change_type=Non-synonymous, no 'Start lost'",
+    description="SNV en el codon iniciador ATG: pos 2 T>C -> ACG (Met1Thr) -> change_type='Start lost'",
     variants=[VcfRecord(pos=2, ref="T", alt="C")],
     reads=[
         ReadGroup(
@@ -893,7 +893,7 @@ scenario_start_lost = Scenario(
             reference_codon="ATG",
             snp_codon="ACG",
             aa_changes="Met1Thr",
-            change_type="Non-synonymous",
+            change_type="Start lost",
             snp_reads="20",
             total_reads="20",
         ),

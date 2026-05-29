@@ -23,6 +23,7 @@ pub enum ChangeType {
     Unknown,
     Synonymous,
     NonSynonymous,
+    StartLost,
     StopGained,
     StopLost,
     IndelOverlap,
@@ -48,6 +49,7 @@ impl ChangeType {
         match label {
             "Synonymous" => ChangeType::Synonymous,
             "Non-synonymous" => ChangeType::NonSynonymous,
+            "Start lost" => ChangeType::StartLost,
             "Stop gained" => ChangeType::StopGained,
             "Stop lost" => ChangeType::StopLost,
             "Unknown" => ChangeType::Unknown,
@@ -77,6 +79,9 @@ impl ChangeType {
         match self {
             ChangeType::Synonymous => ChangeType::FrameshiftSynonymous,
             ChangeType::NonSynonymous => ChangeType::FrameshiftNonSynonymous,
+            // The initiator codon (protein position 1) has nothing upstream, so a
+            // start-lost is never reached through downstream frameshift propagation.
+            ChangeType::StartLost => ChangeType::StartLost,
             ChangeType::StopGained => ChangeType::FrameshiftStopGained,
             ChangeType::StopLost => ChangeType::FrameshiftStopLost,
             ChangeType::Unknown => ChangeType::FrameshiftUnknown,
@@ -123,6 +128,7 @@ impl Display for ChangeType {
             ChangeType::Unknown => "Unknown",
             ChangeType::Synonymous => "Synonymous",
             ChangeType::NonSynonymous => "Non-synonymous",
+            ChangeType::StartLost => "Start lost",
             ChangeType::StopGained => "Stop gained",
             ChangeType::StopLost => "Stop lost",
             ChangeType::IndelOverlap => "Indel overlap",
