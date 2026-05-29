@@ -1,3 +1,6 @@
 work/
+work_plots/
 __pycache__/
 *.pyc
+plot_*.png
+scenarios_overview.pdf

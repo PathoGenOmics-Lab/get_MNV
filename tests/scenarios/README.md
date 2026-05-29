@@ -47,6 +47,34 @@ Intermediate files (FASTA, GFF, VCF, BAM, `get_mnv` output, log) for each
 scenario are written under `tests/scenarios/work/<scenario_name>/` and
 overwritten on each run. The directory is `.gitignore`d.
 
+## Visual overview (PDF)
+
+[`plot_scenarios.py`](plot_scenarios.py) renders every scenario into a single
+illustrative PDF (`scenarios_overview.pdf`). It needs `matplotlib` in addition
+to `samtools`.
+
+```bash
+SAMTOOLS=/path/to/samtools python3 tests/scenarios/plot_scenarios.py
+```
+
+The pages are grouped into thematic **sections** (SNV/MNV, indel
+classification, indels combined with SNVs, negative strand, eukaryotic
+multi-exon transcripts, input formats, edge cases), preceded by a cover, a
+glyph legend and a table of contents. Each scenario page shows:
+
+- the **mapped reads** as a small alignment pileup, marking SNVs, insertions,
+  deletions and intron skips (CIGAR `N`), the overlapping genes/CDS, and the
+  input variants;
+- a **reading-frame / amino-acid track** — alternating shaded codon triplets
+  plus the reference amino acid per codon, with the alternate AA in red when a
+  variant makes the codon non-synonymous (strand- and phase-aware);
+- two tables: **"Without get_mnv"** (the raw caller calls — position, allele,
+  length-based frame guess) versus the real **"get_mnv output"**, with a
+  one-line **"What get_mnv adds"** summary between them.
+
+The generated PDF and any `plot_*.png` previews are `.gitignore`d; regenerate
+them from the script.
+
 ## Mini-genome layout
 
 All scenarios share a synthetic reference (`framework.REFERENCE_SEQ`)
