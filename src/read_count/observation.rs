@@ -91,6 +91,13 @@ pub(super) fn get_query_pos(rec: &bam::Record, pos: usize) -> Option<usize> {
 pub(super) fn anchor_base_quality(rec: &bam::Record, position: usize) -> Option<u8> {
     let qidx = get_query_pos(rec, position)?;
     let qual = rec.quality_scores();
+    if qual.iter().next().is_none() {
+        // SAM `QUAL=*`: the read carries no per-base qualities (noodles exposes
+        // this as an empty slice). Treat the base as passing, mirroring the
+        // missing-MAPQ default of 255, instead of substituting quality 0 and
+        // silently failing every quality gate.
+        return Some(u8::MAX);
+    }
     Some(qual.iter().nth(qidx).unwrap_or(0))
 }
 
@@ -125,6 +132,10 @@ pub(super) fn observed_allele_for_ref_span(
     let seq = rec.sequence();
     let qual = rec.quality_scores();
     let seq_len = seq.len();
+    // SAM `QUAL=*` (no per-base qualities) is exposed as an empty slice; in that
+    // case treat every base as max quality so missing quality data does not drop
+    // the read from numerator and denominator (mirrors the missing-MAPQ default).
+    let qual_present = qual.iter().next().is_some();
     let mut bases: Vec<Option<(char, u8)>> = vec![None; ref_len];
     let mut deleted: Vec<bool> = vec![false; ref_len];
     let mut insertions_after: Vec<Vec<(char, u8)>> = vec![Vec::new(); ref_len];
@@ -144,7 +155,11 @@ pub(super) fn observed_allele_for_ref_span(
                         let qidx = query_pos + offset;
                         if qidx < seq_len {
                             let base = seq.iter().nth(qidx)? as char;
-                            let q = qual.iter().nth(qidx).unwrap_or(0);
+                            let q = if qual_present {
+                                qual.iter().nth(qidx).unwrap_or(0)
+                            } else {
+                                u8::MAX
+                            };
                             bases[idx] = Some((base, q));
                         }
                     }
@@ -160,7 +175,11 @@ pub(super) fn observed_allele_for_ref_span(
                         let qidx = query_pos + offset;
                         if qidx < seq_len {
                             let base = seq.iter().nth(qidx)? as char;
-                            let q = qual.iter().nth(qidx).unwrap_or(0);
+                            let q = if qual_present {
+                                qual.iter().nth(qidx).unwrap_or(0)
+                            } else {
+                                u8::MAX
+                            };
                             insertions_after[idx].push((base, q));
                         }
                     }

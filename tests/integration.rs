@@ -113,6 +113,15 @@ fn parse_test_cigar(cigar: &str) -> noodles::sam::alignment::record_buf::Cigar {
 }
 
 fn write_synthetic_bam(path: &Path, reference_len: usize, reads: &[SyntheticRead]) {
+    write_synthetic_bam_q(path, reference_len, reads, Some(40));
+}
+
+fn write_synthetic_bam_q(
+    path: &Path,
+    reference_len: usize,
+    reads: &[SyntheticRead],
+    quality: Option<u8>,
+) {
     use noodles::core::Position;
     use noodles::sam::{
         self,
@@ -160,7 +169,10 @@ fn write_synthetic_bam(path: &Path, reference_len: usize, reads: &[SyntheticRead
             "synthetic read {} has a sequence/CIGAR length mismatch",
             read.name
         );
-        let qualities = QualityScores::from(vec![40; read.sequence.len()]);
+        let qualities = match quality {
+            Some(q) => QualityScores::from(vec![q; read.sequence.len()]),
+            None => QualityScores::default(), // SAM QUAL='*' (no per-base qualities)
+        };
         let record = RecordBuf::builder()
             .set_name(read.name)
             .set_flags(Flags::empty())
@@ -1010,6 +1022,88 @@ chr1\t1\t.\tCA\tC\t60\tPASS\tDP=12;AF=0.5\n",
     assert_eq!(rows[0]["Event Class"], "deletion");
     assert_eq!(rows[0]["Event Components"], "DEL:2:A");
     assert_ne!(rows[0]["AA Changes"], "Unknown");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
+fn test_e2e_bam_without_base_qualities_still_counts_reads() {
+    // Regression: a BAM with QUAL='*' (no per-base qualities) must not lose all
+    // read support. Missing base quality is treated as passing (mirroring the
+    // missing-MAPQ default of 255); otherwise every base scored 0, failed the
+    // default --quality 20 gate, and EDP/EFREQ collapsed to 0 for every read.
+    let tmp = temp_dir("e2e_qual_star");
+    let (ref_path, genes_path) = write_phase_reference_files(&tmp); // ATGAAATTTCCC, gene1 1-12 +
+    let vcf_path = tmp.join("q.vcf");
+    let bam_path = tmp.join("q.bam");
+
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=12>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t4\t.\tA\tC\t.\tPASS\t.\n",
+    )
+    .unwrap();
+    // Four reads span position 4; two carry the C alt. All have QUAL='*'.
+    write_synthetic_bam_q(
+        &bam_path,
+        12,
+        &[
+            SyntheticRead {
+                name: "alt1",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGCAATTTCCC",
+            },
+            SyntheticRead {
+                name: "alt2",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGCAATTTCCC",
+            },
+            SyntheticRead {
+                name: "ref1",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGAAATTTCCC",
+            },
+            SyntheticRead {
+                name: "ref2",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGAAATTTCCC",
+            },
+        ],
+        None, // QUAL='*'
+    );
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.tsv_file = None;
+    args.bam_file = Some(bam_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.gff_file = None;
+    args.threads = Some(1);
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("q".to_string());
+
+    pipeline::run(&args).expect("pipeline should succeed on a QUAL='*' BAM");
+
+    let rows = read_tsv_rows(&tmp.join("q.MNV.tsv"));
+    let snp = rows
+        .iter()
+        .find(|r| r["Base Changes"] == "C" && r["Positions"] == "4")
+        .expect("SNP row at position 4");
+    assert_eq!(
+        snp["Total Reads"], "4",
+        "all four spanning reads must count toward depth even without base qualities"
+    );
+    assert_eq!(
+        snp["SNP Reads"], "2",
+        "the two reads carrying the C allele must be counted"
+    );
 
     fs::remove_dir_all(&tmp).ok();
 }

@@ -122,6 +122,10 @@ pub fn build_region_observation_cache(
         let seq = record.sequence();
         let qual = record.quality_scores();
         let seq_len = seq.len();
+        // SAM `QUAL=*` (no per-base qualities) is exposed as an empty slice;
+        // treat such bases as max quality so a quality-less BAM does not lose all
+        // read support (mirrors the missing-MAPQ default of 255).
+        let qual_present = qual.iter().next().is_some();
 
         let observations = normalized_positions
             .iter()
@@ -131,7 +135,11 @@ pub fn build_region_observation_cache(
                     if idx < seq_len {
                         let base_byte: u8 = seq.iter().nth(idx)?;
                         let base = base_byte as char;
-                        let q: u8 = qual.iter().nth(idx).unwrap_or(0);
+                        let q: u8 = if qual_present {
+                            qual.iter().nth(idx).unwrap_or(0)
+                        } else {
+                            u8::MAX
+                        };
                         Some((base, q))
                     } else {
                         None
