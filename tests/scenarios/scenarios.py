@@ -1223,10 +1223,12 @@ scenario_ivar_insertion = Scenario(
 
 
 # 29. iVar TSV input - deletion (notacion -SEQ)
-# iVar: POS=31, REF=G, ALT=-G  ->  borrar pos 31 (G). Anchor en pos 30.
+# iVar ancla la delecion en la base ANTERIOR al hueco: POS=30 (ancla, T),
+# ALT=-G borra la G en pos 31 (primera base del codon 11). Convierte a la
+# variante VCF (30, TG, T) -> DEL:31:G, frameshift desde el codon 11.
 scenario_ivar_deletion = Scenario(
     name="29_ivar_tsv_deletion",
-    description="iVar TSV: delecion frameshift -G en pos 31 (notacion -SEQ)",
+    description="iVar TSV: delecion frameshift -G (ancla POS=30, borra pos 31; notacion -SEQ)",
     variants=[],
     reads=[
         ReadGroup(
@@ -1238,7 +1240,7 @@ scenario_ivar_deletion = Scenario(
         ),
     ],
     ivar_records=[
-        IvarRecord(pos=31, ref="G", alt="-G", total_dp=20, alt_dp=20, alt_freq=1.0),
+        IvarRecord(pos=30, ref="T", alt="-G", total_dp=20, alt_dp=20, alt_freq=1.0),
     ],
     expected=[
         ExpectedRow(

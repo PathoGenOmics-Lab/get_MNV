@@ -185,34 +185,30 @@ fn normalize_ivar_allele(
         }
         validate_vcf_allele(deleted_raw, record_idx, chrom, pos, "ALT")?;
         let deleted_len = deleted_raw.chars().count();
-        let deleted_from_ref = reference_slice(references, chrom, pos, deleted_len, record_idx)?;
+        // iVar reports a deletion at the anchor base immediately BEFORE the gap:
+        // POS is that anchor, REF is the base at POS, and ALT='-<bases>' lists the
+        // bases deleted starting at POS+1 (see andersen-lab/ivar issue #86 and the
+        // iVar manual). Convert to a VCF-anchored allele: REF = anchor base plus
+        // the deleted bases at POS+1.., ALT = the anchor base alone.
+        let deleted_from_ref =
+            reference_slice(references, chrom, pos + 1, deleted_len, record_idx)?;
 
-        // The deletion is anchored using reference coordinates, so the bases
-        // iVar reports as deleted must match the reference at POS..POS+len. A
-        // mismatch means the FASTA does not correspond to the iVar run (or the
+        // The bases iVar reports as deleted must match the reference at POS+1.. .
+        // A mismatch means the FASTA does not correspond to the iVar run (or the
         // coordinates are off) and would otherwise silently mis-place the
         // deletion; fail fast instead.
         if !deleted_raw.eq_ignore_ascii_case(deleted_from_ref) {
             return Err(format!(
                 "iVar record {record_idx}: deletion at {chrom}:{pos} lists deleted bases \
-                 '{deleted_raw}' but the reference reads '{deleted_from_ref}' there. \
-                 Check that the FASTA matches the iVar run."
+                 '{deleted_raw}' but the reference reads '{deleted_from_ref}' at {chrom}:{}. \
+                 Check that the FASTA matches the iVar run.",
+                pos + 1
             )
             .into());
         }
 
-        if pos > 1 {
-            let anchor = reference_base(references, chrom, pos - 1, record_idx)?;
-            return Ok(Some((
-                pos - 1,
-                format!("{anchor}{deleted_from_ref}"),
-                anchor,
-            )));
-        }
-
-        let after_pos = pos + deleted_len;
-        let anchor = reference_base(references, chrom, after_pos, record_idx)?;
-        return Ok(Some((pos, format!("{deleted_from_ref}{anchor}"), anchor)));
+        let anchor = reference_base(references, chrom, pos, record_idx)?;
+        return Ok(Some((pos, format!("{anchor}{deleted_from_ref}"), anchor)));
     }
 
     Ok(Some((pos, ref_allele.to_string(), alt_allele.to_string())))
@@ -401,17 +397,20 @@ chr1\t5\tA\tA\t5\t5\t0.5\t10\tTRUE\n",
 
     #[test]
     fn test_load_ivar_tsv_converts_deletion_to_vcf_allele() {
+        // Real iVar anchors a deletion at the base BEFORE the gap: POS=3 is the
+        // anchor (G), and ALT='-TA' lists the bases deleted at positions 4-5 of
+        // reference "ACGTACGT". This converts to the VCF allele (3, GTA, G).
         let path = write_temp_ivar(
             "REGION\tPOS\tREF\tALT\tREF_DP\tALT_DP\tALT_FREQ\tTOTAL_DP\tPASS\n\
-chr1\t3\tG\t-GT\t5\t5\t0.5\t10\tTRUE\n",
+chr1\t3\tG\t-TA\t5\t5\t0.5\t10\tTRUE\n",
         );
         let references = ReferenceMap::from([("chr1".to_string(), "ACGTACGT".to_string())]);
         let parsed = load_ivar_tsv(&path, &references).unwrap();
         let chr1 = parsed.get("chr1").unwrap();
         assert_eq!(chr1.len(), 1);
-        assert_eq!(chr1[0].position, 2);
-        assert_eq!(chr1[0].ref_allele, "CGT");
-        assert_eq!(chr1[0].alt_allele, "C");
+        assert_eq!(chr1[0].position, 3);
+        assert_eq!(chr1[0].ref_allele, "GTA");
+        assert_eq!(chr1[0].alt_allele, "G");
         let _ = std::fs::remove_file(path);
     }
 }
