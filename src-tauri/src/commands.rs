@@ -44,6 +44,10 @@ pub struct AnalysisConfig {
     pub min_snp_strand_reads: Option<usize>,
     pub min_mnv_strand_reads: Option<usize>,
     pub min_strand_bias_p: Option<f64>,
+    pub frameshift_min_freq: Option<f64>,
+    pub indel_anchor_depth: Option<bool>,
+    pub phased_indel_min_reads: Option<usize>,
+    pub phased_indel_min_freq: Option<f64>,
     pub dry_run: Option<bool>,
     pub strict: Option<bool>,
     pub split_multiallelic: Option<bool>,
@@ -120,12 +124,12 @@ impl AnalysisConfig {
             min_snp_strand_reads: self.min_snp_strand_reads.unwrap_or(0),
             min_mnv_strand_reads: self.min_mnv_strand_reads.unwrap_or(0),
             min_strand_bias_p: self.min_strand_bias_p.unwrap_or(0.0),
-            // Indel-annotation knobs are not yet exposed in the desktop UI; use
-            // the same defaults as the CLI so behaviour is unchanged.
-            frameshift_min_freq: 0.0,
-            indel_anchor_depth: false,
-            phased_indel_min_reads: 1,
-            phased_indel_min_freq: 0.0,
+            // Indel-annotation knobs (exposed in the desktop UI); fall back to the
+            // CLI defaults when the frontend does not send a value.
+            frameshift_min_freq: self.frameshift_min_freq.unwrap_or(0.0),
+            indel_anchor_depth: self.indel_anchor_depth.unwrap_or(false),
+            phased_indel_min_reads: self.phased_indel_min_reads.unwrap_or(1),
+            phased_indel_min_freq: self.phased_indel_min_freq.unwrap_or(0.0),
             dry_run: self.dry_run.unwrap_or(false),
             strict: self.strict.unwrap_or(false),
             split_multiallelic: self.split_multiallelic.unwrap_or(false),
@@ -1211,6 +1215,10 @@ mod tests {
             min_snp_strand_reads: None,
             min_mnv_strand_reads: None,
             min_strand_bias_p: None,
+            frameshift_min_freq: None,
+            indel_anchor_depth: None,
+            phased_indel_min_reads: None,
+            phased_indel_min_freq: None,
             dry_run: None,
             strict: None,
             split_multiallelic: None,
@@ -1354,6 +1362,34 @@ mod tests {
         assert!(args.strand_bias_info);
         assert!(args.both);
         assert!(!args.convert);
+    }
+
+    #[test]
+    fn test_gui_config_forwards_indel_knobs() {
+        let mut config = minimal_config("/tmp/sample.vcf");
+        config.frameshift_min_freq = Some(0.5);
+        config.indel_anchor_depth = Some(true);
+        config.phased_indel_min_reads = Some(4);
+        config.phased_indel_min_freq = Some(0.25);
+
+        let args = config.into_args();
+
+        assert_eq!(args.frameshift_min_freq, 0.5);
+        assert!(args.indel_anchor_depth);
+        assert_eq!(args.phased_indel_min_reads, 4);
+        assert_eq!(args.phased_indel_min_freq, 0.25);
+    }
+
+    #[test]
+    fn test_gui_config_indel_knobs_default_to_cli_defaults() {
+        // When the frontend omits the indel knobs, into_args() must reproduce
+        // the CLI defaults (historical behaviour) — note reads default to 1, not 0.
+        let args = minimal_config("/tmp/sample.vcf").into_args();
+
+        assert_eq!(args.frameshift_min_freq, 0.0);
+        assert!(!args.indel_anchor_depth);
+        assert_eq!(args.phased_indel_min_reads, 1);
+        assert_eq!(args.phased_indel_min_freq, 0.0);
     }
 
     #[test]

@@ -19,6 +19,10 @@ export interface AnalysisConfig {
   minSnpStrandReads: number;
   minMnvStrandReads: number;
   minStrandBiasP: number;
+  frameshiftMinFreq: number;
+  indelAnchorDepth: boolean;
+  phasedIndelMinReads: number;
+  phasedIndelMinFreq: number;
   normalizeAlleles: boolean;
   splitMultiallelic: boolean;
   strict: boolean;
@@ -197,6 +201,10 @@ export const DEFAULT_CONFIG: AnalysisConfig = {
   minSnpStrandReads: 0,
   minMnvStrandReads: 0,
   minStrandBiasP: 0,
+  frameshiftMinFreq: 0,
+  indelAnchorDepth: false,
+  phasedIndelMinReads: 1,
+  phasedIndelMinFreq: 0,
   normalizeAlleles: true,
   splitMultiallelic: true,
   strict: false,
