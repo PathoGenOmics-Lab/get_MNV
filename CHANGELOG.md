@@ -32,6 +32,7 @@ All notable changes to this project are documented in this file.
 - Output is now transactional: if a run errors after the output files are created, the partial `.MNV.tsv` / `.MNV.vcf` / BCF files are removed on exit so downstream tooling never consumes a truncated file.
 - BAM region queries are now built with the structured noodles `Region` API instead of a `chrom:start-end` string, so contig names containing `:` (e.g. HLA allele contigs) are queried at the correct coordinates instead of being misparsed.
 - The BGZF VCF parser now rejects `POS=0` and a missing `#CHROM` header line, matching the plain-text fast parser so both code paths validate inputs identically.
+- When `--gff-features` is not specified and the GFF contains `CDS` features, get_mnv now analyses `CDS` (phase- and splice-aware) automatically instead of whole-gene spans, so eukaryotic/multi-exon annotations are no longer silently mis-numbered over introns. Passing `--gff-features gene` keeps the previous whole-gene behaviour (and still emits the CDS-phase-ignored warning).
 - Resolved the frontend security audit by updating vulnerable transitive packages, including `brace-expansion` 5.0.6.
 - Regenerated the Rust lockfile so vulnerable `rand` package entries are no longer present in the resolved dependency graph.
 - Corrected CLI, GUI, and documentation wording for BCF input, BAM base-quality filtering, strand-bias INFO tags, and MNV rows that overlap indels.

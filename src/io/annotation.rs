@@ -570,6 +570,26 @@ pub(crate) fn gff_has_non_zero_phase_cds(genes_file: &str) -> AppResult<bool> {
     Ok(false)
 }
 
+/// Whether the GFF/GFF3 file contains any `CDS` feature row. Used to auto-select
+/// the phase/splice-aware CDS model when the user did not pass `--gff-features`,
+/// so a eukaryotic annotation is not silently analysed over whole-gene spans.
+pub(crate) fn gff_has_cds_features(genes_file: &str) -> AppResult<bool> {
+    let file = File::open(genes_file)?;
+    let reader = BufReader::new(file);
+    for line in reader.lines() {
+        let entry = line?;
+        let trimmed = entry.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let fields: Vec<&str> = trimmed.split('\t').collect();
+        if fields.len() == 9 && fields[2] == "CDS" {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 pub(crate) fn load_genes_from_gff(
     genes_file: &str,
     snp_list: &[VcfPosition],

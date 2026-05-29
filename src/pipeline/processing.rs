@@ -115,9 +115,28 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
     validate_strict_original_metrics(&contigs, &snp_by_contig, args.strict)?;
     validate_contig_inputs(&contigs, &references, &snp_by_contig, annotation_format)?;
 
+    // Auto-select the phase/splice-aware CDS model when the user did not set
+    // --gff-features and the GFF actually contains CDS features; otherwise a
+    // eukaryotic GFF would be analysed over whole-gene spans (introns included),
+    // silently mis-numbering amino acids. Explicitly passing --gff-features
+    // (e.g. `gene`) keeps the legacy behaviour and the existing phase warning.
+    let gff_features = if args.gff_features_raw.is_none()
+        && annotation_format == AnnotationFormat::Gff
+        && io::annotation::gff_has_cds_features(args.genes_file())
+            .map_err(reclassify_generic_as_validation)?
+    {
+        log::info!(
+            "GFF contains CDS features and --gff-features was not set; analysing 'CDS' \
+             (phase- and splice-aware codon model). Pass --gff-features gene to use whole-gene spans."
+        );
+        vec!["CDS".to_string()]
+    } else {
+        args.gff_features()
+    };
+
     let preloaded_gff = if annotation_format == AnnotationFormat::Gff {
         Some(
-            io::preload_gff_genes(args.genes_file(), &args.gff_features())
+            io::preload_gff_genes(args.genes_file(), &gff_features)
                 .map_err(reclassify_generic_as_validation)?,
         )
     } else {

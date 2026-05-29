@@ -1421,6 +1421,44 @@ scenario_fs_gate_suppressed = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 34. Eucariotas: GFF con features CDS pero SIN --gff-features -> auto-CDS.
+# ---------------------------------------------------------------------------
+# Mismo SNV que el escenario 13 (pos 1048 G>A, geneC codon 50 -> Ala50Thr) pero
+# sin pasar --gff-features. Por defecto se usaria gene,pseudogene y geneC se
+# anotaria sobre el span gen 801-1200 (con intron) dando un resultado erroneo;
+# ahora get_mnv detecta que el GFF tiene CDS y auto-selecciona el modelo CDS
+# (phase/splice-aware), produciendo la anotacion multi-exon correcta.
+scenario_eukaryote_autocds = Scenario(
+    name="34_eukaryote_autocds_default",
+    description="GFF con CDS pero sin --gff-features: auto-CDS -> anotacion multi-exon correcta (pos 1048 Ala50Thr en geneC)",
+    variants=[VcfRecord(pos=1048, ref="G", alt="A")],
+    reads=[
+        ReadGroup(
+            name_prefix="r_autocds",
+            start=1001,
+            length=100,
+            ops=[Op(kind="snv", pos=1048, seq="A")],
+            count=20,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="1048",
+            gene="geneC",
+            aa_changes="Ala50Thr",
+            variant_type="SNP",
+            change_type="Non-synonymous",
+            reference_codon="GCT",
+            snp_codon="ACT",
+        ),
+    ],
+    expected_row_count=1,
+    gff_content=GFF_CDS_MULTIEXON,
+    # gff_features intencionadamente SIN definir -> ejercita el auto-CDS.
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -1460,6 +1498,8 @@ ALL_SCENARIOS = [
     scenario_stop_lost_inframe_del,
     scenario_fs_gate_default,
     scenario_fs_gate_suppressed,
+    # eucariotas (auto-CDS):
+    scenario_eukaryote_autocds,
 ]
 
 
