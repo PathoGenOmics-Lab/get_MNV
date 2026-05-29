@@ -4,7 +4,7 @@ use crate::io::VcfPosition;
 use crate::variants::{ChangeType, Gene, Strand};
 
 use super::allele_apply::apply_allele_to_feature;
-use super::gene_path::{codon_bounds_for_position, effective_bounds};
+use super::gene_path::effective_bounds;
 use super::protein::{describe_protein_change, translate_cds};
 use super::transcript_model::{coding_sequence_for_gene, first_touched_transcript_offset};
 
@@ -96,21 +96,29 @@ pub(super) fn protein_effect_for_indel(
         );
     }
 
-    let first_codon_start = {
-        let (eff_start, eff_end) = effective_bounds(gene);
-        let anchor = variant.position.clamp(eff_start, eff_end);
-        codon_bounds_for_position(gene, anchor).map(|(start, _)| start)
-    };
-
-    let (ref_codon, alt_codon) = if let Some(codon_start) = first_codon_start {
-        let (eff_start, eff_end) = effective_bounds(gene);
-        let codon_end = codon_start + 2;
-        let local = match gene.strand {
-            Strand::Plus => codon_start.saturating_sub(eff_start),
-            Strand::Minus => eff_end.saturating_sub(codon_end),
+    // Legacy path (no transcript CDS model): map the first affected genomic base
+    // to its offset in the coding sequence (which is reverse-complemented for the
+    // minus strand) and show the codon at that offset in BOTH the reference and
+    // alternate CDS. The previous code derived the offset from reference
+    // coordinates and reused it to slice the length-changed alt CDS, which on the
+    // minus strand selected the wrong reference codon and ran off the end of the
+    // shorter alt CDS (yielding mnv_codon = None for every minus-strand deletion).
+    let (eff_start, eff_end) = effective_bounds(gene);
+    let event = variant.event();
+    let touched_lo = event.affected_start.max(eff_start);
+    let touched_hi = event.affected_end.min(eff_end);
+    let (ref_codon, alt_codon) = if touched_lo <= touched_hi {
+        let first_offset = match gene.strand {
+            Strand::Plus => touched_lo - eff_start,
+            Strand::Minus => eff_end - touched_hi,
         };
-        let ref_codon = ref_cds.get(local..local + 3).map(str::to_string);
-        let alt_codon = alt_cds.get(local..local + 3).map(str::to_string);
+        let codon_start = (first_offset / 3) * 3;
+        let ref_codon = ref_cds
+            .get(codon_start..codon_start + 3)
+            .map(str::to_string);
+        let alt_codon = alt_cds
+            .get(codon_start..codon_start + 3)
+            .map(str::to_string);
         (ref_codon, alt_codon)
     } else {
         (None, None)

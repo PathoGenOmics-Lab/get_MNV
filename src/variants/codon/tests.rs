@@ -434,6 +434,48 @@ fn test_minus_strand_inframe_insertion_is_inframe() {
     assert!(!variants[0].aa_changes[0].contains("fs"));
 }
 
+#[test]
+fn test_minus_strand_legacy_deletion_reports_consistent_codons() {
+    // Regression (BUG 2): on the legacy (no transcript model) minus strand, the
+    // indel codon display sliced the length-changed alt CDS with a
+    // reference-anchored offset, reporting the wrong reference codon and
+    // mnv_codon = None. CDS = revcomp("CCCAAATTTCAT") = "ATGAAATTTGGG"
+    // (Met-Lys-Phe-Gly); deleting genomic 4-6 ("AAA") removes Phe (codon 3).
+    let gene = Gene {
+        name: "cds".to_string(),
+        start: 1,
+        end: 12,
+        strand: Strand::Minus,
+        phase: 0,
+        protein_offset: 0,
+        transcript_id: None,
+        cds_segments: Vec::new(),
+    };
+    let reference = crate::io::Reference {
+        sequence: "CCCAAATTTCAT",
+    };
+    let variants = crate::variants::get_mnv_variants_for_gene(
+        &gene,
+        &[crate::io::VcfPosition {
+            position: 3,
+            ref_allele: "CAAA".to_string(),
+            alt_allele: "C".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }],
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+    assert_eq!(variants.len(), 1);
+    assert_eq!(variants[0].variant_type, VariantType::Indel);
+    // Reference codon is the deleted Phe (codon 3); the alt codon at the same CDS
+    // offset is the residue that shifts into its place. Both must be present.
+    assert_eq!(variants[0].ref_codon.as_deref(), Some("TTT"));
+    assert_eq!(variants[0].mnv_codon.as_deref(), Some("GGG"));
+}
+
 // H5: an in-frame insertion that introduces a stop codon must be classified
 // as Stop gained rather than the generic In-frame Indel. Inserting TAA after
 // the start codon of ATGAAATTT yields ATG-TAA-AAA-TTT (Met-*-Lys-Phe).
