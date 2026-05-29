@@ -130,6 +130,8 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
         let freq_idx = format_keys.iter().position(|k| *k == "FREQ");
         let af_idx = format_keys.iter().position(|k| *k == "AF");
         let ad_idx = format_keys.iter().position(|k| *k == "AD");
+        let ao_idx = format_keys.iter().position(|k| *k == "AO");
+        let ro_idx = format_keys.iter().position(|k| *k == "RO");
 
         for (alt_idx, alt_allele) in alt_alleles.iter().enumerate() {
             if alt_allele.is_empty() || *alt_allele == "." {
@@ -153,6 +155,8 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                 freq_idx,
                 af_idx,
                 ad_idx,
+                ao_idx,
+                ro_idx,
                 alt_idx,
                 cols[7],
             );
@@ -227,12 +231,15 @@ fn resolve_text_sample_index(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn parse_text_metrics(
     sample_values: &[&str],
     dp_idx: Option<usize>,
     freq_idx: Option<usize>,
     af_idx: Option<usize>,
     ad_idx: Option<usize>,
+    ao_idx: Option<usize>,
+    ro_idx: Option<usize>,
     alt_index: usize,
     info_field: &str,
 ) -> (Option<usize>, Option<f64>) {
@@ -273,6 +280,16 @@ fn parse_text_metrics(
         }
     }
 
+    // Try FORMAT:AO/RO → derive freq (FreeBayes-style)
+    if original_freq.is_none() {
+        if let Some(idx) = ao_idx {
+            if let Some(ao_val) = sample_values.get(idx) {
+                let ro_val = ro_idx.and_then(|i| sample_values.get(i)).copied();
+                original_freq = derive_freq_from_ao_ro(ao_val, ro_val, original_dp, alt_index);
+            }
+        }
+    }
+
     // Fallback to INFO:DP
     if original_dp.is_none() {
         if let Some(dp_val) = find_info_tag(info_field, "DP") {
@@ -296,6 +313,14 @@ fn parse_text_metrics(
     if original_freq.is_none() {
         if let Some(ad_val) = find_info_tag(info_field, "AD") {
             original_freq = derive_freq_from_text_ad(ad_val, alt_index);
+        }
+    }
+
+    // Fallback to INFO:AO/RO (FreeBayes-style)
+    if original_freq.is_none() {
+        if let Some(ao_val) = find_info_tag(info_field, "AO") {
+            let ro_val = find_info_tag(info_field, "RO");
+            original_freq = derive_freq_from_ao_ro(ao_val, ro_val, original_dp, alt_index);
         }
     }
 
@@ -329,6 +354,37 @@ fn parse_freq_indexed(raw: &str, alt_index: usize) -> Option<f64> {
         return None;
     };
     parse_freq_token(token)
+}
+
+/// Derive an alternate-allele frequency from FreeBayes-style AO (alt observation
+/// counts, one per ALT) and RO (reference observation count). The denominator is
+/// the original depth when known, otherwise `sum(AO) + RO`. Mirrors the BGZF
+/// parser so a plain `.vcf` and its `.vcf.gz` equivalent derive the same OFREQ.
+fn derive_freq_from_ao_ro(
+    ao_raw: &str,
+    ro_raw: Option<&str>,
+    original_dp: Option<usize>,
+    alt_index: usize,
+) -> Option<f64> {
+    let ao_values: Vec<i64> = ao_raw
+        .split(',')
+        .filter_map(|s| s.trim().parse().ok())
+        .collect();
+    let alt_count = *ao_values.get(alt_index)?;
+    let ro = ro_raw
+        .and_then(|s| s.trim().parse::<i64>().ok())
+        .unwrap_or(0);
+    let total = if let Some(dp) = original_dp {
+        dp as i64
+    } else {
+        let ao_sum: i64 = ao_values.iter().filter(|v| **v >= 0).sum();
+        ao_sum + ro
+    };
+    if total > 0 && alt_count >= 0 {
+        Some(alt_count as f64 / total as f64)
+    } else {
+        None
+    }
 }
 
 fn derive_freq_from_text_ad(raw: &str, alt_index: usize) -> Option<f64> {
@@ -479,6 +535,26 @@ mod tests {
         for h in &headers {
             assert!(h.starts_with("##INFO="), "Expected INFO header, got: {h}");
         }
+    }
+
+    #[test]
+    fn test_parse_text_metrics_derives_freq_from_info_ao_ro() {
+        // FreeBayes INFO carrying only AO/RO must derive the same OFREQ as the
+        // BGZF parser (regression: the fast parser ignored AO/RO entirely, so a
+        // plain .vcf and its .vcf.gz produced different OFREQ).
+        let (dp, freq) =
+            parse_text_metrics(&[], None, None, None, None, None, None, 0, "AO=30;RO=70");
+        assert_eq!(dp, None);
+        assert_eq!(freq, Some(0.3));
+    }
+
+    #[test]
+    fn test_parse_text_metrics_derives_freq_from_format_ao_ro() {
+        // FORMAT AO at column 0, RO at column 1.
+        let sample = ["30", "70"];
+        let (_dp, freq) =
+            parse_text_metrics(&sample, None, None, None, None, Some(0), Some(1), 0, ".");
+        assert_eq!(freq, Some(0.3));
     }
 
     #[test]
