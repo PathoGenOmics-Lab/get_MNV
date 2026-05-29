@@ -85,6 +85,12 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
         None
     };
 
+    if args.keep_original_info && input_format == VariantInputFormat::Tsv {
+        log::warn!(
+            "--keep-original-info has no effect with iVar TSV input: the TSV format has no \
+             INFO column to preserve, so no original INFO fields will be carried over."
+        );
+    }
     let original_info_headers =
         if args.keep_original_info && input_format == VariantInputFormat::Vcf {
             if io::vcf_fast::use_fast_parser(variant_file) {
