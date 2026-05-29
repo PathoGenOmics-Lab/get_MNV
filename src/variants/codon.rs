@@ -1098,6 +1098,13 @@ pub fn build_phased_indel_haplotype_variants(
         .iter()
         .filter(|variant| variant.overlaps_interval(gene.start, gene.end))
         .filter(|variant| {
+            // In a spliced transcript model the gene span includes introns; only
+            // exonic (coding) variants may join a phased coding haplotype, so an
+            // intronic indel near an exon boundary is not merged with exonic SNVs.
+            !has_transcript_cds_model(gene)
+                || transcript_offset_for_position(gene, variant.position).is_some()
+        })
+        .filter(|variant| {
             variant_has_indel_component(variant) || !variant.substitution_components().is_empty()
         })
         .filter_map(|variant| phased_indel_window(gene, variant).map(|window| (variant, window)))
