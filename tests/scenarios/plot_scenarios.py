@@ -111,6 +111,8 @@ DESC = {
     "31_stop_lost_inframe_del": "In-frame 3 bp deletion removing the stop TAA (298-300) → Change Type 'Stop lost'.",
     "32_fs_gate_default_propagates": "Upstream frameshift deletion AF=0.20 + downstream SNV: by default the frameshift propagates → SNV marked (fs).",
     "33_fs_gate_high_freq_suppressed": "Same inputs as scenario 32 but with --frameshift-min-freq 0.5: the AF=0.20 deletion fails the gate → downstream SNV WITHOUT (fs).",
+    "34_eukaryote_autocds_default": "GFF has CDS features but --gff-features is not set: get_mnv auto-selects the CDS model → correct multi-exon annotation (pos 1048 Ala50Thr in geneC).",
+    "35_frameshift_past_premature_stop": "geneE: a frameshift deletion at pos 304 creates a premature stop (codon 2); the downstream SNV at pos 313 (codon 5) is reported as 'Downstream of premature stop', not '(fs)'.",
 }
 
 # Thematic sections (the PDF is grouped by case, not by raw number).
@@ -128,7 +130,7 @@ CATEGORIES = [
     ("Indels combined with SNVs (complex events, frameshift propagation)", "Indels: complex + frameshift",
      "Where get_mnv's indel handling is unique: joining an indel with in-cis SNVs into one complex_indel, "
      "and propagating a frameshift to downstream variants (with an optional frequency gate).",
-     ["06", "07", "08", "09", "32", "33"]),
+     ["06", "07", "08", "09", "32", "33", "35"]),
     ("Negative-strand gene", "Negative strand",
      "Genes on the minus strand (reverse-complement codon maths). Reported codons are shown in "
      "genomic-forward orientation — a documented behaviour.",
@@ -136,7 +138,7 @@ CATEGORIES = [
     ("Eukaryotic multi-exon transcripts (phase and splicing)", "Eukaryotic / multi-exon",
      "Spliced CDS models (gene → mRNA → CDS with Parent), non-zero phase, intron skips, and codons / MNVs "
      "that span an exon–exon junction.",
-     ["13", "14", "15", "21"]),
+     ["13", "14", "15", "21", "34"]),
     ("Input representation (multiallelic, multi-contig, iVar TSV)", "Input formats",
      "How get_mnv ingests different inputs: multiallelic VCF records, multiple contigs, and iVar TSV "
      "+/-SEQ notation.",

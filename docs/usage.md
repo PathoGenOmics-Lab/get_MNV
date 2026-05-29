@@ -118,6 +118,19 @@ Read-count and strand-support filters follow the same rule: `--snp` and
 `--min-snp-strand` apply to SNP observations, while `--mnv` and
 `--min-mnv-strand` apply to MNV haplotypes.
 
+## Indel annotation tuning
+
+These opt-in knobs refine indel/frameshift annotation. The defaults reproduce
+the historical behaviour, so existing commands are unaffected. See
+[indel-mnv-semantics.md](indel-mnv-semantics.md) for the biological rationale.
+
+| Argument | Default | Meaning |
+|---|---:|---|
+| `--frameshift-min-freq <F>` | `0.0` | Minimum allele frequency an *upstream* indel must reach to mark downstream SNV/MNV codons as frameshifted. `0.0` propagates from every indel; raise it (e.g. `0.5`) to avoid relabelling high-frequency downstream substitutions because of a low-frequency upstream indel (intra-host data). |
+| `--indel-anchor-depth` | off | Count indel locus depth (the EDP/EFREQ denominator) from reads observing the anchor base instead of only reads that fully span the REF allele. Reduces depth under-counting for multi-base deletions. Requires `--bam`. |
+| `--phased-indel-min-reads <N>` | `1` | Minimum BAM-supporting reads required to emit a phased indel / complex (indel+SNV) haplotype row. Requires `--bam`. |
+| `--phased-indel-min-freq <F>` | `0.0` | Minimum BAM-derived frequency required to emit a phased indel / complex haplotype row. Requires `--bam`. |
+
 ## Output Arguments
 
 | Argument | Meaning |

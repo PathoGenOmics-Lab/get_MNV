@@ -30,7 +30,7 @@ Requirements:
 # Build get_mnv first
 cargo build
 
-# Run all 34 scenarios
+# Run all 36 scenarios
 python3 tests/scenarios/run.py
 
 # Run a subset by name prefix
@@ -108,7 +108,7 @@ Codon math summary:
 
 ## Validated scenarios
 
-34 scenarios are currently defined in [`scenarios.py`](scenarios.py).
+36 scenarios are currently defined in [`scenarios.py`](scenarios.py).
 Each one declares input variants, BAM read groups (with optional
 operations: SNV substitution, insertion, deletion, intron skip) and the
 expected TSV rows.
@@ -216,7 +216,7 @@ upstream deletion's own row stays `Frameshift Indel` (`Ala11Leufs`) in both.
   - `VcfRecord(af=...)` emits an `AF=` INFO field (default omitted) so
     scenarios can drive frequency-gated logic such as `--frameshift-min-freq`
   - `Scenario.extra_cli_args` passes extra flags through to `get_mnv`
-- [`scenarios.py`](scenarios.py) declares the 34 scenarios.
+- [`scenarios.py`](scenarios.py) declares the 36 scenarios.
 - [`run.py`](run.py) is the CLI driver:
   ```bash
   python3 run.py             # all scenarios
@@ -260,8 +260,9 @@ print the actual rows produced so you can adjust the expectation.
   the gene column as the first CDS ID (e.g. `cds-geneC-e1`). Standard
   NCBI/Ensembl GFFs include `Name=`, so this only affects hand-rolled
   GFFs.
-- `Start lost` is not a Change Type — a SNV at the Met1 codon is
-  reported as `Non-synonymous`.
+- A SNV/MNV that alters the initiator Met (protein position 1) is reported
+  with Change Type `Start lost` (scenario 19); `Met1` → stop stays
+  `Stop gained`, and internal Met substitutions are unaffected.
 - `--split-multiallelic`: each ALT at the same codon position now emits
   an independent annotation row.
 - In-frame indels that **create or remove a stop codon** are reported as
@@ -274,6 +275,13 @@ print the actual rows produced so you can adjust the expectation.
   default `0.0` reproduces the historical always-propagate behaviour, and
   indels without a known frequency always propagate. The gate never changes
   the indel's own classification.
+- When `--gff-features` is not given and the GFF contains `CDS` features, the
+  phase/splice-aware CDS model is selected automatically (scenario 34); pass
+  `--gff-features gene` to keep the legacy whole-gene behaviour.
+- A variant downstream of a frameshift-introduced premature stop is reported
+  with Change Type `Downstream of premature stop` instead of carrying an `(fs)`
+  annotation as if it were translated (scenario 35). Ordinary frameshift
+  propagation, where no early stop is introduced, is unchanged.
 - The local haplotype window is 3 bp (`LOCAL_HAPLOTYPE_JOIN_DISTANCE`)
   and accepts up to 8 events
   (`MAX_LOCAL_HAPLOTYPE_VARIANTS`). Events further apart produce
