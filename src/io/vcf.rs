@@ -300,12 +300,76 @@ fn parse_original_metrics_from_fields(
     (original_dp, original_freq)
 }
 
-fn extract_original_info_from_line(info: &str, own_tags: &HashSet<&str>) -> Option<String> {
-    let parts: Vec<&str> = info
+/// Read a `key=...` attribute value out of a `##INFO` header line, up to the
+/// next `,` or `>`.
+fn header_attr(line: &str, key: &str) -> Option<String> {
+    let start = line.find(key)? + key.len();
+    let rest = &line[start..];
+    let end = rest.find([',', '>']).unwrap_or(rest.len());
+    Some(rest[..end].to_string())
+}
+
+/// Parse `Number=` from `##INFO` header lines into a map of field ID → its
+/// per-allele cardinality code (`A`, `R` or `G`). Fixed-Number fields (1, 0,
+/// ., a constant) are omitted because they need no per-allele subsetting.
+pub(crate) fn per_allele_info_numbers(header_lines: &[String]) -> HashMap<String, char> {
+    let mut map = HashMap::new();
+    for line in header_lines {
+        if let (Some(id), Some(number)) = (header_attr(line, "ID="), header_attr(line, "Number=")) {
+            match number.as_str() {
+                "A" => drop(map.insert(id, 'A')),
+                "R" => drop(map.insert(id, 'R')),
+                "G" => drop(map.insert(id, 'G')),
+                _ => {}
+            }
+        }
+    }
+    map
+}
+
+/// Subset a per-allele INFO field value to a single ALT so it is valid on a
+/// single-ALT output record. `Number=A` keeps the value at `alt_idx`;
+/// `Number=R` keeps `[REF, ALT@alt_idx]`. `Number=G` and arrays too short for
+/// `alt_idx` are dropped (cannot be safely attributed to one allele).
+fn subset_per_allele_field(key: &str, value: &str, kind: char, alt_idx: usize) -> Option<String> {
+    let elems: Vec<&str> = value.split(',').collect();
+    match kind {
+        'A' => elems.get(alt_idx).map(|v| format!("{key}={v}")),
+        'R' => match (elems.first(), elems.get(alt_idx + 1)) {
+            (Some(r), Some(a)) => Some(format!("{key}={r},{a}")),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// Filter get_mnv's own INFO tags out of an original record's INFO string and
+/// subset any per-allele field to `alt_idx`, so the result is valid when copied
+/// onto a single-ALT output record (`--keep-original-info` + multiallelic
+/// input previously copied whole `Number=A/R` arrays, producing invalid VCF).
+pub(crate) fn filter_and_subset_original_info<F: Fn(&str) -> bool>(
+    info: &str,
+    is_own_tag: F,
+    per_allele: &HashMap<String, char>,
+    alt_idx: usize,
+) -> Option<String> {
+    if info.is_empty() || info == "." {
+        return None;
+    }
+    let parts: Vec<String> = info
         .split(';')
-        .filter(|field| {
-            let key = field.split_once('=').map(|(k, _)| k).unwrap_or(field);
-            !own_tags.contains(key)
+        .filter_map(|field| {
+            let (key, value) = match field.split_once('=') {
+                Some((k, v)) => (k, Some(v)),
+                None => (field, None),
+            };
+            if is_own_tag(key) {
+                return None;
+            }
+            match (per_allele.get(key), value) {
+                (Some(&kind), Some(v)) => subset_per_allele_field(key, v, kind, alt_idx),
+                _ => Some(field.to_string()),
+            }
         })
         .collect();
     if parts.is_empty() {
@@ -429,6 +493,11 @@ pub fn load_vcf_positions_by_contig(
     let samples = list_vcf_samples(vcf_file)?;
     let sample_index = resolve_sample_index(&samples, sample_name)?;
     let own_tags: HashSet<&str> = GET_MNV_INFO_TAGS.iter().copied().collect();
+    let per_allele_info = if keep_original_info {
+        per_allele_info_numbers(&extract_original_info_headers(vcf_file)?)
+    } else {
+        HashMap::new()
+    };
 
     if vcf_file.ends_with(".bcf") {
         return Err(
@@ -516,7 +585,12 @@ pub fn load_vcf_positions_by_contig(
             let (original_dp, original_freq) =
                 parse_original_metrics_from_fields(info, &format_keys, sample_field, alt_idx);
             let original_info = if keep_original_info {
-                extract_original_info_from_line(info, &own_tags)
+                filter_and_subset_original_info(
+                    info,
+                    |k| own_tags.contains(k),
+                    &per_allele_info,
+                    alt_idx,
+                )
             } else {
                 None
             };
@@ -565,6 +639,45 @@ mod tests {
             original_freq: None,
             original_info: None,
         }
+    }
+
+    #[test]
+    fn test_per_allele_info_numbers_parses_number() {
+        let headers = vec![
+            "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"alt count\">".to_string(),
+            "##INFO=<ID=AD,Number=R,Type=Integer,Description=\"allele depth\">".to_string(),
+            "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"depth\">".to_string(),
+        ];
+        let map = super::per_allele_info_numbers(&headers);
+        assert_eq!(map.get("AC"), Some(&'A'));
+        assert_eq!(map.get("AD"), Some(&'R'));
+        assert_eq!(map.get("DP"), None); // fixed-Number field omitted
+    }
+
+    #[test]
+    fn test_filter_and_subset_original_info_multiallelic() {
+        let headers = vec![
+            "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"x\">".to_string(),
+            "##INFO=<ID=AF,Number=A,Type=Float,Description=\"x\">".to_string(),
+            "##INFO=<ID=AD,Number=R,Type=Integer,Description=\"x\">".to_string(),
+        ];
+        let map = super::per_allele_info_numbers(&headers);
+        let info = "AC=5,7;AF=0.5,0.7;AD=10,5,7;DP=22;FOO=bar";
+        // Split allele index 1: per-allele fields subset to that ALT.
+        let out = super::filter_and_subset_original_info(info, |k| k == "GENE", &map, 1).unwrap();
+        assert_eq!(out, "AC=7;AF=0.7;AD=10,7;DP=22;FOO=bar");
+    }
+
+    #[test]
+    fn test_filter_and_subset_original_info_biallelic_unchanged() {
+        let headers = vec![
+            "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"x\">".to_string(),
+            "##INFO=<ID=AD,Number=R,Type=Integer,Description=\"x\">".to_string(),
+        ];
+        let map = super::per_allele_info_numbers(&headers);
+        let out =
+            super::filter_and_subset_original_info("AC=5;AD=10,5", |_| false, &map, 0).unwrap();
+        assert_eq!(out, "AC=5;AD=10,5");
     }
 
     #[test]

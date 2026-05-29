@@ -45,6 +45,14 @@ pub fn load_vcf_text(
         "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ",
     ];
 
+    // Per-allele (Number=A/R/G) INFO fields, so they can be subset to a single
+    // ALT when a multiallelic record is split (avoids invalid copied arrays).
+    let per_allele_info = if keep_original_info {
+        crate::io::vcf::per_allele_info_numbers(&extract_text_info_headers(vcf_file)?)
+    } else {
+        HashMap::new()
+    };
+
     for line_result in reader.lines() {
         let line = line_result.map_err(|e| format!("Error reading VCF line: {e}"))?;
         if line.starts_with("##") {
@@ -123,13 +131,6 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
         let af_idx = format_keys.iter().position(|k| *k == "AF");
         let ad_idx = format_keys.iter().position(|k| *k == "AD");
 
-        // Extract original INFO if requested
-        let original_info = if keep_original_info {
-            extract_text_original_info(cols[7], get_mnv_tags)
-        } else {
-            None
-        };
-
         for (alt_idx, alt_allele) in alt_alleles.iter().enumerate() {
             if alt_allele.is_empty() || *alt_allele == "." {
                 return Err(format!(
@@ -155,6 +156,11 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                 alt_idx,
                 cols[7],
             );
+            let original_info = if keep_original_info {
+                extract_text_original_info(cols[7], get_mnv_tags, &per_allele_info, alt_idx)
+            } else {
+                None
+            };
 
             positions_by_contig
                 .entry(chrom.to_string())
@@ -165,7 +171,7 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                     alt_allele: norm_alt,
                     original_dp,
                     original_freq,
-                    original_info: original_info.clone(),
+                    original_info,
                 });
         }
         if alt_alleles.len() > 1 {
@@ -360,22 +366,13 @@ fn find_info_tag<'a>(info: &'a str, tag: &str) -> Option<&'a str> {
     None
 }
 
-fn extract_text_original_info(info: &str, skip_tags: &[&str]) -> Option<String> {
-    if info == "." {
-        return None;
-    }
-    let kept: Vec<&str> = info
-        .split(';')
-        .filter(|field| {
-            let tag = field.split('=').next().unwrap_or("");
-            !skip_tags.contains(&tag)
-        })
-        .collect();
-    if kept.is_empty() {
-        None
-    } else {
-        Some(kept.join(";"))
-    }
+fn extract_text_original_info(
+    info: &str,
+    skip_tags: &[&str],
+    per_allele: &HashMap<String, char>,
+    alt_idx: usize,
+) -> Option<String> {
+    super::vcf::filter_and_subset_original_info(info, |k| skip_tags.contains(&k), per_allele, alt_idx)
 }
 
 /// List sample names from a plain-text VCF.
@@ -533,18 +530,29 @@ mod tests {
     #[test]
     fn test_extract_original_info_filters_tags() {
         let get_mnv_tags = &["GENE", "AA", "DP"];
-        let result = extract_text_original_info("GENE=rpoB;CUSTOM=yes;DP=100", get_mnv_tags);
+        let result = extract_text_original_info(
+            "GENE=rpoB;CUSTOM=yes;DP=100",
+            get_mnv_tags,
+            &std::collections::HashMap::new(),
+            0,
+        );
         assert_eq!(result.as_deref(), Some("CUSTOM=yes"));
     }
 
     #[test]
     fn test_extract_original_info_all_filtered() {
         let get_mnv_tags = &["GENE"];
-        assert!(extract_text_original_info("GENE=x", get_mnv_tags).is_none());
+        assert!(
+            extract_text_original_info("GENE=x", get_mnv_tags, &std::collections::HashMap::new(), 0)
+                .is_none()
+        );
     }
 
     #[test]
     fn test_extract_original_info_dot() {
-        assert!(extract_text_original_info(".", &["GENE"]).is_none());
+        assert!(
+            extract_text_original_info(".", &["GENE"], &std::collections::HashMap::new(), 0)
+                .is_none()
+        );
     }
 }
