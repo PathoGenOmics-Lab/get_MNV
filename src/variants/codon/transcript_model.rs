@@ -56,16 +56,21 @@ pub(super) fn transcript_offset_for_position(gene: &Gene, position: usize) -> Op
     None
 }
 
-/// Whether an insertion anchored at `position` falls strictly inside this CDS
-/// segment. The upper bound is exclusive (`< segment.end`) on purpose: a VCF
-/// insertion places the inserted bases *after* the anchor, so an anchor at the
-/// segment's last base sits on the exon|intron boundary, where the inserted
-/// sequence is genomically ambiguous between "end of this exon" and "start of
-/// the intron" (spliced out). Such boundary insertions are intentionally left
-/// out of the spliced-CDS model rather than assigned a possibly-wrong codon;
-/// they surface as intergenic instead. Anchors inside an exon are unaffected.
-pub(super) fn insertion_anchor_in_segment(segment: &CdsSegment, position: usize) -> bool {
-    position >= segment.start && position < segment.end
+/// Whether an insertion anchored at `position` belongs to this CDS `segment`
+/// when reconstructing the spliced transcript. True when the anchor is strictly
+/// inside the exon, or when it sits exactly on the exon's last base and that base
+/// is an internal exon-exon junction: a VCF insertion places its bases *after*
+/// the anchor, so an anchor at an internal exon's last base lands the inserted
+/// sequence at the junction with the next exon, inside the spliced CDS. An anchor
+/// at the CDS terminus is UTR and is excluded (see
+/// [`Gene::insertion_at_internal_junction`]).
+pub(super) fn insertion_anchor_in_segment(
+    gene: &Gene,
+    segment: &CdsSegment,
+    position: usize,
+) -> bool {
+    (position >= segment.start && position < segment.end)
+        || (position == segment.end && gene.insertion_at_internal_junction(position))
 }
 
 pub(super) fn variant_overlaps_coding_model(gene: &Gene, variant: &VcfPosition) -> bool {
@@ -73,9 +78,19 @@ pub(super) fn variant_overlaps_coding_model(gene: &Gene, variant: &VcfPosition) 
         return variant.overlaps_interval(gene.start, gene.end);
     }
 
-    gene.cds_segments
+    if gene
+        .cds_segments
         .iter()
         .any(|segment| variant.overlaps_interval(segment.start, segment.end))
+    {
+        return true;
+    }
+    // An insertion anchored at an internal exon-exon junction is coding even
+    // though overlaps_interval (half-open) excludes the exon's last base.
+    variant.event().components.iter().any(|component| {
+        matches!(component.kind, AlleleComponentKind::Insertion)
+            && gene.insertion_at_internal_junction(component.position)
+    })
 }
 
 pub(super) fn variant_touched_transcript_offsets(gene: &Gene, variant: &VcfPosition) -> Vec<usize> {
@@ -93,7 +108,7 @@ pub(super) fn variant_touched_transcript_offsets(gene: &Gene, variant: &VcfPosit
             }
             AlleleComponentKind::Insertion => {
                 for segment in &gene.cds_segments {
-                    if insertion_anchor_in_segment(segment, component.position) {
+                    if insertion_anchor_in_segment(gene, segment, component.position) {
                         if let Some(offset) =
                             transcript_offset_for_position(gene, component.position)
                         {

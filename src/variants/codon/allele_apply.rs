@@ -57,7 +57,7 @@ pub(super) fn apply_allele_to_transcript(
                     }
                 }
                 AlleleComponentKind::Insertion => {
-                    if insertion_anchor_in_segment(segment, component.position) {
+                    if insertion_anchor_in_segment(gene, segment, component.position) {
                         match insertions.get(&component.position) {
                             Some(existing)
                                 if !existing.eq_ignore_ascii_case(&component.alt_allele) =>

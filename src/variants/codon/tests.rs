@@ -476,6 +476,94 @@ fn test_minus_strand_legacy_deletion_reports_consistent_codons() {
     assert_eq!(variants[0].mnv_codon.as_deref(), Some("GGG"));
 }
 
+#[test]
+fn test_plus_strand_insertion_at_internal_exon_junction_is_coding() {
+    // Regression: an insertion anchored at the last base of an internal exon
+    // lands at the exon-exon junction inside the spliced CDS, so it must be
+    // annotated as a coding indel, not dropped (and later reported intergenic).
+    // exon1 = [1,3] "ATG", exon2 = [10,15] "AAATTT"; CDS = "ATGAAATTT"
+    // (Met-Lys-Phe). Inserting GGG after pos 3 -> spliced CDS "ATGGGGAAATTT".
+    let gene = Gene {
+        name: "tx_cds".to_string(),
+        start: 1,
+        end: 15,
+        strand: Strand::Plus,
+        phase: 0,
+        protein_offset: 0,
+        transcript_id: Some("tx1".to_string()),
+        cds_segments: vec![
+            CdsSegment { start: 1, end: 3 },
+            CdsSegment { start: 10, end: 15 },
+        ],
+    };
+    let reference = crate::io::Reference {
+        sequence: "ATGCCCCCCAAATTT",
+    };
+    let variants = crate::variants::get_mnv_variants_for_gene(
+        &gene,
+        &[crate::io::VcfPosition {
+            position: 3,
+            ref_allele: "G".to_string(),
+            alt_allele: "GGGG".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }],
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+    assert_eq!(variants.len(), 1);
+    assert_ne!(variants[0].gene, "intergenic");
+    assert_eq!(variants[0].variant_type, VariantType::Indel);
+    assert_eq!(variants[0].change_type, ChangeType::InFrameIndel);
+    assert_eq!(variants[0].event_components, vec!["INS:3:+GGG".to_string()]);
+}
+
+#[test]
+fn test_minus_strand_insertion_at_internal_exon_junction_is_coding() {
+    // Same junction case on the minus strand. cds_segments are in transcript
+    // order (descending genomic): exon0 = [10,15], exon1 = [1,3]. CDS =
+    // RC("TTTCAT") + RC("AAA") = "ATGAAATTT". An insertion of GGG after genomic
+    // pos 3 (exon1's genomic end = transcript-5' boundary, an internal junction)
+    // becomes RC("GGG")="CCC" at the exon0|exon1 junction -> "ATGAAACCCTTT".
+    let gene = Gene {
+        name: "tx_cds".to_string(),
+        start: 1,
+        end: 15,
+        strand: Strand::Minus,
+        phase: 0,
+        protein_offset: 0,
+        transcript_id: Some("tx1".to_string()),
+        cds_segments: vec![
+            CdsSegment { start: 10, end: 15 },
+            CdsSegment { start: 1, end: 3 },
+        ],
+    };
+    let reference = crate::io::Reference {
+        sequence: "AAACCCCCCTTTCAT",
+    };
+    let variants = crate::variants::get_mnv_variants_for_gene(
+        &gene,
+        &[crate::io::VcfPosition {
+            position: 3,
+            ref_allele: "A".to_string(),
+            alt_allele: "AGGG".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }],
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+    assert_eq!(variants.len(), 1);
+    assert_ne!(variants[0].gene, "intergenic");
+    assert_eq!(variants[0].variant_type, VariantType::Indel);
+    assert_eq!(variants[0].change_type, ChangeType::InFrameIndel);
+    assert_eq!(variants[0].event_components, vec!["INS:3:+GGG".to_string()]);
+}
+
 // H5: an in-frame insertion that introduces a stop codon must be classified
 // as Stop gained rather than the generic In-frame Indel. Inserting TAA after
 // the start codon of ATGAAATTT yields ATG-TAA-AAA-TTT (Met-*-Lys-Phe).

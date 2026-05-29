@@ -7,7 +7,7 @@
 
 use super::vcf::VcfPosition;
 use crate::error::AppResult;
-use crate::variants::Gene;
+use crate::variants::{AlleleComponentKind, Gene};
 use std::collections::HashMap;
 
 mod cds_model;
@@ -52,9 +52,20 @@ pub fn gene_overlaps_variant(gene: &Gene, variant: &VcfPosition) -> bool {
     if gene.cds_segments.is_empty() {
         return variant.overlaps_interval(gene.start, gene.end);
     }
-    gene.cds_segments
+    if gene
+        .cds_segments
         .iter()
         .any(|segment| variant.overlaps_interval(segment.start, segment.end))
+    {
+        return true;
+    }
+    // An insertion anchored at an internal exon-exon junction is coding even
+    // though overlaps_interval (half-open) excludes the exon's last base; keep it
+    // out of the intergenic set so it is annotated on the spliced CDS instead.
+    variant.event().components.iter().any(|component| {
+        matches!(component.kind, AlleleComponentKind::Insertion)
+            && gene.insertion_at_internal_junction(component.position)
+    })
 }
 
 fn gene_has_variant(gene: &Gene, snp_list: &[VcfPosition]) -> bool {

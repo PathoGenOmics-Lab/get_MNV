@@ -195,6 +195,28 @@ pub struct Gene {
     pub cds_segments: Vec<CdsSegment>,
 }
 
+impl Gene {
+    /// Whether an insertion anchored at genomic `position` lands at an internal
+    /// exon-exon junction of the spliced CDS — i.e. immediately after the last
+    /// base of an internal coding exon. The inserted bases then fall between two
+    /// exons in the spliced transcript, so the insertion is coding, even though
+    /// the exon's terminal base is excluded from the half-open exon interval used
+    /// elsewhere. An anchor at the CDS terminus (after the last exon on the plus
+    /// strand, before the first on the minus strand) is UTR, not an internal
+    /// junction. `cds_segments` is in transcript order, so the terminal exon is
+    /// the last entry on the plus strand and the first on the minus strand.
+    pub(crate) fn insertion_at_internal_junction(&self, position: usize) -> bool {
+        let segment_count = self.cds_segments.len();
+        self.cds_segments.iter().enumerate().any(|(idx, segment)| {
+            position == segment.end
+                && match self.strand {
+                    Strand::Plus => idx + 1 < segment_count,
+                    Strand::Minus => idx > 0,
+                }
+        })
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Snp {
     pub index: usize,
