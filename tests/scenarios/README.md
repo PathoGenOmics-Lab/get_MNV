@@ -1,5 +1,7 @@
 # End-to-end scenario tests
 
+**English** · [Español](README.es.md)
+
 This directory contains a Python test harness that builds synthetic FASTA,
 GFF, VCF (or iVar TSV) and BAM inputs from declarative scenario
 definitions, runs `get_mnv` on each one, and checks the output TSV against

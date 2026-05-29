@@ -1,5 +1,7 @@
 # BamViewer demo harness
 
+**English** · [Español](README.es.md)
+
 Renders the real `BamViewer` component in a plain browser, without launching the
 full Tauri desktop app. The Tauri `get_bam_view` command is mocked
 (`tauri-core-mock.ts`) to return a fixture captured from the core engine, so the

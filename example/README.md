@@ -1,5 +1,7 @@
 # Example dataset
 
+**English** · [Español](README.es.md)
+
 A small *M. tuberculosis* dataset for trying get_MNV end to end, including the
 GUI read viewer.
 

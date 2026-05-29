@@ -15,6 +15,8 @@
 
 [Quick Start](#quick-start) · [GUI](#desktop-gui) · [Features](#features) · [Docs](docs/) · [Citation](#citation)
 
+**English** · [Español](README.es.md)
+
 </div>
 
 __Paula Ruiz-Rodriguez<sup>1</sup>__
