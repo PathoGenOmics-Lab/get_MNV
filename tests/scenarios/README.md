@@ -30,7 +30,7 @@ Requirements:
 # Build get_mnv first
 cargo build
 
-# Run all 30 scenarios
+# Run all 34 scenarios
 python3 tests/scenarios/run.py
 
 # Run a subset by name prefix
@@ -80,7 +80,7 @@ Codon math summary:
 
 ## Validated scenarios
 
-30 scenarios are currently defined in [`scenarios.py`](scenarios.py).
+34 scenarios are currently defined in [`scenarios.py`](scenarios.py).
 Each one declares input variants, BAM read groups (with optional
 operations: SNV substitution, insertion, deletion, intron skip) and the
 expected TSV rows.
@@ -160,6 +160,24 @@ expected TSV rows.
 | 28 | `ivar_tsv_insertion` | iVar TSV `+GCT` notation is normalized to the VCF-style anchored allele and annotated as `INS:30:+GCT` |
 | 29 | `ivar_tsv_deletion` | iVar TSV `-G` notation is normalized to `DEL:31:G` and produces the same frameshift row |
 
+### Indel refinements (indels branch)
+
+These exercise the indel-handling refinements added on the `indels` branch
+(commit 49d2f09): stop detection for in-frame indels and the
+`--frameshift-min-freq` downstream-propagation gate.
+
+| # | Name | What it validates |
+|---|------|-------------------|
+| 30 | `stop_gained_inframe_ins` | In-frame insertion of `TAA` after pos 30 forms a premature stop codon → `Change Type = Stop gained`, `AA Changes = 10_11ins*` (instead of the generic `In-frame Indel`). Driven by `indel_stop_effect`, which compares the number of stop residues in the ref vs alt protein |
+| 31 | `stop_lost_inframe_del` | In-frame 3 bp deletion of the terminal stop `TAA` (pos 298-300, `DEL:298-300:TAA`) → `Change Type = Stop lost`, `AA Changes = *100del` |
+| 32 | `fs_gate_default_propagates` | Low-frequency upstream frameshift deletion (`AF=0.20`) + a downstream SNV. With the default `--frameshift-min-freq 0.0` the frameshift propagates → the downstream SNV is labelled `Synonymous (frameshift)` / `Ala13Ala (fs)` |
+| 33 | `fs_gate_high_freq_suppressed` | Identical inputs to scenario 32 but run with `--frameshift-min-freq 0.5`. The upstream deletion (`AF=0.20`) does not pass the gate, so the frameshift is **not** propagated → the downstream SNV is a plain `Synonymous` / `Ala13Ala` |
+
+Scenarios 32 and 33 are an A/B pair: same VCF (now carrying `AF` in `INFO`)
+and same BAM, differing only in the `--frameshift-min-freq` flag. Together
+they show the gate affects only downstream frameshift propagation — the
+upstream deletion's own row stays `Frameshift Indel` (`Ala11Leufs`) in both.
+
 ## Framework architecture
 
 - [`framework.py`](framework.py) defines the building blocks:
@@ -167,7 +185,10 @@ expected TSV rows.
   - Data classes: `Op`, `ReadGroup`, `VcfRecord`, `IvarRecord`, `ExpectedRow`, `Scenario`
   - Builders: `write_fasta`, `write_gff`, `write_vcf`, `write_ivar_tsv`, `write_bam`
   - Driver: `run_get_mnv`, `parse_tsv`, `compare`, `run_scenario`
-- [`scenarios.py`](scenarios.py) declares the 30 scenarios.
+  - `VcfRecord(af=...)` emits an `AF=` INFO field (default omitted) so
+    scenarios can drive frequency-gated logic such as `--frameshift-min-freq`
+  - `Scenario.extra_cli_args` passes extra flags through to `get_mnv`
+- [`scenarios.py`](scenarios.py) declares the 34 scenarios.
 - [`run.py`](run.py) is the CLI driver:
   ```bash
   python3 run.py             # all scenarios
@@ -215,6 +236,16 @@ print the actual rows produced so you can adjust the expectation.
   reported as `Non-synonymous`.
 - `--split-multiallelic`: each ALT at the same codon position now emits
   an independent annotation row.
+- In-frame indels that **create or remove a stop codon** are reported as
+  `Stop gained` / `Stop lost` rather than the generic `In-frame Indel`.
+  Frameshift indels keep the `Frameshift Indel` label (they almost always
+  introduce a downstream stop, so the distinction would be uninformative).
+- `--frameshift-min-freq F` gates **downstream frameshift propagation**: an
+  upstream indel only shifts the frame of downstream codons if its reported
+  allele frequency (VCF `AF`/`FREQ`/`AD`, iVar `ALT_FREQ`) is ≥ `F`. The
+  default `0.0` reproduces the historical always-propagate behaviour, and
+  indels without a known frequency always propagate. The gate never changes
+  the indel's own classification.
 - The local haplotype window is 3 bp (`LOCAL_HAPLOTYPE_JOIN_DISTANCE`)
   and accepts up to 8 events
   (`MAX_LOCAL_HAPLOTYPE_VARIANTS`). Events further apart produce

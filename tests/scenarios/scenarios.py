@@ -1254,6 +1254,173 @@ scenario_ivar_deletion = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# REFINAMIENTOS DE INDEL (rama indels): stop por indel in-frame + gate de freq
+# ---------------------------------------------------------------------------
+
+# 30. Stop GANADO por insercion in-frame.
+# geneA codon 10 = pos 28-30 (GCT). Insertamos TAA justo despues de pos 30
+# (entre codon 10 y codon 11). La insercion es de 3 bp -> in-frame, y forma
+# un codon de stop completo nuevo. indel_stop_effect cuenta los '*': la
+# proteina ref tiene 1 stop (terminal), la alt tiene 2 -> "Stop gained".
+# (Sin este refinamiento se etiquetaria como el generico "In-frame Indel".)
+scenario_stop_gained_inframe_ins = Scenario(
+    name="30_stop_gained_inframe_ins",
+    description="Insercion in-frame de TAA tras pos 30 crea stop prematuro -> Change Type 'Stop gained' (no 'In-frame Indel')",
+    variants=[VcfRecord(pos=30, ref="T", alt="TTAA")],
+    reads=[
+        ReadGroup(
+            name_prefix="r_stopgain_ins",
+            start=1,
+            length=147,
+            ops=[Op(kind="ins", pos=30, seq="TAA")],
+            count=20,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="30",
+            gene="geneA",
+            variant_type="INDEL",
+            event_class="insertion",
+            event_components="INS:30:+TAA",
+            change_type="Stop gained",
+            aa_changes="10_11ins*",
+            event_reads="20",
+            event_frequency="1.0000",
+        ),
+    ],
+    expected_row_count=1,
+)
+
+
+# 31. Stop PERDIDO por delecion in-frame.
+# geneA stop = TAA en pos 298-300. Borramos esas 3 bases (in-frame).
+# VCF: anchor en pos 297 (T, ultima base del codon 99 GCT@295-297),
+# REF=TTAA (pos 297-300), ALT=T -> borra TAA@298-300.
+# La proteina ref tiene 1 stop, la alt tiene 0 -> "Stop lost".
+scenario_stop_lost_inframe_del = Scenario(
+    name="31_stop_lost_inframe_del",
+    description="Delecion in-frame de 3bp que elimina el stop TAA (298-300) -> Change Type 'Stop lost'",
+    variants=[VcfRecord(pos=297, ref="TTAA", alt="T")],
+    reads=[
+        ReadGroup(
+            name_prefix="r_stoplost_del",
+            start=200,
+            length=104,  # cubre 200-303; D en 298-300 flanqueada por M
+            ops=[Op(kind="del", pos=298, length=3)],
+            count=20,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="297",
+            gene="geneA",
+            variant_type="INDEL",
+            event_class="deletion",
+            event_components="DEL:298-300:TAA",
+            change_type="Stop lost",
+            aa_changes="*100del",
+            event_reads="20",
+            event_frequency="1.0000",
+        ),
+    ],
+    expected_row_count=1,
+)
+
+
+# 32. Gate de frameshift --frameshift-min-freq: COMPORTAMIENTO POR DEFECTO.
+# Misma estructura que el escenario 07: del frameshift de 1bp en pos 31 +
+# SNV downstream pos 39. El VCF declara AF=0.20 para la del y AF=0.95 para
+# el SNV. Por defecto (--frameshift-min-freq 0.0) cualquier indel upstream
+# propaga el frameshift -> el SNV downstream lleva marcador "(fs)".
+# Comparar con el escenario 33 (mismos inputs, flag 0.5).
+scenario_fs_gate_default = Scenario(
+    name="32_fs_gate_default_propagates",
+    description="Del fs upstream AF=0.20 + SNV downstream: por defecto el frameshift se propaga -> SNV con '(fs)'",
+    variants=[
+        VcfRecord(pos=30, ref="TG", alt="T", af=0.20),
+        VcfRecord(pos=39, ref="T", alt="A", af=0.95),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_gate_def",
+            start=1,
+            length=151,
+            ops=[
+                Op(kind="del", pos=31, length=1),
+                Op(kind="snv", pos=39, seq="A"),
+            ],
+            count=20,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="30",
+            variant_type="INDEL",
+            change_type="Frameshift Indel",
+            event_class="deletion",
+            event_components="DEL:31:G",
+        ),
+        ExpectedRow(
+            positions="39",
+            variant_type="SNP",
+            change_type="Synonymous (frameshift)",
+            aa_changes="Ala13Ala (fs)",
+            reference_codon="GCT",
+            snp_codon="GCA",
+        ),
+    ],
+    expected_row_count=2,
+)
+
+
+# 33. Gate de frameshift --frameshift-min-freq 0.5: SUPRIME la propagacion.
+# Mismos inputs que el escenario 32. La del upstream tiene AF=0.20 < 0.5,
+# asi que NO supera el gate y NO propaga el frameshift: el SNV downstream
+# (AF=0.95, casi seguro en otra molecula) se anota como sinonimo normal,
+# SIN marcador "(fs)". La del sigue siendo "Frameshift Indel" por si misma.
+scenario_fs_gate_suppressed = Scenario(
+    name="33_fs_gate_high_freq_suppressed",
+    description="Mismos inputs que 32 pero con --frameshift-min-freq 0.5: la del AF=0.20 no supera el gate -> SNV downstream SIN '(fs)'",
+    variants=[
+        VcfRecord(pos=30, ref="TG", alt="T", af=0.20),
+        VcfRecord(pos=39, ref="T", alt="A", af=0.95),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_gate_sup",
+            start=1,
+            length=151,
+            ops=[
+                Op(kind="del", pos=31, length=1),
+                Op(kind="snv", pos=39, seq="A"),
+            ],
+            count=20,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="30",
+            variant_type="INDEL",
+            change_type="Frameshift Indel",
+            event_class="deletion",
+            event_components="DEL:31:G",
+        ),
+        ExpectedRow(
+            positions="39",
+            variant_type="SNP",
+            change_type="Synonymous",
+            aa_changes="Ala13Ala",
+            reference_codon="GCT",
+            snp_codon="GCA",
+        ),
+    ],
+    expected_row_count=2,
+    extra_cli_args=["--frameshift-min-freq", "0.5"],
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -1288,6 +1455,11 @@ ALL_SCENARIOS = [
     scenario_ivar_snv,
     scenario_ivar_insertion,
     scenario_ivar_deletion,
+    # refinamientos de indel (rama indels):
+    scenario_stop_gained_inframe_ins,
+    scenario_stop_lost_inframe_del,
+    scenario_fs_gate_default,
+    scenario_fs_gate_suppressed,
 ]
 
 

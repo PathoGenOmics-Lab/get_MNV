@@ -181,6 +181,7 @@ class VcfRecord:
     ref: str
     alt: str
     chrom: str = CONTIG   # por defecto chr_test; usar CONTIG2 para multi-contig
+    af: float | None = None  # si se define, se emite AF= en INFO (rellena original_freq)
 
 
 @dataclass
@@ -274,14 +275,18 @@ def write_vcf(path: Path, records: Iterable[VcfRecord]) -> None:
         f"##contig=<ID={CONTIG},length={CONTIG_LEN}>\n"
         f"##contig=<ID={CONTIG2},length={CONTIG2_LEN}>\n"
         '##INFO=<ID=DP,Number=1,Type=Integer,Description="depth">\n'
+        '##INFO=<ID=AF,Number=A,Type=Float,Description="allele frequency">\n'
         '##FORMAT=<ID=GT,Number=1,Type=String,Description="genotype">\n'
         "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n"
     )
     with path.open("w") as fh:
         fh.write(header)
         for v in records:
+            info = "DP=30"
+            if v.af is not None:
+                info += f";AF={v.af:.4f}"
             fh.write(
-                f"{v.chrom}\t{v.pos}\t.\t{v.ref}\t{v.alt}\t100\tPASS\tDP=30\tGT\t1/1\n"
+                f"{v.chrom}\t{v.pos}\t.\t{v.ref}\t{v.alt}\t100\tPASS\t{info}\tGT\t1/1\n"
             )
 
 
