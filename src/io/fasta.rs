@@ -75,7 +75,10 @@ pub fn load_references(fasta_file: &str, only_contig: Option<&str>) -> AppResult
                 )
                 .into());
             }
-            current_wanted = only_contig.map_or(true, |want| id == want);
+            current_wanted = match only_contig {
+                Some(want) => id == want,
+                None => true,
+            };
             current_id = Some(id);
             seq_buf.clear();
         } else if current_id.is_some() && current_wanted {
@@ -103,7 +106,9 @@ pub fn load_references(fasta_file: &str, only_contig: Option<&str>) -> AppResult
     if references.is_empty() {
         return Err(match only_contig {
             Some(contig) => {
-                format!("Contig '{contig}' (requested via --chrom) not found in FASTA '{fasta_file}'")
+                format!(
+                    "Contig '{contig}' (requested via --chrom) not found in FASTA '{fasta_file}'"
+                )
             }
             None => format!("No FASTA records found in '{fasta_file}'"),
         }

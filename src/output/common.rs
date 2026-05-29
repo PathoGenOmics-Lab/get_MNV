@@ -51,7 +51,8 @@ impl InfoBuilder {
     /// components), percent-encoding characters that are structurally reserved
     /// in a VCF INFO column so the value cannot corrupt downstream parsing.
     fn push_text(&mut self, key: &str, value: &str) {
-        self.fields.push((key.to_string(), encode_info_value(value)));
+        self.fields
+            .push((key.to_string(), encode_info_value(value)));
     }
 
     fn build(self) -> String {

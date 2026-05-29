@@ -372,7 +372,12 @@ fn extract_text_original_info(
     per_allele: &HashMap<String, char>,
     alt_idx: usize,
 ) -> Option<String> {
-    super::vcf::filter_and_subset_original_info(info, |k| skip_tags.contains(&k), per_allele, alt_idx)
+    super::vcf::filter_and_subset_original_info(
+        info,
+        |k| skip_tags.contains(&k),
+        per_allele,
+        alt_idx,
+    )
 }
 
 /// List sample names from a plain-text VCF.
@@ -542,10 +547,13 @@ mod tests {
     #[test]
     fn test_extract_original_info_all_filtered() {
         let get_mnv_tags = &["GENE"];
-        assert!(
-            extract_text_original_info("GENE=x", get_mnv_tags, &std::collections::HashMap::new(), 0)
-                .is_none()
-        );
+        assert!(extract_text_original_info(
+            "GENE=x",
+            get_mnv_tags,
+            &std::collections::HashMap::new(),
+            0
+        )
+        .is_none());
     }
 
     #[test]

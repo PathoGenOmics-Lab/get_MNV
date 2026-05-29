@@ -376,7 +376,9 @@ pub fn count_indel_reads(
     let end = position + ref_allele.len().saturating_sub(1);
     let region = build_region(chrom, position, end)?;
     let mut query = bam_reader.query(header, &region).map_err(|e| {
-        AppError::validation(format!("BAM query failed for {chrom}:{position}-{end}: {e}"))
+        AppError::validation(format!(
+            "BAM query failed for {chrom}:{position}-{end}: {e}"
+        ))
     })?;
 
     let mut unique_total: HashSet<Rc<ReadKey>> = HashSet::new();

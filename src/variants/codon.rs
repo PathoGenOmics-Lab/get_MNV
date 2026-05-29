@@ -67,16 +67,15 @@ fn merge_snp_into_groups(groups: &mut Vec<Vec<Snp>>, snp: Snp) {
     let mut new_groups: Vec<Vec<Snp>> = Vec::with_capacity(groups.len() * 2);
     let mut seen: BTreeSet<Vec<(usize, String)>> = BTreeSet::new();
 
-    let push_if_new = |g: Vec<Snp>,
-                       new_groups: &mut Vec<Vec<Snp>>,
-                       seen: &mut BTreeSet<Vec<(usize, String)>>| {
-        let mut key: Vec<(usize, String)> =
-            g.iter().map(|s| (s.position, s.base.clone())).collect();
-        key.sort();
-        if seen.insert(key) {
-            new_groups.push(g);
-        }
-    };
+    let push_if_new =
+        |g: Vec<Snp>, new_groups: &mut Vec<Vec<Snp>>, seen: &mut BTreeSet<Vec<(usize, String)>>| {
+            let mut key: Vec<(usize, String)> =
+                g.iter().map(|s| (s.position, s.base.clone())).collect();
+            key.sort();
+            if seen.insert(key) {
+                new_groups.push(g);
+            }
+        };
 
     for group in groups.iter() {
         if let Some(idx) = group.iter().position(|s| s.position == snp.position) {
@@ -100,10 +99,7 @@ fn merge_snp_into_groups(groups: &mut Vec<Vec<Snp>>, snp: Snp) {
 }
 
 /// Transcript-coordinates variant of merge_snp_into_groups.
-fn merge_transcript_snp_into_groups(
-    groups: &mut Vec<Vec<TranscriptSnp>>,
-    snp: TranscriptSnp,
-) {
+fn merge_transcript_snp_into_groups(groups: &mut Vec<Vec<TranscriptSnp>>, snp: TranscriptSnp) {
     if groups.is_empty() {
         groups.push(vec![snp]);
         return;
@@ -687,7 +683,13 @@ fn protein_effect_for_indel(
     reference: &crate::io::Reference<'_>,
     variant: &VcfPosition,
     genetic_code: crate::genetic_code::GeneticCode,
-) -> (ChangeType, Vec<String>, Vec<String>, Option<String>, Option<String>) {
+) -> (
+    ChangeType,
+    Vec<String>,
+    Vec<String>,
+    Option<String>,
+    Option<String>,
+) {
     // Base classification (frameshift vs in-frame, symbolic handling). When the
     // alternate CDS can be reconstructed we may refine this to Stop gained/lost.
     let base_change_type = indel_change_type_for_variant(gene, reference, variant);
@@ -1663,11 +1665,16 @@ fn apply_frameshift_labeling(var_info: &mut VariantInfo, ptc_protein_pos: Option
         var_info.aa_changes = vec![LABEL.to_string()];
         var_info.snp_aa_changes = vec![LABEL.to_string(); var_info.snp_aa_changes.len()];
         var_info.aa_changes_local = vec![LABEL.to_string()];
-        var_info.snp_aa_changes_local = vec![LABEL.to_string(); var_info.snp_aa_changes_local.len()];
+        var_info.snp_aa_changes_local =
+            vec![LABEL.to_string(); var_info.snp_aa_changes_local.len()];
         return;
     }
     var_info.change_type = var_info.change_type.with_frameshift();
-    var_info.aa_changes = var_info.aa_changes.iter().map(|s| format!("{s} (fs)")).collect();
+    var_info.aa_changes = var_info
+        .aa_changes
+        .iter()
+        .map(|s| format!("{s} (fs)"))
+        .collect();
     var_info.snp_aa_changes = var_info
         .snp_aa_changes
         .iter()
@@ -1747,66 +1754,70 @@ fn get_mnv_variants_for_transcript(
     codon_starts.sort_unstable();
 
     for codon_start in codon_starts {
-        let groups = codon_to_groups.get(&codon_start).cloned().unwrap_or_default();
+        let groups = codon_to_groups
+            .get(&codon_start)
+            .cloned()
+            .unwrap_or_default();
         for codon_snps in groups {
-        let codon_end = codon_start + 3;
-        if codon_end > ref_cds.len() {
-            continue;
-        }
-        let ref_codon = &ref_cds[codon_start..codon_end];
-        let mut codon_snps = codon_snps;
-        codon_snps.sort_by_key(|s| s.transcript_offset);
-
-        let overlaps_indel = indels.iter().any(|indel| {
-            variant_touched_transcript_offsets(gene, indel)
-                .into_iter()
-                .any(|offset| offset >= codon_start && offset < codon_end)
-        });
-
-        let mut upstream_shift: isize = 0;
-        let mut has_symbolic_sv = false;
-        for indel in &indels {
-            let Some(first_offset) = first_touched_transcript_offset(gene, indel) else {
+            let codon_end = codon_start + 3;
+            if codon_end > ref_cds.len() {
                 continue;
-            };
-            if first_offset < codon_start {
-                // Only let sufficiently frequent upstream indels shift the frame
-                // of downstream codons (see IndelAnnotationConfig).
-                if !indel_passes_frameshift_gate(indel, config) {
+            }
+            let ref_codon = &ref_cds[codon_start..codon_end];
+            let mut codon_snps = codon_snps;
+            codon_snps.sort_by_key(|s| s.transcript_offset);
+
+            let overlaps_indel = indels.iter().any(|indel| {
+                variant_touched_transcript_offsets(gene, indel)
+                    .into_iter()
+                    .any(|offset| offset >= codon_start && offset < codon_end)
+            });
+
+            let mut upstream_shift: isize = 0;
+            let mut has_symbolic_sv = false;
+            for indel in &indels {
+                let Some(first_offset) = first_touched_transcript_offset(gene, indel) else {
                     continue;
-                }
-                if indel.alt_allele.starts_with('<') {
-                    has_symbolic_sv = true;
-                } else if let Some(delta) = coding_delta_for_variant(gene, reference, indel) {
-                    upstream_shift += delta;
-                } else {
-                    has_symbolic_sv = true;
+                };
+                if first_offset < codon_start {
+                    // Only let sufficiently frequent upstream indels shift the frame
+                    // of downstream codons (see IndelAnnotationConfig).
+                    if !indel_passes_frameshift_gate(indel, config) {
+                        continue;
+                    }
+                    if indel.alt_allele.starts_with('<') {
+                        has_symbolic_sv = true;
+                    } else if let Some(delta) = coding_delta_for_variant(gene, reference, indel) {
+                        upstream_shift += delta;
+                    } else {
+                        has_symbolic_sv = true;
+                    }
                 }
             }
-        }
-        let is_frameshifted = has_symbolic_sv || upstream_shift % 3 != 0;
+            let is_frameshifted = has_symbolic_sv || upstream_shift % 3 != 0;
 
-        let mut var_info = process_transcript_codon(
-            gene,
-            chrom,
-            ref_codon,
-            codon_start,
-            &codon_snps,
-            genetic_code,
-        );
+            let mut var_info = process_transcript_codon(
+                gene,
+                chrom,
+                ref_codon,
+                codon_start,
+                &codon_snps,
+                genetic_code,
+            );
 
-        if overlaps_indel {
-            var_info.change_type = ChangeType::IndelOverlap;
-            var_info.aa_changes = vec!["Unknown".to_string()];
-            var_info.snp_aa_changes = vec!["Unknown".to_string(); var_info.snp_aa_changes.len()];
-            var_info.aa_changes_local = vec!["Unknown".to_string()];
-            var_info.snp_aa_changes_local =
-                vec!["Unknown".to_string(); var_info.snp_aa_changes_local.len()];
-        } else if is_frameshifted {
-            apply_frameshift_labeling(&mut var_info, ptc_protein_pos);
-        }
+            if overlaps_indel {
+                var_info.change_type = ChangeType::IndelOverlap;
+                var_info.aa_changes = vec!["Unknown".to_string()];
+                var_info.snp_aa_changes =
+                    vec!["Unknown".to_string(); var_info.snp_aa_changes.len()];
+                var_info.aa_changes_local = vec!["Unknown".to_string()];
+                var_info.snp_aa_changes_local =
+                    vec!["Unknown".to_string(); var_info.snp_aa_changes_local.len()];
+            } else if is_frameshifted {
+                apply_frameshift_labeling(&mut var_info, ptc_protein_pos);
+            }
 
-        variants.push(var_info);
+            variants.push(var_info);
         }
     }
 
@@ -1942,85 +1953,89 @@ pub fn get_mnv_variants_for_gene_with_config(
     }
 
     for codon_start in codon_starts {
-        let groups = codon_to_groups.get(&codon_start).cloned().unwrap_or_default();
+        let groups = codon_to_groups
+            .get(&codon_start)
+            .cloned()
+            .unwrap_or_default();
         for codon_snps in groups {
-        if codon_snps.is_empty() {
-            continue;
-        }
-        let codon_end = codon_start + 2;
-        if codon_end > reference.sequence.len() {
-            continue;
-        }
-        let mut codon_snps = codon_snps;
-        codon_snps.sort_by_key(|s| s.position);
+            if codon_snps.is_empty() {
+                continue;
+            }
+            let codon_end = codon_start + 2;
+            if codon_end > reference.sequence.len() {
+                continue;
+            }
+            let mut codon_snps = codon_snps;
+            codon_snps.sort_by_key(|s| s.position);
 
-        if codon_start == 0 || codon_end > reference.sequence.len() {
-            continue;
-        }
-        let codon_seq = &reference.sequence[(codon_start - 1)..codon_end];
+            if codon_start == 0 || codon_end > reference.sequence.len() {
+                continue;
+            }
+            let codon_seq = &reference.sequence[(codon_start - 1)..codon_end];
 
-        let overlaps_indel = indels
-            .iter()
-            .any(|indel| indel.overlaps_interval(codon_start, codon_end));
+            let overlaps_indel = indels
+                .iter()
+                .any(|indel| indel.overlaps_interval(codon_start, codon_end));
 
-        let mut upstream_shift: isize = 0;
-        let mut has_symbolic_sv = false;
+            let mut upstream_shift: isize = 0;
+            let mut has_symbolic_sv = false;
 
-        for indel in &indels {
-            let is_upstream = match gene.strand {
-                Strand::Plus => indel.position < codon_start,
-                Strand::Minus => indel.position > codon_end,
-            };
+            for indel in &indels {
+                let is_upstream = match gene.strand {
+                    Strand::Plus => indel.position < codon_start,
+                    Strand::Minus => indel.position > codon_end,
+                };
 
-            if is_upstream {
-                // Only sufficiently frequent upstream indels shift the frame of
-                // downstream codons (see IndelAnnotationConfig).
-                if !indel_passes_frameshift_gate(indel, config) {
-                    continue;
-                }
-                if indel.alt_allele.starts_with('<') {
-                    has_symbolic_sv = true;
-                } else if let Some(delta) = coding_delta_for_variant(gene, reference, indel) {
-                    // CDS-clipped coding-length change, consistent with the
-                    // transcript model. For indels that span the gene/CDS
-                    // boundary this counts only the in-CDS portion, unlike the
-                    // raw allele-length difference used previously.
-                    upstream_shift += delta;
-                } else {
-                    upstream_shift +=
-                        (indel.alt_allele.len() as isize) - (indel.ref_allele.len() as isize);
+                if is_upstream {
+                    // Only sufficiently frequent upstream indels shift the frame of
+                    // downstream codons (see IndelAnnotationConfig).
+                    if !indel_passes_frameshift_gate(indel, config) {
+                        continue;
+                    }
+                    if indel.alt_allele.starts_with('<') {
+                        has_symbolic_sv = true;
+                    } else if let Some(delta) = coding_delta_for_variant(gene, reference, indel) {
+                        // CDS-clipped coding-length change, consistent with the
+                        // transcript model. For indels that span the gene/CDS
+                        // boundary this counts only the in-CDS portion, unlike the
+                        // raw allele-length difference used previously.
+                        upstream_shift += delta;
+                    } else {
+                        upstream_shift +=
+                            (indel.alt_allele.len() as isize) - (indel.ref_allele.len() as isize);
+                    }
                 }
             }
-        }
 
-        let is_frameshifted = has_symbolic_sv || upstream_shift % 3 != 0;
+            let is_frameshifted = has_symbolic_sv || upstream_shift % 3 != 0;
 
-        let (eff_gene_start, eff_gene_end) = effective_bounds(gene);
-        let codon_info = CodonInfo {
-            codon_list: codon_snps,
-            original_codon: codon_seq.to_string(),
-            gene_name: gene.name.clone(),
-            gene_start: eff_gene_start,
-            gene_end: eff_gene_end,
-            codon_start,
-            codon_end,
-            protein_offset: gene.protein_offset,
-        };
+            let (eff_gene_start, eff_gene_end) = effective_bounds(gene);
+            let codon_info = CodonInfo {
+                codon_list: codon_snps,
+                original_codon: codon_seq.to_string(),
+                gene_name: gene.name.clone(),
+                gene_start: eff_gene_start,
+                gene_end: eff_gene_end,
+                codon_start,
+                codon_end,
+                protein_offset: gene.protein_offset,
+            };
 
-        let mut var_info = process_codon(codon_info, gene.strand, chrom, genetic_code);
+            let mut var_info = process_codon(codon_info, gene.strand, chrom, genetic_code);
 
-        if overlaps_indel {
-            var_info.change_type = ChangeType::IndelOverlap;
-            var_info.aa_changes = vec!["Unknown".to_string()];
-            var_info.snp_aa_changes = vec!["Unknown".to_string(); var_info.snp_aa_changes.len()];
-            var_info.aa_changes_local = vec!["Unknown".to_string()];
-            var_info.snp_aa_changes_local =
-                vec!["Unknown".to_string(); var_info.snp_aa_changes_local.len()];
-        } else if is_frameshifted {
-            apply_frameshift_labeling(&mut var_info, ptc_protein_pos);
-        }
+            if overlaps_indel {
+                var_info.change_type = ChangeType::IndelOverlap;
+                var_info.aa_changes = vec!["Unknown".to_string()];
+                var_info.snp_aa_changes =
+                    vec!["Unknown".to_string(); var_info.snp_aa_changes.len()];
+                var_info.aa_changes_local = vec!["Unknown".to_string()];
+                var_info.snp_aa_changes_local =
+                    vec!["Unknown".to_string(); var_info.snp_aa_changes_local.len()];
+            } else if is_frameshifted {
+                apply_frameshift_labeling(&mut var_info, ptc_protein_pos);
+            }
 
-        variants.push(var_info);
+            variants.push(var_info);
         }
     }
 
@@ -3285,10 +3300,8 @@ mod tests {
             2,
             "Two multi-allelic alts at the same position must produce two rows"
         );
-        let mut base_changes: Vec<String> = variants
-            .iter()
-            .map(|v| v.base_changes[0].clone())
-            .collect();
+        let mut base_changes: Vec<String> =
+            variants.iter().map(|v| v.base_changes[0].clone()).collect();
         base_changes.sort();
         assert_eq!(base_changes, vec!["G".to_string(), "T".to_string()]);
     }
