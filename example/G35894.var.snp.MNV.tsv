@@ -1,808 +1,942 @@
-Gene	Positions	Base Changes	AA Changes	SNP AA Changes	Variant Type	Change Type	SNP Reads	MNV Reads
-dnaN_Rv0002	2532	T	Leu161Leu	Leu161Leu	SNP	Synonymous	0	8
-gyrA_Rv0006	7585	G	Thr95Ser	Thr95Ser	SNP	Non-synonymous	0	12
-gyrA_Rv0006	9304	G	Asp668Gly	Asp668Gly	SNP	Non-synonymous	0	10
-Rv0010c_Rv0010c	13460	A	Asp33Asp	Asp33Asp	SNP	Synonymous	0	14
-Rv0012_Rv0012	14401	A	Glu105Lys	Glu105Lys	SNP	Non-synonymous	0	18
-trpG_Rv0013	15117	C	Met68Ile	Met68Ile	SNP	Non-synonymous	0	27
-pstP_Rv0018c	23174	C	Leu3Arg	Leu3Arg	SNP	Non-synonymous	0	11
-Rv0024_Rv0024	28640	C	Val93Val	Val93Val	SNP	Synonymous	0	13
-bioF2_Rv0032	36538	T	Ser748Ser	Ser748Ser	SNP	Synonymous	0	9
-Rv0034_Rv0034	37031	C	Ala55Ala	Ala55Ala	SNP	Synonymous	0	8
-Rv0039c_Rv0039c	42281	C	Phe24Cys	Phe24Cys	SNP	Non-synonymous	0	12
-leuS_Rv0041	43945	A	Val128Val	Val128Val	SNP	Synonymous	0	9
-Rv0044c_Rv0044c	49000	A	Pro10Ser	Pro10Ser	SNP	Non-synonymous	0	24
-ino1_Rv0046c	50557	T	Gly190Arg	Gly190Arg	SNP	Non-synonymous	0	22
-Rv0048c_Rv0048c	51949	A	Ala250Val	Ala250Val	SNP	Non-synonymous	0	15
-Rv0048c_Rv0048c	52436	T	Glu88Lys	Glu88Lys	SNP	Non-synonymous	0	16
-ponA1_Rv0050	54394	A	Ala244Ala	Ala244Ala	SNP	Synonymous	0	9
-celA1_Rv0062	66196	T	Ser215Ser	Ser215Ser	SNP	Synonymous	0	21
-Rv0064_Rv0064	70267	G	Phe550Val	Phe550Val	SNP	Non-synonymous	0	14
-Rv0080_Rv0080	89200	G	Val60Gly	Val60Gly	SNP	Non-synonymous	0	13
-Rv0083_Rv0083	92199	T	Thr600Thr	Thr600Thr	SNP	Synonymous	0	17
-Rv0093c_Rv0093c	103600	A	Arg22Cys	Arg22Cys	SNP	Non-synonymous	0	10
-Rv0095c_Rv0095c	104824	C	Ile131Ser	Ile131Ser	SNP	Non-synonymous	0	17
-Rv0095c_Rv0095c	104838	T	Asp126Glu	Asp126Glu	SNP	Non-synonymous	0	16
-Rv0095c_Rv0095c	104941,104942	T,G	Gly92Gln	Gly92Glu; Gly92Arg	MNV	Non-synonymous	0,0	25
-Rv0095c_Rv0095c	104944	G	Val91Ala	Val91Ala	SNP	Non-synonymous	0	25
-Rv0095c_Rv0095c	105045	G	Glu57Asp	Glu57Asp	SNP	Non-synonymous	0	21
-Rv0104_Rv0104	123520	T	His402Tyr	His402Tyr	SNP	Non-synonymous	0	8
-ctpI_Rv0107c	126803	A	Pro1247Ser	Pro1247Ser	SNP	Non-synonymous	0	8
-gmhB_Rv0114	138222	G	Gly94Gly	Gly94Gly	SNP	Synonymous	0	15
-oxcA_Rv0118c	143207	T	Gly224Ser	Gly224Ser	SNP	Non-synonymous	0	9
-fadE1_Rv0131c	159048	A	Thr204Met	Thr204Met	SNP	Non-synonymous	0	11
-fadE1_Rv0131c	159136	C	Ile175Val	Ile175Val	SNP	Non-synonymous	0	13
-Rv0138_Rv0138	165419	A	Cys33Ser	Cys33Ser	SNP	Non-synonymous	0	10
-Rv0147_Rv0147	173792	G	Glu185Glu	Glu185Glu	SNP	Synonymous	0	25
-PE2_Rv0152c	180334	C	Asp188Gly	Asp188Gly	SNP	Non-synonymous	0	13
-fadD5_Rv0166	195360	T	Ala123Val	Ala123Val	SNP	Non-synonymous	0	21
-fadD5_Rv0166	196642	C	Asn550Asn	Asn550Asn	SNP	Synonymous	0	7
-mce1A_Rv0169	199470	T	Ala313Ser	Ala313Ser	SNP	Non-synonymous	0	12
-mce1D_Rv0172	203999	A	Pro508Pro	Pro508Pro	SNP	Synonymous	0	11
-Rv0180c_Rv0180c	212244	A	Gln3*	Gln3*	SNP	Non-synonymous	0	15
-bglS_Rv0186	217201	T	Asn311Asn	Asn311Asn	SNP	Synonymous	0	25
-Rv0192_Rv0192	223752	C	Gly63Gly	Gly63Gly	SNP	Synonymous	0	9
-Rv0193c_Rv0193c	225668	C	Ser302Gly	Ser302Gly	SNP	Non-synonymous	0	21
-Rv0195_Rv0195	231114	C	Ala72Ala	Ala72Ala	SNP	Synonymous	0	8
-Rv0205_Rv0205	243598	A	Arg72His	Arg72His	SNP	Non-synonymous	0	14
-Rv0209_Rv0209	249522	T	Ala162Val	Ala162Val	SNP	Non-synonymous	0	13
-Rv0210_Rv0210	251575	G	Thr486Ala	Thr486Ala	SNP	Non-synonymous	0	13
-Rv0215c_Rv0215c	257844	G	Thr338Pro	Thr338Pro	SNP	Non-synonymous	0	12
-lipW_Rv0217c	260282	G	Thr184Pro	Thr184Pro	SNP	Non-synonymous	0	12
-aftD_Rv0236c	283614	T	Gly1080Ser	Gly1080Ser	SNP	Non-synonymous	0	13
-aftD_Rv0236c	285871	A	Val327Val	Val327Val	SNP	Synonymous	0	11
-htdX_Rv0241c	290633	G	Lys8Gln	Lys8Gln	SNP	Non-synonymous	0	12
-nirB_Rv0252	304923	A	Lys686Lys	Lys686Lys	SNP	Synonymous	0	11
-Rv0257_Rv0257	309765	C	*23Arg	*23Arg	SNP	Non-synonymous	0	10
-Rv0263c_Rv0263c	314987	A	Val260Val	Val260Val	SNP	Synonymous	0	10
-oplA_Rv0266c	320180	A	Ile325Ile	Ile325Ile	SNP	Synonymous	0	8
-fadD2_Rv0270	325505	T	Val313Val	Val313Val	SNP	Synonymous	0	14
-Rv0274_Rv0274	330545	G	Ile42Val	Ile42Val	SNP	Non-synonymous	0	7
-vapB25_Rv0277A	333212	G	Arg69Thr	Arg69Thr	SNP	Non-synonymous	0	19
-vapB25_Rv0277A	333292	A	Arg42Arg	Arg42Arg	SNP	Synonymous	0	24
-Rv0278c_Rv0278c	334641	C	Ala557Gly	Ala557Gly	SNP	Non-synonymous	0	8
-Rv0278c_Rv0278c	335920	G	Asp131His	Asp131His	SNP	Non-synonymous	0	6
-Rv0278c_Rv0278c	335971	G	Leu114Leu	Leu114Leu	SNP	Synonymous	0	16
-Rv0278c_Rv0278c	336005	G	Ile102Ile	Ile102Ile	SNP	Synonymous	0	28
-Rv0278c_Rv0278c	336047	G	Ala88Ala	Ala88Ala	SNP	Synonymous	0	18
-Rv0278c_Rv0278c	336050	G	Tyr87Tyr	Tyr87Tyr	SNP	Synonymous	0	19
-Rv0278c_Rv0278c	336053	C	Ala86Ala	Ala86Ala	SNP	Synonymous	0	14
-Rv0278c_Rv0278c	336074	C	Ala79Ala	Ala79Ala	SNP	Synonymous	0	16
-Rv0278c_Rv0278c	336081,336082	G,T	Val77Thr	Val77Ala; Val77Met	MNV	Non-synonymous	0,0	9
-Rv0278c_Rv0278c	336113	A	Ser66Ser	Ser66Ser	SNP	Synonymous	0	7
-PE_PGRS4_Rv0279c	338844,338845	G,T	Val77Thr	Val77Ala; Val77Met	MNV	Non-synonymous	0,0	10
-PE_PGRS4_Rv0279c	338876	A	Ser66Ser	Ser66Ser	SNP	Synonymous	0	17
-PE_PGRS4_Rv0279c	338903	C	Ala57Ala	Ala57Ala	SNP	Synonymous	0	30
-PE_PGRS4_Rv0279c	338960	C	Ala38Ala	Ala38Ala	SNP	Synonymous	0	27
-PE_PGRS4_Rv0279c	338963	C	Thr37Thr	Thr37Thr	SNP	Synonymous	0	30
-PPE3_Rv0280	340132	A	Glu257Lys	Glu257Lys	SNP	Non-synonymous	0	23
-eccA3_Rv0282	342146	A	Ala6Glu	Ala6Glu	SNP	Non-synonymous	0	17
-eccA3_Rv0282	343281	G	Ala384Ala	Ala384Ala	SNP	Synonymous	0	13
-PPE4_Rv0286	350489	G	Ala185Ala	Ala185Ala	SNP	Synonymous	0	14
-PPE5_Rv0304c	367471	G	Phe1765Ser	Phe1765Ser	SNP	Non-synonymous	0	39
-PPE5_Rv0304c	369496	T	Ser1090Asn	Ser1090Asn	SNP	Non-synonymous	0	10
-PPE5_Rv0304c	369558	G	Gly1069Gly	Gly1069Gly	SNP	Synonymous	0	12
-PPE5_Rv0304c	372149	G	Leu206Leu	Leu206Leu	SNP	Synonymous	0	67
-PPE6_Rv0305c	372913	A	Gly933Gly	Gly933Gly	SNP	Synonymous	0	28
-Rv0307c_Rv0307c	376774	T	Ala94Ala	Ala94Ala	SNP	Synonymous	0	11
-Rv0312_Rv0312	381030	A	Gly159Ser	Gly159Ser	SNP	Non-synonymous	0	9
-Rv0312_Rv0312	382093	A	Ala513Glu	Ala513Glu	SNP	Non-synonymous	0	10
-Rv0324_Rv0324	391853	A	Ala168Thr	Ala168Thr	SNP	Non-synonymous	0	8
-Rv0325_Rv0325	392261	T	Gln75*	Gln75*	SNP	Non-synonymous	0	13
-Rv0338c_Rv0338c	404326	T	Gly506Arg	Gly506Arg	SNP	Non-synonymous	0	7
-PPE8_Rv0355c	424867	C	Phe3271Leu	Phe3271Leu	SNP	Non-synonymous	0	18
-PPE8_Rv0355c	424872	T	Phe3270Ile	Phe3270Ile	SNP	Non-synonymous	0	8
-PPE8_Rv0355c	424932	T	Phe3250Ile	Phe3250Ile	SNP	Non-synonymous	0	119
-PPE8_Rv0355c	428698	C	Ala1994Ala	Ala1994Ala	SNP	Synonymous	0	34
-PPE8_Rv0355c	432727	A	Phe651Phe	Phe651Phe	SNP	Synonymous	0	9
-Rv0359_Rv0359	438271	G	Thr252Ala	Thr252Ala	SNP	Non-synonymous	0	16
-mgtE_Rv0362	441139	T	Arg423Arg	Arg423Arg	SNP	Synonymous	0	10
-Rv0368c_Rv0368c	445780	C	His249Arg	His249Arg	SNP	Non-synonymous	0	8
-Rv0370c_Rv0370c	447442	C	Glu201Gly	Glu201Gly	SNP	Non-synonymous	0	8
-Rv0377_Rv0377	455325	C	Arg302Pro	Arg302Pro	SNP	Non-synonymous	0	12
-Rv0377_Rv0377	455329	T	Gly303Gly	Gly303Gly	SNP	Synonymous	0	12
-Rv0381c_Rv0381c	457452	T	Thr124Thr	Thr124Thr	SNP	Synonymous	0	16
-Rv0387c_Rv0387c	467504	A	Ser166Phe	Ser166Phe	SNP	Non-synonymous	0	12
-Rv0387c_Rv0387c	467508	G	Ala165Pro	Ala165Pro	SNP	Non-synonymous	0	12
-Rv0387c_Rv0387c	467516	C	Pro162Arg	Pro162Arg	SNP	Non-synonymous	0	0
-Rv0387c_Rv0387c	467526	G	Gly159Arg	Gly159Arg	SNP	Non-synonymous	0	0
-purT_Rv0389	468357	A	Gly8Glu	Gly8Glu	SNP	Non-synonymous	0	10
-pks6_Rv0405	489935	G	Pro1402Arg	Pro1402Arg	SNP	Non-synonymous	0	20
-Rv0406c_Rv0406c	489935	G	Thr257Thr	Thr257Thr	SNP	Synonymous	0	20
-pta_Rv0408	492150	G	Ala122Gly	Ala122Gly	SNP	Non-synonymous	0	16
-glnH_Rv0411c	497759	G	Asp181Ala	Asp181Ala	SNP	Non-synonymous	0	10
-Rv0412c_Rv0412c	498531	A	Ala363Ala	Ala363Ala	SNP	Synonymous	0	16
-Rv0412c_Rv0412c	498557	C	Tyr355Asp	Tyr355Asp	SNP	Non-synonymous	0	14
-thiD_Rv0422c	508469	T	Leu29Leu	Leu29Leu	SNP	Synonymous	0	17
-ctpH_Rv0425c	514657	T	Ala222Glu	Ala222Glu	SNP	Non-synonymous	0	11
-Rv0428c_Rv0428c	517358	T	Gly149Asp	Gly149Asp	SNP	Non-synonymous	0	13
-Rv0428c_Rv0428c	517411	A	Arg131Arg	Arg131Arg	SNP	Synonymous	0	11
-Rv0431_Rv0431	519185	T	Gly38Val	Gly38Val	SNP	Non-synonymous	0	6
-sodC_Rv0432	519893	T	Val98Val	Val98Val	SNP	Synonymous	0	13
-pssA_Rv0436c	524891	C	Val167Gly	Val167Gly	SNP	Non-synonymous	0	12
-moeA2_Rv0438c	527316	C	Ile15Met	Ile15Met	SNP	Non-synonymous	0	18
-Rv0449c_Rv0449c	537835	T	Glu238Glu	Glu238Glu	SNP	Synonymous	0	16
-echA2_Rv0456c	546357	A	Thr149Thr	Thr149Thr	SNP	Synonymous	0	14
-Rv0459_Rv0459	551525	A	Arg110Arg	Arg110Arg	SNP	Synonymous	0	24
-Rv0465c_Rv0465c	555991	A	Arg106Cys	Arg106Cys	SNP	Non-synonymous	0	9
-Rv0474_Rv0474	565404	G	Arg128Arg	Arg128Arg	SNP	Synonymous	0	15
-Rv0484c_Rv0484c	573384	T	Leu140Ile	Leu140Ile	SNP	Non-synonymous	0	13
-proC_Rv0500	590763	G	Asp227Glu	Asp227Glu	SNP	Non-synonymous	0	11
-mmpL2_Rv0507	597816	A	Ala206Ala	Ala206Ala	SNP	Synonymous	0	12
-mmpL2_Rv0507	599772	C	Gly858Gly	Gly858Gly	SNP	Synonymous	0	6
-mmpL2_Rv0507	599775	C	Ile859Ile	Ile859Ile	SNP	Synonymous	0	6
-mmpL2_Rv0507	599868	A	Arg890Arg	Arg890Arg	SNP	Synonymous	0	11
-pitA_Rv0545c	637319	G	Ser49Pro	Ser49Pro	SNP	Non-synonymous	0	7
-mgtA_Rv0557	648856	T	Gly107Gly	Gly107Gly	SNP	Synonymous	0	13
-Rv0566c_Rv0566c	657578	A	Asp154Asp	Asp154Asp	SNP	Synonymous	0	14
-nrdZ_Rv0570	662911	T	Ala539Ala	Ala539Ala	SNP	Synonymous	0	10
-Rv0576_Rv0576	670545	G	His233Arg	His233Arg	SNP	Non-synonymous	0	9
-yrbE2A_Rv0587	685608	T	Leu160Leu	Leu160Leu	SNP	Synonymous	0	26
-yrbE2A_Rv0587	685791	A	Arg221Arg	Arg221Arg	SNP	Synonymous	0	16
-mce2C_Rv0591	690248	C	Asn397Thr	Asn397Thr	SNP	Non-synonymous	0	18
-lpqO_Rv0604	700776	T	Pro180Ser	Pro180Ser	SNP	Non-synonymous	0	15
-Rv0610c_Rv0610c	705602	T	Ser103Asn	Ser103Asn	SNP	Non-synonymous	0	8
-galT_Rv0618	712693	A	Pro352Pro	Pro352Pro	SNP	Synonymous	0	13
-galK_Rv0620	713310	T	Arg199Cys	Arg199Cys	SNP	Non-synonymous	0	20
-Rv0621_Rv0621	715266	A	Trp355*	Trp355*	SNP	Non-synonymous	0	8
-Rv0625c_Rv0625c	717588	A	Val102Val	Val102Val	SNP	Synonymous	0	8
-mazE2_Rv0660c	755122	T	Arg35His	Arg35His	SNP	Non-synonymous	0	9
-atsD_Rv0663	757182	A	Gly349Asp	Gly349Asp	SNP	Non-synonymous	0	10
-mmpL5_Rv0676c	776100	G	Ile794Thr	Ile794Thr	SNP	Non-synonymous	0	11
-Rv0688_Rv0688	788395	T	Ser152Ser	Ser152Ser	SNP	Synonymous	0	11
-Rv0693_Rv0693	792984	T	His276His	His276His	SNP	Synonymous	0	12
-Rv0693_Rv0693	793308	T	Arg384Arg	Arg384Arg	SNP	Synonymous	0	7
-rplO_Rv0723	815236	T	Thr16Ile	Thr16Ile	SNP	Non-synonymous	0	15
-sppA_Rv0724	815851	A	Arg63Arg	Arg63Arg	SNP	Synonymous	0	21
-sppA_Rv0724	816201	C	Asp180Ala	Asp180Ala	SNP	Non-synonymous	0	10
-fucA_Rv0727c	820483	G	Asp6Ala	Asp6Ala	SNP	Non-synonymous	0	10
-xylB_Rv0729	821907	T	Pro134Leu	Pro134Leu	SNP	Non-synonymous	0	14
-Rv0740_Rv0740	832246	A	Gln157Gln	Gln157Gln	SNP	Synonymous	0	8
-PE_PGRS10_Rv0747	839686	A	Ala412Ala	Ala412Ala	SNP	Synonymous	0	14
-Rv0749A_Rv0749A	841764	G	Thr37Thr	Thr37Thr	SNP	Synonymous	0	19
-PPE12_Rv0755c	848407	C	Lys545Arg	Lys545Arg	SNP	Non-synonymous	0	9
-cyp51_Rv0764c	857696	A	Ala114Ala	Ala114Ala	SNP	Synonymous	0	12
-purB_Rv0777	871271	A	Pro422Thr	Pro422Thr	SNP	Non-synonymous	0	15
-Rv0785_Rv0785	880562	G	Phe408Cys	Phe408Cys	SNP	Non-synonymous	0	10
-Rv0787_Rv0787	882257	T	His267Tyr	His267Tyr	SNP	Non-synonymous	0	17
-Rv0801_Rv0801	894888	T	Ser86Ser	Ser86Ser	SNP	Synonymous	0	11
-cpsY_Rv0806c	900221	T	Val370Val	Val370Val	SNP	Synonymous	0	10
-purF_Rv0808	903550	T	Ala480Ala	Ala480Ala	SNP	Synonymous	0	11
-Rv0818_Rv0818	911261	T	Pro97Leu	Pro97Leu	SNP	Non-synonymous	0	11
-phoT_Rv0820	913274	C	Ser183Ser	Ser183Ser	SNP	Synonymous	0	11
-Rv0822c_Rv0822c	916046	T	Pro89His	Pro89His	SNP	Non-synonymous	0	13
-PE_PGRS14_Rv0834c	929748	C	Ala246Ala	Ala246Ala	SNP	Synonymous	0	10
-lpqQ_Rv0835	931123	T	Tyr57Tyr	Tyr57Tyr	SNP	Synonymous	0	12
-Rv0836c_Rv0836c	932280	T	Trp218*	Trp218*	SNP	Non-synonymous	0	20
-Rv0837c_Rv0837c	933699	G	Gly111Gly	Gly111Gly	SNP	Synonymous	0	10
-Rv0841_Rv0841	937762	T	Ala57Val	Ala57Val	SNP	Non-synonymous	0	21
-Rv0842_Rv0842	938246	A	Leu45Leu	Leu45Leu	SNP	Synonymous	0	11
-Rv0845_Rv0845	941845	C	Glu219Ala	Glu219Ala	SNP	Non-synonymous	0	9
-cysK2_Rv0848	945214	G	Ser93Gly	Ser93Gly	SNP	Non-synonymous	0	15
-Rv0851c_Rv0851c	948294	T	Gly59Ser	Gly59Ser	SNP	Non-synonymous	0	27
-pdc_Rv0853c	949535	T	Ala528Ala	Ala528Ala	SNP	Synonymous	0	14
-dapC_Rv0858c	954253	G	Arg223Pro	Arg223Pro	SNP	Non-synonymous	0	2
-fadB_Rv0860	957117	T	Asp275Asp	Asp275Asp	SNP	Synonymous	0	10
-Rv0862c_Rv0862c	960367	A	Ser749Leu	Ser749Leu	SNP	Non-synonymous	0	15
-rpfA_Rv0867c	964544	T	Pro331His	Pro331His	SNP	Non-synonymous	0	9
-PPE13_Rv0878c	976897	T	Pro436Gln	Pro436Gln	SNP	Non-synonymous	0	7
-fprB_Rv0886	984021	A	Pro73Pro	Pro73Pro	SNP	Synonymous	0	10
-Rv0894_Rv0894	996982	A	Ala153Ala	Ala153Ala	SNP	Synonymous	0	8
-Rv0918_Rv0918	1024346	A	Gly46Ser	Gly46Ser	SNP	Non-synonymous	0	11
-pstS3_Rv0928	1035840	T	Ala313Val	Ala313Val	SNP	Non-synonymous	0	10
-pstS2_Rv0932c	1040706	A	Ala115Ser	Ala115Ser	SNP	Non-synonymous	0	21
-ligD_Rv0938	1047165	T	Arg344Cys	Arg344Cys	SNP	Non-synonymous	0	8
-Rv0939_Rv0939	1048922	T	Leu171Leu	Leu171Leu	SNP	Synonymous	0	14
-Rv0945_Rv0945	1054784	C	Gly180Arg	Gly180Arg	SNP	Non-synonymous	0	13
-sucD_Rv0952	1063765	G	Lys209Arg	Lys209Arg	SNP	Non-synonymous	0	14
-purH_Rv0957	1068432	A	Pro76Pro	Pro76Pro	SNP	Synonymous	0	14
-Rv0958_Rv0958	1070702	T	Pro274Ser	Pro274Ser	SNP	Non-synonymous	0	10
-ctpV_Rv0969	1080192	G	Asn484Asp	Asn484Asp	SNP	Non-synonymous	0	17
-echA7_Rv0971c	1082445	A	Glu47Val	Glu47Val	SNP	Non-synonymous	0	12
-accD2_Rv0974c	1087193	G	Lys51Asn	Lys51Asn	SNP	Non-synonymous	0	8
-mprA_Rv0981	1097023	G	Ser68Gly	Ser68Gly	SNP	Non-synonymous	0	16
-mprB_Rv0982	1098523	T	His339Leu	His339Leu	SNP	Non-synonymous	0	18
-Rv0987_Rv0987	1103126	G	Asp195Glu	Asp195Glu	SNP	Non-synonymous	0	9
-Rv0987_Rv0987	1104690	T	Val717Phe	Val717Phe	SNP	Non-synonymous	0	14
-Rv0988_Rv0988	1105284	G	Ile57Val	Ile57Val	SNP	Non-synonymous	0	10
-grcC2_Rv0989c	1106422	T	Val321Ile	Val321Ile	SNP	Non-synonymous	0	12
-Rv0990c_Rv0990c	1107940	A	Ala54Ser	Ala54Ser	SNP	Non-synonymous	0	13
-Rv0992c_Rv0992c	1109163	C	Ile3Met	Ile3Met	SNP	Non-synonymous	0	20
-moeA1_Rv0994	1110956	T	Gly230Cys	Gly230Cys	SNP	Non-synonymous	0	11
-Rv0996_Rv0996	1113290	G	Gln303Glu	Gln303Glu	SNP	Non-synonymous	0	18
-Rv1005c_Rv1005c	1123597	A	Ser1Leu	Ser1Leu	SNP	Non-synonymous	0	12
-ispE_Rv1011	1130526	A	Ala112Ala	Ala112Ala	SNP	Synonymous	0	10
-mfd_Rv1020	1141702	T	Ile912Ile	Ile912Ile	SNP	Synonymous	0	9
-kdpD_Rv1028c	1149551	C	Glu712Glu	Glu712Glu	SNP	Synonymous	0	11
-esxI_Rv1037c	1160770	T	Leu20Gln	Leu20Gln	SNP	Non-synonymous	0	8
-Rv1056_Rv1056	1178116	T	Thr163Thr	Thr163Thr	SNP	Synonymous	0	22
-PE_PGRS19_Rv1067c	1190093	A	Trp111Leu	Trp111Leu	SNP	Non-synonymous	0	23
-Rv1075c_Rv1075c	1200092	C	Val93Val	Val93Val	SNP	Synonymous	0	9
-Rv1078_Rv1078	1203824	T	Thr171Ile	Thr171Ile	SNP	Non-synonymous	0	12
-Rv1084_Rv1084	1208611	T	Gly326Cys	Gly326Cys	SNP	Non-synonymous	0	13
-Rv1086_Rv1086	1211369	A	Arg259Ser	Arg259Ser	SNP	Non-synonymous	0	27
-fum_Rv1098c	1227217	T	Ala117Thr	Ala117Thr	SNP	Non-synonymous	0	13
-xseA_Rv1108c	1235446	T	Ser5Ser	Ser5Ser	SNP	Synonymous	0	19
-gnd2_Rv1122	1245508	C	Gly127Ala	Gly127Ala	SNP	Non-synonymous	0	1
-Rv1125_Rv1125	1248382	A	Gly101Ser	Gly101Ser	SNP	Non-synonymous	0	13
-Rv1125_Rv1125	1248936	G	Pro285Pro	Pro285Pro	SNP	Synonymous	0	8
-Rv1125_Rv1125	1248978	T	Ala299Ala	Ala299Ala	SNP	Synonymous	0	12
-ppdK_Rv1127c	1250340	A	Ala355Ala	Ala355Ala	SNP	Synonymous	0	15
-ppdK_Rv1127c	1250357	T	Pro350Thr	Pro350Thr	SNP	Non-synonymous	0	16
-ppdK_Rv1127c	1251199	C	Glu69Gly	Glu69Gly	SNP	Non-synonymous	0	11
-Rv1128c_Rv1128c	1252153	G	Leu274Leu	Leu274Leu	SNP	Synonymous	0	11
-Rv1128c_Rv1128c	1252164	T	Gly270Glu	Gly270Glu	SNP	Non-synonymous	0	15
-prpD_Rv1130	1254562	A	Gly3Asp	Gly3Asp	SNP	Non-synonymous	0	7
-Rv1145_Rv1145	1273071	C	Ser217Pro	Ser217Pro	SNP	Non-synonymous	0	8
-Rv1146_Rv1146	1273429	A	Arg25Arg	Arg25Arg	SNP	Synonymous	0	13
-Rv1148c_Rv1148c	1276588	G	Ala387Ala	Ala387Ala	SNP	Synonymous	0	28
-Rv1155_Rv1155	1281771	T	Pro115Ser	Pro115Ser	SNP	Non-synonymous	0	16
-narH_Rv1162	1292102	A	Pro346Pro	Pro346Pro	SNP	Synonymous	0	14
-fbiC_Rv1173	1303747	G	Thr273Ala	Thr273Ala	SNP	Non-synonymous	0	7
-fadH_Rv1175c	1306259	A	Ala656Ala	Ala656Ala	SNP	Synonymous	0	16
-Rv1178_Rv1178	1310316	C	Val318Ala	Val318Ala	SNP	Non-synonymous	0	15
-Rv1186c_Rv1186c	1327890	G	Asp472Asp	Asp472Asp	SNP	Synonymous	0	13
-PPE18_Rv1196	1339966	A	Gln206Gln	Gln206Gln	SNP	Synonymous	0	9
-PPE18_Rv1196	1340052	G	Leu235Arg	Leu235Arg	SNP	Non-synonymous	0	56
-PPE18_Rv1196	1340208	A	Arg287Gln	Arg287Gln	SNP	Non-synonymous	0	15
-PPE18_Rv1196	1340256	C	Gly303Ala	Gly303Ala	SNP	Non-synonymous	0	14
-esxL_Rv1198	1341023	G	Gln6Gln	Gln6Gln	SNP	Synonymous	0	7
-esxL_Rv1198	1341029	T	Gly8Gly	Gly8Gly	SNP	Synonymous	0	11
-esxL_Rv1198	1341040	C	Asp12Ala	Asp12Ala	SNP	Non-synonymous	0	51
-esxL_Rv1198	1341044	C	His13His	His13His	SNP	Synonymous	0	41
-esxL_Rv1198	1341083	G	Ala26Ala	Ala26Ala	SNP	Synonymous	0	12
-esxL_Rv1198	1341102,1341103	T,C	Arg33Ser	Arg33Cys; Arg33Pro	MNV	Non-synonymous	0,0	11
-dapE_Rv1202	1346171	A	Gly304Gly	Gly304Gly	SNP	Synonymous	0	9
-Rv1215c_Rv1215c	1358485	T	Glu320Glu	Glu320Glu	SNP	Synonymous	0	14
-Rv1215c_Rv1215c	1358940	C	Ser169Ala	Ser169Ala	SNP	Non-synonymous	0	12
-Rv1217c_Rv1217c	1360209	T	Ala531Ala	Ala531Ala	SNP	Synonymous	0	9
-Rv1218c_Rv1218c	1362006	T	Arg243Gln	Arg243Gln	SNP	Non-synonymous	0	9
-tatB_Rv1224	1367484	T	Gly8Trp	Gly8Trp	SNP	Non-synonymous	0	12
-Rv1226c_Rv1226c	1368947	A	Ala450Val	Ala450Val	SNP	Non-synonymous	0	18
-Rv1248c_Rv1248c	1390763	C	Met764Val	Met764Val	SNP	Non-synonymous	0	18
-Rv1249c_Rv1249c	1393626	A	Leu119Leu	Leu119Leu	SNP	Synonymous	0	11
-Rv1250_Rv1250	1395010	A	Gly278Arg	Gly278Arg	SNP	Non-synonymous	0	8
-Rv1251c_Rv1251c	1397201	A	Asn680Asn	Asn680Asn	SNP	Synonymous	0	10
-deaD_Rv1253	1400396	A	Val143Met	Val143Met	SNP	Non-synonymous	0	11
-Rv1255c_Rv1255c	1403235	C	Leu51Arg	Leu51Arg	SNP	Non-synonymous	0	14
-Rv1262c_Rv1262c	1410062	G	Arg104Pro	Arg104Pro	SNP	Non-synonymous	0	12
-mcr11_RVnc0013	1413148	C	Arg26Arg	Arg26Arg	SNP	Synonymous	0	7
-lprB_Rv1274	1424699	T	Pro168Leu	Pro168Leu	SNP	Non-synonymous	0	9
-Rv1291c_Rv1291c	1445781	A	Ala18Ala	Ala18Ala	SNP	Synonymous	0	27
-Rv1301_Rv1301	1458144	C	Gln196Pro	Gln196Pro	SNP	Non-synonymous	0	13
-atpC_Rv1311	1467344	T	Ala10Ala	Ala10Ala	SNP	Synonymous	0	11
-rrl_Rvnr02	1474001	T	Pro115Leu	Pro115Leu	SNP	Non-synonymous	0	18
-alkA_Rv1317c	1479085	T	Val12Ile	Val12Ile	SNP	Non-synonymous	0	9
-glgB_Rv1326c	1490905	A	Pro470Ser	Pro470Ser	SNP	Non-synonymous	0	17
-glgB_Rv1326c	1490911	G	Ser468Pro	Ser468Pro	SNP	Non-synonymous	0	19
-glgB_Rv1326c	1492194	T	Gly40Asp	Gly40Asp	SNP	Non-synonymous	0	12
-cysM_Rv1336	1504056	T	Asn221Asn	Asn221Asn	SNP	Synonymous	0	15
-Rv1339_Rv1339	1505973	G	Arg19Arg	Arg19Arg	SNP	Synonymous	0	12
-moeY_Rv1355c	1523175	A	Ala286Ala	Ala286Ala	SNP	Synonymous	0	12
-moeY_Rv1355c	1523791	A	Pro81Leu	Pro81Leu	SNP	Non-synonymous	0	13
-Rv1358_Rv1358	1526819	C	Arg70Arg	Arg70Arg	SNP	Synonymous	0	10
-PPE19_Rv1361c	1532635	T	Ala333Ala	Ala333Ala	SNP	Synonymous	0	13
-PPE19_Rv1361c	1533583	G	Tyr17Tyr	Tyr17Tyr	SNP	Synonymous	0	14
-Rv1367c_Rv1367c	1540141	T	Val169Ile	Val169Ile	SNP	Non-synonymous	0	7
-Rv1375_Rv1375	1548087	G	Arg86Gly	Arg86Gly	SNP	Non-synonymous	0	14
-carB_Rv1384	1559562	C	Glu821Ala	Glu821Ala	SNP	Non-synonymous	0	11
-mihF_Rv1388	1563717	C	Val8Val	Val8Val	SNP	Synonymous	0	13
-cyp132_Rv1394c	1569924	A	Asp349Val	Asp349Val	SNP	Non-synonymous	0	8
-cyp132_Rv1394c	1570566	C	Leu135Arg	Leu135Arg	SNP	Non-synonymous	0	15
-PE_PGRS25_Rv1396c	1572851	T	Thr336Asn	Thr336Asn	SNP	Non-synonymous	0	14
-PE_PGRS25_Rv1396c	1573448	T	Cys137Tyr	Cys137Tyr	SNP	Non-synonymous	0	7
-PE_PGRS25_Rv1396c	1573660	T	Ser66Arg	Ser66Arg	SNP	Non-synonymous	0	19
-vapC10_Rv1397c	1574206	T	Gly103Asp	Gly103Asp	SNP	Non-synonymous	0	18
-fmu_Rv1407	1584379	A	Leu427Ile	Leu427Ile	SNP	Non-synonymous	0	6
-ribG_Rv1409	1585283	A	Asn30Lys	Asn30Lys	SNP	Non-synonymous	0	11
-ribG_Rv1409	1585404	G	Thr71Ala	Thr71Ala	SNP	Non-synonymous	0	10
-ribC_Rv1412	1588899	G	Ala111Ala	Ala111Ala	SNP	Synonymous	0	18
-Rv1425_Rv1425	1600685	C	Leu343Pro	Leu343Pro	SNP	Non-synonymous	0	18
-Rv1431_Rv1431	1608276	A	Thr65Asn	Thr65Asn	SNP	Non-synonymous	0	12
-Rv1431_Rv1431	1609840	A	Pro586Pro	Pro586Pro	SNP	Synonymous	0	8
-Rv1435c_Rv1435c	1612621	A	Pro110Pro	Pro110Pro	SNP	Synonymous	0	6
-Rv1435c_Rv1435c	1612648	C	Pro101Pro	Pro101Pro	SNP	Synonymous	0	8
-bisC_Rv1442	1621766	T	Pro659Leu	Pro659Leu	SNP	Non-synonymous	0	9
-opcA_Rv1446c	1624791	C	Pro192Arg	Pro192Arg	SNP	Non-synonymous	0	12
-tal_Rv1448c	1627351	T	Ala244Thr	Ala244Thr	SNP	Non-synonymous	0	13
-tkt_Rv1449c	1629989	G	Thr71Pro	Thr71Pro	SNP	Non-synonymous	0	10
-tkt_Rv1449c	1630148	A	Asp18Tyr	Asp18Tyr	SNP	Non-synonymous	0	12
-PE_PGRS28_Rv1452c	1636170,1636171	T,T	Ala687Asn	Ala687Asp; Ala687Thr	MNV	Non-synonymous	0,0	7
-PE_PGRS28_Rv1452c	1636172	T	Gly686Gly	Gly686Gly	SNP	Synonymous	0	7
-Rv1453_Rv1453	1638975	G	Ser199Ala	Ser199Ala	SNP	Non-synonymous	0	7
-Rv1453_Rv1453	1639418	A	Leu346Leu	Leu346Leu	SNP	Synonymous	0	14
-Rv1453_Rv1453	1639643	T	Arg421Arg	Arg421Arg	SNP	Synonymous	0	13
-qor_Rv1454c	1640442	C	Gly73Gly	Gly73Gly	SNP	Synonymous	0	18
-Rv1459c_Rv1459c	1645802	T	Glu113Lys	Glu113Lys	SNP	Non-synonymous	0	14
-ctpD_Rv1469	1658312	T	Ala450Ala	Ala450Ala	SNP	Synonymous	0	16
-echA12_Rv1472	1659994	C	Ser78Pro	Ser78Pro	SNP	Non-synonymous	0	19
-Rv1486c_Rv1486c	1676290	C	Asn198Lys	Asn198Lys	SNP	Non-synonymous	0	14
-lipL_Rv1497	1688300	T	Phe120Phe	Phe120Phe	SNP	Synonymous	0	11
-Rv1498c_Rv1498c	1689349	C	His191Arg	His191Arg	SNP	Non-synonymous	0	13
-Rv1501_Rv1501	1692141	A	Ile84Ile	Ile84Ile	SNP	Synonymous	0	10
-Rv1502_Rv1502	1693561	A	Cys213Tyr	Cys213Tyr	SNP	Non-synonymous	0	21
-Rv1503c_Rv1503c	1694547	A	Glu200*	Glu200*	SNP	Non-synonymous	0	16
-Rv1505c_Rv1505c	1695674	G	Tyr91Tyr	Tyr91Tyr	SNP	Synonymous	0	11
-Rv1508c_Rv1508c	1698911	G	Gly328Gly	Gly328Gly	SNP	Synonymous	0	9
-Rv1508c_Rv1508c	1699849	G	Ser16Pro	Ser16Pro	SNP	Non-synonymous	0	12
-Rv1516c_Rv1516c	1708232	G	Ile103Thr	Ile103Thr	SNP	Non-synonymous	0	23
-Rv1517_Rv1517	1709432	C	Phe188Leu	Phe188Leu	SNP	Non-synonymous	0	17
-Rv1520_Rv1520	1711375	C	Cys116Cys	Cys116Cys	SNP	Synonymous	0	9
-Rv1520_Rv1520	1711378	C	Phe117Phe	Phe117Phe	SNP	Synonymous	0	14
-fadD25_Rv1521	1713192	A	Val297Val	Val297Val	SNP	Synonymous	0	16
-mmpL12_Rv1522c	1716472	A	Pro381Ser	Pro381Ser	SNP	Non-synonymous	0	9
-Rv1524_Rv1524	1718765	G	Ile14Val	Ile14Val	SNP	Non-synonymous	0	21
-Rv1524_Rv1524	1719391	C	Phe222Phe	Phe222Phe	SNP	Synonymous	0	87
-Rv1524_Rv1524	1719679	C	His318His	His318His	SNP	Synonymous	0	22
-Rv1524_Rv1524	1719682	T	Gly319Gly	Gly319Gly	SNP	Synonymous	0	20
-Rv1524_Rv1524	1719688	C	Ala321Ala	Ala321Ala	SNP	Synonymous	0	20
-Rv1524_Rv1524	1719691	T	Gly322Gly	Gly322Gly	SNP	Synonymous	0	16
-Rv1524_Rv1524	1719706	C	Gly327Gly	Gly327Gly	SNP	Synonymous	0	10
-Rv1524_Rv1524	1719709	G	Leu328Leu	Leu328Leu	SNP	Synonymous	0	11
-Rv1526c_Rv1526c	1721116	A	Arg315Arg	Arg315Arg	SNP	Synonymous	0	25
-pks5_Rv1527c	1726816	G	Thr532Pro	Thr532Pro	SNP	Non-synonymous	0	15
-PPE21_Rv1548c	1751513	A	Asn607Asn	Asn607Asn	SNP	Synonymous	0	8
-PPE21_Rv1548c	1752561	T	Gly258Asp	Gly258Asp	SNP	Non-synonymous	0	19
-frdD_Rv1555	1760923	T	Thr124Thr	Thr124Thr	SNP	Synonymous	0	18
-mmpL6_Rv1557	1761789	G	Leu16Val	Leu16Val	SNP	Non-synonymous	0	8
-Rv1573_Rv1573	1779370	G	Thr19Thr	Thr19Thr	SNP	Synonymous	0	8
-Rv1576c_Rv1576c	1780800	C	Val422Gly	Val422Gly	SNP	Non-synonymous	0	20
-Rv1586c_Rv1586c	1787313	G	Lys398Thr	Lys398Thr	SNP	Non-synonymous	0	9
-Rv1587c_Rv1587c	1788570	G	Lys198Asn	Lys198Asn	SNP	Non-synonymous	0	13
-Rv1592c_Rv1592c	1792777	T	Val322Ile	Val322Ile	SNP	Non-synonymous	0	13
-Rv1592c_Rv1592c	1792778	T	Glu321Glu	Glu321Glu	SNP	Synonymous	0	13
-nadC_Rv1596	1797577	A	Asp64Asn	Asp64Asn	SNP	Non-synonymous	0	16
-Rv1597_Rv1597	1798355	G	Asp21Gly	Asp21Gly	SNP	Non-synonymous	0	10
-impA_Rv1604	1804409	C	Gln124Pro	Gln124Pro	SNP	Non-synonymous	0	12
-Rv1624c_Rv1624c	1826054	T	Ala178Thr	Ala178Thr	SNP	Non-synonymous	0	13
-Rv1634_Rv1634	1839260	T	Leu31Leu	Leu31Leu	SNP	Synonymous	0	9
-Rv1634_Rv1634	1839759	G	Arg198Gly	Arg198Gly	SNP	Non-synonymous	0	13
-uvrA_Rv1638	1845524	C	Leu595Pro	Leu595Pro	SNP	Non-synonymous	0	8
-Rv1639c_Rv1639c	1847919	C	Thr180Thr	Thr180Thr	SNP	Synonymous	0	24
-lysX_Rv1640c	1849609	T	Arg809Arg	Arg809Arg	SNP	Synonymous	0	11
-lysX_Rv1640c	1851234	T	Val268Ile	Val268Ile	SNP	Non-synonymous	0	14
-tsnR_Rv1644	1854300	T	Pro232Leu	Pro232Leu	SNP	Non-synonymous	0	13
-pheS_Rv1649	1859559	C	Asp276Ala	Asp276Ala	SNP	Non-synonymous	0	12
-PE_PGRS30_Rv1651c	1864924	A	Gly153Gly	Gly153Gly	SNP	Synonymous	0	13
-argH_Rv1659	1872959	A	Arg107Arg	Arg107Arg	SNP	Synonymous	0	8
-pks7_Rv1661	1876332	C	Thr343Thr	Thr343Thr	SNP	Synonymous	0	16
-pks7_Rv1661	1876335	G	Gly344Gly	Gly344Gly	SNP	Synonymous	0	15
-pks7_Rv1661	1876353	G	Pro350Pro	Pro350Pro	SNP	Synonymous	0	16
-pks8_Rv1662	1882546	G	Ala281Ala	Ala281Ala	SNP	Synonymous	0	9
-pks8_Rv1662	1885768	A	Ala1355Ala	Ala1355Ala	SNP	Synonymous	0	8
-pks9_Rv1664	1889073	G	Pro350Ala	Pro350Ala	SNP	Non-synonymous	0	11
-Rv1667c_Rv1667c	1894422	A	His307Tyr	His307Tyr	SNP	Non-synonymous	0	14
-Rv1671_Rv1671	1896581	C	Met36Thr	Met36Thr	SNP	Non-synonymous	0	16
-cmr_Rv1675c	1900800	A	Ala59Val	Ala59Val	SNP	Non-synonymous	0	11
-recN_Rv1696	1920120	G	Pro146Pro	Pro146Pro	SNP	Synonymous	0	8
-pyrG_Rv1699	1924959	T	Gly377Gly	Gly377Gly	SNP	Synonymous	0	12
-PPE22_Rv1705c	1931604	A	Leu351Leu	Leu351Leu	SNP	Synonymous	0	15
-PPE22_Rv1705c	1931718	G	Val313Leu	Val313Leu	SNP	Non-synonymous	0	13
-PPE22_Rv1705c	1931792	G	Val288Ala	Val288Ala	SNP	Non-synonymous	0	7
-Rv1707_Rv1707	1935695	T	Ala272Ser	Ala272Ser	SNP	Non-synonymous	0	13
-cmk_Rv1712	1939763	G	Pro55Pro	Pro55Pro	SNP	Synonymous	0	6
-Rv1726_Rv1726	1952160	T	Thr103Thr	Thr103Thr	SNP	Synonymous	0	8
-Rv1730c_Rv1730c	1956523	C	Thr241Thr	Thr241Thr	SNP	Synonymous	0	10
-narX_Rv1736c	1963957	T	Gly77Asp	Gly77Asp	SNP	Non-synonymous	0	25
-PPE24_Rv1753c	1983313	T	Thr488Asn	Thr488Asn	SNP	Non-synonymous	0	14
-PPE24_Rv1753c	1983528	T	Ala416Ala	Ala416Ala	SNP	Synonymous	0	20
-malQ_Rv1781c	2017291	T	Arg62Arg	Arg62Arg	SNP	Synonymous	0	17
-eccB5_Rv1782	2019236	T	Pro499Pro	Pro499Pro	SNP	Synonymous	0	11
-esxM_Rv1792	2030521	T	Lys59*	Lys59*	SNP	Non-synonymous	0	26
-PPE28_Rv1800	2039884	T	Trp144Cys	Trp144Cys	SNP	Non-synonymous	0	14
-PE_PGRS32_Rv1803c	2045310	A	Ile511Ile	Ile511Ile	SNP	Synonymous	0	9
-PPE32_Rv1808	2050061	A	Ser47Ser	Ser47Ser	SNP	Synonymous	0	32
-PPE32_Rv1808	2050822	G	Ala301Gly	Ala301Gly	SNP	Non-synonymous	0	11
-PPE33_Rv1809	2052035	G	Leu252Val	Leu252Val	SNP	Non-synonymous	0	9
-PPE33_Rv1809	2052687	G	Ser469*	Ser469*	SNP	Non-synonymous	0	10
-PE_PGRS33_Rv1818c	2061958	A	Ala239Ala	Ala239Ala	SNP	Synonymous	0	8
-PE_PGRS33_Rv1818c	2061974	A	Gly234Val	Gly234Val	SNP	Non-synonymous	0	8
-bacA_Rv1819c	2062922	T	Val603Ile	Val603Ile	SNP	Non-synonymous	0	16
-gcvH_Rv1826	2072190	A	Ala80Glu	Ala80Glu	SNP	Non-synonymous	0	13
-gcvB_Rv1832	2077218	A	Ala448Thr	Ala448Thr	SNP	Non-synonymous	0	11
-glcB_Rv1837c	2086479	G	Val168Ala	Val168Ala	SNP	Non-synonymous	0	9
-Rv1847_Rv1847	2097144	G	Leu90Val	Leu90Val	SNP	Non-synonymous	0	16
-ureB_Rv1849	2097740	A	Asp32Asn	Asp32Asn	SNP	Non-synonymous	0	8
-Rv1855c_Rv1855c	2103798	G	Ser104Arg	Ser104Arg	SNP	Non-synonymous	0	16
-adhA_Rv1862	2110365	A	Thr274Thr	Thr274Thr	SNP	Synonymous	0	14
-Rv1867_Rv1867	2117180	G	Thr473Ala	Thr473Ala	SNP	Non-synonymous	0	9
-Rv1870c_Rv1870c	2120796	T	Leu212*	Leu212*	SNP	Non-synonymous	0	8
-lldD2_Rv1872c	2122625	A	Ala176Val	Ala176Val	SNP	Non-synonymous	0	12
-lldD2_Rv1872c	2122976	C	Ala59Gly	Ala59Gly	SNP	Non-synonymous	0	19
-lldD2_Rv1872c	2123146	T	Ala2Ala	Ala2Ala	SNP	Synonymous	0	15
-Rv1875_Rv1875	2124568	C	Arg63Thr	Arg63Thr	SNP	Non-synonymous	0	21
-glnA3_Rv1878	2128372	A	Thr117Thr	Thr117Thr	SNP	Synonymous	0	12
-glnA3_Rv1878	2129281	C	Ala420Ala	Ala420Ala	SNP	Synonymous	0	8
-fbpB_Rv1886c	2134898	A	Ala324Ser	Ala324Ser	SNP	Non-synonymous	0	11
-Rv1893_Rv1893	2140673	C	Val63Ala	Val63Ala	SNP	Non-synonymous	0	12
-lppD_Rv1899c	2145878	A	Pro123Leu	Pro123Leu	SNP	Non-synonymous	0	14
-lipJ_Rv1900c	2147022	A	Met204Ile	Met204Ile	SNP	Non-synonymous	0	11
-cinA_Rv1901	2147759	G	Leu33Arg	Leu33Arg	SNP	Non-synonymous	0	8
-katG_Rv1908c	2154724	C	Leu463Arg	Leu463Arg	SNP	Non-synonymous	0	12
-Rv1910c_Rv1910c	2156868	G	Gly144Gly	Gly144Gly	SNP	Synonymous	0	8
-fadB5_Rv1912c	2158109	T	Gly328Asp	Gly328Asp	SNP	Non-synonymous	0	8
-fadB5_Rv1912c	2158563	A	His177Tyr	His177Tyr	SNP	Non-synonymous	0	13
-aceAa_Rv1915	2160998	G	Asp179Gly	Asp179Gly	SNP	Non-synonymous	0	12
-PPE35_Rv1918c	2167926	A	Ser896Leu	Ser896Leu	SNP	Non-synonymous	0	12
-PPE35_Rv1918c	2168728	G	Gly629Arg	Gly629Arg	SNP	Non-synonymous	0	16
-PPE35_Rv1918c	2170048	C	Leu189Val	Leu189Val	SNP	Non-synonymous	0	12
-PPE35_Rv1918c	2170053	C	Thr187Ser	Thr187Ser	SNP	Non-synonymous	0	13
-Rv1929c_Rv1929c	2181393	A	Thr172Ser	Thr172Ser	SNP	Non-synonymous	0	9
-fadE18_Rv1933c	2184176	A	Ala261Val	Ala261Val	SNP	Non-synonymous	0	15
-Rv1945_Rv1945	2197176	G	Thr396Thr	Thr396Thr	SNP	Synonymous	0	37
-Rv1948c_Rv1948c	2199052	C	Arg5Gly	Arg5Gly	SNP	Non-synonymous	0	13
-mce3A_Rv1966	2209465	G	Thr47Ala	Thr47Ala	SNP	Non-synonymous	0	12
-mce3B_Rv1967	2211477	C	Asp293His	Asp293His	SNP	Non-synonymous	0	13
-mce3C_Rv1968	2211826	A	Lys67Lys	Lys67Lys	SNP	Synonymous	0	7
-Rv1979c_Rv1979c	2222308	T	Gly286Asp	Gly286Asp	SNP	Non-synonymous	0	13
-Rv1985c_Rv1985c	2229801	C	Pro34Pro	Pro34Pro	SNP	Synonymous	0	11
-ctpF_Rv1997	2241742	A	Pro528Pro	Pro528Pro	SNP	Synonymous	0	15
-Rv1998c_Rv1998c	2243034	T	Arg230Ser	Arg230Ser	SNP	Non-synonymous	0	14
-Rv2000_Rv2000	2246603	T	Ser465Ser	Ser465Ser	SNP	Synonymous	0	13
-Rv2001_Rv2001	2246960	G	Val43Val	Val43Val	SNP	Synonymous	0	23
-fabG3_Rv2002	2247677	A	Ile6Ile	Ile6Ile	SNP	Synonymous	0	14
-Rv2036_Rv2036	2282111	A	Asp5Asn	Asp5Asn	SNP	Non-synonymous	0	20
-Rv2036_Rv2036	2282376,2282377	C,C	Val93Ala	Val93Ala; Val93Val	SNP/MNV	Non-synonymous	1,0	11
-pks12_Rv2048c	2296042	G	Ala3649Pro	Ala3649Pro	SNP	Non-synonymous	0	7
-pks12_Rv2048c	2300546	A	Gln2147His	Gln2147His	SNP	Non-synonymous	0	11
-pks12_Rv2048c	2300552	T	Pro2145Pro	Pro2145Pro	SNP	Synonymous	0	11
-pks12_Rv2048c	2300555	A	Asp2144Asp	Asp2144Asp	SNP	Synonymous	0	11
-pks12_Rv2048c	2301089	T	Leu1966Leu	Leu1966Leu	SNP	Synonymous	0	19
-pks12_Rv2048c	2304139	C	Asn950Asp	Asn950Asp	SNP	Non-synonymous	0	12
-cobIJ_Rv2066	2324127	G	Ala318Gly	Ala318Gly	SNP	Non-synonymous	0	17
-cobM_Rv2071c	2328543	T	Met145Ile	Met145Ile	SNP	Non-synonymous	0	10
-cobL_Rv2072c	2329533	A	Pro205Leu	Pro205Leu	SNP	Non-synonymous	0	35
-Rv2075c_Rv2075c	2331620	A	Gly420Gly	Gly420Gly	SNP	Synonymous	0	9
-Rv2075c_Rv2075c	2331789	G	Gln364Pro	Gln364Pro	SNP	Non-synonymous	0	13
-Rv2077c_Rv2077c	2334007	A	Ala96Ala	Ala96Ala	SNP	Synonymous	0	7
-Rv2078_Rv2078	2335075	A	Gly6Glu	Gly6Glu	SNP	Non-synonymous	0	9
-Rv2079_Rv2079	2335494	A	Cys47Tyr	Cys47Tyr	SNP	Non-synonymous	0	14
-Rv2082_Rv2082	2339255	A	Ala183Thr	Ala183Thr	SNP	Non-synonymous	0	13
-Rv2083_Rv2083	2341030	G	Thr54Ala	Thr54Ala	SNP	Non-synonymous	0	9
-pknJ_Rv2088	2345037	C	Leu209Leu	Leu209Leu	SNP	Synonymous	0	9
-helZ_Rv2101	2360530	A	Val97Val	Val97Val	SNP	Synonymous	0	9
-prcA_Rv2109c	2369186	G	Gly182Arg	Gly182Arg	SNP	Non-synonymous	0	20
-prcA_Rv2109c	2369326	C	Pro135Arg	Pro135Arg	SNP	Non-synonymous	0	15
-dop_Rv2112c	2370996	G	Leu525Ser	Leu525Ser	SNP	Non-synonymous	0	9
-PPE37_Rv2123	2381110	T	Pro14Ser	Pro14Ser	SNP	Non-synonymous	0	12
-ansP1_Rv2127	2388641	G	Asp9Gly	Asp9Gly	SNP	Non-synonymous	0	18
-ftsQ_Rv2151c	2409831	T	Leu271Met	Leu271Met	SNP	Non-synonymous	0	9
-murG_Rv2153c	2413246	C	Leu36Val	Leu36Val	SNP	Non-synonymous	0	8
-murE_Rv2158c	2419142	A	Val489Val	Val489Val	SNP	Synonymous	0	14
-Rv2160c_Rv2160c	2421816	A	Ala155Val	Ala155Val	SNP	Non-synonymous	0	9
-pbpB_Rv2163c	2425471	T	Arg539Arg	Arg539Arg	SNP	Synonymous	0	17
-mptA_Rv2174	2437259	G	Ser451Ala	Ser451Ala	SNP	Non-synonymous	0	12
-aroG_Rv2178c	2440926	G	Glu265Asp	Glu265Asp	SNP	Non-synonymous	0	14
-fadD15_Rv2187	2449295	G	Glu379Gly	Glu379Gly	SNP	Non-synonymous	0	12
-mmpS3_Rv2198c	2462871	G	Ala59Ala	Ala59Ala	SNP	Synonymous	0	8
-cobT_Rv2207	2471424	A	Ala5Glu	Ala5Glu	SNP	Non-synonymous	0	10
-cobS_Rv2208	2472956	T	Ser155Leu	Ser155Leu	SNP	Non-synonymous	0	14
-cobS_Rv2208	2472993	A	Arg167Arg	Arg167Arg	SNP	Synonymous	0	10
-caeA_Rv2224c	2495500	T	Leu508Leu	Leu508Leu	SNP	Synonymous	0	19
-Rv2226_Rv2226	2499726	G	Asn299Asp	Asn299Asp	SNP	Non-synonymous	0	18
-Rv2229c_Rv2229c	2502982	C	His164Arg	His164Arg	SNP	Non-synonymous	0	7
-ptpA_Rv2234	2507254	A	Ala37Thr	Ala37Thr	SNP	Non-synonymous	0	13
-cobD_Rv2236c	2509140	G	Cys79Ser	Cys79Ser	SNP	Non-synonymous	0	13
-Rv2240c_Rv2240c	2511712	G	Lys190Thr	Lys190Thr	SNP	Non-synonymous	0	13
-kasA_Rv2245	2518132	C	Thr6Thr	Thr6Thr	SNP	Synonymous	0	10
-Rv2251_Rv2251	2526974	T	Pro470Pro	Pro470Pro	SNP	Synonymous	0	11
-Rv2256c_Rv2256c	2529680	A	Thr65Thr	Thr65Thr	SNP	Synonymous	0	15
-Rv2258c_Rv2258c	2531742	A	Ala52Ala	Ala52Ala	SNP	Synonymous	0	26
-Rv2267c_Rv2267c	2542717	A	Leu32Phe	Leu32Phe	SNP	Non-synonymous	0	15
-cyp121_Rv2276	2548867	A	Val373Val	Val373Val	SNP	Synonymous	0	10
-lppO_Rv2290	2562783	T	Ala62Val	Ala62Val	SNP	Non-synonymous	0	15
-Rv2306A_Rv2306A	2577246	A	Val47Ile	Val47Ile	SNP	Non-synonymous	0	9
-Rv2307c_Rv2307c	2578626	A	Thr24Met	Thr24Met	SNP	Non-synonymous	0	12
-Rv2308_Rv2308	2581109	C	Arg231Arg	Arg231Arg	SNP	Synonymous	0	9
-uspA_Rv2316	2589216	G	Leu127Val	Leu127Val	SNP	Non-synonymous	0	17
-Rv2326c_Rv2326c	2598400	A	Asn516Asn	Asn516Asn	SNP	Synonymous	0	10
-narK1_Rv2329c	2602078	A	Ala462Ser	Ala462Ser	SNP	Non-synonymous	0	19
-mez_Rv2332	2605293	G	Asp62Glu	Asp62Glu	SNP	Non-synonymous	0	12
-stp_Rv2333c	2608117	C	Tyr69Asp	Tyr69Asp	SNP	Non-synonymous	0	10
-esxO_Rv2346c	2625924	T	Ala83Ala	Ala83Ala	SNP	Synonymous	0	23
-esxO_Rv2346c	2626011	A	Ile54Ile	Ile54Ile	SNP	Synonymous	0	10
-esxO_Rv2346c	2626108	C	Ala22Gly	Ala22Gly	SNP	Non-synonymous	0	50
-Rv2348c_Rv2348c	2626857	G	Tyr42His	Tyr42His	SNP	Non-synonymous	0	10
-plcA_Rv2351c	2631641	T	Pro145Pro	Pro145Pro	SNP	Synonymous	0	27
-PPE39_Rv2353c	2635309	C	Ile95Ser	Ile95Ser	SNP	Non-synonymous	0	38
-PPE39_Rv2353c	2635577	T	Gly6Arg	Gly6Arg	SNP	Non-synonymous	0	13
-zur_Rv2359	2641840	A	Arg64His	Arg64His	SNP	Non-synonymous	0	13
-Rv2360c_Rv2360c	2642383	C	Thr66Ala	Thr66Ala	SNP	Non-synonymous	0	11
-Rv2370c_Rv2370c	2650964	C	Ser199Ala	Ser199Ala	SNP	Non-synonymous	0	4
-mbtF_Rv2379c	2660319	C	Asp589Glu	Asp589Glu	SNP	Non-synonymous	0	18
-Rv2386a_Rv2386a	2680658	T	Thr67Thr	Thr67Thr	SNP	Synonymous	0	16
-Rv2395_Rv2395	2691440	A	Gly457Arg	Gly457Arg	SNP	Non-synonymous	0	13
-Rv2395_Rv2395	2691713	T	Pro548Ser	Pro548Ser	SNP	Non-synonymous	0	21
-cysW_Rv2398c	2695378	C	Ala141Gly	Ala141Gly	SNP	Non-synonymous	0	12
-Rv2411c_Rv2411c	2709795	A	Ala57Ala	Ala57Ala	SNP	Synonymous	0	11
-Rv2415c_Rv2415c	2712913	C	Leu291Arg	Leu291Arg	SNP	Non-synonymous	0	12
-Rv2423_Rv2423	2719816	A	Gly74Ser	Gly74Ser	SNP	Non-synonymous	0	12
-Rv2426c_Rv2426c	2723506	T	Leu226Leu	Leu226Leu	SNP	Synonymous	0	7
-tig_Rv2462c	2764939	G	Leu118Pro	Leu118Pro	SNP	Non-synonymous	0	11
-pepN_Rv2467	2769957	T	Phe324Phe	Phe324Phe	SNP	Synonymous	0	15
-Rv2468A_Rv2468A	2772238	C	Thr32Ala	Thr32Ala	SNP	Non-synonymous	0	7
-gdh_Rv2476c	2778956	A	Leu1103Leu	Leu1103Leu	SNP	Synonymous	0	15
-plsC_Rv2483c	2790458	A	Gly189Cys	Gly189Cys	SNP	Non-synonymous	0	11
-Rv2484c_Rv2484c	2791098	C	Asp466Gly	Asp466Gly	SNP	Non-synonymous	0	8
-Rv2484c_Rv2484c	2791475	A	Ala340Ala	Ala340Ala	SNP	Synonymous	0	11
-echA14_Rv2486	2794776	T	Gly143Cys	Gly143Cys	SNP	Non-synonymous	0	6
-Rv2492_Rv2492	2807486	C	Asp70Ala	Asp70Ala	SNP	Non-synonymous	0	14
-bkdC_Rv2495c	2809250	T	Leu230Leu	Leu230Leu	SNP	Synonymous	0	12
-fadD35_Rv2505c	2821342	C	Ala85Ala	Ala85Ala	SNP	Synonymous	0	9
-Rv2509_Rv2509	2825466	G	Lys263Lys	Lys263Lys	SNP	Synonymous	0	9
-fas_Rv2524c	2847281	A	Asp684Asp	Asp684Asp	SNP	Synonymous	0	17
-nusB_Rv2533c	2858669	G	Asp19Ala	Asp19Ala	SNP	Non-synonymous	0	15
-Rv2542_Rv2542	2865882	T	Val251Val	Val251Val	SNP	Synonymous	0	7
-vapB19_Rv2547	2868793	T	Thr63Ile	Thr63Ile	SNP	Non-synonymous	0	14
-alaS_Rv2555c	2875451	A	Pro345Pro	Pro345Pro	SNP	Synonymous	0	16
-Rv2556c_Rv2556c	2876754	A	Ala71Val	Ala71Val	SNP	Non-synonymous	0	18
-Rv2559c_Rv2559c	2878980	C	Asp317Gly	Asp317Gly	SNP	Non-synonymous	0	24
-glnQ_Rv2564	2884094	G	Ser251Ser	Ser251Ser	SNP	Synonymous	0	5
-Rv2566_Rv2566	2886570	A	Glu66Glu	Glu66Glu	SNP	Synonymous	0	10
-Rv2566_Rv2566	2888201	T	Pro610Leu	Pro610Leu	SNP	Non-synonymous	0	9
-Rv2566_Rv2566	2888949	A	Arg859Arg	Arg859Arg	SNP	Synonymous	0	8
-Rv2599_Rv2599	2927511	G	Ile12Ser	Ile12Ser	SNP	Non-synonymous	0	14
-thrS_Rv2614c	2941852	T	Glu472Glu	Glu472Glu	SNP	Synonymous	0	18
-PE_PGRS45_Rv2615c	2944932	C	Ala18Ala	Ala18Ala	SNP	Synonymous	0	7
-Rv2628_Rv2628	2955061	C	Ser2Pro	Ser2Pro	SNP	Non-synonymous	0	9
-Rv2628_Rv2628	2955233	C	Leu59Ser	Leu59Ser	SNP	Non-synonymous	0	10
-PE_PGRS46_Rv2634c	2962119	C	Pro108Arg	Pro108Arg	SNP	Non-synonymous	0	13
-Rv2650c_Rv2650c	2975227	T	Thr3Asn	Thr3Asn	SNP	Non-synonymous	0	18
-Rv2653c_Rv2653c	2976616	G	Gln98His	Gln98His	SNP	Non-synonymous	0	9
-Rv2660c_Rv2660c	2980970	A	Cys74Phe	Cys74Phe	SNP	Non-synonymous	0	15
-Rv2668_Rv2668	2985216	G	Lys162Glu	Lys162Glu	SNP	Non-synonymous	0	13
-Rv2672_Rv2672	2988630	C	Asp317His	Asp317His	SNP	Non-synonymous	0	13
-hemE_Rv2678c	2994187	T	Leu292Leu	Leu292Leu	SNP	Synonymous	0	7
-Rv2683_Rv2683	3000362	T	Ser84Leu	Ser84Leu	SNP	Non-synonymous	0	11
-arsB1_Rv2685	3003115	C	Gly378Ala	Gly378Ala	SNP	Non-synonymous	0	24
-Rv2688c_Rv2688c	3005185	G	Thr156Pro	Thr156Pro	SNP	Non-synonymous	0	14
-Rv2689c_Rv2689c	3006898	G	Tyr55Tyr	Tyr55Tyr	SNP	Synonymous	0	16
-Rv2690c_Rv2690c	3007238	A	Arg658*	Arg658*	SNP	Non-synonymous	0	17
-ceoB_Rv2691	3009692	A	Ala117Thr	Ala117Thr	SNP	Non-synonymous	0	20
-ppgK_Rv2702	3017134	T	Ala93Ser	Ala93Ser	SNP	Non-synonymous	0	15
-Rv2709_Rv2709	3021957	T	Ser40Leu	Ser40Leu	SNP	Non-synonymous	0	14
-Rv2714_Rv2714	3027606	C	Trp181Ser	Trp181Ser	SNP	Non-synonymous	0	13
-Rv2719c_Rv2719c	3031168	A	His124Tyr	His124Tyr	SNP	Non-synonymous	0	18
-Rv2729c_Rv2729c	3041871	G	Glu202Ala	Glu202Ala	SNP	Non-synonymous	0	13
-PE_PGRS47_Rv2741	3054081	A	Gly56Gly	Gly56Gly	SNP	Synonymous	0	40
-PE_PGRS47_Rv2741	3055062	C	Gly383Gly	Gly383Gly	SNP	Synonymous	0	14
-hsdM_Rv2756c	3069167	A	Pro306Leu	Pro306Leu	SNP	Non-synonymous	0	15
-hsdM_Rv2756c	3069805	G	Val93Val	Val93Val	SNP	Synonymous	0	14
-hsdS_Rv2761c	3071621	C	Ala340Ala	Ala340Ala	SNP	Synonymous	0	12
-Rv2765_Rv2765	3074873	C	Gly80Arg	Gly80Arg	SNP	Non-synonymous	0	9
-PE27_Rv2769c	3078178	C	Met270Val	Met270Val	SNP	Non-synonymous	0	15
-PE27_Rv2769c	3078826	G	Ser54Pro	Ser54Pro	SNP	Non-synonymous	0	18
-PPE44_Rv2770c	3079877	A	Ser194Phe	Ser194Phe	SNP	Non-synonymous	0	18
-Rv2781c_Rv2781c	3088625	A	Val120Val	Val120Val	SNP	Synonymous	0	7
-Rv2795c_Rv2795c	3104189	A	Cys241Cys	Cys241Cys	SNP	Synonymous	0	15
-lppV_Rv2796c	3105144	C	Phe159Cys	Phe159Cys	SNP	Non-synonymous	0	6
-Rv2807_Rv2807	3113872	A	Val72Glu	Val72Glu	SNP	Non-synonymous	0	9
-Rv2823c_Rv2823c	3131473	A	Asp101Tyr	Asp101Tyr	SNP	Non-synonymous	0	10
-Rv2825c_Rv2825c	3133054,3133055	C,G	Cys162Ser	Cys162Trp; Cys162Ser	MNV	Non-synonymous	0,0	14
-Rv2825c_Rv2825c	3133536	T	Glu2Lys	Glu2Lys	SNP	Non-synonymous	0	10
-proS_Rv2845c	3151649	A	Thr434Thr	Thr434Thr	SNP	Synonymous	0	13
-Rv2857c_Rv2857c	3168967	A	Val131Val	Val131Val	SNP	Synonymous	0	12
-Rv2862c_Rv2862c	3174496	A	Arg50Cys	Arg50Cys	SNP	Non-synonymous	0	12
-rip_Rv2869c	3180988	C	Phe259Val	Phe259Val	SNP	Non-synonymous	0	10
-merT_Rv2877c	3188769	A	His35Tyr	His35Tyr	SNP	Non-synonymous	0	7
-mpt53_Rv2878c	3189242	A	Ala52Ala	Ala52Ala	SNP	Synonymous	0	10
-cdsA_Rv2881c	3190721	T	Val301Ile	Val301Ile	SNP	Non-synonymous	0	10
-Rv2886c_Rv2886c	3195731	T	Val234Val	Val234Val	SNP	Synonymous	0	15
-Rv2891_Rv2891	3200304	A	Val13Val	Val13Val	SNP	Synonymous	0	10
-viuB_Rv2895c	3205213	C	His7Arg	His7Arg	SNP	Non-synonymous	0	9
-fadD26_Rv2930	3244414	A	Val240Met	Val240Met	SNP	Non-synonymous	0	8
-ppsA_Rv2931	3245892	T	Pro150Ser	Pro150Ser	SNP	Non-synonymous	0	8
-ppsA_Rv2931	3247874	A	Arg810Arg	Arg810Arg	SNP	Synonymous	0	4
-ppsB_Rv2932	3252796	C	Gly575Gly	Gly575Gly	SNP	Synonymous	0	7
-ppsB_Rv2932	3254880	G	Leu1270Arg	Leu1270Arg	SNP	Non-synonymous	0	9
-ppsC_Rv2933	3256494	A	Gly270Gly	Gly270Gly	SNP	Synonymous	0	8
-ppsD_Rv2934	3266030	A	Ser1261Ser	Ser1261Ser	SNP	Synonymous	0	8
-drrA_Rv2936	3273138	C	Asp309His	Asp309His	SNP	Non-synonymous	0	11
-pks1_Rv2946c	3292720	C	Lys1212Glu	Lys1212Glu	SNP	Non-synonymous	0	15
-pks1_Rv2946c	3293677	C	Leu893Val	Leu893Val	SNP	Non-synonymous	0	13
-pks15_Rv2947c	3296721	C	Arg374Gly	Arg374Gly	SNP	Non-synonymous	0	36
-fadD29_Rv2950c	3301421	T	Leu345Leu	Leu345Leu	SNP	Synonymous	0	13
-Rv2958c_Rv2958c	3311119	G	Val294Val	Val294Val	SNP	Synonymous	0	11
-Rv2962c_Rv2962c	3314412	A	Ala237Ala	Ala237Ala	SNP	Synonymous	0	17
-Rv2971_Rv2971	3326554	A	His152Asn	His152Asn	SNP	Non-synonymous	0	7
-Rv2979c_Rv2979c	3335708	G	Arg14Pro	Arg14Pro	SNP	Non-synonymous	0	17
-ddlA_Rv2981c	3336825	T	Ala365Thr	Ala365Thr	SNP	Non-synonymous	0	12
-leuD_Rv2987c	3344192	G	Ala146Ala	Ala146Ala	SNP	Synonymous	0	8
-leuC_Rv2988c	3345230	A	Thr282Thr	Thr282Thr	SNP	Synonymous	0	10
-leuB_Rv2995c	3352932	C	Thr179Thr	Thr179Thr	SNP	Synonymous	0	9
-gatA_Rv3011c	3371260	T	Val59Ile	Val59Ile	SNP	Non-synonymous	0	11
-lpqA_Rv3016	3376122	T	Ala122Val	Ala122Val	SNP	Non-synonymous	0	9
-iscS_Rv3025c	3383912	C	Ala385Ala	Ala385Ala	SNP	Synonymous	0	6
-Rv3031_Rv3031	3391013	A	Arg364Arg	Arg364Arg	SNP	Synonymous	0	10
-Rv3032_Rv3032	3391863	T	Val110Val	Val110Val	SNP	Synonymous	0	12
-serB2_Rv3042c	3402816	C	Glu116Gly	Glu116Gly	SNP	Non-synonymous	0	15
-ctaD_Rv3043c	3404376	C	Thr182Thr	Thr182Thr	SNP	Synonymous	0	10
-cyp136_Rv3059	3420825	A	Gly445Asp	Gly445Asp	SNP	Non-synonymous	0	6
-Rv3071_Rv3071	3434721	A	Val86Val	Val86Val	SNP	Synonymous	0	13
-atsF_Rv3077	3440542	A	Gly334Gly	Gly334Gly	SNP	Synonymous	0	13
-Rv3087_Rv3087	3453123	A	Gly67Ser	Gly67Ser	SNP	Non-synonymous	0	16
-Rv3087_Rv3087	3454263	C	Val447Leu	Val447Leu	SNP	Non-synonymous	0	11
-tgs4_Rv3088	3455686	G	Leu449Leu	Leu449Leu	SNP	Synonymous	0	17
-Rv3093c_Rv3093c	3462135	G	Trp210Cys	Trp210Cys	SNP	Non-synonymous	0	10
-Rv3096_Rv3096	3464629	A	Gly28Glu	Gly28Glu	SNP	Non-synonymous	0	11
-lipY_Rv3097c	3466919	C	Ala58Gly	Ala58Gly	SNP	Non-synonymous	0	10
-Rv3098c_Rv3098c	3467465	C	Ala66Ala	Ala66Ala	SNP	Synonymous	0	14
-prfB_Rv3105c	3473375	A	Ser177Phe	Ser177Phe	SNP	Non-synonymous	0	13
-fprA_Rv3106	3475159	A	Asp385Asn	Asp385Asn	SNP	Non-synonymous	0	18
-Rv3113_Rv3113	3480474	G	Glu134Gly	Glu134Gly	SNP	Non-synonymous	0	14
-Rv3114_Rv3114	3480789	T	Pro11Ser	Pro11Ser	SNP	Non-synonymous	0	17
-PPE49_Rv3125c	3491200	C	Ala151Gly	Ala151Gly	SNP	Non-synonymous	0	11
-PPE49_Rv3125c	3491205	G	Asp149Asp	Asp149Asp	SNP	Synonymous	0	8
-PPE49_Rv3125c	3491225	C	Leu143Val	Leu143Val	SNP	Non-synonymous	0	11
-PPE49_Rv3125c	3491226	A	Tyr142Tyr	Tyr142Tyr	SNP	Synonymous	0	10
-PPE50_Rv3135	3501666	A	Thr111Thr	Thr111Thr	SNP	Synonymous	0	14
-PPE50_Rv3135	3501668	G	Ala112Gly	Ala112Gly	SNP	Non-synonymous	0	13
-pflA_Rv3138	3505005	A	Pro271Thr	Pro271Thr	SNP	Non-synonymous	0	35
-pflA_Rv3138	3505027	A	Arg278His	Arg278His	SNP	Non-synonymous	0	18
-PPE52_Rv3144c	3510120	T	Gln400Lys	Gln400Lys	SNP	Non-synonymous	0	8
-nuoG_Rv3151	3518167	A	Met474Ile	Met474Ile	SNP	Non-synonymous	0	15
-nuoI_Rv3153	3521044	A	Ala180Thr	Ala180Thr	SNP	Non-synonymous	0	15
-PPE53_Rv3159c	3529067	G	Gly33Arg	Gly33Arg	SNP	Non-synonymous	0	26
-Rv3161c_Rv3161c	3530955	C	Leu62Val	Leu62Val	SNP	Non-synonymous	0	21
-Rv3190c_Rv3190c	3555699	A	Ala330Val	Ala330Val	SNP	Non-synonymous	0	9
-Rv3190c_Rv3190c	3556275	A	Pro138Leu	Pro138Leu	SNP	Non-synonymous	0	13
-Rv3193c_Rv3193c	3560645	C	Gln843Arg	Gln843Arg	SNP	Non-synonymous	0	13
-Rv3193c_Rv3193c	3562225	G	Ala316Ala	Ala316Ala	SNP	Synonymous	0	12
-nudC_Rv3199c	3571834	T	Pro237Gln	Pro237Gln	SNP	Non-synonymous	0	7
-Rv3200c_Rv3200c	3573636	T	Asp12Asn	Asp12Asn	SNP	Non-synonymous	0	9
-Rv3202c_Rv3202c	3577958	A	Ala748Val	Ala748Val	SNP	Non-synonymous	0	8
-Rv3239c_Rv3239c	3614982	T	Leu874Leu	Leu874Leu	SNP	Synonymous	0	12
-lpqB_Rv3244c	3624486	T	Gly142Asp	Gly142Asp	SNP	Non-synonymous	0	6
-mtrB_Rv3245c	3625065	T	Leu517Met	Leu517Met	SNP	Non-synonymous	0	10
-pmmA_Rv3257c	3638093	G	Leu206Ser	Leu206Ser	SNP	Non-synonymous	0	10
-rmlD_Rv3266c	3647041	A	Pro257Ser	Pro257Ser	SNP	Non-synonymous	0	12
-purE_Rv3275c	3658266	C	Arg125Gly	Arg125Gly	SNP	Non-synonymous	0	11
-Rv3289c_Rv3289c	3670040	C	Ala124Ala	Ala124Ala	SNP	Synonymous	0	19
-lhr_Rv3296	3679949	A	Glu1059Lys	Glu1059Lys	SNP	Non-synonymous	0	15
-nei_Rv3297	3681548	A	Arg77Arg	Arg77Arg	SNP	Synonymous	0	18
-atsB_Rv3299c	3685141	A	Gly275Cys	Gly275Cys	SNP	Non-synonymous	0	11
-lpdA_Rv3303c	3690016	A	Ser308Leu	Ser308Leu	SNP	Non-synonymous	0	11
-amiB1_Rv3306c	3693681	A	Ala103Ala	Ala103Ala	SNP	Synonymous	0	14
-pmmB_Rv3308	3696181	A	Gly440Ser	Gly440Ser	SNP	Non-synonymous	0	19
-sapM_Rv3310	3697708	A	Ala171Thr	Ala171Thr	SNP	Non-synonymous	0	12
-Rv3329_Rv3329	3714757	A	His122Gln	His122Gln	SNP	Non-synonymous	0	17
-PPE54_Rv3343c	3730466	G	Ile2157Thr	Ile2157Thr	SNP	Non-synonymous	0	21
-PE_PGRS49_Rv3344c	3737041	C	Gly320Gly	Gly320Gly	SNP	Synonymous	0	19
-PPE55_Rv3347c	3744757	A	Leu2810Phe	Leu2810Phe	SNP	Non-synonymous	0	8
-PPE55_Rv3347c	3745152	G	Gly2678Ala	Gly2678Ala	SNP	Non-synonymous	0	19
-PPE55_Rv3347c	3746536	A	Leu2217Leu	Leu2217Leu	SNP	Synonymous	0	11
-PPE55_Rv3347c	3746594	G	Ala2197Ala	Ala2197Ala	SNP	Synonymous	0	21
-PPE55_Rv3347c	3746845	T	Val2114Ile	Val2114Ile	SNP	Non-synonymous	0	101
-PPE55_Rv3347c	3747182	G	Val2001Val	Val2001Val	SNP	Synonymous	0	9
-PPE55_Rv3347c	3749477	A	Pro1236Pro	Pro1236Pro	SNP	Synonymous	0	18
-PPE55_Rv3347c	3750177,3750178	A,A	Asp1003Phe	Asp1003Val; Asp1003Tyr	MNV	Non-synonymous	0,0	28
-PPE55_Rv3347c	3750185	C	Ser1000Ser	Ser1000Ser	SNP	Synonymous	0	38
-PPE55_Rv3347c	3750205	C	Asn994Asp	Asn994Asp	SNP	Non-synonymous	0	39
-PPE55_Rv3347c	3750209,3750210	A,T	Thr992Asn	Thr992Thr; Thr992Asn	MNV	Non-synonymous	0,0	35
-PPE55_Rv3347c	3750407	G	Gly926Gly	Gly926Gly	SNP	Synonymous	0	68
-PPE55_Rv3347c	3750417	A	Tyr923Phe	Tyr923Phe	SNP	Non-synonymous	0	67
-PPE55_Rv3347c	3750421	T	Gly922Ser	Gly922Ser	SNP	Non-synonymous	0	67
-PPE55_Rv3347c	3750805	A	Val794Phe	Val794Phe	SNP	Non-synonymous	0	19
-PPE55_Rv3347c	3750808	C	Asn793Asp	Asn793Asp	SNP	Non-synonymous	0	21
-PPE55_Rv3347c	3750812	G	Val791Val	Val791Val	SNP	Synonymous	0	21
-PPE55_Rv3347c	3750853	A	Leu778Leu	Leu778Leu	SNP	Synonymous	0	20
-PPE55_Rv3347c	3751988	G	Leu399Leu	Leu399Leu	SNP	Synonymous	0	10
-PPE55_Rv3347c	3753164	T	Pro7Pro	Pro7Pro	SNP	Synonymous	0	8
-PPE56_Rv3350c	3757052	C	Thr3351Ala	Thr3351Ala	SNP	Non-synonymous	0	74
-PPE56_Rv3350c	3762794	C	Ser1437Gly	Ser1437Gly	SNP	Non-synonymous	0	10
-PPE56_Rv3350c	3764502	G	Ile867Ile	Ile867Ile	SNP	Synonymous	0	12
-PPE56_Rv3350c	3765826	C	Asn426Ser	Asn426Ser	SNP	Non-synonymous	0	23
-Rv3359_Rv3359	3771628	A	Ile95Ile	Ile95Ile	SNP	Synonymous	0	12
-Rv3371_Rv3371	3785946	A	Gly339Arg	Gly339Arg	SNP	Non-synonymous	0	18
-Rv3371_Rv3371	3786033	A	Val368Ile	Val368Ile	SNP	Non-synonymous	0	11
-otsB2_Rv3372	3787288	A	Pro325Pro	Pro325Pro	SNP	Synonymous	0	12
-echA18_Rv3373	3788365	T	Gly214*	Gly214*	SNP	Non-synonymous	0	8
-idsB_Rv3383c	3798095	A	Gly132Val	Gly132Val	SNP	Non-synonymous	0	12
-acrA1_Rv3391	3806339	A	Ala240Glu	Ala240Glu	SNP	Non-synonymous	0	11
-cmaA1_Rv3392c	3808103	T	Ser112Asn	Ser112Asn	SNP	Non-synonymous	0	15
-Rv3395c_Rv3395c	3811629	G	Val3Ala	Val3Ala	SNP	Non-synonymous	0	18
-idsA1_Rv3398c	3815477	G	Ala210Ala	Ala210Ala	SNP	Synonymous	0	8
-Rv3401_Rv3401	3819277	T	Ile412Ile	Ile412Ile	SNP	Synonymous	0	14
-guaB3_Rv3410c	3829770	T	Pro47Pro	Pro47Pro	SNP	Synonymous	0	10
-guaB2_Rv3411c	3830695	A	Ala275Ala	Ala275Ala	SNP	Synonymous	0	8
-groEL1_Rv3417c	3836739	A	Asp51Asp	Asp51Asp	SNP	Synonymous	0	8
-Rv3424c_Rv3424c	3841739	A	Pro113Leu	Pro113Leu	SNP	Non-synonymous	0	6
-Rv3428c_Rv3428c	3845328	T	Val215Met	Val215Met	SNP	Non-synonymous	0	10
-Rv3428c_Rv3428c	3845695	C	Arg92Arg	Arg92Arg	SNP	Synonymous	0	14
-PPE59_Rv3429	3847235	A	Ser24Tyr	Ser24Tyr	SNP	Non-synonymous	0	7
-Rv3430c_Rv3430c	3848104	T	Pro234Pro	Pro234Pro	SNP	Synonymous	0	8
-eccB4_Rv3450c	3871246	T	Gly417Gly	Gly417Gly	SNP	Synonymous	0	12
-Rv3453_Rv3453	3874726	A	Ser108Tyr	Ser108Tyr	SNP	Non-synonymous	0	11
-Rv3463_Rv3463	3881751	G	Leu282Arg	Leu282Arg	SNP	Non-synonymous	0	12
-rmlB3_Rv3468c	3885886	T	Val62Ile	Val62Ile	SNP	Non-synonymous	0	14
-kgtP_Rv3476c	3893480	G	Phe81Leu	Phe81Leu	SNP	Non-synonymous	0	7
-PPE60_Rv3478	3894678	G	Gln85Glu	Gln85Glu	SNP	Non-synonymous	0	9
-PPE60_Rv3478	3894971	C	Leu182Leu	Leu182Leu	SNP	Synonymous	0	12
-PPE60_Rv3478	3894982	C	Val186Ala	Val186Ala	SNP	Non-synonymous	0	11
-PPE60_Rv3478	3894999,3895000	T,C	Ile192Ser	Ile192Phe; Ile192Thr	MNV	Non-synonymous	0,0	7
-PPE60_Rv3478	3895055	G	Gln210Gln	Gln210Gln	SNP	Synonymous	0	60
-Rv3479_Rv3479	3898869	C	Asn1017Thr	Asn1017Thr	SNP	Non-synonymous	0	13
-Rv3482c_Rv3482c	3901657	G	Phe150Phe	Phe150Phe	SNP	Synonymous	0	9
-otsA_Rv3490	3909235	G	Leu334Val	Leu334Val	SNP	Non-synonymous	0	14
-fadE26_Rv3504	3922836	T	Asp122Asp	Asp122Asp	SNP	Synonymous	0	10
-ilvX_Rv3509c	3937078	G	Ala449Ala	Ala449Ala	SNP	Synonymous	0	18
-Rv3521_Rv3521	3958403	A	Asp295Asn	Asp295Asn	SNP	Non-synonymous	0	9
-cyp125_Rv3545c	3984321	G	His375His	His375His	SNP	Synonymous	0	13
-Rv3551_Rv3551	3989914	G	Ser7Ala	Ser7Ala	SNP	Non-synonymous	0	9
-Rv3555c_Rv3555c	3994898	A	Arg268Trp	Arg268Trp	SNP	Non-synonymous	0	8
-fadE32_Rv3563	4005114	G	Ser275Trp	Ser275Trp	SNP	Non-synonymous	0	13
-fadE33_Rv3564	4005607	T	Leu121Leu	Leu121Leu	SNP	Synonymous	0	13
-hsaB_Rv3567c	4008747	A	Thr179Ile	Thr179Ile	SNP	Non-synonymous	0	8
-hsaA_Rv3570c	4012219	T	Asp18Asn	Asp18Asn	SNP	Non-synonymous	0	7
-ispF_Rv3581c	4024273	T	Val25Val	Val25Val	SNP	Synonymous	0	9
-Rv3586_Rv3586	4028292	T	Val134Val	Val134Val	SNP	Synonymous	0	16
-Rv3586_Rv3586	4028752	A	Ala288Thr	Ala288Thr	SNP	Non-synonymous	0	11
-PE_PGRS59_Rv3595c	4037283	T	Gly256Gly	Gly256Gly	SNP	Synonymous	0	6
-espD_Rv3614c	4054637	A	Gly20Gly	Gly20Gly	SNP	Synonymous	0	10
-esxV_Rv3619c	4060210	T	Leu20Gln	Leu20Gln	SNP	Non-synonymous	0	10
-esxW_Rv3620c	4060466	A	Gly42Gly	Gly42Gly	SNP	Synonymous	0	9
-PPE65_Rv3621c	4061113	G	Ala259Ala	Ala259Ala	SNP	Synonymous	0	10
-Rv3627c_Rv3627c	4067152	G	Val45Ala	Val45Ala	SNP	Non-synonymous	0	7
-Rv3630_Rv3630	4069292	G	Thr40Ala	Thr40Ala	SNP	Non-synonymous	0	12
-Rv3639c_Rv3639c	4078056	T	Ala132Glu	Ala132Glu	SNP	Non-synonymous	0	6
-Rv3649_Rv3649	4089058	T	Pro93Leu	Pro93Leu	SNP	Non-synonymous	0	11
-Rv3655c_Rv3655c	4095295	T	Glu2Glu	Glu2Glu	SNP	Synonymous	0	15
-dppA_Rv3666c	4105757	C	Gln443Arg	Gln443Arg	SNP	Non-synonymous	0	10
-crp_Rv3676	4116682	T	Leu69Leu	Leu69Leu	SNP	Synonymous	0	12
-Rv3679_Rv3679	4119246	T	Asp157Asp	Asp157Asp	SNP	Synonymous	0	13
-Rv3683_Rv3683	4124608	T	Asn64Asn	Asn64Asn	SNP	Synonymous	0	8
-Rv3689_Rv3689	4130376	G	Pro7Arg	Pro7Arg	SNP	Non-synonymous	0	10
-Rv3695_Rv3695	4137242	A	Asp13Asn	Asp13Asn	SNP	Non-synonymous	0	14
-glpK_Rv3696c	4138377	A	Ala460Val	Ala460Val	SNP	Non-synonymous	0	9
-etgB_Rv3703c	4145737	A	Tyr385Tyr	Tyr385Tyr	SNP	Synonymous	0	6
-Rv3707c_Rv3707c	4150288	C	Ala251Ala	Ala251Ala	SNP	Synonymous	0	13
-asd_Rv3708c	4151855	A	Pro121Pro	Pro121Pro	SNP	Synonymous	0	13
-dnaQ_Rv3711c	4156239	A	Ala164Val	Ala164Val	SNP	Non-synonymous	0	14
-dnaQ_Rv3711c	4156503	C	Asp76Gly	Asp76Gly	SNP	Non-synonymous	0	12
-cobQ2_Rv3713	4158361	A	Pro45Pro	Pro45Pro	SNP	Synonymous	0	21
-Rv3714c_Rv3714c	4159195	T	Pro209Pro	Pro209Pro	SNP	Synonymous	0	12
-Rv3714c_Rv3714c	4159239	C	Lys195Glu	Lys195Glu	SNP	Non-synonymous	0	14
-Rv3729_Rv3729	4179089	C	Ser269Pro	Ser269Pro	SNP	Non-synonymous	0	12
-ligC_Rv3731	4182695	G	His313Arg	His313Arg	SNP	Non-synonymous	0	14
-Rv3737_Rv3737	4188020	G	Ile108Val	Ile108Val	SNP	Non-synonymous	0	9
-Rv3753c_Rv3753c	4200133	T	Pro30His	Pro30His	SNP	Non-synonymous	0	14
-Rv3753c_Rv3753c	4200220	A	Thr1Met	Thr1Met	SNP	Non-synonymous	0	13
-proZ_Rv3756c	4202383	A	Val77Val	Val77Val	SNP	Synonymous	0	10
-proX_Rv3759c	4205120	A	Pro85Leu	Pro85Leu	SNP	Non-synonymous	0	10
-tcrY_Rv3764c	4209859	A	Arg384Leu	Arg384Leu	SNP	Non-synonymous	0	16
-tcrY_Rv3764c	4210876	T	Arg45His	Arg45His	SNP	Non-synonymous	0	11
-Rv3770c_Rv3770c	4215484	G	Ala98Pro	Ala98Pro	SNP	Non-synonymous	0	19
-hisC2_Rv3772	4217557	A	Ala142Thr	Ala142Thr	SNP	Non-synonymous	0	21
-Rv3777_Rv3777	4223172	T	Ala160Val	Ala160Val	SNP	Non-synonymous	0	14
-epiB_Rv3784	4230820	A	Ala189Thr	Ala189Thr	SNP	Non-synonymous	0	9
-Rv3785_Rv3785	4232327	A	Arg336Arg	Arg336Arg	SNP	Synonymous	0	15
-embB_Rv3795	4247646	A	Ala378Glu	Ala378Glu	SNP	Non-synonymous	0	16
-accD4_Rv3799c	4255922	A	His9His	His9His	SNP	Synonymous	0	15
-pks13_Rv3800c	4257220	A	Arg1309Arg	Arg1309Arg	SNP	Synonymous	0	12
-fadD32_Rv3801c	4261499	G	Val523Ala	Val523Ala	SNP	Non-synonymous	0	10
-ubiA_Rv3806c	4269387	T	Asp149Glu	Asp149Glu	SNP	Non-synonymous	0	11
-ubiA_Rv3806c	4269606	A	Arg76Arg	Arg76Arg	SNP	Synonymous	0	19
-papA2_Rv3820c	4284570	C	Val419Gly	Val419Gly	SNP	Non-synonymous	0	12
-papA2_Rv3820c	4285500	C	His109Arg	His109Arg	SNP	Non-synonymous	0	20
-mmpL8_Rv3823c	4288850	T	Val894Met	Val894Met	SNP	Non-synonymous	0	18
-mmpL8_Rv3823c	4289953	A	Ala526Val	Ala526Val	SNP	Non-synonymous	0	12
-mmpL8_Rv3823c	4290564	G	Ala322Ala	Ala322Ala	SNP	Synonymous	0	13
-mmpL8_Rv3823c	4290827	C	Arg235Gly	Arg235Gly	SNP	Non-synonymous	0	12
-pks2_Rv3825c	4296015	G	Asp1197Asp	Asp1197Asp	SNP	Synonymous	0	22
-Rv3827c_Rv3827c	4302493	G	Ala99Ala	Ala99Ala	SNP	Synonymous	0	11
-Rv3833_Rv3833	4307179	G	Ile105Val	Ile105Val	SNP	Non-synonymous	0	12
-Rv3839_Rv3839	4313128	C	Ser122Pro	Ser122Pro	SNP	Non-synonymous	0	10
-bfrB_Rv3841	4314645	A	Leu156Leu	Leu156Leu	SNP	Synonymous	0	10
-Rv3843c_Rv3843c	4316566	C	Arg11Gly	Arg11Gly	SNP	Non-synonymous	0	19
-gltB_Rv3859c	4334425	G	Glu553Gln	Glu553Gln	SNP	Non-synonymous	0	12
-espG1_Rv3866	4342047	T	Ile56Ile	Ile56Ile	SNP	Synonymous	0	10
-espK_Rv3879c	4357597	C	Ser729Cys	Ser729Cys	SNP	Non-synonymous	0	16
-eccA2_Rv3884c	4366195	T	Gly215Glu	Gly215Glu	SNP	Non-synonymous	0	8
-eccE2_Rv3885c	4367649	A	Tyr291Tyr	Tyr291Tyr	SNP	Synonymous	0	13
-Rv3888c_Rv3888c	4372353	G	Arg118Arg	Arg118Arg	SNP	Synonymous	0	13
-esxD_Rv3891c	4374228	T	Ala49Thr	Ala49Thr	SNP	Non-synonymous	0	14
-PPE69_Rv3892c	4375526	A	Ala53Val	Ala53Val	SNP	Non-synonymous	0	13
-Rv3900c_Rv3900c	4386142	A	Ser56Leu	Ser56Leu	SNP	Non-synonymous	0	12
-Rv3909_Rv3909	4395387	A	Ser399Asn	Ser399Asn	SNP	Non-synonymous	0	17
-sigM_Rv3911	4400288	C	Ala35Pro	Ala35Pro	SNP	Non-synonymous	0	15
-gid_Rv3919c	4407588	T	Ala205Ala	Ala205Ala	SNP	Synonymous	0	8
+Chromosome	Gene	Positions	Reference Bases	Base Changes	AA Changes	SNP AA Changes	Local AA Changes	Local SNP AA Changes	Variant Type	Change Type	Reference Codon	SNP Codon	MNV Codon	Event Class	Event Components
+MTB_anc	intergenic	1977	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1977:G>A
+MTB_anc	dnaN_Rv0002	2532	C	T	Leu161Leu	Leu161Leu	Leu161Leu	Leu161Leu	SNP	Synonymous	CTG	TTG	TTG	snp	SNV:2532:C>T
+MTB_anc	gyrA_Rv0006	7585	C	G	Thr95Ser	Thr95Ser	Thr95Ser	Thr95Ser	SNP	Non-synonymous	ACC	AGC	AGC	snp	SNV:7585:C>G
+MTB_anc	gyrA_Rv0006	9304	A	G	Asp668Gly	Asp668Gly	Asp668Gly	Asp668Gly	SNP	Non-synonymous	GAC	GGC	GGC	snp	SNV:9304:A>G
+MTB_anc	Rv0010c_Rv0010c	13460	G	A	Asp33Asp	Asp33Asp	Asp33Asp	Asp33Asp	SNP	Synonymous	GTC	ATC	ATC	snp	SNV:13460:G>A
+MTB_anc	Rv0012_Rv0012	14401	G	A	Glu105Lys	Glu105Lys	Glu105Lys	Glu105Lys	SNP	Non-synonymous	GAG	AAG	AAG	snp	SNV:14401:G>A
+MTB_anc	trpG_Rv0013	15117	G	C	Met68Ile	Met68Ile	Met68Ile	Met68Ile	SNP	Non-synonymous	ATG	ATC	ATC	snp	SNV:15117:G>C
+MTB_anc	pstP_Rv0018c	23174	A	C	Leu3Arg	Leu3Arg	Leu3Arg	Leu3Arg	SNP	Non-synonymous	GAG	GCG	GCG	snp	SNV:23174:A>C
+MTB_anc	intergenic	27469	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:27469:G>A
+MTB_anc	Rv0024_Rv0024	28640	T	C	Val93Val	Val93Val	Val93Val	Val93Val	SNP	Synonymous	GTT	GTC	GTC	snp	SNV:28640:T>C
+MTB_anc	bioF2_Rv0032	36538	C	T	Ser748Ser	Ser748Ser	Ser748Ser	Ser748Ser	SNP	Synonymous	TCC	TCT	TCT	snp	SNV:36538:C>T
+MTB_anc	Rv0034_Rv0034	37031	G	C	Ala55Ala	Ala55Ala	Ala55Ala	Ala55Ala	SNP	Synonymous	GCG	GCC	GCC	snp	SNV:37031:G>C
+MTB_anc	Rv0039c_Rv0039c	42281	A	C	Phe24Cys	Phe24Cys	Phe24Cys	Phe24Cys	SNP	Non-synonymous	GAA	GCA	GCA	snp	SNV:42281:A>C
+MTB_anc	leuS_Rv0041	43945	G	A	Val128Val	Val128Val	Val128Val	Val128Val	SNP	Synonymous	GTG	GTA	GTA	snp	SNV:43945:G>A
+MTB_anc	Rv0044c_Rv0044c	49000	G	A	Pro10Ser	Pro10Ser	Pro10Ser	Pro10Ser	SNP	Non-synonymous	GGG	GGA	GGA	snp	SNV:49000:G>A
+MTB_anc	ino1_Rv0046c	50557	C	T	Gly190Arg	Gly190Arg	Gly190Arg	Gly190Arg	SNP	Non-synonymous	CCC	CCT	CCT	snp	SNV:50557:C>T
+MTB_anc	Rv0048c_Rv0048c	51949	G	A	Ala250Val	Ala250Val	Ala250Val	Ala250Val	SNP	Non-synonymous	GGC	GAC	GAC	snp	SNV:51949:G>A
+MTB_anc	Rv0048c_Rv0048c	52436	C	T	Glu88Lys	Glu88Lys	Glu88Lys	Glu88Lys	SNP	Non-synonymous	CTC	CTT	CTT	snp	SNV:52436:C>T
+MTB_anc	ponA1_Rv0050	54394	G	A	Ala244Ala	Ala244Ala	Ala244Ala	Ala244Ala	SNP	Synonymous	GCG	GCA	GCA	snp	SNV:54394:G>A
+MTB_anc	celA1_Rv0062	66196	G	T	Ser215Ser	Ser215Ser	Ser215Ser	Ser215Ser	SNP	Synonymous	TCG	TCT	TCT	snp	SNV:66196:G>T
+MTB_anc	Rv0064_Rv0064	70267	T	G	Phe550Val	Phe550Val	Phe550Val	Phe550Val	SNP	Non-synonymous	TTC	GTC	GTC	snp	SNV:70267:T>G
+MTB_anc	intergenic	80616	G	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:80616:G>C
+MTB_anc	Rv0080_Rv0080	89200	T	G	Val60Gly	Val60Gly	Val60Gly	Val60Gly	SNP	Non-synonymous	GTG	GGG	GGG	snp	SNV:89200:T>G
+MTB_anc	Rv0083_Rv0083	92199	G	T	Thr600Thr	Thr600Thr	Thr600Thr	Thr600Thr	SNP	Synonymous	ACG	ACT	ACT	snp	SNV:92199:G>T
+MTB_anc	intergenic	97696	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:97696:C>T
+MTB_anc	Rv0093c_Rv0093c	103600	G	A	Arg22Cys	Arg22Cys	Arg22Cys	Arg22Cys	SNP	Non-synonymous	GCG	GCA	GCA	snp	SNV:103600:G>A
+MTB_anc	intergenic	104773	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:104773:C>T
+MTB_anc	intergenic	104775	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:104775:A>G
+MTB_anc	Rv0095c_Rv0095c	104824	A	C	Ile131Ser	Ile131Ser	Ile131Ser	Ile131Ser	SNP	Non-synonymous	GAT	GCT	GCT	snp	SNV:104824:A>C
+MTB_anc	Rv0095c_Rv0095c	104838	G	T	Asp126Glu	Asp126Glu	Asp126Glu	Asp126Glu	SNP	Non-synonymous	GTC	TTC	TTC	snp	SNV:104838:G>T
+MTB_anc	Rv0095c_Rv0095c	104941, 104942	C, C	T, G	Gly92Gln	Gly92Glu, Gly92Arg	Gly92Gln	Gly92Glu, Gly92Arg	SNP/MNV	Non-synonymous	CCC	CTC, CCG	CTG	mnv	SNV:104941:C>T | SNV:104942:C>G
+MTB_anc	Rv0095c_Rv0095c	104944	A	G	Val91Ala	Val91Ala	Val91Ala	Val91Ala	SNP	Non-synonymous	GAC	GGC	GGC	snp	SNV:104944:A>G
+MTB_anc	Rv0095c_Rv0095c	105045	C	G	Glu57Asp	Glu57Asp	Glu57Asp	Glu57Asp	SNP	Non-synonymous	CTC	GTC	GTC	snp	SNV:105045:C>G
+MTB_anc	Rv0104_Rv0104	123520	C	T	His402Tyr	His402Tyr	His402Tyr	His402Tyr	SNP	Non-synonymous	CAT	TAT	TAT	snp	SNV:123520:C>T
+MTB_anc	ctpI_Rv0107c	126803	G	A	Pro1247Ser	Pro1247Ser	Pro1247Ser	Pro1247Ser	SNP	Non-synonymous	AGG	AGA	AGA	snp	SNV:126803:G>A
+MTB_anc	gmhB_Rv0114	138222	A	G	Gly94Gly	Gly94Gly	Gly94Gly	Gly94Gly	SNP	Synonymous	GGA	GGG	GGG	snp	SNV:138222:A>G
+MTB_anc	intergenic	139756	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:139756:C>T
+MTB_anc	oxcA_Rv0118c	143207	C	T	Gly224Ser	Gly224Ser	Gly224Ser	Gly224Ser	SNP	Non-synonymous	GCC	GCT	GCT	snp	SNV:143207:C>T
+MTB_anc	fadE1_Rv0131c	159048	G	A	Thr204Met	Thr204Met	Thr204Met	Thr204Met	SNP	Non-synonymous	CGT	CAT	CAT	snp	SNV:159048:G>A
+MTB_anc	fadE1_Rv0131c	159136	T	C	Ile175Val	Ile175Val	Ile175Val	Ile175Val	SNP	Non-synonymous	GAT	GAC	GAC	snp	SNV:159136:T>C
+MTB_anc	Rv0138_Rv0138	165419	T	A	Cys33Ser	Cys33Ser	Cys33Ser	Cys33Ser	SNP	Non-synonymous	TGC	AGC	AGC	snp	SNV:165419:T>A
+MTB_anc	Rv0147_Rv0147	173792	A	G	Glu185Glu	Glu185Glu	Glu185Glu	Glu185Glu	SNP	Synonymous	GAA	GAG	GAG	snp	SNV:173792:A>G
+MTB_anc	PE2_Rv0152c	180334	T	C	Asp188Gly	Asp188Gly	Asp188Gly	Asp188Gly	SNP	Non-synonymous	GTC	GCC	GCC	snp	SNV:180334:T>C
+MTB_anc	fadD5_Rv0166	195360	C	T	Ala123Val	Ala123Val	Ala123Val	Ala123Val	SNP	Non-synonymous	GCC	GTC	GTC	snp	SNV:195360:C>T
+MTB_anc	fadD5_Rv0166	196642	T	C	Asn550Asn	Asn550Asn	Asn550Asn	Asn550Asn	SNP	Synonymous	AAT	AAC	AAC	snp	SNV:196642:T>C
+MTB_anc	mce1A_Rv0169	199470	G	T	Ala313Ser	Ala313Ser	Ala313Ser	Ala313Ser	SNP	Non-synonymous	GCC	TCC	TCC	snp	SNV:199470:G>T
+MTB_anc	mce1D_Rv0172	203999	G	A	Pro508Pro	Pro508Pro	Pro508Pro	Pro508Pro	SNP	Synonymous	CCG	CCA	CCA	snp	SNV:203999:G>A
+MTB_anc	Rv0180c_Rv0180c	212244	G	A	Gln3*	Gln3*	Gln3*	Gln3*	SNP	Stop gained	TTG	TTA	TTA	snp	SNV:212244:G>A
+MTB_anc	bglS_Rv0186	217201	C	T	Asn311Asn	Asn311Asn	Asn311Asn	Asn311Asn	SNP	Synonymous	AAC	AAT	AAT	snp	SNV:217201:C>T
+MTB_anc	Rv0192_Rv0192	223752	G	C	Gly63Gly	Gly63Gly	Gly63Gly	Gly63Gly	SNP	Synonymous	GGG	GGC	GGC	snp	SNV:223752:G>C
+MTB_anc	Rv0193c_Rv0193c	225668	T	C	Ser302Gly	Ser302Gly	Ser302Gly	Ser302Gly	SNP	Non-synonymous	ACT	ACC	ACC	snp	SNV:225668:T>C
+MTB_anc	Rv0195_Rv0195	231114	G	C	Ala72Ala	Ala72Ala	Ala72Ala	Ala72Ala	SNP	Synonymous	GCG	GCC	GCC	snp	SNV:231114:G>C
+MTB_anc	Rv0205_Rv0205	243598	G	A	Arg72His	Arg72His	Arg72His	Arg72His	SNP	Non-synonymous	CGC	CAC	CAC	snp	SNV:243598:G>A
+MTB_anc	Rv0209_Rv0209	249522	C	T	Ala162Val	Ala162Val	Ala162Val	Ala162Val	SNP	Non-synonymous	GCG	GTG	GTG	snp	SNV:249522:C>T
+MTB_anc	Rv0210_Rv0210	251575	A	G	Thr486Ala	Thr486Ala	Thr486Ala	Thr486Ala	SNP	Non-synonymous	ACG	GCG	GCG	snp	SNV:251575:A>G
+MTB_anc	intergenic	251669	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:251669:C>T
+MTB_anc	Rv0215c_Rv0215c	257844	T	G	Asn338Thr	Asn338Thr	Asn338Thr	Asn338Thr	SNP	Non-synonymous	GTT	GGT	GGT	snp	SNV:257844:T>G
+MTB_anc	lipW_Rv0217c	260282	T	G	Thr184Pro	Thr184Pro	Thr184Pro	Thr184Pro	SNP	Non-synonymous	CGT	CGG	CGG	snp	SNV:260282:T>G
+MTB_anc	aftD_Rv0236c	283614	C	T	Gly1080Ser	Gly1080Ser	Gly1080Ser	Gly1080Ser	SNP	Non-synonymous	GCC	GCT	GCT	snp	SNV:283614:C>T
+MTB_anc	aftD_Rv0236c	285871	G	A	Val327Val	Val327Val	Val327Val	Val327Val	SNP	Synonymous	GAC	AAC	AAC	snp	SNV:285871:G>A
+MTB_anc	htdX_Rv0241c	290633	T	G	Lys8Gln	Lys8Gln	Lys8Gln	Lys8Gln	SNP	Non-synonymous	CTT	CTG	CTG	snp	SNV:290633:T>G
+MTB_anc	nirB_Rv0252	304923	G	A	Lys686Lys	Lys686Lys	Lys686Lys	Lys686Lys	SNP	Synonymous	AAG	AAA	AAA	snp	SNV:304923:G>A
+MTB_anc	Rv0257_Rv0257	309765	T	C	*23Arg	*23Arg	*23Arg	*23Arg	SNP	Stop lost	TGA	CGA	CGA	snp	SNV:309765:T>C
+MTB_anc	Rv0263c_Rv0263c	314987	G	A	Val260Val	Val260Val	Val260Val	Val260Val	SNP	Synonymous	GAC	AAC	AAC	snp	SNV:314987:G>A
+MTB_anc	oplA_Rv0266c	320180	G	A	Ile325Ile	Ile325Ile	Ile325Ile	Ile325Ile	SNP	Synonymous	GAT	AAT	AAT	snp	SNV:320180:G>A
+MTB_anc	fadD2_Rv0270	325505	C	T	Val313Val	Val313Val	Val313Val	Val313Val	SNP	Synonymous	GTC	GTT	GTT	snp	SNV:325505:C>T
+MTB_anc	intergenic	330373	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:330373:T>C
+MTB_anc	Rv0274_Rv0274	330545	A	G	Ile42Val	Ile42Val	Ile42Val	Ile42Val	SNP	Non-synonymous	ATC	GTC	GTC	snp	SNV:330545:A>G
+MTB_anc	vapB25_Rv0277A	333212	C	G	Arg69Thr	Arg69Thr	Arg69Thr	Arg69Thr	SNP	Non-synonymous	CCT	CGT	CGT	snp	SNV:333212:C>G
+MTB_anc	vapB25_Rv0277A	333292	G	A	Arg42Arg	Arg42Arg	Arg42Arg	Arg42Arg	SNP	Synonymous	GCG	ACG	ACG	snp	SNV:333292:G>A
+MTB_anc	Rv0278c_Rv0278c	334641	G	C	Ala557Gly	Ala557Gly	Ala557Gly	Ala557Gly	SNP	Non-synonymous	GGC	GCC	GCC	snp	SNV:334641:G>C
+MTB_anc	Rv0278c_Rv0278c	335920	C	G	Asp131His	Asp131His	Asp131His	Asp131His	SNP	Non-synonymous	GTC	GTG	GTG	snp	SNV:335920:C>G
+MTB_anc	Rv0278c_Rv0278c	335971	A	G	Leu114Leu	Leu114Leu	Leu114Leu	Leu114Leu	SNP	Synonymous	CAA	CAG	CAG	snp	SNV:335971:A>G
+MTB_anc	Rv0278c_Rv0278c	336005	A	G	Ile102Ile	Ile102Ile	Ile102Ile	Ile102Ile	SNP	Synonymous	AAT	GAT	GAT	snp	SNV:336005:A>G
+MTB_anc	Rv0278c_Rv0278c	336047	C	G	Ala88Ala	Ala88Ala	Ala88Ala	Ala88Ala	SNP	Synonymous	CGC	GGC	GGC	snp	SNV:336047:C>G
+MTB_anc	Rv0278c_Rv0278c	336050	A	G	Tyr87Tyr	Tyr87Tyr	Tyr87Tyr	Tyr87Tyr	SNP	Synonymous	ATA	GTA	GTA	snp	SNV:336050:A>G
+MTB_anc	Rv0278c_Rv0278c	336053	G	C	Ala86Ala	Ala86Ala	Ala86Ala	Ala86Ala	SNP	Synonymous	GGC	CGC	CGC	snp	SNV:336053:G>C
+MTB_anc	Rv0278c_Rv0278c	336074	T	C	Ala79Ala	Ala79Ala	Ala79Ala	Ala79Ala	SNP	Synonymous	TGC	CGC	CGC	snp	SNV:336074:T>C
+MTB_anc	Rv0278c_Rv0278c	336081, 336082	A, C	G, T	Val77Thr	Val77Ala, Val77Met	Val77Thr	Val77Ala, Val77Met	SNP/MNV	Non-synonymous	CAC	CGC, CAT	CGT	mnv	SNV:336081:A>G | SNV:336082:C>T
+MTB_anc	Rv0278c_Rv0278c	336113	G	A	Ser66Ser	Ser66Ser	Ser66Ser	Ser66Ser	SNP	Synonymous	GCT	ACT	ACT	snp	SNV:336113:G>A
+MTB_anc	PE_PGRS4_Rv0279c	338844, 338845	A, C	G, T	Val77Thr	Val77Ala, Val77Met	Val77Thr	Val77Ala, Val77Met	SNP/MNV	Non-synonymous	CAC	CGC, CAT	CGT	mnv	SNV:338844:A>G | SNV:338845:C>T
+MTB_anc	PE_PGRS4_Rv0279c	338876	G	A	Ser66Ser	Ser66Ser	Ser66Ser	Ser66Ser	SNP	Synonymous	GCT	ACT	ACT	snp	SNV:338876:G>A
+MTB_anc	PE_PGRS4_Rv0279c	338903	G	C	Ala57Ala	Ala57Ala	Ala57Ala	Ala57Ala	SNP	Synonymous	GGC	CGC	CGC	snp	SNV:338903:G>C
+MTB_anc	PE_PGRS4_Rv0279c	338960	T	C	Ala38Ala	Ala38Ala	Ala38Ala	Ala38Ala	SNP	Synonymous	TGC	CGC	CGC	snp	SNV:338960:T>C
+MTB_anc	PE_PGRS4_Rv0279c	338963	T	C	Thr37Thr	Thr37Thr	Thr37Thr	Thr37Thr	SNP	Synonymous	TGT	CGT	CGT	snp	SNV:338963:T>C
+MTB_anc	PPE3_Rv0280	340132	G	A	Glu257Lys	Glu257Lys	Glu257Lys	Glu257Lys	SNP	Non-synonymous	GAA	AAA	AAA	snp	SNV:340132:G>A
+MTB_anc	eccA3_Rv0282	342146	C	A	Ala6Glu	Ala6Glu	Ala6Glu	Ala6Glu	SNP	Non-synonymous	GCA	GAA	GAA	snp	SNV:342146:C>A
+MTB_anc	eccA3_Rv0282	343281	C	G	Ala384Ala	Ala384Ala	Ala384Ala	Ala384Ala	SNP	Synonymous	GCC	GCG	GCG	snp	SNV:343281:C>G
+MTB_anc	PPE4_Rv0286	350489	C	G	Ala185Ala	Ala185Ala	Ala185Ala	Ala185Ala	SNP	Synonymous	GCC	GCG	GCG	snp	SNV:350489:C>G
+MTB_anc	PPE5_Rv0304c	367471	A	G	Phe1765Ser	Phe1765Ser	Phe1765Ser	Phe1765Ser	SNP	Non-synonymous	GAA	GGA	GGA	snp	SNV:367471:A>G
+MTB_anc	PPE5_Rv0304c	369496	C	T	Ser1090Asn	Ser1090Asn	Ser1090Asn	Ser1090Asn	SNP	Non-synonymous	GCT	GTT	GTT	snp	SNV:369496:C>T
+MTB_anc	PPE5_Rv0304c	369558	C	G	Gly1069Gly	Gly1069Gly	Gly1069Gly	Gly1069Gly	SNP	Synonymous	CCC	GCC	GCC	snp	SNV:369558:C>G
+MTB_anc	PPE5_Rv0304c	372149	A	G	Leu206Leu	Leu206Leu	Leu206Leu	Leu206Leu	SNP	Synonymous	CAA	CAG	CAG	snp	SNV:372149:A>G
+MTB_anc	PPE6_Rv0305c	372913	C	A	Gly933Gly	Gly933Gly	Gly933Gly	Gly933Gly	SNP	Synonymous	CCC	ACC	ACC	snp	SNV:372913:C>A
+MTB_anc	Rv0307c_Rv0307c	376774	C	T	Ala94Ala	Ala94Ala	Ala94Ala	Ala94Ala	SNP	Synonymous	CGC	TGC	TGC	snp	SNV:376774:C>T
+MTB_anc	Rv0312_Rv0312	381030	G	A	Gly159Ser	Gly159Ser	Gly159Ser	Gly159Ser	SNP	Non-synonymous	GGT	AGT	AGT	snp	SNV:381030:G>A
+MTB_anc	Rv0312_Rv0312	382093	C	A	Ala513Glu	Ala513Glu	Ala513Glu	Ala513Glu	SNP	Non-synonymous	GCA	GAA	GAA	snp	SNV:382093:C>A
+MTB_anc	Rv0324_Rv0324	391853	G	A	Ala168Thr	Ala168Thr	Ala168Thr	Ala168Thr	SNP	Non-synonymous	GCT	ACT	ACT	snp	SNV:391853:G>A
+MTB_anc	Rv0325_Rv0325	392261	C	T	Gln75*	Gln75*	Gln75*	Gln75*	SNP	Stop gained	CAG	TAG	TAG	snp	SNV:392261:C>T
+MTB_anc	Rv0338c_Rv0338c	404326	C	T	Gly506Arg	Gly506Arg	Gly506Arg	Gly506Arg	SNP	Non-synonymous	CCC	CCT	CCT	snp	SNV:404326:C>T
+MTB_anc	PPE8_Rv0355c	424867	G	C	Phe3271Leu	Phe3271Leu	Phe3271Leu	Phe3271Leu	SNP	Non-synonymous	GAA	CAA	CAA	snp	SNV:424867:G>C
+MTB_anc	PPE8_Rv0355c	424872	A	T	Phe3270Ile	Phe3270Ile	Phe3270Ile	Phe3270Ile	SNP	Non-synonymous	GAA	GAT	GAT	snp	SNV:424872:A>T
+MTB_anc	PPE8_Rv0355c	424932	A	T	Phe3250Ile	Phe3250Ile	Phe3250Ile	Phe3250Ile	SNP	Non-synonymous	GAA	GAT	GAT	snp	SNV:424932:A>T
+MTB_anc	PPE8_Rv0355c	428698	T	C	Ala1994Ala	Ala1994Ala	Ala1994Ala	Ala1994Ala	SNP	Synonymous	TGC	CGC	CGC	snp	SNV:428698:T>C
+MTB_anc	PPE8_Rv0355c	432727	G	A	Phe651Phe	Phe651Phe	Phe651Phe	Phe651Phe	SNP	Synonymous	GAA	AAA	AAA	snp	SNV:432727:G>A
+MTB_anc	Rv0359_Rv0359	438271	A	G	Thr252Ala	Thr252Ala	Thr252Ala	Thr252Ala	SNP	Non-synonymous	ACC	GCC	GCC	snp	SNV:438271:A>G
+MTB_anc	mgtE_Rv0362	441139	C	T	Arg423Arg	Arg423Arg	Arg423Arg	Arg423Arg	SNP	Synonymous	CGC	CGT	CGT	snp	SNV:441139:C>T
+MTB_anc	Rv0368c_Rv0368c	445780	T	C	His249Arg	His249Arg	His249Arg	His249Arg	SNP	Non-synonymous	ATG	ACG	ACG	snp	SNV:445780:T>C
+MTB_anc	Rv0370c_Rv0370c	447442	T	C	Glu201Gly	Glu201Gly	Glu201Gly	Glu201Gly	SNP	Non-synonymous	CTC	CCC	CCC	snp	SNV:447442:T>C
+MTB_anc	Rv0377_Rv0377	455325	G	C	Arg302Pro	Arg302Pro	Arg302Pro	Arg302Pro	SNP	Non-synonymous	CGG	CCG	CCG	snp	SNV:455325:G>C
+MTB_anc	Rv0377_Rv0377	455329	C	T	Gly303Gly	Gly303Gly	Gly303Gly	Gly303Gly	SNP	Synonymous	GGC	GGT	GGT	snp	SNV:455329:C>T
+MTB_anc	Rv0381c_Rv0381c	457452	G	T	Thr124Thr	Thr124Thr	Thr124Thr	Thr124Thr	SNP	Synonymous	GGT	TGT	TGT	snp	SNV:457452:G>T
+MTB_anc	Rv0387c_Rv0387c	467504	G	A	Val166Val	Val166Val	Val166Val	Val166Val	SNP	Synonymous	GAC	AAC	AAC	snp	SNV:467504:G>A
+MTB_anc	Rv0387c_Rv0387c	467508	C	G	Arg165Pro	Arg165Pro	Arg165Pro	Arg165Pro	SNP	Non-synonymous	GCG	GGG	GGG	snp	SNV:467508:C>G
+MTB_anc	Rv0387c_Rv0387c	467516	G	C	Ser162Ser	Ser162Ser	Ser162Ser	Ser162Ser	SNP	Synonymous	GGA	CGA	CGA	snp	SNV:467516:G>C
+MTB_anc	Rv0387c_Rv0387c	467526	C	G	Gly159Ala	Gly159Ala	Gly159Ala	Gly159Ala	SNP	Non-synonymous	CCC	CGC	CGC	snp	SNV:467526:C>G
+MTB_anc	purT_Rv0389	468357	G	A	Gly8Glu	Gly8Glu	Gly8Glu	Gly8Glu	SNP	Non-synonymous	GGA	GAA	GAA	snp	SNV:468357:G>A
+MTB_anc	intergenic	483935	G	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:483935:G>T
+MTB_anc	Rv0406c_Rv0406c	489935	C	G	Thr257Thr	Thr257Thr	Thr257Thr	Thr257Thr	SNP	Synonymous	CGT	GGT	GGT	snp	SNV:489935:C>G
+MTB_anc	pks6_Rv0405	489935	C	G	Pro1402Arg	Pro1402Arg	Pro1402Arg	Pro1402Arg	SNP	Non-synonymous	CCG	CGG	CGG	snp	SNV:489935:C>G
+MTB_anc	pta_Rv0408	492150	C	G	Ala122Gly	Ala122Gly	Ala122Gly	Ala122Gly	SNP	Non-synonymous	GCC	GGC	GGC	snp	SNV:492150:C>G
+MTB_anc	glnH_Rv0411c	497759	T	G	Asp181Ala	Asp181Ala	Asp181Ala	Asp181Ala	SNP	Non-synonymous	GTC	GGC	GGC	snp	SNV:497759:T>G
+MTB_anc	Rv0412c_Rv0412c	498531	G	A	Ala363Ala	Ala363Ala	Ala363Ala	Ala363Ala	SNP	Synonymous	GGC	AGC	AGC	snp	SNV:498531:G>A
+MTB_anc	Rv0412c_Rv0412c	498557	A	C	Tyr355Asp	Tyr355Asp	Tyr355Asp	Tyr355Asp	SNP	Non-synonymous	GTA	GTC	GTC	snp	SNV:498557:A>C
+MTB_anc	thiD_Rv0422c	508469	C	T	Leu29Leu	Leu29Leu	Leu29Leu	Leu29Leu	SNP	Synonymous	CAG	TAG	TAG	snp	SNV:508469:C>T
+MTB_anc	ctpH_Rv0425c	514657	G	T	Ala222Glu	Ala222Glu	Ala222Glu	Ala222Glu	SNP	Non-synonymous	CGC	CTC	CTC	snp	SNV:514657:G>T
+MTB_anc	Rv0428c_Rv0428c	517358	C	T	Gly149Asp	Gly149Asp	Gly149Asp	Gly149Asp	SNP	Non-synonymous	GCC	GTC	GTC	snp	SNV:517358:C>T
+MTB_anc	Rv0428c_Rv0428c	517411	G	A	Arg131Arg	Arg131Arg	Arg131Arg	Arg131Arg	SNP	Synonymous	GCG	ACG	ACG	snp	SNV:517411:G>A
+MTB_anc	Rv0431_Rv0431	519185	G	T	Gly38Val	Gly38Val	Gly38Val	Gly38Val	SNP	Non-synonymous	GGC	GTC	GTC	snp	SNV:519185:G>T
+MTB_anc	sodC_Rv0432	519893	C	T	Val98Val	Val98Val	Val98Val	Val98Val	SNP	Synonymous	GTC	GTT	GTT	snp	SNV:519893:C>T
+MTB_anc	pssA_Rv0436c	524891	A	C	Val167Gly	Val167Gly	Val167Gly	Val167Gly	SNP	Non-synonymous	GAC	GCC	GCC	snp	SNV:524891:A>C
+MTB_anc	moeA2_Rv0438c	527316	G	C	Ile15Met	Ile15Met	Ile15Met	Ile15Met	SNP	Non-synonymous	GAT	CAT	CAT	snp	SNV:527316:G>C
+MTB_anc	intergenic	528354	A	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:528354:A>C
+MTB_anc	intergenic	534427	A	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:534427:A>T
+MTB_anc	Rv0449c_Rv0449c	537835	C	T	Glu238Glu	Glu238Glu	Glu238Glu	Glu238Glu	SNP	Synonymous	CTC	TTC	TTC	snp	SNV:537835:C>T
+MTB_anc	echA2_Rv0456c	546357	G	A	Thr149Thr	Thr149Thr	Thr149Thr	Thr149Thr	SNP	Synonymous	GGT	AGT	AGT	snp	SNV:546357:G>A
+MTB_anc	Rv0459_Rv0459	551525	C	A	Arg110Arg	Arg110Arg	Arg110Arg	Arg110Arg	SNP	Synonymous	CGA	AGA	AGA	snp	SNV:551525:C>A
+MTB_anc	Rv0465c_Rv0465c	555991	G	A	Arg106Cys	Arg106Cys	Arg106Cys	Arg106Cys	SNP	Non-synonymous	GCG	GCA	GCA	snp	SNV:555991:G>A
+MTB_anc	Rv0474_Rv0474	565404	T	G	Arg128Arg	Arg128Arg	Arg128Arg	Arg128Arg	SNP	Synonymous	CGT	CGG	CGG	snp	SNV:565404:T>G
+MTB_anc	intergenic	565655	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:565655:G>A
+MTB_anc	Rv0484c_Rv0484c	573384	G	T	Leu140Ile	Leu140Ile	Leu140Ile	Leu140Ile	SNP	Non-synonymous	GAG	GAT	GAT	snp	SNV:573384:G>T
+MTB_anc	proC_Rv0500	590763	C	G	Asp227Glu	Asp227Glu	Asp227Glu	Asp227Glu	SNP	Non-synonymous	GAC	GAG	GAG	snp	SNV:590763:C>G
+MTB_anc	mmpL2_Rv0507	597816	G	A	Ala206Ala	Ala206Ala	Ala206Ala	Ala206Ala	SNP	Synonymous	GCG	GCA	GCA	snp	SNV:597816:G>A
+MTB_anc	mmpL2_Rv0507	599772	A	C	Gly858Gly	Gly858Gly	Gly858Gly	Gly858Gly	SNP	Synonymous	GGA	GGC	GGC	snp	SNV:599772:A>C
+MTB_anc	mmpL2_Rv0507	599775	T	C	Ile859Ile	Ile859Ile	Ile859Ile	Ile859Ile	SNP	Synonymous	ATT	ATC	ATC	snp	SNV:599775:T>C
+MTB_anc	mmpL2_Rv0507	599868	G	A	Arg890Arg	Arg890Arg	Arg890Arg	Arg890Arg	SNP	Synonymous	CGG	CGA	CGA	snp	SNV:599868:G>A
+MTB_anc	pitA_Rv0545c	637319	A	G	Ser49Pro	Ser49Pro	Ser49Pro	Ser49Pro	SNP	Non-synonymous	AGA	AGG	AGG	snp	SNV:637319:A>G
+MTB_anc	mgtA_Rv0557	648856	C	T	Gly107Gly	Gly107Gly	Gly107Gly	Gly107Gly	SNP	Synonymous	GGC	GGT	GGT	snp	SNV:648856:C>T
+MTB_anc	intergenic	655986	G	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:655986:G>T
+MTB_anc	Rv0566c_Rv0566c	657578	G	A	Asp154Asp	Asp154Asp	Asp154Asp	Asp154Asp	SNP	Synonymous	GTC	ATC	ATC	snp	SNV:657578:G>A
+MTB_anc	intergenic	659341	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:659341:C>T
+MTB_anc	nrdZ_Rv0570	662911	C	T	Ala539Ala	Ala539Ala	Ala539Ala	Ala539Ala	SNP	Synonymous	GCC	GCT	GCT	snp	SNV:662911:C>T
+MTB_anc	Rv0576_Rv0576	670545	A	G	His233Arg	His233Arg	His233Arg	His233Arg	SNP	Non-synonymous	CAC	CGC	CGC	snp	SNV:670545:A>G
+MTB_anc	yrbE2A_Rv0587	685608	C	T	Leu160Leu	Leu160Leu	Leu160Leu	Leu160Leu	SNP	Synonymous	CTC	CTT	CTT	snp	SNV:685608:C>T
+MTB_anc	yrbE2A_Rv0587	685791	C	A	Arg221Arg	Arg221Arg	Arg221Arg	Arg221Arg	SNP	Synonymous	CGC	CGA	CGA	snp	SNV:685791:C>A
+MTB_anc	mce2C_Rv0591	690248	A	C	Asn397Thr	Asn397Thr	Asn397Thr	Asn397Thr	SNP	Non-synonymous	AAC	ACC	ACC	snp	SNV:690248:A>C
+MTB_anc	lpqO_Rv0604	700776	C	T	Pro180Ser	Pro180Ser	Pro180Ser	Pro180Ser	SNP	Non-synonymous	CCG	TCG	TCG	snp	SNV:700776:C>T
+MTB_anc	Rv0610c_Rv0610c	705602	C	T	Ser103Asn	Ser103Asn	Ser103Asn	Ser103Asn	SNP	Non-synonymous	GCT	GTT	GTT	snp	SNV:705602:C>T
+MTB_anc	galT_Rv0618	712693	G	A	Pro352Pro	Pro352Pro	Pro352Pro	Pro352Pro	SNP	Synonymous	CCG	CCA	CCA	snp	SNV:712693:G>A
+MTB_anc	galK_Rv0620	713310	C	T	Arg199Cys	Arg199Cys	Arg199Cys	Arg199Cys	SNP	Non-synonymous	CGT	TGT	TGT	snp	SNV:713310:C>T
+MTB_anc	Rv0621_Rv0621	715266	G	A	Trp355*	Trp355*	Trp355*	Trp355*	SNP	Stop gained	TGG	TGA	TGA	snp	SNV:715266:G>A
+MTB_anc	Rv0625c_Rv0625c	717588	G	A	Val102Val	Val102Val	Val102Val	Val102Val	SNP	Synonymous	GAC	AAC	AAC	snp	SNV:717588:G>A
+MTB_anc	mazE2_Rv0660c	755122	C	T	Arg35His	Arg35His	Arg35His	Arg35His	SNP	Non-synonymous	ACG	ATG	ATG	snp	SNV:755122:C>T
+MTB_anc	atsD_Rv0663	757182	G	A	Gly349Asp	Gly349Asp	Gly349Asp	Gly349Asp	SNP	Non-synonymous	GGC	GAC	GAC	snp	SNV:757182:G>A
+MTB_anc	intergenic	767414	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:767414:A>G
+MTB_anc	mmpL5_Rv0676c	776100	A	G	Ile794Thr	Ile794Thr	Ile794Thr	Ile794Thr	SNP	Non-synonymous	GAT	GGT	GGT	snp	SNV:776100:A>G
+MTB_anc	Rv0688_Rv0688	788395	C	T	Ser152Ser	Ser152Ser	Ser152Ser	Ser152Ser	SNP	Synonymous	TCC	TCT	TCT	snp	SNV:788395:C>T
+MTB_anc	Rv0693_Rv0693	792984	C	T	His276His	His276His	His276His	His276His	SNP	Synonymous	CAC	CAT	CAT	snp	SNV:792984:C>T
+MTB_anc	Rv0693_Rv0693	793308	C	T	Arg384Arg	Arg384Arg	Arg384Arg	Arg384Arg	SNP	Synonymous	CGC	CGT	CGT	snp	SNV:793308:C>T
+MTB_anc	intergenic	798713	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:798713:C>T
+MTB_anc	rplO_Rv0723	815236	C	T	Thr16Ile	Thr16Ile	Thr16Ile	Thr16Ile	SNP	Non-synonymous	ACC	ATC	ATC	snp	SNV:815236:C>T
+MTB_anc	sppA_Rv0724	815851	G	A	Arg63Arg	Arg63Arg	Arg63Arg	Arg63Arg	SNP	Synonymous	CGG	CGA	CGA	snp	SNV:815851:G>A
+MTB_anc	sppA_Rv0724	816201	A	C	Asp180Ala	Asp180Ala	Asp180Ala	Asp180Ala	SNP	Non-synonymous	GAC	GCC	GCC	snp	SNV:816201:A>C
+MTB_anc	fucA_Rv0727c	820483	T	G	Asp6Ala	Asp6Ala	Asp6Ala	Asp6Ala	SNP	Non-synonymous	GTC	GGC	GGC	snp	SNV:820483:T>G
+MTB_anc	xylB_Rv0729	821907	C	T	Pro134Leu	Pro134Leu	Pro134Leu	Pro134Leu	SNP	Non-synonymous	CCG	CTG	CTG	snp	SNV:821907:C>T
+MTB_anc	Rv0740_Rv0740	832246	G	A	Gln157Gln	Gln157Gln	Gln157Gln	Gln157Gln	SNP	Synonymous	CAG	CAA	CAA	snp	SNV:832246:G>A
+MTB_anc	intergenic	832692	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:832692:A>G
+MTB_anc	PE_PGRS10_Rv0747	839686	C	A	Ala412Ala	Ala412Ala	Ala412Ala	Ala412Ala	SNP	Synonymous	GCC	GCA	GCA	snp	SNV:839686:C>A
+MTB_anc	Rv0749A_Rv0749A	841764	C	G	Thr37Thr	Thr37Thr	Thr37Thr	Thr37Thr	SNP	Synonymous	CGT	GGT	GGT	snp	SNV:841764:C>G
+MTB_anc	intergenic	847995	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:847995:C>T
+MTB_anc	PPE12_Rv0755c	848407	T	C	Lys545Arg	Lys545Arg	Lys545Arg	Lys545Arg	SNP	Non-synonymous	CTT	CCT	CCT	snp	SNV:848407:T>C
+MTB_anc	cyp51_Rv0764c	857696	G	A	Ala114Ala	Ala114Ala	Ala114Ala	Ala114Ala	SNP	Synonymous	GGC	AGC	AGC	snp	SNV:857696:G>A
+MTB_anc	purB_Rv0777	871271	C	A	Pro422Thr	Pro422Thr	Pro422Thr	Pro422Thr	SNP	Non-synonymous	CCG	ACG	ACG	snp	SNV:871271:C>A
+MTB_anc	Rv0785_Rv0785	880562	T	G	Phe408Cys	Phe408Cys	Phe408Cys	Phe408Cys	SNP	Non-synonymous	TTC	TGC	TGC	snp	SNV:880562:T>G
+MTB_anc	Rv0787_Rv0787	882257	C	T	His267Tyr	His267Tyr	His267Tyr	His267Tyr	SNP	Non-synonymous	CAC	TAC	TAC	snp	SNV:882257:C>T
+MTB_anc	intergenic	888774	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:888774:G>A
+MTB_anc	Rv0801_Rv0801	894888	C	T	Ser86Ser	Ser86Ser	Ser86Ser	Ser86Ser	SNP	Synonymous	AGC	AGT	AGT	snp	SNV:894888:C>T
+MTB_anc	cpsY_Rv0806c	900221	C	T	Val370Val	Val370Val	Val370Val	Val370Val	SNP	Synonymous	CAC	TAC	TAC	snp	SNV:900221:C>T
+MTB_anc	purF_Rv0808	903550	C	T	Ala480Ala	Ala480Ala	Ala480Ala	Ala480Ala	SNP	Synonymous	GCC	GCT	GCT	snp	SNV:903550:C>T
+MTB_anc	Rv0818_Rv0818	911261	C	T	Pro97Leu	Pro97Leu	Pro97Leu	Pro97Leu	SNP	Non-synonymous	CCC	CTC	CTC	snp	SNV:911261:C>T
+MTB_anc	phoT_Rv0820	913274	G	C	Ser183Ser	Ser183Ser	Ser183Ser	Ser183Ser	SNP	Synonymous	TCG	TCC	TCC	snp	SNV:913274:G>C
+MTB_anc	Rv0822c_Rv0822c	916046	G	T	Pro89His	Pro89His	Pro89His	Pro89His	SNP	Non-synonymous	GGG	GTG	GTG	snp	SNV:916046:G>T
+MTB_anc	PE_PGRS14_Rv0834c	929748	T	C	Ala246Ala	Ala246Ala	Ala246Ala	Ala246Ala	SNP	Synonymous	TGC	CGC	CGC	snp	SNV:929748:T>C
+MTB_anc	lpqQ_Rv0835	931123	C	T	Tyr57Tyr	Tyr57Tyr	Tyr57Tyr	Tyr57Tyr	SNP	Synonymous	TAC	TAT	TAT	snp	SNV:931123:C>T
+MTB_anc	Rv0836c_Rv0836c	932280	C	T	Trp218*	Trp218*	Trp218*	Trp218*	SNP	Stop gained	CCA	CTA	CTA	snp	SNV:932280:C>T
+MTB_anc	Rv0837c_Rv0837c	933699	T	G	Gly111Gly	Gly111Gly	Gly111Gly	Gly111Gly	SNP	Synonymous	TCC	GCC	GCC	snp	SNV:933699:T>G
+MTB_anc	intergenic	934230	G	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:934230:G>C
+MTB_anc	intergenic	934611	T	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:934611:T>G
+MTB_anc	Rv0841_Rv0841	937762	C	T	Ala57Val	Ala57Val	Ala57Val	Ala57Val	SNP	Non-synonymous	GCC	GTC	GTC	snp	SNV:937762:C>T
+MTB_anc	Rv0842_Rv0842	938246	G	A	Leu45Leu	Leu45Leu	Leu45Leu	Leu45Leu	SNP	Synonymous	CTG	CTA	CTA	snp	SNV:938246:G>A
+MTB_anc	Rv0845_Rv0845	941845	A	C	Glu219Ala	Glu219Ala	Glu219Ala	Glu219Ala	SNP	Non-synonymous	GAG	GCG	GCG	snp	SNV:941845:A>C
+MTB_anc	cysK2_Rv0848	945214	A	G	Ser93Gly	Ser93Gly	Ser93Gly	Ser93Gly	SNP	Non-synonymous	AGT	GGT	GGT	snp	SNV:945214:A>G
+MTB_anc	Rv0851c_Rv0851c	948294	C	T	Gly59Ser	Gly59Ser	Gly59Ser	Gly59Ser	SNP	Non-synonymous	GCC	GCT	GCT	snp	SNV:948294:C>T
+MTB_anc	pdc_Rv0853c	949535	C	T	Ala528Ala	Ala528Ala	Ala528Ala	Ala528Ala	SNP	Synonymous	CGC	TGC	TGC	snp	SNV:949535:C>T
+MTB_anc	dapC_Rv0858c	954253	C	G	Arg223Pro	Arg223Pro	Arg223Pro	Arg223Pro	SNP	Non-synonymous	GCG	GGG	GGG	snp	SNV:954253:C>G
+MTB_anc	fadB_Rv0860	957117	C	T	Asp275Asp	Asp275Asp	Asp275Asp	Asp275Asp	SNP	Synonymous	GAC	GAT	GAT	snp	SNV:957117:C>T
+MTB_anc	Rv0862c_Rv0862c	960367	G	A	Ser749Leu	Ser749Leu	Ser749Leu	Ser749Leu	SNP	Non-synonymous	CGA	CAA	CAA	snp	SNV:960367:G>A
+MTB_anc	rpfA_Rv0867c	964544	G	T	Pro331His	Pro331His	Pro331His	Pro331His	SNP	Non-synonymous	GGG	GTG	GTG	snp	SNV:964544:G>T
+MTB_anc	intergenic	965581	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:965581:G>A
+MTB_anc	PPE13_Rv0878c	976897	G	T	Pro436Gln	Pro436Gln	Pro436Gln	Pro436Gln	SNP	Non-synonymous	TGG	TTG	TTG	snp	SNV:976897:G>T
+MTB_anc	fprB_Rv0886	984021	G	A	Pro73Pro	Pro73Pro	Pro73Pro	Pro73Pro	SNP	Synonymous	CCG	CCA	CCA	snp	SNV:984021:G>A
+MTB_anc	Rv0894_Rv0894	996982	G	A	Ala153Ala	Ala153Ala	Ala153Ala	Ala153Ala	SNP	Synonymous	GCG	GCA	GCA	snp	SNV:996982:G>A
+MTB_anc	Rv0918_Rv0918	1024346	G	A	Gly46Ser	Gly46Ser	Gly46Ser	Gly46Ser	SNP	Non-synonymous	GGT	AGT	AGT	snp	SNV:1024346:G>A
+MTB_anc	pstS3_Rv0928	1035840	C	T	Ala313Val	Ala313Val	Ala313Val	Ala313Val	SNP	Non-synonymous	GCG	GTG	GTG	snp	SNV:1035840:C>T
+MTB_anc	pstS2_Rv0932c	1040706	C	A	Ala115Ser	Ala115Ser	Ala115Ser	Ala115Ser	SNP	Non-synonymous	CGC	CGA	CGA	snp	SNV:1040706:C>A
+MTB_anc	ligD_Rv0938	1047165	C	T	Arg344Cys	Arg344Cys	Arg344Cys	Arg344Cys	SNP	Non-synonymous	CGC	TGC	TGC	snp	SNV:1047165:C>T
+MTB_anc	Rv0939_Rv0939	1048922	C	T	Leu171Leu	Leu171Leu	Leu171Leu	Leu171Leu	SNP	Synonymous	CTG	TTG	TTG	snp	SNV:1048922:C>T
+MTB_anc	Rv0945_Rv0945	1054784	G	C	Gly180Arg	Gly180Arg	Gly180Arg	Gly180Arg	SNP	Non-synonymous	GGC	CGC	CGC	snp	SNV:1054784:G>C
+MTB_anc	sucD_Rv0952	1063765	A	G	Lys209Arg	Lys209Arg	Lys209Arg	Lys209Arg	SNP	Non-synonymous	AAG	AGG	AGG	snp	SNV:1063765:A>G
+MTB_anc	purH_Rv0957	1068432	G	A	Pro76Pro	Pro76Pro	Pro76Pro	Pro76Pro	SNP	Synonymous	CCG	CCA	CCA	snp	SNV:1068432:G>A
+MTB_anc	Rv0958_Rv0958	1070702	C	T	Pro274Ser	Pro274Ser	Pro274Ser	Pro274Ser	SNP	Non-synonymous	CCC	TCC	TCC	snp	SNV:1070702:C>T
+MTB_anc	ctpV_Rv0969	1080192	A	G	Asn484Asp	Asn484Asp	Asn484Asp	Asn484Asp	SNP	Non-synonymous	AAT	GAT	GAT	snp	SNV:1080192:A>G
+MTB_anc	echA7_Rv0971c	1082445	T	A	Glu47Val	Glu47Val	Glu47Val	Glu47Val	SNP	Non-synonymous	TTC	TAC	TAC	snp	SNV:1082445:T>A
+MTB_anc	accD2_Rv0974c	1087193	C	G	Lys51Asn	Lys51Asn	Lys51Asn	Lys51Asn	SNP	Non-synonymous	CTT	GTT	GTT	snp	SNV:1087193:C>G
+MTB_anc	intergenic	1094413	C	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1094413:C>G
+MTB_anc	intergenic	1094415	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1094415:T>C
+MTB_anc	intergenic	1096508	C	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1096508:C>G
+MTB_anc	intergenic	1096510	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1096510:T>C
+MTB_anc	intergenic	1096633	T	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1096633:T>G
+MTB_anc	mprA_Rv0981	1097023	A	G	Ser68Gly	Ser68Gly	Ser68Gly	Ser68Gly	SNP	Non-synonymous	AGC	GGC	GGC	snp	SNV:1097023:A>G
+MTB_anc	mprB_Rv0982	1098523	A	T	His339Leu	His339Leu	His339Leu	His339Leu	SNP	Non-synonymous	CAT	CTT	CTT	snp	SNV:1098523:A>T
+MTB_anc	Rv0987_Rv0987	1103126	C	G	Asp195Glu	Asp195Glu	Asp195Glu	Asp195Glu	SNP	Non-synonymous	GAC	GAG	GAG	snp	SNV:1103126:C>G
+MTB_anc	Rv0987_Rv0987	1104690	G	T	Val717Phe	Val717Phe	Val717Phe	Val717Phe	SNP	Non-synonymous	GTC	TTC	TTC	snp	SNV:1104690:G>T
+MTB_anc	Rv0988_Rv0988	1105284	A	G	Ile57Val	Ile57Val	Ile57Val	Ile57Val	SNP	Non-synonymous	ATT	GTT	GTT	snp	SNV:1105284:A>G
+MTB_anc	grcC2_Rv0989c	1106422	C	T	Val321Ile	Val321Ile	Val321Ile	Val321Ile	SNP	Non-synonymous	TAC	TAT	TAT	snp	SNV:1106422:C>T
+MTB_anc	Rv0990c_Rv0990c	1107940	C	A	Ala54Ser	Ala54Ser	Ala54Ser	Ala54Ser	SNP	Non-synonymous	GGC	GGA	GGA	snp	SNV:1107940:C>A
+MTB_anc	Rv0992c_Rv0992c	1109163	G	C	Ile3Met	Ile3Met	Ile3Met	Ile3Met	SNP	Non-synonymous	GAT	CAT	CAT	snp	SNV:1109163:G>C
+MTB_anc	moeA1_Rv0994	1110956	G	T	Gly230Cys	Gly230Cys	Gly230Cys	Gly230Cys	SNP	Non-synonymous	GGT	TGT	TGT	snp	SNV:1110956:G>T
+MTB_anc	Rv0996_Rv0996	1113290	C	G	Gln303Glu	Gln303Glu	Gln303Glu	Gln303Glu	SNP	Non-synonymous	CAG	GAG	GAG	snp	SNV:1113290:C>G
+MTB_anc	Rv1005c_Rv1005c	1123597	G	A	Ser1Leu	Ser1Leu	Ser1Leu	Ser1Leu	SNP	Non-synonymous	CGA	CAA	CAA	snp	SNV:1123597:G>A
+MTB_anc	ispE_Rv1011	1130526	G	A	Ala112Ala	Ala112Ala	Ala112Ala	Ala112Ala	SNP	Synonymous	GCG	GCA	GCA	snp	SNV:1130526:G>A
+MTB_anc	mfd_Rv1020	1141702	C	T	Ile912Ile	Ile912Ile	Ile912Ile	Ile912Ile	SNP	Synonymous	ATC	ATT	ATT	snp	SNV:1141702:C>T
+MTB_anc	intergenic	1148259	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1148259:G>A
+MTB_anc	kdpD_Rv1028c	1149551	T	C	Glu712Glu	Glu712Glu	Glu712Glu	Glu712Glu	SNP	Synonymous	TTC	CTC	CTC	snp	SNV:1149551:T>C
+MTB_anc	intergenic	1160122	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1160122:G>A
+MTB_anc	esxI_Rv1037c	1160770	A	T	Leu20Gln	Leu20Gln	Leu20Gln	Leu20Gln	SNP	Non-synonymous	CAG	CTG	CTG	snp	SNV:1160770:A>T
+MTB_anc	intergenic	1164336	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1164336:A>G
+MTB_anc	Rv1056_Rv1056	1178116	C	T	Thr163Thr	Thr163Thr	Thr163Thr	Thr163Thr	SNP	Synonymous	ACC	ACT	ACT	snp	SNV:1178116:C>T
+MTB_anc	PE_PGRS19_Rv1067c	1190093	C	A	Trp111Leu	Trp111Leu	Trp111Leu	Trp111Leu	SNP	Non-synonymous	CCA	CAA	CAA	snp	SNV:1190093:C>A
+MTB_anc	Rv1075c_Rv1075c	1200092	T	C	Val93Val	Val93Val	Val93Val	Val93Val	SNP	Synonymous	TAC	CAC	CAC	snp	SNV:1200092:T>C
+MTB_anc	intergenic	1200418	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1200418:G>A
+MTB_anc	Rv1078_Rv1078	1203824	C	T	Thr171Ile	Thr171Ile	Thr171Ile	Thr171Ile	SNP	Non-synonymous	ACC	ATC	ATC	snp	SNV:1203824:C>T
+MTB_anc	Rv1084_Rv1084	1208611	G	T	Gly326Cys	Gly326Cys	Gly326Cys	Gly326Cys	SNP	Non-synonymous	GGC	TGC	TGC	snp	SNV:1208611:G>T
+MTB_anc	Rv1086_Rv1086	1211369	C	A	Arg259Ser	Arg259Ser	Arg259Ser	Arg259Ser	SNP	Non-synonymous	CGC	AGC	AGC	snp	SNV:1211369:C>A
+MTB_anc	intergenic	1220570	T	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1220570:T>G
+MTB_anc	fum_Rv1098c	1227217	C	T	Ala117Thr	Ala117Thr	Ala117Thr	Ala117Thr	SNP	Non-synonymous	CGC	CGT	CGT	snp	SNV:1227217:C>T
+MTB_anc	xseA_Rv1108c	1235446	C	T	Ser5Ser	Ser5Ser	Ser5Ser	Ser5Ser	SNP	Synonymous	CGA	TGA	TGA	snp	SNV:1235446:C>T
+MTB_anc	gnd2_Rv1122	1245508	G	C	Gly127Ala	Gly127Ala	Gly127Ala	Gly127Ala	SNP	Non-synonymous	GGT	GCT	GCT	snp	SNV:1245508:G>C
+MTB_anc	Rv1125_Rv1125	1248382	G	A	Gly101Ser	Gly101Ser	Gly101Ser	Gly101Ser	SNP	Non-synonymous	GGC	AGC	AGC	snp	SNV:1248382:G>A
+MTB_anc	Rv1125_Rv1125	1248936	C	G	Pro285Pro	Pro285Pro	Pro285Pro	Pro285Pro	SNP	Synonymous	CCC	CCG	CCG	snp	SNV:1248936:C>G
+MTB_anc	Rv1125_Rv1125	1248978	C	T	Ala299Ala	Ala299Ala	Ala299Ala	Ala299Ala	SNP	Synonymous	GCC	GCT	GCT	snp	SNV:1248978:C>T
+MTB_anc	ppdK_Rv1127c	1250340	G	A	Ala355Ala	Ala355Ala	Ala355Ala	Ala355Ala	SNP	Synonymous	GGC	AGC	AGC	snp	SNV:1250340:G>A
+MTB_anc	ppdK_Rv1127c	1250357	G	T	Pro350Thr	Pro350Thr	Pro350Thr	Pro350Thr	SNP	Non-synonymous	CGG	CGT	CGT	snp	SNV:1250357:G>T
+MTB_anc	ppdK_Rv1127c	1251199	T	C	Glu69Gly	Glu69Gly	Glu69Gly	Glu69Gly	SNP	Non-synonymous	TTC	TCC	TCC	snp	SNV:1251199:T>C
+MTB_anc	Rv1128c_Rv1128c	1252153	A	G	Leu274Leu	Leu274Leu	Leu274Leu	Leu274Leu	SNP	Synonymous	CAA	CAG	CAG	snp	SNV:1252153:A>G
+MTB_anc	Rv1128c_Rv1128c	1252164	C	T	Gly270Glu	Gly270Glu	Gly270Glu	Gly270Glu	SNP	Non-synonymous	TCC	TTC	TTC	snp	SNV:1252164:C>T
+MTB_anc	prpD_Rv1130	1254562	G	A	Gly3Asp	Gly3Asp	Gly3Asp	Gly3Asp	SNP	Non-synonymous	GGT	GAT	GAT	snp	SNV:1254562:G>A
+MTB_anc	Rv1145_Rv1145	1273071	T	C	Ser217Pro	Ser217Pro	Ser217Pro	Ser217Pro	SNP	Non-synonymous	TCG	CCG	CCG	snp	SNV:1273071:T>C
+MTB_anc	Rv1146_Rv1146	1273429	G	A	Arg25Arg	Arg25Arg	Arg25Arg	Arg25Arg	SNP	Synonymous	CGG	CGA	CGA	snp	SNV:1273429:G>A
+MTB_anc	intergenic	1275957	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1275957:C>T
+MTB_anc	Rv1148c_Rv1148c	1276588	C	G	Ala387Ala	Ala387Ala	Ala387Ala	Ala387Ala	SNP	Synonymous	CGC	GGC	GGC	snp	SNV:1276588:C>G
+MTB_anc	Rv1155_Rv1155	1281771	C	T	Pro115Ser	Pro115Ser	Pro115Ser	Pro115Ser	SNP	Non-synonymous	CCG	TCG	TCG	snp	SNV:1281771:C>T
+MTB_anc	intergenic	1287112	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1287112:C>T
+MTB_anc	narH_Rv1162	1292102	G	A	Pro346Pro	Pro346Pro	Pro346Pro	Pro346Pro	SNP	Synonymous	CCG	CCA	CCA	snp	SNV:1292102:G>A
+MTB_anc	fbiC_Rv1173	1303747	A	G	Thr273Ala	Thr273Ala	Thr273Ala	Thr273Ala	SNP	Non-synonymous	ACG	GCG	GCG	snp	SNV:1303747:A>G
+MTB_anc	fadH_Rv1175c	1306259	G	A	Ala656Ala	Ala656Ala	Ala656Ala	Ala656Ala	SNP	Synonymous	GGC	AGC	AGC	snp	SNV:1306259:G>A
+MTB_anc	Rv1178_Rv1178	1310316	T	C	Val318Ala	Val318Ala	Val318Ala	Val318Ala	SNP	Non-synonymous	GTC	GCC	GCC	snp	SNV:1310316:T>C
+MTB_anc	Rv1186c_Rv1186c	1327890	A	G	Asp472Asp	Asp472Asp	Asp472Asp	Asp472Asp	SNP	Synonymous	ATC	GTC	GTC	snp	SNV:1327890:A>G
+MTB_anc	PPE18_Rv1196	1339966	G	A	Gln206Gln	Gln206Gln	Gln206Gln	Gln206Gln	SNP	Synonymous	CAG	CAA	CAA	snp	SNV:1339966:G>A
+MTB_anc	PPE18_Rv1196	1340052	T	G	Leu235Arg	Leu235Arg	Leu235Arg	Leu235Arg	SNP	Non-synonymous	CTG	CGG	CGG	snp	SNV:1340052:T>G
+MTB_anc	PPE18_Rv1196	1340208	G	A	Arg287Gln	Arg287Gln	Arg287Gln	Arg287Gln	SNP	Non-synonymous	CGG	CAG	CAG	snp	SNV:1340208:G>A
+MTB_anc	PPE18_Rv1196	1340256	G	C	Gly303Ala	Gly303Ala	Gly303Ala	Gly303Ala	SNP	Non-synonymous	GGT	GCT	GCT	snp	SNV:1340256:G>C
+MTB_anc	esxL_Rv1198	1341023	A	G	Gln6Gln	Gln6Gln	Gln6Gln	Gln6Gln	SNP	Synonymous	CAA	CAG	CAG	snp	SNV:1341023:A>G
+MTB_anc	esxL_Rv1198	1341029	G	T	Gly8Gly	Gly8Gly	Gly8Gly	Gly8Gly	SNP	Synonymous	GGG	GGT	GGT	snp	SNV:1341029:G>T
+MTB_anc	esxL_Rv1198	1341040	A	C	Asp12Ala	Asp12Ala	Asp12Ala	Asp12Ala	SNP	Non-synonymous	GAT	GCT	GCT	snp	SNV:1341040:A>C
+MTB_anc	esxL_Rv1198	1341044	T	C	His13His	His13His	His13His	His13His	SNP	Synonymous	CAT	CAC	CAC	snp	SNV:1341044:T>C
+MTB_anc	esxL_Rv1198	1341083	C	G	Ala26Ala	Ala26Ala	Ala26Ala	Ala26Ala	SNP	Synonymous	GCC	GCG	GCG	snp	SNV:1341083:C>G
+MTB_anc	esxL_Rv1198	1341102, 1341103	C, G	T, C	Arg33Ser	Arg33Cys, Arg33Pro	Arg33Ser	Arg33Cys, Arg33Pro	SNP/MNV	Non-synonymous	CGT	TGT, CCT	TCT	mnv	SNV:1341102:C>T | SNV:1341103:G>C
+MTB_anc	dapE_Rv1202	1346171	C	A	Gly304Gly	Gly304Gly	Gly304Gly	Gly304Gly	SNP	Synonymous	GGC	GGA	GGA	snp	SNV:1346171:C>A
+MTB_anc	intergenic	1351172	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1351172:G>A
+MTB_anc	Rv1215c_Rv1215c	1358485	C	T	Glu320Glu	Glu320Glu	Glu320Glu	Glu320Glu	SNP	Synonymous	CTC	TTC	TTC	snp	SNV:1358485:C>T
+MTB_anc	Rv1215c_Rv1215c	1358940	A	C	Ser169Ala	Ser169Ala	Ser169Ala	Ser169Ala	SNP	Non-synonymous	TGA	TGC	TGC	snp	SNV:1358940:A>C
+MTB_anc	Rv1217c_Rv1217c	1360209	C	T	Ala531Ala	Ala531Ala	Ala531Ala	Ala531Ala	SNP	Synonymous	CGC	TGC	TGC	snp	SNV:1360209:C>T
+MTB_anc	Rv1218c_Rv1218c	1362006	C	T	Arg243Gln	Arg243Gln	Arg243Gln	Arg243Gln	SNP	Non-synonymous	TCG	TTG	TTG	snp	SNV:1362006:C>T
+MTB_anc	tatB_Rv1224	1367484	G	T	Gly8Trp	Gly8Trp	Gly8Trp	Gly8Trp	SNP	Non-synonymous	GGG	TGG	TGG	snp	SNV:1367484:G>T
+MTB_anc	Rv1226c_Rv1226c	1368947	G	A	Ala450Val	Ala450Val	Ala450Val	Ala450Val	SNP	Non-synonymous	CGC	CAC	CAC	snp	SNV:1368947:G>A
+MTB_anc	Rv1248c_Rv1248c	1390763	T	C	Met764Val	Met764Val	Met764Val	Met764Val	SNP	Non-synonymous	CAT	CAC	CAC	snp	SNV:1390763:T>C
+MTB_anc	Rv1249c_Rv1249c	1393626	G	A	Leu119Leu	Leu119Leu	Leu119Leu	Leu119Leu	SNP	Synonymous	GAG	AAG	AAG	snp	SNV:1393626:G>A
+MTB_anc	Rv1250_Rv1250	1395010	G	A	Gly278Arg	Gly278Arg	Gly278Arg	Gly278Arg	SNP	Non-synonymous	GGG	AGG	AGG	snp	SNV:1395010:G>A
+MTB_anc	Rv1251c_Rv1251c	1397201	G	A	Asn680Asn	Asn680Asn	Asn680Asn	Asn680Asn	SNP	Synonymous	GTT	ATT	ATT	snp	SNV:1397201:G>A
+MTB_anc	deaD_Rv1253	1400396	G	A	Val143Met	Val143Met	Val143Met	Val143Met	SNP	Non-synonymous	GTG	ATG	ATG	snp	SNV:1400396:G>A
+MTB_anc	Rv1255c_Rv1255c	1403235	A	C	Leu51Arg	Leu51Arg	Leu51Arg	Leu51Arg	SNP	Non-synonymous	CAG	CCG	CCG	snp	SNV:1403235:A>C
+MTB_anc	Rv1262c_Rv1262c	1410062	C	G	Arg104Pro	Arg104Pro	Arg104Pro	Arg104Pro	SNP	Non-synonymous	CCG	CGG	CGG	snp	SNV:1410062:C>G
+MTB_anc	mcr11_RVnc0013	1413148	T	C	Asp26Gly	Asp26Gly	Asp26Gly	Asp26Gly	SNP	Non-synonymous	GTC	GCC	GCC	snp	SNV:1413148:T>C
+MTB_anc	intergenic	1417554	C	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1417554:C>G
+MTB_anc	lprB_Rv1274	1424699	C	T	Pro168Leu	Pro168Leu	Pro168Leu	Pro168Leu	SNP	Non-synonymous	CCG	CTG	CTG	snp	SNV:1424699:C>T
+MTB_anc	Rv1291c_Rv1291c	1445781	G	A	Ala18Ala	Ala18Ala	Ala18Ala	Ala18Ala	SNP	Synonymous	GGC	AGC	AGC	snp	SNV:1445781:G>A
+MTB_anc	Rv1301_Rv1301	1458144	A	C	Gln196Pro	Gln196Pro	Gln196Pro	Gln196Pro	SNP	Non-synonymous	CAG	CCG	CCG	snp	SNV:1458144:A>C
+MTB_anc	intergenic	1461309	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1461309:C>T
+MTB_anc	atpC_Rv1311	1467344	C	T	Ala10Ala	Ala10Ala	Ala10Ala	Ala10Ala	SNP	Synonymous	GCC	GCT	GCT	snp	SNV:1467344:C>T
+MTB_anc	rrl_Rvnr02	1474001	C	T	Pro115Leu	Pro115Leu	Pro115Leu	Pro115Leu	SNP	Non-synonymous	CCG	CTG	CTG	snp	SNV:1474001:C>T
+MTB_anc	alkA_Rv1317c	1479085	C	T	Val12Ile	Val12Ile	Val12Ile	Val12Ile	SNP	Non-synonymous	GAC	GAT	GAT	snp	SNV:1479085:C>T
+MTB_anc	glgB_Rv1326c	1490905	G	A	Pro470Ser	Pro470Ser	Pro470Ser	Pro470Ser	SNP	Non-synonymous	AGG	AGA	AGA	snp	SNV:1490905:G>A
+MTB_anc	glgB_Rv1326c	1490911	A	G	Ser468Pro	Ser468Pro	Ser468Pro	Ser468Pro	SNP	Non-synonymous	CGA	CGG	CGG	snp	SNV:1490911:A>G
+MTB_anc	glgB_Rv1326c	1492194	C	T	Gly40Asp	Gly40Asp	Gly40Asp	Gly40Asp	SNP	Non-synonymous	GCC	GTC	GTC	snp	SNV:1492194:C>T
+MTB_anc	cysM_Rv1336	1504056	C	T	Asn221Asn	Asn221Asn	Asn221Asn	Asn221Asn	SNP	Synonymous	AAC	AAT	AAT	snp	SNV:1504056:C>T
+MTB_anc	Rv1339_Rv1339	1505973	A	G	Arg19Arg	Arg19Arg	Arg19Arg	Arg19Arg	SNP	Synonymous	CGA	CGG	CGG	snp	SNV:1505973:A>G
+MTB_anc	intergenic	1519180	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1519180:A>G
+MTB_anc	moeY_Rv1355c	1523175	C	A	Ala286Ala	Ala286Ala	Ala286Ala	Ala286Ala	SNP	Synonymous	CGC	AGC	AGC	snp	SNV:1523175:C>A
+MTB_anc	moeY_Rv1355c	1523791	G	A	Pro81Leu	Pro81Leu	Pro81Leu	Pro81Leu	SNP	Non-synonymous	GGG	GAG	GAG	snp	SNV:1523791:G>A
+MTB_anc	Rv1358_Rv1358	1526819	A	C	Arg70Arg	Arg70Arg	Arg70Arg	Arg70Arg	SNP	Synonymous	AGG	CGG	CGG	snp	SNV:1526819:A>C
+MTB_anc	PPE19_Rv1361c	1532635	C	T	Ala333Ala	Ala333Ala	Ala333Ala	Ala333Ala	SNP	Synonymous	CGC	TGC	TGC	snp	SNV:1532635:C>T
+MTB_anc	PPE19_Rv1361c	1533583	A	G	Tyr17Tyr	Tyr17Tyr	Tyr17Tyr	Tyr17Tyr	SNP	Synonymous	ATA	GTA	GTA	snp	SNV:1533583:A>G
+MTB_anc	Rv1367c_Rv1367c	1540141	C	T	Val169Ile	Val169Ile	Val169Ile	Val169Ile	SNP	Non-synonymous	GAC	GAT	GAT	snp	SNV:1540141:C>T
+MTB_anc	Rv1375_Rv1375	1548087	A	G	Arg86Gly	Arg86Gly	Arg86Gly	Arg86Gly	SNP	Non-synonymous	AGG	GGG	GGG	snp	SNV:1548087:A>G
+MTB_anc	carB_Rv1384	1559562	A	C	Glu821Ala	Glu821Ala	Glu821Ala	Glu821Ala	SNP	Non-synonymous	GAG	GCG	GCG	snp	SNV:1559562:A>C
+MTB_anc	mihF_Rv1388	1563717	T	C	Val8Val	Val8Val	Val8Val	Val8Val	SNP	Synonymous	GTT	GTC	GTC	snp	SNV:1563717:T>C
+MTB_anc	cyp132_Rv1394c	1569924	T	A	Asp349Val	Asp349Val	Asp349Val	Asp349Val	SNP	Non-synonymous	GTC	GAC	GAC	snp	SNV:1569924:T>A
+MTB_anc	cyp132_Rv1394c	1570566	A	C	Leu135Arg	Leu135Arg	Leu135Arg	Leu135Arg	SNP	Non-synonymous	CAG	CCG	CCG	snp	SNV:1570566:A>C
+MTB_anc	PE_PGRS25_Rv1396c	1572851	G	T	Thr336Asn	Thr336Asn	Thr336Asn	Thr336Asn	SNP	Non-synonymous	GGT	GTT	GTT	snp	SNV:1572851:G>T
+MTB_anc	PE_PGRS25_Rv1396c	1573448	C	T	Cys137Tyr	Cys137Tyr	Cys137Tyr	Cys137Tyr	SNP	Non-synonymous	GCA	GTA	GTA	snp	SNV:1573448:C>T
+MTB_anc	PE_PGRS25_Rv1396c	1573660	G	T	Ser66Arg	Ser66Arg	Ser66Arg	Ser66Arg	SNP	Non-synonymous	GCT	TCT	TCT	snp	SNV:1573660:G>T
+MTB_anc	vapC10_Rv1397c	1574206	C	T	Gly103Asp	Gly103Asp	Gly103Asp	Gly103Asp	SNP	Non-synonymous	GCC	GTC	GTC	snp	SNV:1574206:C>T
+MTB_anc	fmu_Rv1407	1584379	C	A	Leu427Ile	Leu427Ile	Leu427Ile	Leu427Ile	SNP	Non-synonymous	CTC	ATC	ATC	snp	SNV:1584379:C>A
+MTB_anc	ribG_Rv1409	1585283	C	A	Asn30Lys	Asn30Lys	Asn30Lys	Asn30Lys	SNP	Non-synonymous	AAC	AAA	AAA	snp	SNV:1585283:C>A
+MTB_anc	ribG_Rv1409	1585404	A	G	Thr71Ala	Thr71Ala	Thr71Ala	Thr71Ala	SNP	Non-synonymous	ACC	GCC	GCC	snp	SNV:1585404:A>G
+MTB_anc	ribC_Rv1412	1588899	T	G	Ala111Ala	Ala111Ala	Ala111Ala	Ala111Ala	SNP	Synonymous	GCT	GCG	GCG	snp	SNV:1588899:T>G
+MTB_anc	Rv1425_Rv1425	1600685	T	C	Leu343Pro	Leu343Pro	Leu343Pro	Leu343Pro	SNP	Non-synonymous	CTC	CCC	CCC	snp	SNV:1600685:T>C
+MTB_anc	Rv1431_Rv1431	1608276	C	A	Thr65Asn	Thr65Asn	Thr65Asn	Thr65Asn	SNP	Non-synonymous	ACC	AAC	AAC	snp	SNV:1608276:C>A
+MTB_anc	Rv1431_Rv1431	1609840	G	A	Pro586Pro	Pro586Pro	Pro586Pro	Pro586Pro	SNP	Synonymous	CCG	CCA	CCA	snp	SNV:1609840:G>A
+MTB_anc	intergenic	1611283	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1611283:C>T
+MTB_anc	Rv1435c_Rv1435c	1612621	C	A	Pro110Pro	Pro110Pro	Pro110Pro	Pro110Pro	SNP	Synonymous	CGG	AGG	AGG	snp	SNV:1612621:C>A
+MTB_anc	Rv1435c_Rv1435c	1612648	T	C	Pro101Pro	Pro101Pro	Pro101Pro	Pro101Pro	SNP	Synonymous	TGG	CGG	CGG	snp	SNV:1612648:T>C
+MTB_anc	bisC_Rv1442	1621766	C	T	Pro659Leu	Pro659Leu	Pro659Leu	Pro659Leu	SNP	Non-synonymous	CCG	CTG	CTG	snp	SNV:1621766:C>T
+MTB_anc	opcA_Rv1446c	1624791	G	C	Pro192Arg	Pro192Arg	Pro192Arg	Pro192Arg	SNP	Non-synonymous	TGG	TCG	TCG	snp	SNV:1624791:G>C
+MTB_anc	tal_Rv1448c	1627351	C	T	Ala244Thr	Ala244Thr	Ala244Thr	Ala244Thr	SNP	Non-synonymous	GGC	GGT	GGT	snp	SNV:1627351:C>T
+MTB_anc	tkt_Rv1449c	1629989	T	G	Thr71Pro	Thr71Pro	Thr71Pro	Thr71Pro	SNP	Non-synonymous	TGT	TGG	TGG	snp	SNV:1629989:T>G
+MTB_anc	tkt_Rv1449c	1630148	C	A	Asp18Tyr	Asp18Tyr	Asp18Tyr	Asp18Tyr	SNP	Non-synonymous	GTC	GTA	GTA	snp	SNV:1630148:C>A
+MTB_anc	PE_PGRS28_Rv1452c	1636170, 1636171	G, C	T, T	Ala687Asn	Ala687Asp, Ala687Thr	Ala687Asn	Ala687Asp, Ala687Thr	SNP/MNV	Non-synonymous	GGC	GTC, GGT	GTT	mnv	SNV:1636170:G>T | SNV:1636171:C>T
+MTB_anc	PE_PGRS28_Rv1452c	1636172	G	T	Gly686Gly	Gly686Gly	Gly686Gly	Gly686Gly	SNP	Synonymous	GCC	TCC	TCC	snp	SNV:1636172:G>T
+MTB_anc	intergenic	1638364	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1638364:T>C
+MTB_anc	Rv1453_Rv1453	1638975	T	G	Ser199Ala	Ser199Ala	Ser199Ala	Ser199Ala	SNP	Non-synonymous	TCC	GCC	GCC	snp	SNV:1638975:T>G
+MTB_anc	Rv1453_Rv1453	1639418	G	A	Leu346Leu	Leu346Leu	Leu346Leu	Leu346Leu	SNP	Synonymous	CTG	CTA	CTA	snp	SNV:1639418:G>A
+MTB_anc	Rv1453_Rv1453	1639643	C	T	Arg421Arg	Arg421Arg	Arg421Arg	Arg421Arg	SNP	Synonymous	CGC	CGT	CGT	snp	SNV:1639643:C>T
+MTB_anc	qor_Rv1454c	1640442	T	C	Gly73Gly	Gly73Gly	Gly73Gly	Gly73Gly	SNP	Synonymous	TCC	CCC	CCC	snp	SNV:1640442:T>C
+MTB_anc	Rv1459c_Rv1459c	1645802	C	T	Glu113Lys	Glu113Lys	Glu113Lys	Glu113Lys	SNP	Non-synonymous	TTC	TTT	TTT	snp	SNV:1645802:C>T
+MTB_anc	ctpD_Rv1469	1658312	C	T	Ala450Ala	Ala450Ala	Ala450Ala	Ala450Ala	SNP	Synonymous	GCC	GCT	GCT	snp	SNV:1658312:C>T
+MTB_anc	echA12_Rv1472	1659994	T	C	Ser78Pro	Ser78Pro	Ser78Pro	Ser78Pro	SNP	Non-synonymous	TCG	CCG	CCG	snp	SNV:1659994:T>C
+MTB_anc	Rv1486c_Rv1486c	1676290	A	C	Asn198Lys	Asn198Lys	Asn198Lys	Asn198Lys	SNP	Non-synonymous	ATT	CTT	CTT	snp	SNV:1676290:A>C
+MTB_anc	lipL_Rv1497	1688300	C	T	Phe120Phe	Phe120Phe	Phe120Phe	Phe120Phe	SNP	Synonymous	TTC	TTT	TTT	snp	SNV:1688300:C>T
+MTB_anc	Rv1498c_Rv1498c	1689349	T	C	His191Arg	His191Arg	His191Arg	His191Arg	SNP	Non-synonymous	GTG	GCG	GCG	snp	SNV:1689349:T>C
+MTB_anc	Rv1501_Rv1501	1692141	C	A	Ile84Ile	Ile84Ile	Ile84Ile	Ile84Ile	SNP	Synonymous	ATC	ATA	ATA	snp	SNV:1692141:C>A
+MTB_anc	Rv1502_Rv1502	1693561	G	A	Cys213Tyr	Cys213Tyr	Cys213Tyr	Cys213Tyr	SNP	Non-synonymous	TGC	TAC	TAC	snp	SNV:1693561:G>A
+MTB_anc	Rv1503c_Rv1503c	1694547	C	A	Glu200*	Glu200*	Glu200*	Glu200*	SNP	Stop gained	TTC	TTA	TTA	snp	SNV:1694547:C>A
+MTB_anc	Rv1505c_Rv1505c	1695674	A	G	Tyr91Tyr	Tyr91Tyr	Tyr91Tyr	Tyr91Tyr	SNP	Synonymous	ATA	GTA	GTA	snp	SNV:1695674:A>G
+MTB_anc	Rv1508c_Rv1508c	1698911	A	G	Gly328Gly	Gly328Gly	Gly328Gly	Gly328Gly	SNP	Synonymous	ACC	GCC	GCC	snp	SNV:1698911:A>G
+MTB_anc	Rv1508c_Rv1508c	1699849	A	G	Ser16Pro	Ser16Pro	Ser16Pro	Ser16Pro	SNP	Non-synonymous	CGA	CGG	CGG	snp	SNV:1699849:A>G
+MTB_anc	Rv1516c_Rv1516c	1708232	A	G	Ile103Thr	Ile103Thr	Ile103Thr	Ile103Thr	SNP	Non-synonymous	GAT	GGT	GGT	snp	SNV:1708232:A>G
+MTB_anc	Rv1517_Rv1517	1709432	T	C	Phe188Leu	Phe188Leu	Phe188Leu	Phe188Leu	SNP	Non-synonymous	TTC	CTC	CTC	snp	SNV:1709432:T>C
+MTB_anc	Rv1520_Rv1520	1711375	T	C	Cys116Cys	Cys116Cys	Cys116Cys	Cys116Cys	SNP	Synonymous	TGT	TGC	TGC	snp	SNV:1711375:T>C
+MTB_anc	Rv1520_Rv1520	1711378	T	C	Phe117Phe	Phe117Phe	Phe117Phe	Phe117Phe	SNP	Synonymous	TTT	TTC	TTC	snp	SNV:1711378:T>C
+MTB_anc	fadD25_Rv1521	1713192	G	A	Val297Val	Val297Val	Val297Val	Val297Val	SNP	Synonymous	GTG	GTA	GTA	snp	SNV:1713192:G>A
+MTB_anc	mmpL12_Rv1522c	1716472	G	A	Pro381Ser	Pro381Ser	Pro381Ser	Pro381Ser	SNP	Non-synonymous	GGG	GGA	GGA	snp	SNV:1716472:G>A
+MTB_anc	Rv1524_Rv1524	1718765	A	G	Ile14Val	Ile14Val	Ile14Val	Ile14Val	SNP	Non-synonymous	ATC	GTC	GTC	snp	SNV:1718765:A>G
+MTB_anc	Rv1524_Rv1524	1719391	T	C	Phe222Phe	Phe222Phe	Phe222Phe	Phe222Phe	SNP	Synonymous	TTT	TTC	TTC	snp	SNV:1719391:T>C
+MTB_anc	Rv1524_Rv1524	1719679	T	C	His318His	His318His	His318His	His318His	SNP	Synonymous	CAT	CAC	CAC	snp	SNV:1719679:T>C
+MTB_anc	Rv1524_Rv1524	1719682	C	T	Gly319Gly	Gly319Gly	Gly319Gly	Gly319Gly	SNP	Synonymous	GGC	GGT	GGT	snp	SNV:1719682:C>T
+MTB_anc	Rv1524_Rv1524	1719688	G	C	Ala321Ala	Ala321Ala	Ala321Ala	Ala321Ala	SNP	Synonymous	GCG	GCC	GCC	snp	SNV:1719688:G>C
+MTB_anc	Rv1524_Rv1524	1719691	C	T	Gly322Gly	Gly322Gly	Gly322Gly	Gly322Gly	SNP	Synonymous	GGC	GGT	GGT	snp	SNV:1719691:C>T
+MTB_anc	Rv1524_Rv1524	1719706	T	C	Gly327Gly	Gly327Gly	Gly327Gly	Gly327Gly	SNP	Synonymous	GGT	GGC	GGC	snp	SNV:1719706:T>C
+MTB_anc	Rv1524_Rv1524	1719709	T	G	Leu328Leu	Leu328Leu	Leu328Leu	Leu328Leu	SNP	Synonymous	CTT	CTG	CTG	snp	SNV:1719709:T>G
+MTB_anc	Rv1526c_Rv1526c	1721116	G	A	Arg315Arg	Arg315Arg	Arg315Arg	Arg315Arg	SNP	Synonymous	GCG	ACG	ACG	snp	SNV:1721116:G>A
+MTB_anc	pks5_Rv1527c	1726816	T	G	Thr532Pro	Thr532Pro	Thr532Pro	Thr532Pro	SNP	Non-synonymous	GGT	GGG	GGG	snp	SNV:1726816:T>G
+MTB_anc	PPE21_Rv1548c	1751513	G	A	Asn607Asn	Asn607Asn	Asn607Asn	Asn607Asn	SNP	Synonymous	GTT	ATT	ATT	snp	SNV:1751513:G>A
+MTB_anc	PPE21_Rv1548c	1752561	C	T	Gly258Asp	Gly258Asp	Gly258Asp	Gly258Asp	SNP	Non-synonymous	GCC	GTC	GTC	snp	SNV:1752561:C>T
+MTB_anc	frdD_Rv1555	1760923	C	T	Thr124Thr	Thr124Thr	Thr124Thr	Thr124Thr	SNP	Synonymous	ACC	ACT	ACT	snp	SNV:1760923:C>T
+MTB_anc	mmpL6_Rv1557	1761789	C	G	Leu16Val	Leu16Val	Leu16Val	Leu16Val	SNP	Non-synonymous	CTG	GTG	GTG	snp	SNV:1761789:C>G
+MTB_anc	Rv1573_Rv1573	1779370	C	G	Thr19Thr	Thr19Thr	Thr19Thr	Thr19Thr	SNP	Synonymous	ACC	ACG	ACG	snp	SNV:1779370:C>G
+MTB_anc	Rv1576c_Rv1576c	1780800	A	C	Val422Gly	Val422Gly	Val422Gly	Val422Gly	SNP	Non-synonymous	GAC	GCC	GCC	snp	SNV:1780800:A>C
+MTB_anc	Rv1586c_Rv1586c	1787313	T	G	Lys398Thr	Lys398Thr	Lys398Thr	Lys398Thr	SNP	Non-synonymous	CTT	CGT	CGT	snp	SNV:1787313:T>G
+MTB_anc	Rv1587c_Rv1587c	1788570	T	G	Lys198Asn	Lys198Asn	Lys198Asn	Lys198Asn	SNP	Non-synonymous	TTT	GTT	GTT	snp	SNV:1788570:T>G
+MTB_anc	Rv1592c_Rv1592c	1792777	C	T	Val322Ile	Val322Ile	Val322Ile	Val322Ile	SNP	Non-synonymous	AAC	AAT	AAT	snp	SNV:1792777:C>T
+MTB_anc	Rv1592c_Rv1592c	1792778	C	T	Glu321Glu	Glu321Glu	Glu321Glu	Glu321Glu	SNP	Synonymous	CTC	TTC	TTC	snp	SNV:1792778:C>T
+MTB_anc	nadC_Rv1596	1797577	G	A	Asp64Asn	Asp64Asn	Asp64Asn	Asp64Asn	SNP	Non-synonymous	GAC	AAC	AAC	snp	SNV:1797577:G>A
+MTB_anc	Rv1597_Rv1597	1798355	A	G	Asp21Gly	Asp21Gly	Asp21Gly	Asp21Gly	SNP	Non-synonymous	GAT	GGT	GGT	snp	SNV:1798355:A>G
+MTB_anc	impA_Rv1604	1804409	A	C	Gln124Pro	Gln124Pro	Gln124Pro	Gln124Pro	SNP	Non-synonymous	CAA	CCA	CCA	snp	SNV:1804409:A>C
+MTB_anc	Rv1624c_Rv1624c	1826054	C	T	Ala178Thr	Ala178Thr	Ala178Thr	Ala178Thr	SNP	Non-synonymous	TGC	TGT	TGT	snp	SNV:1826054:C>T
+MTB_anc	Rv1634_Rv1634	1839260	G	T	Leu31Leu	Leu31Leu	Leu31Leu	Leu31Leu	SNP	Synonymous	CTG	CTT	CTT	snp	SNV:1839260:G>T
+MTB_anc	Rv1634_Rv1634	1839759	C	G	Arg198Gly	Arg198Gly	Arg198Gly	Arg198Gly	SNP	Non-synonymous	CGG	GGG	GGG	snp	SNV:1839759:C>G
+MTB_anc	uvrA_Rv1638	1845524	T	C	Leu595Pro	Leu595Pro	Leu595Pro	Leu595Pro	SNP	Non-synonymous	CTA	CCA	CCA	snp	SNV:1845524:T>C
+MTB_anc	Rv1639c_Rv1639c	1847919	G	C	Thr180Thr	Thr180Thr	Thr180Thr	Thr180Thr	SNP	Synonymous	GGT	CGT	CGT	snp	SNV:1847919:G>C
+MTB_anc	lysX_Rv1640c	1849609	C	T	Arg809Arg	Arg809Arg	Arg809Arg	Arg809Arg	SNP	Synonymous	CCG	TCG	TCG	snp	SNV:1849609:C>T
+MTB_anc	lysX_Rv1640c	1851234	C	T	Val268Ile	Val268Ile	Val268Ile	Val268Ile	SNP	Non-synonymous	GAC	GAT	GAT	snp	SNV:1851234:C>T
+MTB_anc	tsnR_Rv1644	1854300	C	T	Pro232Leu	Pro232Leu	Pro232Leu	Pro232Leu	SNP	Non-synonymous	CCG	CTG	CTG	snp	SNV:1854300:C>T
+MTB_anc	pheS_Rv1649	1859559	A	C	Asp276Ala	Asp276Ala	Asp276Ala	Asp276Ala	SNP	Non-synonymous	GAC	GCC	GCC	snp	SNV:1859559:A>C
+MTB_anc	PE_PGRS30_Rv1651c	1864924	T	A	Gly153Gly	Gly153Gly	Gly153Gly	Gly153Gly	SNP	Synonymous	TCC	ACC	ACC	snp	SNV:1864924:T>A
+MTB_anc	argH_Rv1659	1872959	G	A	Arg107Arg	Arg107Arg	Arg107Arg	Arg107Arg	SNP	Synonymous	CGG	CGA	CGA	snp	SNV:1872959:G>A
+MTB_anc	pks7_Rv1661	1876332	G	C	Thr343Thr	Thr343Thr	Thr343Thr	Thr343Thr	SNP	Synonymous	ACG	ACC	ACC	snp	SNV:1876332:G>C
+MTB_anc	pks7_Rv1661	1876335	C	G	Gly344Gly	Gly344Gly	Gly344Gly	Gly344Gly	SNP	Synonymous	GGC	GGG	GGG	snp	SNV:1876335:C>G
+MTB_anc	pks7_Rv1661	1876353	C	G	Pro350Pro	Pro350Pro	Pro350Pro	Pro350Pro	SNP	Synonymous	CCC	CCG	CCG	snp	SNV:1876353:C>G
+MTB_anc	pks8_Rv1662	1882546	A	G	Ala281Ala	Ala281Ala	Ala281Ala	Ala281Ala	SNP	Synonymous	GCA	GCG	GCG	snp	SNV:1882546:A>G
+MTB_anc	pks8_Rv1662	1885768	G	A	Ala1355Ala	Ala1355Ala	Ala1355Ala	Ala1355Ala	SNP	Synonymous	GCG	GCA	GCA	snp	SNV:1885768:G>A
+MTB_anc	pks9_Rv1664	1889073	C	G	Pro350Ala	Pro350Ala	Pro350Ala	Pro350Ala	SNP	Non-synonymous	CCA	GCA	GCA	snp	SNV:1889073:C>G
+MTB_anc	Rv1667c_Rv1667c	1894422	G	A	Asp307Asp	Asp307Asp	Asp307Asp	Asp307Asp	SNP	Synonymous	GTC	ATC	ATC	snp	SNV:1894422:G>A
+MTB_anc	Rv1671_Rv1671	1896581	T	C	Met36Thr	Met36Thr	Met36Thr	Met36Thr	SNP	Non-synonymous	ATG	ACG	ACG	snp	SNV:1896581:T>C
+MTB_anc	cmr_Rv1675c	1900800	G	A	Ala59Val	Ala59Val	Ala59Val	Ala59Val	SNP	Non-synonymous	GGC	GAC	GAC	snp	SNV:1900800:G>A
+MTB_anc	recN_Rv1696	1920120	T	G	Pro146Pro	Pro146Pro	Pro146Pro	Pro146Pro	SNP	Synonymous	CCT	CCG	CCG	snp	SNV:1920120:T>G
+MTB_anc	pyrG_Rv1699	1924959	C	T	Gly377Gly	Gly377Gly	Gly377Gly	Gly377Gly	SNP	Synonymous	GGC	GGT	GGT	snp	SNV:1924959:C>T
+MTB_anc	intergenic	1931470	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1931470:A>G
+MTB_anc	PPE22_Rv1705c	1931604	G	A	Leu351Leu	Leu351Leu	Leu351Leu	Leu351Leu	SNP	Synonymous	CAG	CAA	CAA	snp	SNV:1931604:G>A
+MTB_anc	PPE22_Rv1705c	1931718	C	G	Val313Leu	Val313Leu	Val313Leu	Val313Leu	SNP	Non-synonymous	CAC	CAG	CAG	snp	SNV:1931718:C>G
+MTB_anc	PPE22_Rv1705c	1931792	A	G	Val288Ala	Val288Ala	Val288Ala	Val288Ala	SNP	Non-synonymous	GAC	GGC	GGC	snp	SNV:1931792:A>G
+MTB_anc	Rv1707_Rv1707	1935695	G	T	Ala272Ser	Ala272Ser	Ala272Ser	Ala272Ser	SNP	Non-synonymous	GCC	TCC	TCC	snp	SNV:1935695:G>T
+MTB_anc	cmk_Rv1712	1939763	A	G	Pro55Pro	Pro55Pro	Pro55Pro	Pro55Pro	SNP	Synonymous	CCA	CCG	CCG	snp	SNV:1939763:A>G
+MTB_anc	Rv1726_Rv1726	1952160	C	T	Thr103Thr	Thr103Thr	Thr103Thr	Thr103Thr	SNP	Synonymous	ACC	ACT	ACT	snp	SNV:1952160:C>T
+MTB_anc	Rv1730c_Rv1730c	1956523	A	C	Thr241Thr	Thr241Thr	Thr241Thr	Thr241Thr	SNP	Synonymous	AGT	CGT	CGT	snp	SNV:1956523:A>C
+MTB_anc	narX_Rv1736c	1963957	C	T	Gly77Asp	Gly77Asp	Gly77Asp	Gly77Asp	SNP	Non-synonymous	GCC	GTC	GTC	snp	SNV:1963957:C>T
+MTB_anc	PPE24_Rv1753c	1983313	G	T	Thr488Asn	Thr488Asn	Thr488Asn	Thr488Asn	SNP	Non-synonymous	GGT	GTT	GTT	snp	SNV:1983313:G>T
+MTB_anc	PPE24_Rv1753c	1983528	G	T	Ala416Ala	Ala416Ala	Ala416Ala	Ala416Ala	SNP	Synonymous	GGC	TGC	TGC	snp	SNV:1983528:G>T
+MTB_anc	intergenic	2010614	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2010614:A>G
+MTB_anc	malQ_Rv1781c	2017291	C	T	Arg62Arg	Arg62Arg	Arg62Arg	Arg62Arg	SNP	Synonymous	CCG	TCG	TCG	snp	SNV:2017291:C>T
+MTB_anc	eccB5_Rv1782	2019236	G	T	Pro499Pro	Pro499Pro	Pro499Pro	Pro499Pro	SNP	Synonymous	CCG	CCT	CCT	snp	SNV:2019236:G>T
+MTB_anc	esxM_Rv1792	2030521	A	T	Lys59*	Lys59*	Lys59*	Lys59*	SNP	Stop gained	AAG	TAG	TAG	snp	SNV:2030521:A>T
+MTB_anc	PPE28_Rv1800	2039884	G	T	Trp144Cys	Trp144Cys	Trp144Cys	Trp144Cys	SNP	Non-synonymous	TGG	TGT	TGT	snp	SNV:2039884:G>T
+MTB_anc	PE_PGRS32_Rv1803c	2045310	G	A	Ile511Ile	Ile511Ile	Ile511Ile	Ile511Ile	SNP	Synonymous	GAT	AAT	AAT	snp	SNV:2045310:G>A
+MTB_anc	PPE32_Rv1808	2050061	G	A	Ser47Ser	Ser47Ser	Ser47Ser	Ser47Ser	SNP	Synonymous	TCG	TCA	TCA	snp	SNV:2050061:G>A
+MTB_anc	PPE32_Rv1808	2050822	C	G	Ala301Gly	Ala301Gly	Ala301Gly	Ala301Gly	SNP	Non-synonymous	GCA	GGA	GGA	snp	SNV:2050822:C>G
+MTB_anc	PPE33_Rv1809	2052035	T	G	Leu252Val	Leu252Val	Leu252Val	Leu252Val	SNP	Non-synonymous	TTG	GTG	GTG	snp	SNV:2052035:T>G
+MTB_anc	PPE33_Rv1809	2052687	C	G	Ser469*	Ser469*	Ser469*	Ser469*	SNP	Stop gained	TCA	TGA	TGA	snp	SNV:2052687:C>G
+MTB_anc	intergenic	2059089	C	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2059089:C>A
+MTB_anc	PE_PGRS33_Rv1818c	2061958	G	A	Ala239Ala	Ala239Ala	Ala239Ala	Ala239Ala	SNP	Synonymous	GGC	AGC	AGC	snp	SNV:2061958:G>A
+MTB_anc	PE_PGRS33_Rv1818c	2061974	C	A	Gly234Val	Gly234Val	Gly234Val	Gly234Val	SNP	Non-synonymous	GCC	GAC	GAC	snp	SNV:2061974:C>A
+MTB_anc	bacA_Rv1819c	2062922	C	T	Val603Ile	Val603Ile	Val603Ile	Val603Ile	SNP	Non-synonymous	GAC	GAT	GAT	snp	SNV:2062922:C>T
+MTB_anc	gcvH_Rv1826	2072190	C	A	Ala80Glu	Ala80Glu	Ala80Glu	Ala80Glu	SNP	Non-synonymous	GCG	GAG	GAG	snp	SNV:2072190:C>A
+MTB_anc	intergenic	2072429	T	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2072429:T>G
+MTB_anc	intergenic	2074754	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2074754:T>C
+MTB_anc	gcvB_Rv1832	2077218	G	A	Ala448Thr	Ala448Thr	Ala448Thr	Ala448Thr	SNP	Non-synonymous	GCG	ACG	ACG	snp	SNV:2077218:G>A
+MTB_anc	glcB_Rv1837c	2086479	A	G	Val168Ala	Val168Ala	Val168Ala	Val168Ala	SNP	Non-synonymous	CAC	CGC	CGC	snp	SNV:2086479:A>G
+MTB_anc	intergenic	2093715	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2093715:C>T
+MTB_anc	Rv1847_Rv1847	2097144	C	G	Leu90Val	Leu90Val	Leu90Val	Leu90Val	SNP	Non-synonymous	CTG	GTG	GTG	snp	SNV:2097144:C>G
+MTB_anc	ureB_Rv1849	2097740	G	A	Asp32Asn	Asp32Asn	Asp32Asn	Asp32Asn	SNP	Non-synonymous	GAT	AAT	AAT	snp	SNV:2097740:G>A
+MTB_anc	Rv1855c_Rv1855c	2103798	T	G	Ser104Arg	Ser104Arg	Ser104Arg	Ser104Arg	SNP	Non-synonymous	GCT	GCG	GCG	snp	SNV:2103798:T>G
+MTB_anc	intergenic	2108890	C	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2108890:C>A
+MTB_anc	adhA_Rv1862	2110365	C	A	Thr274Thr	Thr274Thr	Thr274Thr	Thr274Thr	SNP	Synonymous	ACC	ACA	ACA	snp	SNV:2110365:C>A
+MTB_anc	Rv1867_Rv1867	2117180	A	G	Thr473Ala	Thr473Ala	Thr473Ala	Thr473Ala	SNP	Non-synonymous	ACG	GCG	GCG	snp	SNV:2117180:A>G
+MTB_anc	Rv1870c_Rv1870c	2120796	A	T	Leu212*	Leu212*	Leu212*	Leu212*	SNP	Stop gained	TAA	TTA	TTA	snp	SNV:2120796:A>T
+MTB_anc	lldD2_Rv1872c	2122625	G	A	Ala176Val	Ala176Val	Ala176Val	Ala176Val	SNP	Non-synonymous	GGC	GAC	GAC	snp	SNV:2122625:G>A
+MTB_anc	lldD2_Rv1872c	2122976	G	C	Ala59Gly	Ala59Gly	Ala59Gly	Ala59Gly	SNP	Non-synonymous	AGC	ACC	ACC	snp	SNV:2122976:G>C
+MTB_anc	lldD2_Rv1872c	2123146	C	T	Ala2Ala	Ala2Ala	Ala2Ala	Ala2Ala	SNP	Synonymous	CGC	TGC	TGC	snp	SNV:2123146:C>T
+MTB_anc	Rv1875_Rv1875	2124568	G	C	Arg63Thr	Arg63Thr	Arg63Thr	Arg63Thr	SNP	Non-synonymous	AGG	ACG	ACG	snp	SNV:2124568:G>C
+MTB_anc	glnA3_Rv1878	2128372	G	A	Thr117Thr	Thr117Thr	Thr117Thr	Thr117Thr	SNP	Synonymous	ACG	ACA	ACA	snp	SNV:2128372:G>A
+MTB_anc	glnA3_Rv1878	2129281	A	C	Ala420Ala	Ala420Ala	Ala420Ala	Ala420Ala	SNP	Synonymous	GCA	GCC	GCC	snp	SNV:2129281:A>C
+MTB_anc	intergenic	2130529	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2130529:G>A
+MTB_anc	fbpB_Rv1886c	2134898	C	A	Ala324Ser	Ala324Ser	Ala324Ser	Ala324Ser	SNP	Non-synonymous	GGC	GGA	GGA	snp	SNV:2134898:C>A
+MTB_anc	intergenic	2135870	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2135870:C>T
+MTB_anc	Rv1893_Rv1893	2140673	T	C	Val63Ala	Val63Ala	Val63Ala	Val63Ala	SNP	Non-synonymous	GTG	GCG	GCG	snp	SNV:2140673:T>C
+MTB_anc	lppD_Rv1899c	2145878	G	A	Pro123Leu	Pro123Leu	Pro123Leu	Pro123Leu	SNP	Non-synonymous	CGG	CAG	CAG	snp	SNV:2145878:G>A
+MTB_anc	lipJ_Rv1900c	2147022	C	A	Met204Ile	Met204Ile	Met204Ile	Met204Ile	SNP	Non-synonymous	CAT	AAT	AAT	snp	SNV:2147022:C>A
+MTB_anc	cinA_Rv1901	2147759	T	G	Leu33Arg	Leu33Arg	Leu33Arg	Leu33Arg	SNP	Non-synonymous	CTC	CGC	CGC	snp	SNV:2147759:T>G
+MTB_anc	katG_Rv1908c	2154724	A	C	Leu463Arg	Leu463Arg	Leu463Arg	Leu463Arg	SNP	Non-synonymous	CAG	CCG	CCG	snp	SNV:2154724:A>C
+MTB_anc	Rv1910c_Rv1910c	2156868	T	G	Gly144Gly	Gly144Gly	Gly144Gly	Gly144Gly	SNP	Synonymous	TCC	GCC	GCC	snp	SNV:2156868:T>G
+MTB_anc	fadB5_Rv1912c	2158109	C	T	Gly328Asp	Gly328Asp	Gly328Asp	Gly328Asp	SNP	Non-synonymous	GCC	GTC	GTC	snp	SNV:2158109:C>T
+MTB_anc	fadB5_Rv1912c	2158563	G	A	His177Tyr	His177Tyr	His177Tyr	His177Tyr	SNP	Non-synonymous	ATG	ATA	ATA	snp	SNV:2158563:G>A
+MTB_anc	aceAa_Rv1915	2160998	A	G	Asp179Gly	Asp179Gly	Asp179Gly	Asp179Gly	SNP	Non-synonymous	GAC	GGC	GGC	snp	SNV:2160998:A>G
+MTB_anc	PPE35_Rv1918c	2167926	G	A	Ser896Leu	Ser896Leu	Ser896Leu	Ser896Leu	SNP	Non-synonymous	CGA	CAA	CAA	snp	SNV:2167926:G>A
+MTB_anc	PPE35_Rv1918c	2168728	C	G	Gly629Arg	Gly629Arg	Gly629Arg	Gly629Arg	SNP	Non-synonymous	GCC	GCG	GCG	snp	SNV:2168728:C>G
+MTB_anc	PPE35_Rv1918c	2170048	G	C	Leu189Val	Leu189Val	Leu189Val	Leu189Val	SNP	Non-synonymous	GAG	GAC	GAC	snp	SNV:2170048:G>C
+MTB_anc	PPE35_Rv1918c	2170053	G	C	Thr187Ser	Thr187Ser	Thr187Ser	Thr187Ser	SNP	Non-synonymous	GGT	GCT	GCT	snp	SNV:2170053:G>C
+MTB_anc	intergenic	2177073	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2177073:C>T
+MTB_anc	Rv1929c_Rv1929c	2181393	T	A	Thr172Ser	Thr172Ser	Thr172Ser	Thr172Ser	SNP	Non-synonymous	CGT	CGA	CGA	snp	SNV:2181393:T>A
+MTB_anc	fadE18_Rv1933c	2184176	G	A	Ala261Val	Ala261Val	Ala261Val	Ala261Val	SNP	Non-synonymous	CGC	CAC	CAC	snp	SNV:2184176:G>A
+MTB_anc	Rv1945_Rv1945	2197176	A	G	Thr396Thr	Thr396Thr	Thr396Thr	Thr396Thr	SNP	Synonymous	ACA	ACG	ACG	snp	SNV:2197176:A>G
+MTB_anc	Rv1948c_Rv1948c	2199052	G	C	Arg5Gly	Arg5Gly	Arg5Gly	Arg5Gly	SNP	Non-synonymous	ACG	ACC	ACC	snp	SNV:2199052:G>C
+MTB_anc	mce3A_Rv1966	2209465	A	G	Thr47Ala	Thr47Ala	Thr47Ala	Thr47Ala	SNP	Non-synonymous	ACG	GCG	GCG	snp	SNV:2209465:A>G
+MTB_anc	mce3B_Rv1967	2211477	G	C	Asp293His	Asp293His	Asp293His	Asp293His	SNP	Non-synonymous	GAC	CAC	CAC	snp	SNV:2211477:G>C
+MTB_anc	mce3C_Rv1968	2211826	G	A	Lys67Lys	Lys67Lys	Lys67Lys	Lys67Lys	SNP	Synonymous	AAG	AAA	AAA	snp	SNV:2211826:G>A
+MTB_anc	Rv1979c_Rv1979c	2222308	C	T	Gly286Asp	Gly286Asp	Gly286Asp	Gly286Asp	SNP	Non-synonymous	GCC	GTC	GTC	snp	SNV:2222308:C>T
+MTB_anc	Rv1985c_Rv1985c	2229801	G	C	Pro34Pro	Pro34Pro	Pro34Pro	Pro34Pro	SNP	Synonymous	GGG	CGG	CGG	snp	SNV:2229801:G>C
+MTB_anc	intergenic	2231486	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2231486:G>A
+MTB_anc	ctpF_Rv1997	2241742	G	A	Pro528Pro	Pro528Pro	Pro528Pro	Pro528Pro	SNP	Synonymous	CCG	CCA	CCA	snp	SNV:2241742:G>A
+MTB_anc	Rv1998c_Rv1998c	2243034	G	T	Arg230Ser	Arg230Ser	Arg230Ser	Arg230Ser	SNP	Non-synonymous	GCG	GCT	GCT	snp	SNV:2243034:G>T
+MTB_anc	Rv2000_Rv2000	2246603	C	T	Ser465Ser	Ser465Ser	Ser465Ser	Ser465Ser	SNP	Synonymous	TCC	TCT	TCT	snp	SNV:2246603:C>T
+MTB_anc	Rv2001_Rv2001	2246960	C	G	Val43Val	Val43Val	Val43Val	Val43Val	SNP	Synonymous	GTC	GTG	GTG	snp	SNV:2246960:C>G
+MTB_anc	fabG3_Rv2002	2247677	C	A	Ile6Ile	Ile6Ile	Ile6Ile	Ile6Ile	SNP	Synonymous	ATC	ATA	ATA	snp	SNV:2247677:C>A
+MTB_anc	intergenic	2260100	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2260100:T>C
+MTB_anc	Rv2036_Rv2036	2282111	G	A	Asp5Asn	Asp5Asn	Asp5Asn	Asp5Asn	SNP	Non-synonymous	GAC	AAC	AAC	snp	SNV:2282111:G>A
+MTB_anc	Rv2036_Rv2036	2282376, 2282377	T, T	C, C	Val93Ala	Val93Ala, Val93Val	Val93Ala	Val93Ala, Val93Val	SNP/MNV	Non-synonymous	GTT	GCT, GTC	GCC	mnv	SNV:2282376:T>C | SNV:2282377:T>C
+MTB_anc	pks12_Rv2048c	2296042	C	G	Ala3649Pro	Ala3649Pro	Ala3649Pro	Ala3649Pro	SNP	Non-synonymous	CGC	CGG	CGG	snp	SNV:2296042:C>G
+MTB_anc	pks12_Rv2048c	2300546	T	A	Gln2147His	Gln2147His	Gln2147His	Gln2147His	SNP	Non-synonymous	TTG	ATG	ATG	snp	SNV:2300546:T>A
+MTB_anc	pks12_Rv2048c	2300552	G	T	Pro2145Pro	Pro2145Pro	Pro2145Pro	Pro2145Pro	SNP	Synonymous	GGG	TGG	TGG	snp	SNV:2300552:G>T
+MTB_anc	pks12_Rv2048c	2300555	G	A	Asp2144Asp	Asp2144Asp	Asp2144Asp	Asp2144Asp	SNP	Synonymous	GTC	ATC	ATC	snp	SNV:2300555:G>A
+MTB_anc	pks12_Rv2048c	2301089	C	T	Leu1966Leu	Leu1966Leu	Leu1966Leu	Leu1966Leu	SNP	Synonymous	CAG	TAG	TAG	snp	SNV:2301089:C>T
+MTB_anc	pks12_Rv2048c	2304139	T	C	Asn950Asp	Asn950Asp	Asn950Asp	Asn950Asp	SNP	Non-synonymous	GTT	GTC	GTC	snp	SNV:2304139:T>C
+MTB_anc	intergenic	2317133	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2317133:G>A
+MTB_anc	intergenic	2317134	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2317134:T>C
+MTB_anc	cobIJ_Rv2066	2324127	C	G	Ala318Gly	Ala318Gly	Ala318Gly	Ala318Gly	SNP	Non-synonymous	GCG	GGG	GGG	snp	SNV:2324127:C>G
+MTB_anc	cobM_Rv2071c	2328543	C	T	Met145Ile	Met145Ile	Met145Ile	Met145Ile	SNP	Non-synonymous	CAT	TAT	TAT	snp	SNV:2328543:C>T
+MTB_anc	cobL_Rv2072c	2329533	G	A	Pro205Leu	Pro205Leu	Pro205Leu	Pro205Leu	SNP	Non-synonymous	GGG	GAG	GAG	snp	SNV:2329533:G>A
+MTB_anc	Rv2075c_Rv2075c	2331620	C	A	Gly420Gly	Gly420Gly	Gly420Gly	Gly420Gly	SNP	Synonymous	CCC	ACC	ACC	snp	SNV:2331620:C>A
+MTB_anc	Rv2075c_Rv2075c	2331789	T	G	Gln364Pro	Gln364Pro	Gln364Pro	Gln364Pro	SNP	Non-synonymous	CTG	CGG	CGG	snp	SNV:2331789:T>G
+MTB_anc	Rv2077c_Rv2077c	2334007	G	A	Ala96Ala	Ala96Ala	Ala96Ala	Ala96Ala	SNP	Synonymous	GGC	AGC	AGC	snp	SNV:2334007:G>A
+MTB_anc	Rv2078_Rv2078	2335075	G	A	Gly6Glu	Gly6Glu	Gly6Glu	Gly6Glu	SNP	Non-synonymous	GGA	GAA	GAA	snp	SNV:2335075:G>A
+MTB_anc	Rv2079_Rv2079	2335494	G	A	Cys47Tyr	Cys47Tyr	Cys47Tyr	Cys47Tyr	SNP	Non-synonymous	TGC	TAC	TAC	snp	SNV:2335494:G>A
+MTB_anc	Rv2082_Rv2082	2339255	G	A	Ala183Thr	Ala183Thr	Ala183Thr	Ala183Thr	SNP	Non-synonymous	GCT	ACT	ACT	snp	SNV:2339255:G>A
+MTB_anc	Rv2083_Rv2083	2341030	A	G	Thr54Ala	Thr54Ala	Thr54Ala	Thr54Ala	SNP	Non-synonymous	ACG	GCG	GCG	snp	SNV:2341030:A>G
+MTB_anc	pknJ_Rv2088	2345037	A	C	Leu209Leu	Leu209Leu	Leu209Leu	Leu209Leu	SNP	Synonymous	CTA	CTC	CTC	snp	SNV:2345037:A>C
+MTB_anc	helZ_Rv2101	2360530	G	A	Val97Val	Val97Val	Val97Val	Val97Val	SNP	Synonymous	GTG	GTA	GTA	snp	SNV:2360530:G>A
+MTB_anc	prcA_Rv2109c	2369186	C	G	Gly182Arg	Gly182Arg	Gly182Arg	Gly182Arg	SNP	Non-synonymous	ACC	ACG	ACG	snp	SNV:2369186:C>G
+MTB_anc	prcA_Rv2109c	2369326	G	C	Pro135Arg	Pro135Arg	Pro135Arg	Pro135Arg	SNP	Non-synonymous	GGG	GCG	GCG	snp	SNV:2369326:G>C
+MTB_anc	dop_Rv2112c	2370996	A	G	Leu525Ser	Leu525Ser	Leu525Ser	Leu525Ser	SNP	Non-synonymous	CAA	CGA	CGA	snp	SNV:2370996:A>G
+MTB_anc	intergenic	2376425	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2376425:G>A
+MTB_anc	intergenic	2379743	G	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2379743:G>C
+MTB_anc	PPE37_Rv2123	2381110	C	T	Pro14Ser	Pro14Ser	Pro14Ser	Pro14Ser	SNP	Non-synonymous	CCG	TCG	TCG	snp	SNV:2381110:C>T
+MTB_anc	ansP1_Rv2127	2388641	A	G	Asp9Gly	Asp9Gly	Asp9Gly	Asp9Gly	SNP	Non-synonymous	GAC	GGC	GGC	snp	SNV:2388641:A>G
+MTB_anc	intergenic	2390299	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2390299:G>A
+MTB_anc	intergenic	2402126	C	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2402126:C>G
+MTB_anc	ftsQ_Rv2151c	2409831	A	T	Leu271Met	Leu271Met	Leu271Met	Leu271Met	SNP	Non-synonymous	CAA	CAT	CAT	snp	SNV:2409831:A>T
+MTB_anc	murG_Rv2153c	2413246	A	C	Leu36Val	Leu36Val	Leu36Val	Leu36Val	SNP	Non-synonymous	CAA	CAC	CAC	snp	SNV:2413246:A>C
+MTB_anc	murE_Rv2158c	2419142	G	A	Val489Val	Val489Val	Val489Val	Val489Val	SNP	Synonymous	GAC	AAC	AAC	snp	SNV:2419142:G>A
+MTB_anc	Rv2160c_Rv2160c	2421816	G	A	Arg155Cys	Arg155Cys	Arg155Cys	Arg155Cys	SNP	Non-synonymous	GCG	GCA	GCA	snp	SNV:2421816:G>A
+MTB_anc	intergenic	2424864	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2424864:G>A
+MTB_anc	pbpB_Rv2163c	2425471	C	T	Arg539Arg	Arg539Arg	Arg539Arg	Arg539Arg	SNP	Synonymous	CCG	TCG	TCG	snp	SNV:2425471:C>T
+MTB_anc	mptA_Rv2174	2437259	T	G	Ser451Ala	Ser451Ala	Ser451Ala	Ser451Ala	SNP	Non-synonymous	TCA	GCA	GCA	snp	SNV:2437259:T>G
+MTB_anc	aroG_Rv2178c	2440926	T	G	Glu265Asp	Glu265Asp	Glu265Asp	Glu265Asp	SNP	Non-synonymous	TTC	GTC	GTC	snp	SNV:2440926:T>G
+MTB_anc	intergenic	2447539	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2447539:G>A
+MTB_anc	fadD15_Rv2187	2449295	A	G	Glu379Gly	Glu379Gly	Glu379Gly	Glu379Gly	SNP	Non-synonymous	GAG	GGG	GGG	snp	SNV:2449295:A>G
+MTB_anc	mmpS3_Rv2198c	2462871	A	G	Ala59Ala	Ala59Ala	Ala59Ala	Ala59Ala	SNP	Synonymous	AGC	GGC	GGC	snp	SNV:2462871:A>G
+MTB_anc	intergenic	2464977	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2464977:G>A
+MTB_anc	intergenic	2470591	C	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2470591:C>A
+MTB_anc	cobT_Rv2207	2471424	C	A	Ala5Glu	Ala5Glu	Ala5Glu	Ala5Glu	SNP	Non-synonymous	GCG	GAG	GAG	snp	SNV:2471424:C>A
+MTB_anc	cobS_Rv2208	2472956	C	T	Ser155Leu	Ser155Leu	Ser155Leu	Ser155Leu	SNP	Non-synonymous	TCG	TTG	TTG	snp	SNV:2472956:C>T
+MTB_anc	cobS_Rv2208	2472993	G	A	Arg167Arg	Arg167Arg	Arg167Arg	Arg167Arg	SNP	Synonymous	CGG	CGA	CGA	snp	SNV:2472993:G>A
+MTB_anc	caeA_Rv2224c	2495500	C	T	Leu508Leu	Leu508Leu	Leu508Leu	Leu508Leu	SNP	Synonymous	CAA	TAA	TAA	snp	SNV:2495500:C>T
+MTB_anc	Rv2226_Rv2226	2499726	A	G	Asn299Asp	Asn299Asp	Asn299Asp	Asn299Asp	SNP	Non-synonymous	AAT	GAT	GAT	snp	SNV:2499726:A>G
+MTB_anc	Rv2229c_Rv2229c	2502982	T	C	His164Arg	His164Arg	His164Arg	His164Arg	SNP	Non-synonymous	GTG	GCG	GCG	snp	SNV:2502982:T>C
+MTB_anc	ptpA_Rv2234	2507254	G	A	Ala37Thr	Ala37Thr	Ala37Thr	Ala37Thr	SNP	Non-synonymous	GCG	ACG	ACG	snp	SNV:2507254:G>A
+MTB_anc	cobD_Rv2236c	2509140	C	G	Cys79Ser	Cys79Ser	Cys79Ser	Cys79Ser	SNP	Non-synonymous	GCA	GGA	GGA	snp	SNV:2509140:C>G
+MTB_anc	Rv2240c_Rv2240c	2511712	T	G	Lys190Thr	Lys190Thr	Lys190Thr	Lys190Thr	SNP	Non-synonymous	TTT	TGT	TGT	snp	SNV:2511712:T>G
+MTB_anc	intergenic	2516567	C	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2516567:C>G
+MTB_anc	kasA_Rv2245	2518132	T	C	Thr6Thr	Thr6Thr	Thr6Thr	Thr6Thr	SNP	Synonymous	ACT	ACC	ACC	snp	SNV:2518132:T>C
+MTB_anc	Rv2251_Rv2251	2526974	C	T	Pro470Pro	Pro470Pro	Pro470Pro	Pro470Pro	SNP	Synonymous	CCC	CCT	CCT	snp	SNV:2526974:C>T
+MTB_anc	Rv2256c_Rv2256c	2529680	G	A	Thr65Thr	Thr65Thr	Thr65Thr	Thr65Thr	SNP	Synonymous	GGT	AGT	AGT	snp	SNV:2529680:G>A
+MTB_anc	Rv2258c_Rv2258c	2531742	G	A	Ala52Ala	Ala52Ala	Ala52Ala	Ala52Ala	SNP	Synonymous	GGC	AGC	AGC	snp	SNV:2531742:G>A
+MTB_anc	Rv2267c_Rv2267c	2542717	G	A	Leu32Phe	Leu32Phe	Leu32Phe	Leu32Phe	SNP	Non-synonymous	AAG	AAA	AAA	snp	SNV:2542717:G>A
+MTB_anc	cyp121_Rv2276	2548867	G	A	Val373Val	Val373Val	Val373Val	Val373Val	SNP	Synonymous	GTG	GTA	GTA	snp	SNV:2548867:G>A
+MTB_anc	lppO_Rv2290	2562783	C	T	Ala62Val	Ala62Val	Ala62Val	Ala62Val	SNP	Non-synonymous	GCG	GTG	GTG	snp	SNV:2562783:C>T
+MTB_anc	intergenic	2566768	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2566768:G>A
+MTB_anc	intergenic	2573756	A	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2573756:A>C
+MTB_anc	Rv2306A_Rv2306A	2577246	G	A	Val47Ile	Val47Ile	Val47Ile	Val47Ile	SNP	Non-synonymous	GTC	ATC	ATC	snp	SNV:2577246:G>A
+MTB_anc	Rv2307c_Rv2307c	2578626	G	A	Thr24Met	Thr24Met	Thr24Met	Thr24Met	SNP	Non-synonymous	CGT	CAT	CAT	snp	SNV:2578626:G>A
+MTB_anc	Rv2308_Rv2308	2581109	A	C	Arg231Arg	Arg231Arg	Arg231Arg	Arg231Arg	SNP	Synonymous	AGG	CGG	CGG	snp	SNV:2581109:A>C
+MTB_anc	uspA_Rv2316	2589216	C	G	Leu127Val	Leu127Val	Leu127Val	Leu127Val	SNP	Non-synonymous	CTG	GTG	GTG	snp	SNV:2589216:C>G
+MTB_anc	Rv2326c_Rv2326c	2598400	G	A	Asn516Asn	Asn516Asn	Asn516Asn	Asn516Asn	SNP	Synonymous	GTT	ATT	ATT	snp	SNV:2598400:G>A
+MTB_anc	narK1_Rv2329c	2602078	C	A	Ala462Ser	Ala462Ser	Ala462Ser	Ala462Ser	SNP	Non-synonymous	GGC	GGA	GGA	snp	SNV:2602078:C>A
+MTB_anc	mez_Rv2332	2605293	T	G	Asp62Glu	Asp62Glu	Asp62Glu	Asp62Glu	SNP	Non-synonymous	GAT	GAG	GAG	snp	SNV:2605293:T>G
+MTB_anc	stp_Rv2333c	2608117	A	C	Tyr69Asp	Tyr69Asp	Tyr69Asp	Tyr69Asp	SNP	Non-synonymous	GTA	GTC	GTC	snp	SNV:2608117:A>C
+MTB_anc	intergenic	2608488	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2608488:C>T
+MTB_anc	intergenic	2619271	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2619271:C>T
+MTB_anc	esxO_Rv2346c	2625924	C	T	Ala83Ala	Ala83Ala	Ala83Ala	Ala83Ala	SNP	Synonymous	CGC	TGC	TGC	snp	SNV:2625924:C>T
+MTB_anc	esxO_Rv2346c	2626011	G	A	Ile54Ile	Ile54Ile	Ile54Ile	Ile54Ile	SNP	Synonymous	GAT	AAT	AAT	snp	SNV:2626011:G>A
+MTB_anc	esxO_Rv2346c	2626108	G	C	Ala22Gly	Ala22Gly	Ala22Gly	Ala22Gly	SNP	Non-synonymous	CGC	CCC	CCC	snp	SNV:2626108:G>C
+MTB_anc	intergenic	2626189	A	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2626189:A>C
+MTB_anc	intergenic	2626191	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2626191:T>C
+MTB_anc	Rv2348c_Rv2348c	2626857	A	G	Tyr42His	Tyr42His	Tyr42His	Tyr42His	SNP	Non-synonymous	ATA	ATG	ATG	snp	SNV:2626857:A>G
+MTB_anc	plcA_Rv2351c	2631641	G	T	Pro145Pro	Pro145Pro	Pro145Pro	Pro145Pro	SNP	Synonymous	GGG	TGG	TGG	snp	SNV:2631641:G>T
+MTB_anc	intergenic	2632500	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2632500:G>A
+MTB_anc	PPE39_Rv2353c	2635309	A	C	Ile95Ser	Ile95Ser	Ile95Ser	Ile95Ser	SNP	Non-synonymous	GAT	GCT	GCT	snp	SNV:2635309:A>C
+MTB_anc	PPE39_Rv2353c	2635577	C	T	Gly6Arg	Gly6Arg	Gly6Arg	Gly6Arg	SNP	Non-synonymous	TCC	TCT	TCT	snp	SNV:2635577:C>T
+MTB_anc	intergenic	2637541	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2637541:T>C
+MTB_anc	intergenic	2637687	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2637687:A>G
+MTB_anc	zur_Rv2359	2641840	G	A	Arg64His	Arg64His	Arg64His	Arg64His	SNP	Non-synonymous	CGC	CAC	CAC	snp	SNV:2641840:G>A
+MTB_anc	Rv2360c_Rv2360c	2642383	T	C	Thr66Ala	Thr66Ala	Thr66Ala	Thr66Ala	SNP	Non-synonymous	GGT	GGC	GGC	snp	SNV:2642383:T>C
+MTB_anc	Rv2370c_Rv2370c	2650964	A	C	Ser199Ala	Ser199Ala	Ser199Ala	Ser199Ala	SNP	Non-synonymous	GGA	GGC	GGC	snp	SNV:2650964:A>C
+MTB_anc	mbtF_Rv2379c	2660319	G	C	Asp589Glu	Asp589Glu	Asp589Glu	Asp589Glu	SNP	Non-synonymous	GTC	CTC	CTC	snp	SNV:2660319:G>C
+MTB_anc	Rv2386a_Rv2386a	2680658	G	T	Thr67Thr	Thr67Thr	Thr67Thr	Thr67Thr	SNP	Synonymous	ACG	ACT	ACT	snp	SNV:2680658:G>T
+MTB_anc	Rv2395_Rv2395	2691440	G	A	Gly457Arg	Gly457Arg	Gly457Arg	Gly457Arg	SNP	Non-synonymous	GGG	AGG	AGG	snp	SNV:2691440:G>A
+MTB_anc	Rv2395_Rv2395	2691713	C	T	Pro548Ser	Pro548Ser	Pro548Ser	Pro548Ser	SNP	Non-synonymous	CCG	TCG	TCG	snp	SNV:2691713:C>T
+MTB_anc	cysW_Rv2398c	2695378	G	C	Ala141Gly	Ala141Gly	Ala141Gly	Ala141Gly	SNP	Non-synonymous	GGC	GCC	GCC	snp	SNV:2695378:G>C
+MTB_anc	Rv2411c_Rv2411c	2709795	G	A	Ala57Ala	Ala57Ala	Ala57Ala	Ala57Ala	SNP	Synonymous	GGC	AGC	AGC	snp	SNV:2709795:G>A
+MTB_anc	Rv2415c_Rv2415c	2712913	A	C	Leu291Arg	Leu291Arg	Leu291Arg	Leu291Arg	SNP	Non-synonymous	CAG	CCG	CCG	snp	SNV:2712913:A>C
+MTB_anc	intergenic	2713795	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2713795:T>C
+MTB_anc	Rv2423_Rv2423	2719816	G	A	Gly74Ser	Gly74Ser	Gly74Ser	Gly74Ser	SNP	Non-synonymous	GGT	AGT	AGT	snp	SNV:2719816:G>A
+MTB_anc	Rv2426c_Rv2426c	2723506	C	T	Leu226Leu	Leu226Leu	Leu226Leu	Leu226Leu	SNP	Synonymous	CAA	TAA	TAA	snp	SNV:2723506:C>T
+MTB_anc	intergenic	2740693	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2740693:C>T
+MTB_anc	intergenic	2751626	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2751626:A>G
+MTB_anc	intergenic	2751627	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2751627:C>T
+MTB_anc	tig_Rv2462c	2764939	A	G	Leu118Pro	Leu118Pro	Leu118Pro	Leu118Pro	SNP	Non-synonymous	GAG	GGG	GGG	snp	SNV:2764939:A>G
+MTB_anc	pepN_Rv2467	2769957	C	T	Phe324Phe	Phe324Phe	Phe324Phe	Phe324Phe	SNP	Synonymous	TTC	TTT	TTT	snp	SNV:2769957:C>T
+MTB_anc	Rv2468A_Rv2468A	2772238	T	C	Thr32Ala	Thr32Ala	Thr32Ala	Thr32Ala	SNP	Non-synonymous	GGT	GGC	GGC	snp	SNV:2772238:T>C
+MTB_anc	gdh_Rv2476c	2778956	G	A	Leu1103Leu	Leu1103Leu	Leu1103Leu	Leu1103Leu	SNP	Synonymous	CAG	CAA	CAA	snp	SNV:2778956:G>A
+MTB_anc	plsC_Rv2483c	2790458	C	A	Gly189Cys	Gly189Cys	Gly189Cys	Gly189Cys	SNP	Non-synonymous	ACC	ACA	ACA	snp	SNV:2790458:C>A
+MTB_anc	Rv2484c_Rv2484c	2791098	T	C	Asp466Gly	Asp466Gly	Asp466Gly	Asp466Gly	SNP	Non-synonymous	ATC	ACC	ACC	snp	SNV:2791098:T>C
+MTB_anc	Rv2484c_Rv2484c	2791475	G	A	Ala340Ala	Ala340Ala	Ala340Ala	Ala340Ala	SNP	Synonymous	GGC	AGC	AGC	snp	SNV:2791475:G>A
+MTB_anc	echA14_Rv2486	2794776	G	T	Gly143Cys	Gly143Cys	Gly143Cys	Gly143Cys	SNP	Non-synonymous	GGC	TGC	TGC	snp	SNV:2794776:G>T
+MTB_anc	Rv2492_Rv2492	2807486	A	C	Asp70Ala	Asp70Ala	Asp70Ala	Asp70Ala	SNP	Non-synonymous	GAC	GCC	GCC	snp	SNV:2807486:A>C
+MTB_anc	bkdC_Rv2495c	2809250	C	T	Leu230Leu	Leu230Leu	Leu230Leu	Leu230Leu	SNP	Synonymous	CAA	TAA	TAA	snp	SNV:2809250:C>T
+MTB_anc	fadD35_Rv2505c	2821342	T	C	Ala85Ala	Ala85Ala	Ala85Ala	Ala85Ala	SNP	Synonymous	TGC	CGC	CGC	snp	SNV:2821342:T>C
+MTB_anc	Rv2509_Rv2509	2825466	A	G	Lys263Lys	Lys263Lys	Lys263Lys	Lys263Lys	SNP	Synonymous	AAA	AAG	AAG	snp	SNV:2825466:A>G
+MTB_anc	fas_Rv2524c	2847281	G	A	Asp684Asp	Asp684Asp	Asp684Asp	Asp684Asp	SNP	Synonymous	GTC	ATC	ATC	snp	SNV:2847281:G>A
+MTB_anc	nusB_Rv2533c	2858669	T	G	Asp19Ala	Asp19Ala	Asp19Ala	Asp19Ala	SNP	Non-synonymous	GTC	GGC	GGC	snp	SNV:2858669:T>G
+MTB_anc	Rv2542_Rv2542	2865882	C	T	Val251Val	Val251Val	Val251Val	Val251Val	SNP	Synonymous	GTC	GTT	GTT	snp	SNV:2865882:C>T
+MTB_anc	vapB19_Rv2547	2868793	C	T	Thr63Ile	Thr63Ile	Thr63Ile	Thr63Ile	SNP	Non-synonymous	ACC	ATC	ATC	snp	SNV:2868793:C>T
+MTB_anc	intergenic	2870386	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2870386:T>C
+MTB_anc	intergenic	2870387	G	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2870387:G>C
+MTB_anc	alaS_Rv2555c	2875451	G	A	Pro345Pro	Pro345Pro	Pro345Pro	Pro345Pro	SNP	Synonymous	GGG	AGG	AGG	snp	SNV:2875451:G>A
+MTB_anc	Rv2556c_Rv2556c	2876754	G	A	Ala71Val	Ala71Val	Ala71Val	Ala71Val	SNP	Non-synonymous	CGC	CAC	CAC	snp	SNV:2876754:G>A
+MTB_anc	Rv2559c_Rv2559c	2878980	T	C	Asp317Gly	Asp317Gly	Asp317Gly	Asp317Gly	SNP	Non-synonymous	GTC	GCC	GCC	snp	SNV:2878980:T>C
+MTB_anc	glnQ_Rv2564	2884094	C	G	Ser251Ser	Ser251Ser	Ser251Ser	Ser251Ser	SNP	Synonymous	TCC	TCG	TCG	snp	SNV:2884094:C>G
+MTB_anc	intergenic	2884398	C	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2884398:C>G
+MTB_anc	Rv2566_Rv2566	2886570	G	A	Glu66Glu	Glu66Glu	Glu66Glu	Glu66Glu	SNP	Synonymous	GAG	GAA	GAA	snp	SNV:2886570:G>A
+MTB_anc	Rv2566_Rv2566	2888201	C	T	Pro610Leu	Pro610Leu	Pro610Leu	Pro610Leu	SNP	Non-synonymous	CCC	CTC	CTC	snp	SNV:2888201:C>T
+MTB_anc	Rv2566_Rv2566	2888949	G	A	Arg859Arg	Arg859Arg	Arg859Arg	Arg859Arg	SNP	Synonymous	CGG	CGA	CGA	snp	SNV:2888949:G>A
+MTB_anc	intergenic	2897871	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2897871:G>A
+MTB_anc	Rv2599_Rv2599	2927511	T	G	Ile12Ser	Ile12Ser	Ile12Ser	Ile12Ser	SNP	Non-synonymous	ATC	AGC	AGC	snp	SNV:2927511:T>G
+MTB_anc	thrS_Rv2614c	2941852	C	T	Glu472Glu	Glu472Glu	Glu472Glu	Glu472Glu	SNP	Synonymous	CTC	TTC	TTC	snp	SNV:2941852:C>T
+MTB_anc	PE_PGRS45_Rv2615c	2944932	T	C	Ala18Ala	Ala18Ala	Ala18Ala	Ala18Ala	SNP	Synonymous	TGC	CGC	CGC	snp	SNV:2944932:T>C
+MTB_anc	intergenic	2945042	C	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2945042:C>G
+MTB_anc	intergenic	2953307	T	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2953307:T>G
+MTB_anc	Rv2628_Rv2628	2955061	T	C	Ser2Pro	Ser2Pro	Ser2Pro	Ser2Pro	SNP	Non-synonymous	TCC	CCC	CCC	snp	SNV:2955061:T>C
+MTB_anc	Rv2628_Rv2628	2955233	T	C	Leu59Ser	Leu59Ser	Leu59Ser	Leu59Ser	SNP	Non-synonymous	TTG	TCG	TCG	snp	SNV:2955233:T>C
+MTB_anc	intergenic	2959324	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2959324:G>A
+MTB_anc	PE_PGRS46_Rv2634c	2962119	G	C	Pro108Arg	Pro108Arg	Pro108Arg	Pro108Arg	SNP	Non-synonymous	GGG	GCG	GCG	snp	SNV:2962119:G>C
+MTB_anc	intergenic	2970018	G	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:2970018:G>T
+MTB_anc	Rv2650c_Rv2650c	2975227	G	T	Thr3Asn	Thr3Asn	Thr3Asn	Thr3Asn	SNP	Non-synonymous	AGT	ATT	ATT	snp	SNV:2975227:G>T
+MTB_anc	Rv2653c_Rv2653c	2976616	C	G	Gln98His	Gln98His	Gln98His	Gln98His	SNP	Non-synonymous	CTG	GTG	GTG	snp	SNV:2976616:C>G
+MTB_anc	Rv2660c_Rv2660c	2980970	C	A	Cys74Phe	Cys74Phe	Cys74Phe	Cys74Phe	SNP	Non-synonymous	ACA	AAA	AAA	snp	SNV:2980970:C>A
+MTB_anc	Rv2668_Rv2668	2985216	A	G	Lys162Glu	Lys162Glu	Lys162Glu	Lys162Glu	SNP	Non-synonymous	AAG	GAG	GAG	snp	SNV:2985216:A>G
+MTB_anc	Rv2672_Rv2672	2988630	G	C	Asp317His	Asp317His	Asp317His	Asp317His	SNP	Non-synonymous	GAT	CAT	CAT	snp	SNV:2988630:G>C
+MTB_anc	hemE_Rv2678c	2994187	C	T	Leu292Leu	Leu292Leu	Leu292Leu	Leu292Leu	SNP	Synonymous	CAA	TAA	TAA	snp	SNV:2994187:C>T
+MTB_anc	Rv2683_Rv2683	3000362	C	T	Ser84Leu	Ser84Leu	Ser84Leu	Ser84Leu	SNP	Non-synonymous	TCA	TTA	TTA	snp	SNV:3000362:C>T
+MTB_anc	arsB1_Rv2685	3003115	G	C	Gly378Ala	Gly378Ala	Gly378Ala	Gly378Ala	SNP	Non-synonymous	GGA	GCA	GCA	snp	SNV:3003115:G>C
+MTB_anc	Rv2688c_Rv2688c	3005185	T	G	Thr156Pro	Thr156Pro	Thr156Pro	Thr156Pro	SNP	Non-synonymous	GGT	GGG	GGG	snp	SNV:3005185:T>G
+MTB_anc	intergenic	3005789	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3005789:T>C
+MTB_anc	Rv2689c_Rv2689c	3006898	A	G	Tyr55Tyr	Tyr55Tyr	Tyr55Tyr	Tyr55Tyr	SNP	Synonymous	ATA	GTA	GTA	snp	SNV:3006898:A>G
+MTB_anc	Rv2690c_Rv2690c	3007238	G	A	Arg658*	Arg658*	Arg658*	Arg658*	SNP	Stop gained	TCG	TCA	TCA	snp	SNV:3007238:G>A
+MTB_anc	ceoB_Rv2691	3009692	G	A	Ala117Thr	Ala117Thr	Ala117Thr	Ala117Thr	SNP	Non-synonymous	GCC	ACC	ACC	snp	SNV:3009692:G>A
+MTB_anc	ppgK_Rv2702	3017134	G	T	Ala93Ser	Ala93Ser	Ala93Ser	Ala93Ser	SNP	Non-synonymous	GCG	TCG	TCG	snp	SNV:3017134:G>T
+MTB_anc	Rv2709_Rv2709	3021957	C	T	Ser40Leu	Ser40Leu	Ser40Leu	Ser40Leu	SNP	Non-synonymous	TCG	TTG	TTG	snp	SNV:3021957:C>T
+MTB_anc	Rv2714_Rv2714	3027606	G	C	Trp181Ser	Trp181Ser	Trp181Ser	Trp181Ser	SNP	Non-synonymous	TGG	TCG	TCG	snp	SNV:3027606:G>C
+MTB_anc	Rv2719c_Rv2719c	3031168	G	A	His124Tyr	His124Tyr	His124Tyr	His124Tyr	SNP	Non-synonymous	ATG	ATA	ATA	snp	SNV:3031168:G>A
+MTB_anc	intergenic	3037377	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3037377:C>T
+MTB_anc	Rv2729c_Rv2729c	3041871	T	G	Glu202Ala	Glu202Ala	Glu202Ala	Glu202Ala	SNP	Non-synonymous	CTC	CGC	CGC	snp	SNV:3041871:T>G
+MTB_anc	PE_PGRS47_Rv2741	3054081	G	A	Gly56Gly	Gly56Gly	Gly56Gly	Gly56Gly	SNP	Synonymous	GGG	GGA	GGA	snp	SNV:3054081:G>A
+MTB_anc	PE_PGRS47_Rv2741	3055062	A	C	Gly383Gly	Gly383Gly	Gly383Gly	Gly383Gly	SNP	Synonymous	GGA	GGC	GGC	snp	SNV:3055062:A>C
+MTB_anc	hsdM_Rv2756c	3069167	G	A	Pro306Leu	Pro306Leu	Pro306Leu	Pro306Leu	SNP	Non-synonymous	CGG	CAG	CAG	snp	SNV:3069167:G>A
+MTB_anc	hsdM_Rv2756c	3069805	C	G	Val93Val	Val93Val	Val93Val	Val93Val	SNP	Synonymous	CAC	GAC	GAC	snp	SNV:3069805:C>G
+MTB_anc	hsdS_Rv2761c	3071621	T	C	Ala340Ala	Ala340Ala	Ala340Ala	Ala340Ala	SNP	Synonymous	TGC	CGC	CGC	snp	SNV:3071621:T>C
+MTB_anc	Rv2765_Rv2765	3074873	G	C	Gly80Arg	Gly80Arg	Gly80Arg	Gly80Arg	SNP	Non-synonymous	GGC	CGC	CGC	snp	SNV:3074873:G>C
+MTB_anc	PE27_Rv2769c	3078178	T	C	Met270Val	Met270Val	Met270Val	Met270Val	SNP	Non-synonymous	CAT	CAC	CAC	snp	SNV:3078178:T>C
+MTB_anc	PE27_Rv2769c	3078826	A	G	Ser54Pro	Ser54Pro	Ser54Pro	Ser54Pro	SNP	Non-synonymous	CGA	CGG	CGG	snp	SNV:3078826:A>G
+MTB_anc	PPE44_Rv2770c	3079877	G	A	Ser194Phe	Ser194Phe	Ser194Phe	Ser194Phe	SNP	Non-synonymous	GGA	GAA	GAA	snp	SNV:3079877:G>A
+MTB_anc	intergenic	3086788	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3086788:C>T
+MTB_anc	Rv2781c_Rv2781c	3088625	G	A	Val120Val	Val120Val	Val120Val	Val120Val	SNP	Synonymous	GAC	AAC	AAC	snp	SNV:3088625:G>A
+MTB_anc	intergenic	3102207	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3102207:G>A
+MTB_anc	intergenic	3102209	C	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3102209:C>A
+MTB_anc	Rv2795c_Rv2795c	3104189	G	A	Cys241Cys	Cys241Cys	Cys241Cys	Cys241Cys	SNP	Synonymous	GCA	ACA	ACA	snp	SNV:3104189:G>A
+MTB_anc	lppV_Rv2796c	3105144	A	C	Phe159Cys	Phe159Cys	Phe159Cys	Phe159Cys	SNP	Non-synonymous	GAA	GCA	GCA	snp	SNV:3105144:A>C
+MTB_anc	Rv2807_Rv2807	3113872	T	A	Val72Glu	Val72Glu	Val72Glu	Val72Glu	SNP	Non-synonymous	GTG	GAG	GAG	snp	SNV:3113872:T>A
+MTB_anc	intergenic	3119513	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3119513:T>C
+MTB_anc	intergenic	3122943	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3122943:A>G
+MTB_anc	intergenic	3122949	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3122949:C>T
+MTB_anc	intergenic	3122951	T	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3122951:T>A
+MTB_anc	Rv2823c_Rv2823c	3131473	C	A	Asp101Tyr	Asp101Tyr	Asp101Tyr	Asp101Tyr	SNP	Non-synonymous	GTC	GTA	GTA	snp	SNV:3131473:C>A
+MTB_anc	Rv2825c_Rv2825c	3133054, 3133055	G, C	C, G	Cys162Ser	Cys162Trp, Cys162Ser	Cys162Ser	Cys162Trp, Cys162Ser	SNP/MNV	Non-synonymous	GCA	CCA, GGA	CGA	mnv	SNV:3133054:G>C | SNV:3133055:C>G
+MTB_anc	Rv2825c_Rv2825c	3133536	C	T	Glu2Lys	Glu2Lys	Glu2Lys	Glu2Lys	SNP	Non-synonymous	TTC	TTT	TTT	snp	SNV:3133536:C>T
+MTB_anc	intergenic	3137237	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3137237:C>T
+MTB_anc	proS_Rv2845c	3151649	G	A	Thr434Thr	Thr434Thr	Thr434Thr	Thr434Thr	SNP	Synonymous	GGT	AGT	AGT	snp	SNV:3151649:G>A
+MTB_anc	Rv2857c_Rv2857c	3168967	C	A	Val131Val	Val131Val	Val131Val	Val131Val	SNP	Synonymous	CAC	AAC	AAC	snp	SNV:3168967:C>A
+MTB_anc	Rv2862c_Rv2862c	3174496	G	A	Arg50Cys	Arg50Cys	Arg50Cys	Arg50Cys	SNP	Non-synonymous	ACG	ACA	ACA	snp	SNV:3174496:G>A
+MTB_anc	rip_Rv2869c	3180988	A	C	Phe259Val	Phe259Val	Phe259Val	Phe259Val	SNP	Non-synonymous	GAA	GAC	GAC	snp	SNV:3180988:A>C
+MTB_anc	merT_Rv2877c	3188769	G	A	His35Tyr	His35Tyr	His35Tyr	His35Tyr	SNP	Non-synonymous	ATG	ATA	ATA	snp	SNV:3188769:G>A
+MTB_anc	mpt53_Rv2878c	3189242	G	A	Ala52Ala	Ala52Ala	Ala52Ala	Ala52Ala	SNP	Synonymous	GGC	AGC	AGC	snp	SNV:3189242:G>A
+MTB_anc	intergenic	3189580	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3189580:C>T
+MTB_anc	cdsA_Rv2881c	3190721	C	T	Val301Ile	Val301Ile	Val301Ile	Val301Ile	SNP	Non-synonymous	GAC	GAT	GAT	snp	SNV:3190721:C>T
+MTB_anc	Rv2886c_Rv2886c	3195731	C	T	Val234Val	Val234Val	Val234Val	Val234Val	SNP	Synonymous	CAC	TAC	TAC	snp	SNV:3195731:C>T
+MTB_anc	Rv2891_Rv2891	3200304	G	A	Val13Val	Val13Val	Val13Val	Val13Val	SNP	Synonymous	GTG	GTA	GTA	snp	SNV:3200304:G>A
+MTB_anc	viuB_Rv2895c	3205213	T	C	His7Arg	His7Arg	His7Arg	His7Arg	SNP	Non-synonymous	GTG	GCG	GCG	snp	SNV:3205213:T>C
+MTB_anc	intergenic	3232759	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3232759:G>A
+MTB_anc	fadD26_Rv2930	3244414	G	A	Val240Met	Val240Met	Val240Met	Val240Met	SNP	Non-synonymous	GTG	ATG	ATG	snp	SNV:3244414:G>A
+MTB_anc	ppsA_Rv2931	3245892	C	T	Pro150Ser	Pro150Ser	Pro150Ser	Pro150Ser	SNP	Non-synonymous	CCC	TCC	TCC	snp	SNV:3245892:C>T
+MTB_anc	ppsA_Rv2931	3247874	G	A	Arg810Arg	Arg810Arg	Arg810Arg	Arg810Arg	SNP	Synonymous	CGG	CGA	CGA	snp	SNV:3247874:G>A
+MTB_anc	ppsB_Rv2932	3252796	T	C	Gly575Gly	Gly575Gly	Gly575Gly	Gly575Gly	SNP	Synonymous	GGT	GGC	GGC	snp	SNV:3252796:T>C
+MTB_anc	ppsB_Rv2932	3254880	T	G	Leu1270Arg	Leu1270Arg	Leu1270Arg	Leu1270Arg	SNP	Non-synonymous	CTG	CGG	CGG	snp	SNV:3254880:T>G
+MTB_anc	ppsC_Rv2933	3256494	G	A	Gly270Gly	Gly270Gly	Gly270Gly	Gly270Gly	SNP	Synonymous	GGG	GGA	GGA	snp	SNV:3256494:G>A
+MTB_anc	ppsD_Rv2934	3266030	G	A	Ser1261Ser	Ser1261Ser	Ser1261Ser	Ser1261Ser	SNP	Synonymous	TCG	TCA	TCA	snp	SNV:3266030:G>A
+MTB_anc	drrA_Rv2936	3273138	G	C	Asp309His	Asp309His	Asp309His	Asp309His	SNP	Non-synonymous	GAC	CAC	CAC	snp	SNV:3273138:G>C
+MTB_anc	pks1_Rv2946c	3292720	T	C	Lys1212Glu	Lys1212Glu	Lys1212Glu	Lys1212Glu	SNP	Non-synonymous	CTT	CTC	CTC	snp	SNV:3292720:T>C
+MTB_anc	pks1_Rv2946c	3293677	G	C	Leu893Val	Leu893Val	Leu893Val	Leu893Val	SNP	Non-synonymous	TAG	TAC	TAC	snp	SNV:3293677:G>C
+MTB_anc	pks15_Rv2947c	3296721	G	C	Arg374Gly	Arg374Gly	Arg374Gly	Arg374Gly	SNP	Non-synonymous	ACG	ACC	ACC	snp	SNV:3296721:G>C
+MTB_anc	fadD29_Rv2950c	3301421	C	T	Leu345Leu	Leu345Leu	Leu345Leu	Leu345Leu	SNP	Synonymous	CAG	TAG	TAG	snp	SNV:3301421:C>T
+MTB_anc	intergenic	3302683	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3302683:T>C
+MTB_anc	Rv2958c_Rv2958c	3311119	C	G	Val294Val	Val294Val	Val294Val	Val294Val	SNP	Synonymous	CAC	GAC	GAC	snp	SNV:3311119:C>G
+MTB_anc	Rv2962c_Rv2962c	3314412	G	A	Ala237Ala	Ala237Ala	Ala237Ala	Ala237Ala	SNP	Synonymous	GGC	AGC	AGC	snp	SNV:3314412:G>A
+MTB_anc	Rv2971_Rv2971	3326554	C	A	His152Asn	His152Asn	His152Asn	His152Asn	SNP	Non-synonymous	CAC	AAC	AAC	snp	SNV:3326554:C>A
+MTB_anc	Rv2979c_Rv2979c	3335708	C	G	Arg14Pro	Arg14Pro	Arg14Pro	Arg14Pro	SNP	Non-synonymous	CCG	CGG	CGG	snp	SNV:3335708:C>G
+MTB_anc	ddlA_Rv2981c	3336825	C	T	Ala365Thr	Ala365Thr	Ala365Thr	Ala365Thr	SNP	Non-synonymous	TGC	TGT	TGT	snp	SNV:3336825:C>T
+MTB_anc	leuD_Rv2987c	3344192	T	G	Ala146Ala	Ala146Ala	Ala146Ala	Ala146Ala	SNP	Synonymous	TGC	GGC	GGC	snp	SNV:3344192:T>G
+MTB_anc	leuC_Rv2988c	3345230	G	A	Thr282Thr	Thr282Thr	Thr282Thr	Thr282Thr	SNP	Synonymous	GGT	AGT	AGT	snp	SNV:3345230:G>A
+MTB_anc	leuB_Rv2995c	3352932	G	C	Thr179Thr	Thr179Thr	Thr179Thr	Thr179Thr	SNP	Synonymous	GGT	CGT	CGT	snp	SNV:3352932:G>C
+MTB_anc	intergenic	3369869	T	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3369869:T>G
+MTB_anc	gatA_Rv3011c	3371260	C	T	Val59Ile	Val59Ile	Val59Ile	Val59Ile	SNP	Non-synonymous	GAC	GAT	GAT	snp	SNV:3371260:C>T
+MTB_anc	lpqA_Rv3016	3376122	C	T	Ala122Val	Ala122Val	Ala122Val	Ala122Val	SNP	Non-synonymous	GCC	GTC	GTC	snp	SNV:3376122:C>T
+MTB_anc	iscS_Rv3025c	3383912	G	C	Ala385Ala	Ala385Ala	Ala385Ala	Ala385Ala	SNP	Synonymous	GGC	CGC	CGC	snp	SNV:3383912:G>C
+MTB_anc	Rv3031_Rv3031	3391013	G	A	Arg364Arg	Arg364Arg	Arg364Arg	Arg364Arg	SNP	Synonymous	CGG	CGA	CGA	snp	SNV:3391013:G>A
+MTB_anc	Rv3032_Rv3032	3391863	C	T	Val110Val	Val110Val	Val110Val	Val110Val	SNP	Synonymous	GTC	GTT	GTT	snp	SNV:3391863:C>T
+MTB_anc	serB2_Rv3042c	3402816	T	C	Glu116Gly	Glu116Gly	Glu116Gly	Glu116Gly	SNP	Non-synonymous	TTC	TCC	TCC	snp	SNV:3402816:T>C
+MTB_anc	ctaD_Rv3043c	3404376	G	C	Thr182Thr	Thr182Thr	Thr182Thr	Thr182Thr	SNP	Synonymous	GGT	CGT	CGT	snp	SNV:3404376:G>C
+MTB_anc	intergenic	3415332	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3415332:G>A
+MTB_anc	intergenic	3419467	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3419467:C>T
+MTB_anc	cyp136_Rv3059	3420825	G	A	Gly445Asp	Gly445Asp	Gly445Asp	Gly445Asp	SNP	Non-synonymous	GGC	GAC	GAC	snp	SNV:3420825:G>A
+MTB_anc	Rv3071_Rv3071	3434721	C	A	Val86Val	Val86Val	Val86Val	Val86Val	SNP	Synonymous	GTC	GTA	GTA	snp	SNV:3434721:C>A
+MTB_anc	atsF_Rv3077	3440542	G	A	Gly334Gly	Gly334Gly	Gly334Gly	Gly334Gly	SNP	Synonymous	GGG	GGA	GGA	snp	SNV:3440542:G>A
+MTB_anc	Rv3087_Rv3087	3453123	G	A	Gly67Ser	Gly67Ser	Gly67Ser	Gly67Ser	SNP	Non-synonymous	GGC	AGC	AGC	snp	SNV:3453123:G>A
+MTB_anc	Rv3087_Rv3087	3454263	G	C	Val447Leu	Val447Leu	Val447Leu	Val447Leu	SNP	Non-synonymous	GTC	CTC	CTC	snp	SNV:3454263:G>C
+MTB_anc	tgs4_Rv3088	3455686	C	G	Leu449Leu	Leu449Leu	Leu449Leu	Leu449Leu	SNP	Synonymous	CTC	CTG	CTG	snp	SNV:3455686:C>G
+MTB_anc	intergenic	3457514	C	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3457514:C>G
+MTB_anc	Rv3093c_Rv3093c	3462135	C	G	Trp210Cys	Trp210Cys	Trp210Cys	Trp210Cys	SNP	Non-synonymous	CCA	GCA	GCA	snp	SNV:3462135:C>G
+MTB_anc	intergenic	3463959	A	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3463959:A>C
+MTB_anc	Rv3096_Rv3096	3464629	G	A	Gly28Glu	Gly28Glu	Gly28Glu	Gly28Glu	SNP	Non-synonymous	GGA	GAA	GAA	snp	SNV:3464629:G>A
+MTB_anc	lipY_Rv3097c	3466919	G	C	Ala58Gly	Ala58Gly	Ala58Gly	Ala58Gly	SNP	Non-synonymous	GGC	GCC	GCC	snp	SNV:3466919:G>C
+MTB_anc	Rv3098c_Rv3098c	3467465	G	C	Ala66Ala	Ala66Ala	Ala66Ala	Ala66Ala	SNP	Synonymous	GGC	CGC	CGC	snp	SNV:3467465:G>C
+MTB_anc	prfB_Rv3105c	3473375	G	A	Ser177Phe	Ser177Phe	Ser177Phe	Ser177Phe	SNP	Non-synonymous	GGA	GAA	GAA	snp	SNV:3473375:G>A
+MTB_anc	fprA_Rv3106	3475159	G	A	Asp385Asn	Asp385Asn	Asp385Asn	Asp385Asn	SNP	Non-synonymous	GAT	AAT	AAT	snp	SNV:3475159:G>A
+MTB_anc	Rv3113_Rv3113	3480474	A	G	Glu134Gly	Glu134Gly	Glu134Gly	Glu134Gly	SNP	Non-synonymous	GAA	GGA	GGA	snp	SNV:3480474:A>G
+MTB_anc	Rv3114_Rv3114	3480789	C	T	Pro11Ser	Pro11Ser	Pro11Ser	Pro11Ser	SNP	Non-synonymous	CCA	TCA	TCA	snp	SNV:3480789:C>T
+MTB_anc	PPE49_Rv3125c	3491200	G	C	Ala151Gly	Ala151Gly	Ala151Gly	Ala151Gly	SNP	Non-synonymous	AGC	ACC	ACC	snp	SNV:3491200:G>C
+MTB_anc	PPE49_Rv3125c	3491205	A	G	Asp149Asp	Asp149Asp	Asp149Asp	Asp149Asp	SNP	Synonymous	ATC	GTC	GTC	snp	SNV:3491205:A>G
+MTB_anc	PPE49_Rv3125c	3491225	G	C	Leu143Val	Leu143Val	Leu143Val	Leu143Val	SNP	Non-synonymous	CAG	CAC	CAC	snp	SNV:3491225:G>C
+MTB_anc	PPE49_Rv3125c	3491226	G	A	Tyr142Tyr	Tyr142Tyr	Tyr142Tyr	Tyr142Tyr	SNP	Synonymous	GTA	ATA	ATA	snp	SNV:3491226:G>A
+MTB_anc	PPE50_Rv3135	3501666	C	A	Thr111Thr	Thr111Thr	Thr111Thr	Thr111Thr	SNP	Synonymous	ACC	ACA	ACA	snp	SNV:3501666:C>A
+MTB_anc	PPE50_Rv3135	3501668	C	G	Ala112Gly	Ala112Gly	Ala112Gly	Ala112Gly	SNP	Non-synonymous	GCC	GGC	GGC	snp	SNV:3501668:C>G
+MTB_anc	pflA_Rv3138	3505005	C	A	Pro271Thr	Pro271Thr	Pro271Thr	Pro271Thr	SNP	Non-synonymous	CCC	ACC	ACC	snp	SNV:3505005:C>A
+MTB_anc	pflA_Rv3138	3505027	G	A	Arg278His	Arg278His	Arg278His	Arg278His	SNP	Non-synonymous	CGC	CAC	CAC	snp	SNV:3505027:G>A
+MTB_anc	intergenic	3509091	C	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3509091:C>G
+MTB_anc	PPE52_Rv3144c	3510120	G	T	Gln400Lys	Gln400Lys	Gln400Lys	Gln400Lys	SNP	Non-synonymous	CTG	CTT	CTT	snp	SNV:3510120:G>T
+MTB_anc	nuoG_Rv3151	3518167	G	A	Met474Ile	Met474Ile	Met474Ile	Met474Ile	SNP	Non-synonymous	ATG	ATA	ATA	snp	SNV:3518167:G>A
+MTB_anc	nuoI_Rv3153	3521044	G	A	Ala180Thr	Ala180Thr	Ala180Thr	Ala180Thr	SNP	Non-synonymous	GCG	ACG	ACG	snp	SNV:3521044:G>A
+MTB_anc	PPE53_Rv3159c	3529067	C	G	Gly33Arg	Gly33Arg	Gly33Arg	Gly33Arg	SNP	Non-synonymous	ACC	ACG	ACG	snp	SNV:3529067:C>G
+MTB_anc	Rv3161c_Rv3161c	3530955	G	C	Leu62Val	Leu62Val	Leu62Val	Leu62Val	SNP	Non-synonymous	GAG	GAC	GAC	snp	SNV:3530955:G>C
+MTB_anc	Rv3190c_Rv3190c	3555699	G	A	Ala330Val	Ala330Val	Ala330Val	Ala330Val	SNP	Non-synonymous	CGC	CAC	CAC	snp	SNV:3555699:G>A
+MTB_anc	Rv3190c_Rv3190c	3556275	G	A	Pro138Leu	Pro138Leu	Pro138Leu	Pro138Leu	SNP	Non-synonymous	CGG	CAG	CAG	snp	SNV:3556275:G>A
+MTB_anc	intergenic	3558777	T	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3558777:T>A
+MTB_anc	intergenic	3558778	T	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3558778:T>A
+MTB_anc	Rv3193c_Rv3193c	3560645	T	C	Gln843Arg	Gln843Arg	Gln843Arg	Gln843Arg	SNP	Non-synonymous	CTG	CCG	CCG	snp	SNV:3560645:T>C
+MTB_anc	Rv3193c_Rv3193c	3562225	A	G	Ala316Ala	Ala316Ala	Ala316Ala	Ala316Ala	SNP	Synonymous	AGC	GGC	GGC	snp	SNV:3562225:A>G
+MTB_anc	intergenic	3566943	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3566943:G>A
+MTB_anc	nudC_Rv3199c	3571834	G	T	Pro237Gln	Pro237Gln	Pro237Gln	Pro237Gln	SNP	Non-synonymous	CGG	CTG	CTG	snp	SNV:3571834:G>T
+MTB_anc	Rv3200c_Rv3200c	3573636	C	T	Asp12Asn	Asp12Asn	Asp12Asn	Asp12Asn	SNP	Non-synonymous	GTC	GTT	GTT	snp	SNV:3573636:C>T
+MTB_anc	Rv3202c_Rv3202c	3577958	G	A	Ala748Val	Ala748Val	Ala748Val	Ala748Val	SNP	Non-synonymous	AGC	AAC	AAC	snp	SNV:3577958:G>A
+MTB_anc	Rv3239c_Rv3239c	3614982	C	T	Leu874Leu	Leu874Leu	Leu874Leu	Leu874Leu	SNP	Synonymous	CAG	TAG	TAG	snp	SNV:3614982:C>T
+MTB_anc	intergenic	3621423	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3621423:G>A
+MTB_anc	lpqB_Rv3244c	3624486	C	T	Gly142Asp	Gly142Asp	Gly142Asp	Gly142Asp	SNP	Non-synonymous	ACC	ATC	ATC	snp	SNV:3624486:C>T
+MTB_anc	mtrB_Rv3245c	3625065	G	T	Leu517Met	Leu517Met	Leu517Met	Leu517Met	SNP	Non-synonymous	CAG	CAT	CAT	snp	SNV:3625065:G>T
+MTB_anc	pmmA_Rv3257c	3638093	A	G	Leu206Ser	Leu206Ser	Leu206Ser	Leu206Ser	SNP	Non-synonymous	CAA	CGA	CGA	snp	SNV:3638093:A>G
+MTB_anc	rmlD_Rv3266c	3647041	G	A	Pro257Ser	Pro257Ser	Pro257Ser	Pro257Ser	SNP	Non-synonymous	CGG	CGA	CGA	snp	SNV:3647041:G>A
+MTB_anc	purE_Rv3275c	3658266	G	C	Arg125Gly	Arg125Gly	Arg125Gly	Arg125Gly	SNP	Non-synonymous	ACG	ACC	ACC	snp	SNV:3658266:G>C
+MTB_anc	Rv3289c_Rv3289c	3670040	T	C	Ala124Ala	Ala124Ala	Ala124Ala	Ala124Ala	SNP	Synonymous	TGC	CGC	CGC	snp	SNV:3670040:T>C
+MTB_anc	lhr_Rv3296	3679949	G	A	Glu1059Lys	Glu1059Lys	Glu1059Lys	Glu1059Lys	SNP	Non-synonymous	GAA	AAA	AAA	snp	SNV:3679949:G>A
+MTB_anc	nei_Rv3297	3681548	C	A	Arg77Arg	Arg77Arg	Arg77Arg	Arg77Arg	SNP	Synonymous	CGG	AGG	AGG	snp	SNV:3681548:C>A
+MTB_anc	atsB_Rv3299c	3685141	C	A	Gly275Cys	Gly275Cys	Gly275Cys	Gly275Cys	SNP	Non-synonymous	GCC	GCA	GCA	snp	SNV:3685141:C>A
+MTB_anc	lpdA_Rv3303c	3690016	G	A	Ser308Leu	Ser308Leu	Ser308Leu	Ser308Leu	SNP	Non-synonymous	CGA	CAA	CAA	snp	SNV:3690016:G>A
+MTB_anc	amiB1_Rv3306c	3693681	C	A	Ala103Ala	Ala103Ala	Ala103Ala	Ala103Ala	SNP	Synonymous	CGC	AGC	AGC	snp	SNV:3693681:C>A
+MTB_anc	pmmB_Rv3308	3696181	G	A	Gly440Ser	Gly440Ser	Gly440Ser	Gly440Ser	SNP	Non-synonymous	GGC	AGC	AGC	snp	SNV:3696181:G>A
+MTB_anc	sapM_Rv3310	3697708	G	A	Ala171Thr	Ala171Thr	Ala171Thr	Ala171Thr	SNP	Non-synonymous	GCG	ACG	ACG	snp	SNV:3697708:G>A
+MTB_anc	Rv3329_Rv3329	3714757	C	A	His122Gln	His122Gln	His122Gln	His122Gln	SNP	Non-synonymous	CAC	CAA	CAA	snp	SNV:3714757:C>A
+MTB_anc	PPE54_Rv3343c	3730466	A	G	Ile2157Thr	Ile2157Thr	Ile2157Thr	Ile2157Thr	SNP	Non-synonymous	GAT	GGT	GGT	snp	SNV:3730466:A>G
+MTB_anc	PE_PGRS49_Rv3344c	3737041	G	C	Gly320Gly	Gly320Gly	Gly320Gly	Gly320Gly	SNP	Synonymous	GCC	CCC	CCC	snp	SNV:3737041:G>C
+MTB_anc	intergenic	3743549	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3743549:G>A
+MTB_anc	PPE55_Rv3347c	3744757	G	A	Leu2810Phe	Leu2810Phe	Leu2810Phe	Leu2810Phe	SNP	Non-synonymous	GAG	GAA	GAA	snp	SNV:3744757:G>A
+MTB_anc	PPE55_Rv3347c	3745152	C	G	Gly2678Ala	Gly2678Ala	Gly2678Ala	Gly2678Ala	SNP	Non-synonymous	GCC	GGC	GGC	snp	SNV:3745152:C>G
+MTB_anc	PPE55_Rv3347c	3746536	G	A	Leu2217Leu	Leu2217Leu	Leu2217Leu	Leu2217Leu	SNP	Synonymous	CAG	CAA	CAA	snp	SNV:3746536:G>A
+MTB_anc	PPE55_Rv3347c	3746594	C	G	Ala2197Ala	Ala2197Ala	Ala2197Ala	Ala2197Ala	SNP	Synonymous	CGC	GGC	GGC	snp	SNV:3746594:C>G
+MTB_anc	PPE55_Rv3347c	3746845	C	T	Val2114Ile	Val2114Ile	Val2114Ile	Val2114Ile	SNP	Non-synonymous	GAC	GAT	GAT	snp	SNV:3746845:C>T
+MTB_anc	PPE55_Rv3347c	3747182	A	G	Val2001Val	Val2001Val	Val2001Val	Val2001Val	SNP	Synonymous	AAC	GAC	GAC	snp	SNV:3747182:A>G
+MTB_anc	PPE55_Rv3347c	3749477	G	A	Pro1236Pro	Pro1236Pro	Pro1236Pro	Pro1236Pro	SNP	Synonymous	GGG	AGG	AGG	snp	SNV:3749477:G>A
+MTB_anc	PPE55_Rv3347c	3750177, 3750178	T, C	A, A	Asp1003Phe	Asp1003Val, Asp1003Tyr	Asp1003Phe	Asp1003Val, Asp1003Tyr	SNP/MNV	Non-synonymous	GTC	GAC, GTA	GAA	mnv	SNV:3750177:T>A | SNV:3750178:C>A
+MTB_anc	PPE55_Rv3347c	3750185	G	C	Ser1000Ser	Ser1000Ser	Ser1000Ser	Ser1000Ser	SNP	Synonymous	GGA	CGA	CGA	snp	SNV:3750185:G>C
+MTB_anc	PPE55_Rv3347c	3750205	T	C	Asn994Asp	Asn994Asp	Asn994Asp	Asn994Asp	SNP	Non-synonymous	GTT	GTC	GTC	snp	SNV:3750205:T>C
+MTB_anc	PPE55_Rv3347c	3750209, 3750210	G, G	A, T	Thr992Asn	Thr992Thr, Thr992Asn	Thr992Asn	Thr992Thr, Thr992Asn	SNP/MNV	Non-synonymous	GGT	AGT, GTT	ATT	mnv	SNV:3750209:G>A | SNV:3750210:G>T
+MTB_anc	PPE55_Rv3347c	3750407	C	G	Gly926Gly	Gly926Gly	Gly926Gly	Gly926Gly	SNP	Synonymous	CCC	GCC	GCC	snp	SNV:3750407:C>G
+MTB_anc	PPE55_Rv3347c	3750417	T	A	Tyr923Phe	Tyr923Phe	Tyr923Phe	Tyr923Phe	SNP	Non-synonymous	GTA	GAA	GAA	snp	SNV:3750417:T>A
+MTB_anc	PPE55_Rv3347c	3750421	C	T	Gly922Ser	Gly922Ser	Gly922Ser	Gly922Ser	SNP	Non-synonymous	GCC	GCT	GCT	snp	SNV:3750421:C>T
+MTB_anc	PPE55_Rv3347c	3750805	C	A	Val794Phe	Val794Phe	Val794Phe	Val794Phe	SNP	Non-synonymous	GAC	GAA	GAA	snp	SNV:3750805:C>A
+MTB_anc	PPE55_Rv3347c	3750808	T	C	Asn793Asp	Asn793Asp	Asn793Asp	Asn793Asp	SNP	Non-synonymous	GTT	GTC	GTC	snp	SNV:3750808:T>C
+MTB_anc	PPE55_Rv3347c	3750812	C	G	Val791Val	Val791Val	Val791Val	Val791Val	SNP	Synonymous	CAC	GAC	GAC	snp	SNV:3750812:C>G
+MTB_anc	PPE55_Rv3347c	3750853	G	A	Leu778Leu	Leu778Leu	Leu778Leu	Leu778Leu	SNP	Synonymous	CAG	CAA	CAA	snp	SNV:3750853:G>A
+MTB_anc	PPE55_Rv3347c	3751988	C	G	Leu399Leu	Leu399Leu	Leu399Leu	Leu399Leu	SNP	Synonymous	CAG	GAG	GAG	snp	SNV:3751988:C>G
+MTB_anc	PPE55_Rv3347c	3753164	G	T	Pro7Pro	Pro7Pro	Pro7Pro	Pro7Pro	SNP	Synonymous	GGG	TGG	TGG	snp	SNV:3753164:G>T
+MTB_anc	PPE56_Rv3350c	3757052	T	C	Thr3351Ala	Thr3351Ala	Thr3351Ala	Thr3351Ala	SNP	Non-synonymous	GGT	GGC	GGC	snp	SNV:3757052:T>C
+MTB_anc	PPE56_Rv3350c	3762794	T	C	Ser1437Gly	Ser1437Gly	Ser1437Gly	Ser1437Gly	SNP	Non-synonymous	GCT	GCC	GCC	snp	SNV:3762794:T>C
+MTB_anc	PPE56_Rv3350c	3764502	A	G	Ile867Ile	Ile867Ile	Ile867Ile	Ile867Ile	SNP	Synonymous	AAT	GAT	GAT	snp	SNV:3764502:A>G
+MTB_anc	PPE56_Rv3350c	3765826	T	C	Asn426Ser	Asn426Ser	Asn426Ser	Asn426Ser	SNP	Non-synonymous	GTT	GCT	GCT	snp	SNV:3765826:T>C
+MTB_anc	Rv3359_Rv3359	3771628	C	A	Ile95Ile	Ile95Ile	Ile95Ile	Ile95Ile	SNP	Synonymous	ATC	ATA	ATA	snp	SNV:3771628:C>A
+MTB_anc	intergenic	3772616	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3772616:A>G
+MTB_anc	Rv3371_Rv3371	3785946	G	A	Gly339Arg	Gly339Arg	Gly339Arg	Gly339Arg	SNP	Non-synonymous	GGG	AGG	AGG	snp	SNV:3785946:G>A
+MTB_anc	Rv3371_Rv3371	3786033	G	A	Val368Ile	Val368Ile	Val368Ile	Val368Ile	SNP	Non-synonymous	GTC	ATC	ATC	snp	SNV:3786033:G>A
+MTB_anc	otsB2_Rv3372	3787288	G	A	Pro325Pro	Pro325Pro	Pro325Pro	Pro325Pro	SNP	Synonymous	CCG	CCA	CCA	snp	SNV:3787288:G>A
+MTB_anc	echA18_Rv3373	3788365	G	T	Gly214*	Gly214*	Gly214*	Gly214*	SNP	Stop gained	GGA	TGA	TGA	snp	SNV:3788365:G>T
+MTB_anc	idsB_Rv3383c	3798095	C	A	Gly132Val	Gly132Val	Gly132Val	Gly132Val	SNP	Non-synonymous	GCC	GAC	GAC	snp	SNV:3798095:C>A
+MTB_anc	acrA1_Rv3391	3806339	C	A	Ala240Glu	Ala240Glu	Ala240Glu	Ala240Glu	SNP	Non-synonymous	GCA	GAA	GAA	snp	SNV:3806339:C>A
+MTB_anc	cmaA1_Rv3392c	3808103	C	T	Ser112Asn	Ser112Asn	Ser112Asn	Ser112Asn	SNP	Non-synonymous	ACT	ATT	ATT	snp	SNV:3808103:C>T
+MTB_anc	Rv3395c_Rv3395c	3811629	A	G	Val3Ala	Val3Ala	Val3Ala	Val3Ala	SNP	Non-synonymous	CAC	CGC	CGC	snp	SNV:3811629:A>G
+MTB_anc	idsA1_Rv3398c	3815477	T	G	Ala210Ala	Ala210Ala	Ala210Ala	Ala210Ala	SNP	Synonymous	TGC	GGC	GGC	snp	SNV:3815477:T>G
+MTB_anc	Rv3401_Rv3401	3819277	C	T	Ile412Ile	Ile412Ile	Ile412Ile	Ile412Ile	SNP	Synonymous	ATC	ATT	ATT	snp	SNV:3819277:C>T
+MTB_anc	intergenic	3820545	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3820545:A>G
+MTB_anc	guaB3_Rv3410c	3829770	C	T	Pro47Pro	Pro47Pro	Pro47Pro	Pro47Pro	SNP	Synonymous	CGG	TGG	TGG	snp	SNV:3829770:C>T
+MTB_anc	guaB2_Rv3411c	3830695	G	A	Ala275Ala	Ala275Ala	Ala275Ala	Ala275Ala	SNP	Synonymous	GGC	AGC	AGC	snp	SNV:3830695:G>A
+MTB_anc	intergenic	3831621	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3831621:G>A
+MTB_anc	groEL1_Rv3417c	3836739	G	A	Asp51Asp	Asp51Asp	Asp51Asp	Asp51Asp	SNP	Synonymous	GTC	ATC	ATC	snp	SNV:3836739:G>A
+MTB_anc	intergenic	3841662	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3841662:T>C
+MTB_anc	Rv3424c_Rv3424c	3841739	G	A	Pro113Leu	Pro113Leu	Pro113Leu	Pro113Leu	SNP	Non-synonymous	CGG	CAG	CAG	snp	SNV:3841739:G>A
+MTB_anc	Rv3428c_Rv3428c	3845328	C	T	Val215Met	Val215Met	Val215Met	Val215Met	SNP	Non-synonymous	CAC	CAT	CAT	snp	SNV:3845328:C>T
+MTB_anc	Rv3428c_Rv3428c	3845695	T	C	Arg92Arg	Arg92Arg	Arg92Arg	Arg92Arg	SNP	Synonymous	TCG	CCG	CCG	snp	SNV:3845695:T>C
+MTB_anc	PPE59_Rv3429	3847235	C	A	Ser24Tyr	Ser24Tyr	Ser24Tyr	Ser24Tyr	SNP	Non-synonymous	TCT	TAT	TAT	snp	SNV:3847235:C>A
+MTB_anc	Rv3430c_Rv3430c	3848104	C	T	Pro234Pro	Pro234Pro	Pro234Pro	Pro234Pro	SNP	Synonymous	CGG	TGG	TGG	snp	SNV:3848104:C>T
+MTB_anc	eccB4_Rv3450c	3871246	C	T	Gly417Gly	Gly417Gly	Gly417Gly	Gly417Gly	SNP	Synonymous	CCC	TCC	TCC	snp	SNV:3871246:C>T
+MTB_anc	Rv3453_Rv3453	3874726	C	A	Ser108Tyr	Ser108Tyr	Ser108Tyr	Ser108Tyr	SNP	Non-synonymous	TCC	TAC	TAC	snp	SNV:3874726:C>A
+MTB_anc	Rv3463_Rv3463	3881751	T	G	Leu282Arg	Leu282Arg	Leu282Arg	Leu282Arg	SNP	Non-synonymous	CTC	CGC	CGC	snp	SNV:3881751:T>G
+MTB_anc	rmlB3_Rv3468c	3885886	C	T	Val62Ile	Val62Ile	Val62Ile	Val62Ile	SNP	Non-synonymous	GAC	GAT	GAT	snp	SNV:3885886:C>T
+MTB_anc	kgtP_Rv3476c	3893480	A	G	Phe81Leu	Phe81Leu	Phe81Leu	Phe81Leu	SNP	Non-synonymous	AAA	AAG	AAG	snp	SNV:3893480:A>G
+MTB_anc	PPE60_Rv3478	3894678	C	G	Gln85Glu	Gln85Glu	Gln85Glu	Gln85Glu	SNP	Non-synonymous	CAG	GAG	GAG	snp	SNV:3894678:C>G
+MTB_anc	PPE60_Rv3478	3894971	T	C	Leu182Leu	Leu182Leu	Leu182Leu	Leu182Leu	SNP	Synonymous	CTT	CTC	CTC	snp	SNV:3894971:T>C
+MTB_anc	PPE60_Rv3478	3894982	T	C	Val186Ala	Val186Ala	Val186Ala	Val186Ala	SNP	Non-synonymous	GTC	GCC	GCC	snp	SNV:3894982:T>C
+MTB_anc	PPE60_Rv3478	3894999, 3895000	A, T	T, C	Ile192Ser	Ile192Phe, Ile192Thr	Ile192Ser	Ile192Phe, Ile192Thr	SNP/MNV	Non-synonymous	ATC	TTC, ACC	TCC	mnv	SNV:3894999:A>T | SNV:3895000:T>C
+MTB_anc	PPE60_Rv3478	3895055	A	G	Gln210Gln	Gln210Gln	Gln210Gln	Gln210Gln	SNP	Synonymous	CAA	CAG	CAG	snp	SNV:3895055:A>G
+MTB_anc	intergenic	3895727	A	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3895727:A>C
+MTB_anc	Rv3479_Rv3479	3898869	A	C	Asn1017Thr	Asn1017Thr	Asn1017Thr	Asn1017Thr	SNP	Non-synonymous	AAC	ACC	ACC	snp	SNV:3898869:A>C
+MTB_anc	Rv3482c_Rv3482c	3901657	A	G	Phe150Phe	Phe150Phe	Phe150Phe	Phe150Phe	SNP	Synonymous	AAA	GAA	GAA	snp	SNV:3901657:A>G
+MTB_anc	intergenic	3905656	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3905656:A>G
+MTB_anc	otsA_Rv3490	3909235	C	G	Leu334Val	Leu334Val	Leu334Val	Leu334Val	SNP	Non-synonymous	CTG	GTG	GTG	snp	SNV:3909235:C>G
+MTB_anc	fadE26_Rv3504	3922836	C	T	Asp122Asp	Asp122Asp	Asp122Asp	Asp122Asp	SNP	Synonymous	GAC	GAT	GAT	snp	SNV:3922836:C>T
+MTB_anc	ilvX_Rv3509c	3937078	C	G	Ala449Ala	Ala449Ala	Ala449Ala	Ala449Ala	SNP	Synonymous	CGC	GGC	GGC	snp	SNV:3937078:C>G
+MTB_anc	intergenic	3942640	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:3942640:C>T
+MTB_anc	Rv3521_Rv3521	3958403	G	A	Asp295Asn	Asp295Asn	Asp295Asn	Asp295Asn	SNP	Non-synonymous	GAC	AAC	AAC	snp	SNV:3958403:G>A
+MTB_anc	cyp125_Rv3545c	3984321	A	G	His375His	His375His	His375His	His375His	SNP	Synonymous	ATG	GTG	GTG	snp	SNV:3984321:A>G
+MTB_anc	Rv3551_Rv3551	3989914	T	G	Ser7Ala	Ser7Ala	Ser7Ala	Ser7Ala	SNP	Non-synonymous	TCT	GCT	GCT	snp	SNV:3989914:T>G
+MTB_anc	Rv3555c_Rv3555c	3994898	G	A	Arg268Trp	Arg268Trp	Arg268Trp	Arg268Trp	SNP	Non-synonymous	CCG	CCA	CCA	snp	SNV:3994898:G>A
+MTB_anc	fadE32_Rv3563	4005114	C	G	Ser275Trp	Ser275Trp	Ser275Trp	Ser275Trp	SNP	Non-synonymous	TCG	TGG	TGG	snp	SNV:4005114:C>G
+MTB_anc	fadE33_Rv3564	4005607	C	T	Leu121Leu	Leu121Leu	Leu121Leu	Leu121Leu	SNP	Synonymous	CTG	TTG	TTG	snp	SNV:4005607:C>T
+MTB_anc	hsaB_Rv3567c	4008747	G	A	Thr179Ile	Thr179Ile	Thr179Ile	Thr179Ile	SNP	Non-synonymous	GGT	GAT	GAT	snp	SNV:4008747:G>A
+MTB_anc	hsaA_Rv3570c	4012219	C	T	Asp18Asn	Asp18Asn	Asp18Asn	Asp18Asn	SNP	Non-synonymous	ATC	ATT	ATT	snp	SNV:4012219:C>T
+MTB_anc	ispF_Rv3581c	4024273	C	T	Val25Val	Val25Val	Val25Val	Val25Val	SNP	Synonymous	CAC	TAC	TAC	snp	SNV:4024273:C>T
+MTB_anc	Rv3586_Rv3586	4028292	C	T	Val134Val	Val134Val	Val134Val	Val134Val	SNP	Synonymous	GTC	GTT	GTT	snp	SNV:4028292:C>T
+MTB_anc	Rv3586_Rv3586	4028752	G	A	Ala288Thr	Ala288Thr	Ala288Thr	Ala288Thr	SNP	Non-synonymous	GCG	ACG	ACG	snp	SNV:4028752:G>A
+MTB_anc	PE_PGRS59_Rv3595c	4037283	G	T	Gly256Gly	Gly256Gly	Gly256Gly	Gly256Gly	SNP	Synonymous	GCC	TCC	TCC	snp	SNV:4037283:G>T
+MTB_anc	espD_Rv3614c	4054637	G	A	Gly20Gly	Gly20Gly	Gly20Gly	Gly20Gly	SNP	Synonymous	GCC	ACC	ACC	snp	SNV:4054637:G>A
+MTB_anc	intergenic	4056416	A	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4056416:A>C
+MTB_anc	esxV_Rv3619c	4060210	A	T	Leu20Gln	Leu20Gln	Leu20Gln	Leu20Gln	SNP	Non-synonymous	CAG	CTG	CTG	snp	SNV:4060210:A>T
+MTB_anc	esxW_Rv3620c	4060466	G	A	Gly42Gly	Gly42Gly	Gly42Gly	Gly42Gly	SNP	Synonymous	GCC	ACC	ACC	snp	SNV:4060466:G>A
+MTB_anc	PPE65_Rv3621c	4061113	T	G	Ala259Ala	Ala259Ala	Ala259Ala	Ala259Ala	SNP	Synonymous	TGC	GGC	GGC	snp	SNV:4061113:T>G
+MTB_anc	Rv3627c_Rv3627c	4067152	A	G	Val45Ala	Val45Ala	Val45Ala	Val45Ala	SNP	Non-synonymous	CAC	CGC	CGC	snp	SNV:4067152:A>G
+MTB_anc	Rv3630_Rv3630	4069292	A	G	Thr40Ala	Thr40Ala	Thr40Ala	Thr40Ala	SNP	Non-synonymous	ACC	GCC	GCC	snp	SNV:4069292:A>G
+MTB_anc	Rv3639c_Rv3639c	4078056	G	T	Ala132Glu	Ala132Glu	Ala132Glu	Ala132Glu	SNP	Non-synonymous	TGC	TTC	TTC	snp	SNV:4078056:G>T
+MTB_anc	Rv3649_Rv3649	4089058	C	T	Pro93Leu	Pro93Leu	Pro93Leu	Pro93Leu	SNP	Non-synonymous	CCC	CTC	CTC	snp	SNV:4089058:C>T
+MTB_anc	Rv3655c_Rv3655c	4095295	C	T	Glu2Glu	Glu2Glu	Glu2Glu	Glu2Glu	SNP	Synonymous	CTC	TTC	TTC	snp	SNV:4095295:C>T
+MTB_anc	dppA_Rv3666c	4105757	T	C	Gln443Arg	Gln443Arg	Gln443Arg	Gln443Arg	SNP	Non-synonymous	CTG	CCG	CCG	snp	SNV:4105757:T>C
+MTB_anc	crp_Rv3676	4116682	C	T	Leu69Leu	Leu69Leu	Leu69Leu	Leu69Leu	SNP	Synonymous	CTA	TTA	TTA	snp	SNV:4116682:C>T
+MTB_anc	intergenic	4117161	A	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4117161:A>C
+MTB_anc	Rv3679_Rv3679	4119246	C	T	Asp157Asp	Asp157Asp	Asp157Asp	Asp157Asp	SNP	Synonymous	GAC	GAT	GAT	snp	SNV:4119246:C>T
+MTB_anc	intergenic	4120983	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4120983:G>A
+MTB_anc	intergenic	4121675	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4121675:T>C
+MTB_anc	Rv3683_Rv3683	4124608	C	T	Asn64Asn	Asn64Asn	Asn64Asn	Asn64Asn	SNP	Synonymous	AAC	AAT	AAT	snp	SNV:4124608:C>T
+MTB_anc	Rv3689_Rv3689	4130376	C	G	Pro7Arg	Pro7Arg	Pro7Arg	Pro7Arg	SNP	Non-synonymous	CCG	CGG	CGG	snp	SNV:4130376:C>G
+MTB_anc	Rv3695_Rv3695	4137242	G	A	Asp13Asn	Asp13Asn	Asp13Asn	Asp13Asn	SNP	Non-synonymous	GAC	AAC	AAC	snp	SNV:4137242:G>A
+MTB_anc	glpK_Rv3696c	4138377	G	A	Ala460Val	Ala460Val	Ala460Val	Ala460Val	SNP	Non-synonymous	CGC	CAC	CAC	snp	SNV:4138377:G>A
+MTB_anc	etgB_Rv3703c	4145737	G	A	Tyr385Tyr	Tyr385Tyr	Tyr385Tyr	Tyr385Tyr	SNP	Synonymous	GTA	ATA	ATA	snp	SNV:4145737:G>A
+MTB_anc	Rv3707c_Rv3707c	4150288	T	C	Ala251Ala	Ala251Ala	Ala251Ala	Ala251Ala	SNP	Synonymous	TGC	CGC	CGC	snp	SNV:4150288:T>C
+MTB_anc	asd_Rv3708c	4151855	G	A	Pro121Pro	Pro121Pro	Pro121Pro	Pro121Pro	SNP	Synonymous	GGG	AGG	AGG	snp	SNV:4151855:G>A
+MTB_anc	dnaQ_Rv3711c	4156239	G	A	Ala164Val	Ala164Val	Ala164Val	Ala164Val	SNP	Non-synonymous	GGC	GAC	GAC	snp	SNV:4156239:G>A
+MTB_anc	dnaQ_Rv3711c	4156503	T	C	Asp76Gly	Asp76Gly	Asp76Gly	Asp76Gly	SNP	Non-synonymous	GTC	GCC	GCC	snp	SNV:4156503:T>C
+MTB_anc	cobQ2_Rv3713	4158361	G	A	Pro45Pro	Pro45Pro	Pro45Pro	Pro45Pro	SNP	Synonymous	CCG	CCA	CCA	snp	SNV:4158361:G>A
+MTB_anc	Rv3714c_Rv3714c	4159195	C	T	Pro209Pro	Pro209Pro	Pro209Pro	Pro209Pro	SNP	Synonymous	CGG	TGG	TGG	snp	SNV:4159195:C>T
+MTB_anc	Rv3714c_Rv3714c	4159239	T	C	Lys195Glu	Lys195Glu	Lys195Glu	Lys195Glu	SNP	Non-synonymous	CTT	CTC	CTC	snp	SNV:4159239:T>C
+MTB_anc	Rv3729_Rv3729	4179089	T	C	Ser269Pro	Ser269Pro	Ser269Pro	Ser269Pro	SNP	Non-synonymous	TCG	CCG	CCG	snp	SNV:4179089:T>C
+MTB_anc	ligC_Rv3731	4182695	A	G	His313Arg	His313Arg	His313Arg	His313Arg	SNP	Non-synonymous	CAC	CGC	CGC	snp	SNV:4182695:A>G
+MTB_anc	Rv3737_Rv3737	4188020	A	G	Ile108Val	Ile108Val	Ile108Val	Ile108Val	SNP	Non-synonymous	ATC	GTC	GTC	snp	SNV:4188020:A>G
+MTB_anc	intergenic	4197138	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4197138:T>C
+MTB_anc	intergenic	4197189	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4197189:G>A
+MTB_anc	Rv3753c_Rv3753c	4200133	G	T	Pro30His	Pro30His	Pro30His	Pro30His	SNP	Non-synonymous	GGG	GTG	GTG	snp	SNV:4200133:G>T
+MTB_anc	Rv3753c_Rv3753c	4200220	G	A	Thr1Met	Thr1Met	Thr1Met	Thr1Met	SNP	Non-synonymous	CGT	CAT	CAT	snp	SNV:4200220:G>A
+MTB_anc	proZ_Rv3756c	4202383	C	A	Val77Val	Val77Val	Val77Val	Val77Val	SNP	Synonymous	CAC	AAC	AAC	snp	SNV:4202383:C>A
+MTB_anc	proX_Rv3759c	4205120	G	A	Pro85Leu	Pro85Leu	Pro85Leu	Pro85Leu	SNP	Non-synonymous	CGG	CAG	CAG	snp	SNV:4205120:G>A
+MTB_anc	tcrY_Rv3764c	4209859	C	A	Arg384Leu	Arg384Leu	Arg384Leu	Arg384Leu	SNP	Non-synonymous	GCG	GAG	GAG	snp	SNV:4209859:C>A
+MTB_anc	tcrY_Rv3764c	4210876	C	T	Arg45His	Arg45His	Arg45His	Arg45His	SNP	Non-synonymous	GCG	GTG	GTG	snp	SNV:4210876:C>T
+MTB_anc	intergenic	4214963	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4214963:G>A
+MTB_anc	Rv3770c_Rv3770c	4215484	C	G	Ala98Pro	Ala98Pro	Ala98Pro	Ala98Pro	SNP	Non-synonymous	GGC	GGG	GGG	snp	SNV:4215484:C>G
+MTB_anc	intergenic	4216255	G	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4216255:G>C
+MTB_anc	hisC2_Rv3772	4217557	G	A	Ala142Thr	Ala142Thr	Ala142Thr	Ala142Thr	SNP	Non-synonymous	GCG	ACG	ACG	snp	SNV:4217557:G>A
+MTB_anc	Rv3777_Rv3777	4223172	C	T	Ala160Val	Ala160Val	Ala160Val	Ala160Val	SNP	Non-synonymous	GCC	GTC	GTC	snp	SNV:4223172:C>T
+MTB_anc	epiB_Rv3784	4230820	G	A	Ala189Thr	Ala189Thr	Ala189Thr	Ala189Thr	SNP	Non-synonymous	GCG	ACG	ACG	snp	SNV:4230820:G>A
+MTB_anc	Rv3785_Rv3785	4232327	G	A	Arg336Arg	Arg336Arg	Arg336Arg	Arg336Arg	SNP	Synonymous	CGG	CGA	CGA	snp	SNV:4232327:G>A
+MTB_anc	intergenic	4234664	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4234664:G>A
+MTB_anc	embB_Rv3795	4247646	C	A	Ala378Glu	Ala378Glu	Ala378Glu	Ala378Glu	SNP	Non-synonymous	GCG	GAG	GAG	snp	SNV:4247646:C>A
+MTB_anc	accD4_Rv3799c	4255922	G	A	His9His	His9His	His9His	His9His	SNP	Synonymous	GTG	ATG	ATG	snp	SNV:4255922:G>A
+MTB_anc	pks13_Rv3800c	4257220	G	A	Arg1309Arg	Arg1309Arg	Arg1309Arg	Arg1309Arg	SNP	Synonymous	GCG	ACG	ACG	snp	SNV:4257220:G>A
+MTB_anc	fadD32_Rv3801c	4261499	A	G	Val523Ala	Val523Ala	Val523Ala	Val523Ala	SNP	Non-synonymous	CAC	CGC	CGC	snp	SNV:4261499:A>G
+MTB_anc	intergenic	4263279	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4263279:G>A
+MTB_anc	ubiA_Rv3806c	4269387	G	T	Asp149Glu	Asp149Glu	Asp149Glu	Asp149Glu	SNP	Non-synonymous	GTC	TTC	TTC	snp	SNV:4269387:G>T
+MTB_anc	ubiA_Rv3806c	4269606	G	A	Arg76Arg	Arg76Arg	Arg76Arg	Arg76Arg	SNP	Synonymous	GCG	ACG	ACG	snp	SNV:4269606:G>A
+MTB_anc	papA2_Rv3820c	4284570	A	C	Val419Gly	Val419Gly	Val419Gly	Val419Gly	SNP	Non-synonymous	GAC	GCC	GCC	snp	SNV:4284570:A>C
+MTB_anc	papA2_Rv3820c	4285500	T	C	His109Arg	His109Arg	His109Arg	His109Arg	SNP	Non-synonymous	ATG	ACG	ACG	snp	SNV:4285500:T>C
+MTB_anc	mmpL8_Rv3823c	4288850	C	T	Val894Met	Val894Met	Val894Met	Val894Met	SNP	Non-synonymous	CAC	CAT	CAT	snp	SNV:4288850:C>T
+MTB_anc	mmpL8_Rv3823c	4289953	G	A	Ala526Val	Ala526Val	Ala526Val	Ala526Val	SNP	Non-synonymous	CGC	CAC	CAC	snp	SNV:4289953:G>A
+MTB_anc	mmpL8_Rv3823c	4290564	T	G	Ala322Ala	Ala322Ala	Ala322Ala	Ala322Ala	SNP	Synonymous	TGC	GGC	GGC	snp	SNV:4290564:T>G
+MTB_anc	mmpL8_Rv3823c	4290827	G	C	Arg235Gly	Arg235Gly	Arg235Gly	Arg235Gly	SNP	Non-synonymous	CCG	CCC	CCC	snp	SNV:4290827:G>C
+MTB_anc	pks2_Rv3825c	4296015	A	G	Asp1197Asp	Asp1197Asp	Asp1197Asp	Asp1197Asp	SNP	Synonymous	ATC	GTC	GTC	snp	SNV:4296015:A>G
+MTB_anc	Rv3827c_Rv3827c	4302493	A	G	Ala99Ala	Ala99Ala	Ala99Ala	Ala99Ala	SNP	Synonymous	AGC	GGC	GGC	snp	SNV:4302493:A>G
+MTB_anc	Rv3833_Rv3833	4307179	A	G	Ile105Val	Ile105Val	Ile105Val	Ile105Val	SNP	Non-synonymous	ATC	GTC	GTC	snp	SNV:4307179:A>G
+MTB_anc	Rv3839_Rv3839	4313128	T	C	Ser122Pro	Ser122Pro	Ser122Pro	Ser122Pro	SNP	Non-synonymous	TCC	CCC	CCC	snp	SNV:4313128:T>C
+MTB_anc	bfrB_Rv3841	4314645	G	A	Leu156Leu	Leu156Leu	Leu156Leu	Leu156Leu	SNP	Synonymous	CTG	CTA	CTA	snp	SNV:4314645:G>A
+MTB_anc	Rv3843c_Rv3843c	4316566	G	C	Arg11Gly	Arg11Gly	Arg11Gly	Arg11Gly	SNP	Non-synonymous	GCG	GCC	GCC	snp	SNV:4316566:G>C
+MTB_anc	intergenic	4318425	G	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4318425:G>C
+MTB_anc	intergenic	4329782	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4329782:A>G
+MTB_anc	gltB_Rv3859c	4334425	C	G	Glu553Gln	Glu553Gln	Glu553Gln	Glu553Gln	SNP	Non-synonymous	CTC	CTG	CTG	snp	SNV:4334425:C>G
+MTB_anc	intergenic	4336597	A	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4336597:A>C
+MTB_anc	intergenic	4338732	A	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4338732:A>G
+MTB_anc	espG1_Rv3866	4342047	C	T	Ile56Ile	Ile56Ile	Ile56Ile	Ile56Ile	SNP	Synonymous	ATC	ATT	ATT	snp	SNV:4342047:C>T
+MTB_anc	espK_Rv3879c	4357597	G	C	Ser729Cys	Ser729Cys	Ser729Cys	Ser729Cys	SNP	Non-synonymous	GGA	GCA	GCA	snp	SNV:4357597:G>C
+MTB_anc	eccA2_Rv3884c	4366195	C	T	Gly215Glu	Gly215Glu	Gly215Glu	Gly215Glu	SNP	Non-synonymous	CCC	CTC	CTC	snp	SNV:4366195:C>T
+MTB_anc	eccE2_Rv3885c	4367649	G	A	Tyr291Tyr	Tyr291Tyr	Tyr291Tyr	Tyr291Tyr	SNP	Synonymous	GTA	ATA	ATA	snp	SNV:4367649:G>A
+MTB_anc	Rv3888c_Rv3888c	4372353	C	G	Arg118Arg	Arg118Arg	Arg118Arg	Arg118Arg	SNP	Synonymous	CCG	GCG	GCG	snp	SNV:4372353:C>G
+MTB_anc	esxD_Rv3891c	4374228	C	T	Ala49Thr	Ala49Thr	Ala49Thr	Ala49Thr	SNP	Non-synonymous	GGC	GGT	GGT	snp	SNV:4374228:C>T
+MTB_anc	PPE69_Rv3892c	4375526	G	A	Ala53Val	Ala53Val	Ala53Val	Ala53Val	SNP	Non-synonymous	GGC	GAC	GAC	snp	SNV:4375526:G>A
+MTB_anc	intergenic	4384007	G	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4384007:G>C
+MTB_anc	Rv3900c_Rv3900c	4386142	G	A	Ser56Leu	Ser56Leu	Ser56Leu	Ser56Leu	SNP	Non-synonymous	CGA	CAA	CAA	snp	SNV:4386142:G>A
+MTB_anc	intergenic	4393178	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4393178:G>A
+MTB_anc	Rv3909_Rv3909	4395387	G	A	Ser399Asn	Ser399Asn	Ser399Asn	Ser399Asn	SNP	Non-synonymous	AGC	AAC	AAC	snp	SNV:4395387:G>A
+MTB_anc	sigM_Rv3911	4400288	G	C	Ala35Pro	Ala35Pro	Ala35Pro	Ala35Pro	SNP	Non-synonymous	GCC	CCC	CCC	snp	SNV:4400288:G>C
+MTB_anc	gid_Rv3919c	4407588	C	T	Ala205Ala	Ala205Ala	Ala205Ala	Ala205Ala	SNP	Synonymous	CGC	TGC	TGC	snp	SNV:4407588:C>T
+MTB_anc	intergenic	4408920	G	A	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4408920:G>A
+MTB_anc	intergenic	4408923	T	C	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:4408923:T>C
