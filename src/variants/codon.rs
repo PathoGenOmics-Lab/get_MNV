@@ -1612,6 +1612,79 @@ fn process_transcript_codon(
     }
 }
 
+/// Protein position (1-based) of the first premature stop introduced by a single
+/// upstream frameshift indel, when it truncates the protein earlier than the
+/// natural stop. Returns `None` for the multi-indel case or when the frameshift
+/// does not introduce an earlier stop (frameshift propagation is then unchanged).
+fn frameshift_ptc_protein_pos(
+    gene: &Gene,
+    reference: &crate::io::Reference<'_>,
+    indels: &[crate::io::VcfPosition],
+    genetic_code: crate::genetic_code::GeneticCode,
+    config: &IndelAnnotationConfig,
+) -> Option<usize> {
+    let fs_indels: Vec<&crate::io::VcfPosition> = indels
+        .iter()
+        .filter(|indel| !indel.alt_allele.starts_with('<'))
+        .filter(|indel| indel_passes_frameshift_gate(indel, config))
+        .filter(|indel| {
+            coding_delta_for_variant(gene, reference, indel)
+                .map(|delta| delta % 3 != 0)
+                .unwrap_or(false)
+        })
+        .collect();
+    if fs_indels.len() != 1 {
+        return None;
+    }
+    let ref_cds = coding_sequence_for_gene(gene, reference)?;
+    let alt_cds = apply_allele_to_feature(gene, reference, fs_indels[0])?;
+    let alt_protein = translate_cds(&alt_cds, genetic_code);
+    let ref_protein = translate_cds(&ref_cds, genetic_code);
+    let alt_stop = alt_protein.find('*')?;
+    let ref_stop = ref_protein.find('*').unwrap_or(ref_protein.len());
+    (alt_stop < ref_stop).then_some(alt_stop + 1)
+}
+
+/// Annotate a frameshifted downstream codon. If it lies past the premature stop
+/// (`ptc_protein_pos`) it is reported as untranslated ("downstream of premature
+/// stop"); otherwise the previous "(fs)" amino-acid annotation is kept.
+fn apply_frameshift_labeling(var_info: &mut VariantInfo, ptc_protein_pos: Option<usize>) {
+    let codon_pos = var_info.aa_changes.first().and_then(|aa| {
+        aa.chars()
+            .filter(char::is_ascii_digit)
+            .collect::<String>()
+            .parse::<usize>()
+            .ok()
+    });
+    let past_ptc = matches!((ptc_protein_pos, codon_pos), (Some(ptc), Some(pos)) if pos > ptc);
+    if past_ptc {
+        const LABEL: &str = "downstream of premature stop";
+        var_info.change_type = ChangeType::FrameshiftDownstreamOfStop;
+        var_info.aa_changes = vec![LABEL.to_string()];
+        var_info.snp_aa_changes = vec![LABEL.to_string(); var_info.snp_aa_changes.len()];
+        var_info.aa_changes_local = vec![LABEL.to_string()];
+        var_info.snp_aa_changes_local = vec![LABEL.to_string(); var_info.snp_aa_changes_local.len()];
+        return;
+    }
+    var_info.change_type = var_info.change_type.with_frameshift();
+    var_info.aa_changes = var_info.aa_changes.iter().map(|s| format!("{s} (fs)")).collect();
+    var_info.snp_aa_changes = var_info
+        .snp_aa_changes
+        .iter()
+        .map(|s| format!("{s} (fs)"))
+        .collect();
+    var_info.aa_changes_local = var_info
+        .aa_changes_local
+        .iter()
+        .map(|s| format!("{s} (fs)"))
+        .collect();
+    var_info.snp_aa_changes_local = var_info
+        .snp_aa_changes_local
+        .iter()
+        .map(|s| format!("{s} (fs)"))
+        .collect();
+}
+
 fn get_mnv_variants_for_transcript(
     gene: &Gene,
     snp_list: &[crate::io::VcfPosition],
@@ -1666,6 +1739,9 @@ fn get_mnv_variants_for_transcript(
             indels.push(variant.clone());
         }
     }
+
+    let ptc_protein_pos =
+        frameshift_ptc_protein_pos(gene, reference, &indels, genetic_code, config);
 
     let mut codon_starts = codon_to_groups.keys().copied().collect::<Vec<_>>();
     codon_starts.sort_unstable();
@@ -1727,27 +1803,7 @@ fn get_mnv_variants_for_transcript(
             var_info.snp_aa_changes_local =
                 vec!["Unknown".to_string(); var_info.snp_aa_changes_local.len()];
         } else if is_frameshifted {
-            var_info.change_type = var_info.change_type.with_frameshift();
-            var_info.aa_changes = var_info
-                .aa_changes
-                .into_iter()
-                .map(|s| format!("{s} (fs)"))
-                .collect();
-            var_info.snp_aa_changes = var_info
-                .snp_aa_changes
-                .into_iter()
-                .map(|s| format!("{s} (fs)"))
-                .collect();
-            var_info.aa_changes_local = var_info
-                .aa_changes_local
-                .into_iter()
-                .map(|s| format!("{s} (fs)"))
-                .collect();
-            var_info.snp_aa_changes_local = var_info
-                .snp_aa_changes_local
-                .into_iter()
-                .map(|s| format!("{s} (fs)"))
-                .collect();
+            apply_frameshift_labeling(&mut var_info, ptc_protein_pos);
         }
 
         variants.push(var_info);
@@ -1876,6 +1932,9 @@ pub fn get_mnv_variants_for_gene_with_config(
         return variants;
     }
 
+    let ptc_protein_pos =
+        frameshift_ptc_protein_pos(gene, reference, &indels, genetic_code, config);
+
     let mut codon_starts: Vec<usize> = codon_to_groups.keys().copied().collect();
     match gene.strand {
         Strand::Plus => codon_starts.sort_unstable(),
@@ -1958,27 +2017,7 @@ pub fn get_mnv_variants_for_gene_with_config(
             var_info.snp_aa_changes_local =
                 vec!["Unknown".to_string(); var_info.snp_aa_changes_local.len()];
         } else if is_frameshifted {
-            var_info.change_type = var_info.change_type.with_frameshift();
-            var_info.aa_changes = var_info
-                .aa_changes
-                .into_iter()
-                .map(|s| format!("{s} (fs)"))
-                .collect();
-            var_info.snp_aa_changes = var_info
-                .snp_aa_changes
-                .into_iter()
-                .map(|s| format!("{s} (fs)"))
-                .collect();
-            var_info.aa_changes_local = var_info
-                .aa_changes_local
-                .into_iter()
-                .map(|s| format!("{s} (fs)"))
-                .collect();
-            var_info.snp_aa_changes_local = var_info
-                .snp_aa_changes_local
-                .into_iter()
-                .map(|s| format!("{s} (fs)"))
-                .collect();
+            apply_frameshift_labeling(&mut var_info, ptc_protein_pos);
         }
 
         variants.push(var_info);

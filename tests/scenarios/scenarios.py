@@ -1459,6 +1459,54 @@ scenario_eukaryote_autocds = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 35. Frameshift mas alla del stop prematuro (geneE en chr_test2).
+# ---------------------------------------------------------------------------
+# geneE = ATG GTA (AAA)x4 TAA en pos 301-321. Borrar la G en pos 304 desplaza
+# el marco: el codon 2 pasa a leer TAA -> stop prematuro en la posicion 2 de la
+# proteina. Una SNV downstream en pos 313 (codon 5) queda DESPUES del stop, asi
+# que no se traduce: get_mnv debe marcarla "downstream of premature stop" en vez
+# de "(fs)". Distancia del>SNV = 9 bp (>3) -> filas separadas, no complex_indel.
+scenario_frameshift_past_stop = Scenario(
+    name="35_frameshift_past_premature_stop",
+    description="geneE: del frameshift pos 304 crea stop prematuro (codon 2); la SNV downstream pos 313 (codon 5) se marca 'downstream of premature stop', no '(fs)'",
+    variants=[
+        VcfRecord(pos=303, ref="GG", alt="G", chrom="chr_test2"),
+        VcfRecord(pos=313, ref="A", alt="C", chrom="chr_test2"),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_fs_ptc",
+            start=301,
+            length=60,
+            ops=[
+                Op(kind="del", pos=304, length=1),
+                Op(kind="snv", pos=313, seq="C"),
+            ],
+            count=20,
+            chrom="chr_test2",
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="303",
+            gene="geneE",
+            variant_type="INDEL",
+            change_type="Frameshift Indel",
+            event_class="deletion",
+        ),
+        ExpectedRow(
+            positions="313",
+            gene="geneE",
+            variant_type="SNP",
+            change_type="Downstream of premature stop",
+            aa_changes="downstream of premature stop",
+        ),
+    ],
+    expected_row_count=2,
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -1500,6 +1548,8 @@ ALL_SCENARIOS = [
     scenario_fs_gate_suppressed,
     # eucariotas (auto-CDS):
     scenario_eukaryote_autocds,
+    # frameshift mas alla del stop prematuro:
+    scenario_frameshift_past_stop,
 ]
 
 

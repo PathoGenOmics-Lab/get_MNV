@@ -96,7 +96,11 @@ def build_reference_seq() -> str:
 def build_reference_seq2() -> str:
     # geneD (+) pos 1-300
     cds = "ATG" + "GCT" * 98 + "TAA"
-    filler = "A" * 300
+    # geneE (+) pos 301-321: ATG GTA (AAA)x4 TAA. Deleting the G at pos 304
+    # frameshifts so codon 2 reads TAA (premature stop at protein position 2);
+    # used to test that downstream variants are flagged as past the stop.
+    gene_e = "ATG" + "GTA" + "AAA" * 4 + "TAA"  # 21 bp
+    filler = gene_e + "A" * (300 - len(gene_e))
     seq = cds + filler
     assert len(seq) == CONTIG2_LEN
     return seq
@@ -128,6 +132,7 @@ GFF_GENE_ONLY = (
     f"{CONTIG}\tsynth\tgene\t1\t300\t.\t+\t.\tID=gene-geneA;Name=geneA\n"
     f"{CONTIG}\tsynth\tgene\t401\t700\t.\t-\t.\tID=gene-geneB;Name=geneB\n"
     f"{CONTIG2}\tsynth\tgene\t1\t300\t.\t+\t.\tID=gene-geneD;Name=geneD\n"
+    f"{CONTIG2}\tsynth\tgene\t301\t321\t.\t+\t.\tID=gene-geneE;Name=geneE\n"
 )
 
 # GFF con CDS multi-exón para geneC (para --gff-features CDS).
