@@ -250,6 +250,9 @@ MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    MNV           No
 - **SNP/MNV**: codon-level row with both individual SNV context and combined MNV haplotype context; with BAM, support columns distinguish the evidence
 - **INDEL**: insertion, deletion, delins, or complex allele; reported with event components, exact BAM support when available, and coding effect when it overlaps an annotated CDS/gene feature
 
+A ready-to-run *M. tuberculosis* dataset (reference, genes, VCF, and a tiny demo
+BAM for the read viewer) lives in [`example/`](example/README.md).
+
 ## Documentation
 
 | Document | Description |
