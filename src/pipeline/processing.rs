@@ -73,7 +73,8 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
     let variant_file = args.variant_file();
     let base_name = io::get_base_name(variant_file).map_err(reclassify_generic_as_validation)?;
     let references =
-        io::load_references(&args.fasta_file).map_err(reclassify_generic_as_validation)?;
+        io::load_references(&args.fasta_file, args.chrom.as_deref())
+            .map_err(reclassify_generic_as_validation)?;
     let input_format = resolve_variant_input_format(args)?;
     if input_format == VariantInputFormat::Tsv && sample_override.is_some() {
         return Err(AppError::config(

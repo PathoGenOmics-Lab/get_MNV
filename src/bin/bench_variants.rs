@@ -232,7 +232,7 @@ fn run_dataset(
     }
     let annotation_path = infer_annotation_path(dataset_dir)?;
 
-    let references = io::load_references(fasta_path.to_string_lossy().as_ref())?;
+    let references = io::load_references(fasta_path.to_string_lossy().as_ref(), None)?;
     let snp_by_contig = io::load_vcf_positions_by_contig(
         vcf_path.to_string_lossy().as_ref(),
         None,

@@ -10,6 +10,7 @@ All notable changes to this project are documented in this file.
 - Added transcript-aware regression coverage for exon-junction MNV codons and restored-frame indel contexts in multi-exon CDS models.
 
 ### Changed
+- `--chrom` now restricts FASTA loading: when a single contig is requested, only that contig is read and IUPAC-validated instead of the whole genome, cutting peak memory for large (e.g. eukaryotic) references. A missing requested contig now fails with a clear "not found in FASTA" error.
 - SNVs/MNVs that alter the initiator Met (protein position 1) are now reported with Change Type `Start lost` instead of `Non-synonymous`, matching standard annotators. The reported amino-acid change was already correct; only the classification label changes. `Met1` → stop is still `Stop gained`.
 - Added a tuned `[profile.release]` (thin LTO, single codegen unit) and wrapped plain (non-BGZF) VCF output in a buffered writer with an explicit flush, for faster production builds and record emission.
 - Pinned `sha2` to the stable `0.10` line (previously a `0.11` pre-release), removing a duplicate hashing dependency stack from the resolved graph.
