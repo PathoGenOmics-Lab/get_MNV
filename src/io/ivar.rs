@@ -354,12 +354,14 @@ mod tests {
     use std::io::Write;
 
     fn write_temp_ivar(content: &str) -> String {
+        // Unique per (process, call) so parallel tests never share a temp path.
+        // A bare nanosecond timestamp can collide under coarse clock resolution.
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
         let path = std::env::temp_dir().join(format!(
-            "get_mnv_ivar_test_{}.tsv",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            "get_mnv_ivar_test_{}_{}.tsv",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
         ));
         let mut file = std::fs::File::create(&path).unwrap();
         file.write_all(content.as_bytes()).unwrap();
