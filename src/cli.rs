@@ -122,17 +122,20 @@ pub struct Args {
     pub min_strand_bias_p: f64,
 
     /// Minimum allele frequency (0.0-1.0) an upstream indel must reach to mark
-    /// downstream SNV/MNV codons as frameshifted. Default 0.0 propagates from
-    /// every indel (historical behaviour); raise it to avoid relabelling
-    /// high-frequency downstream substitutions because of a low-frequency
-    /// upstream indel that is likely on a different molecule (intra-host data).
-    #[arg(long = "frameshift-min-freq", default_value_t = 0.0)]
+    /// downstream SNV/MNV codons as frameshifted. Default 0.5 propagates the
+    /// frame shift only from a consensus (majority) upstream indel, so a
+    /// high-frequency downstream substitution is not relabelled as frameshifted
+    /// because of a low-frequency upstream indel that is almost certainly on a
+    /// different molecule (intra-host data). Set 0.0 to propagate from every
+    /// indel. Indels without a known frequency always propagate.
+    #[arg(long = "frameshift-min-freq", default_value_t = 0.5)]
     pub frameshift_min_freq: f64,
 
-    /// Count indel locus depth (EDP/EFREQ denominator) from reads observing the
-    /// anchor base, instead of only reads that fully span the REF allele.
-    /// Reduces depth under-counting and EFREQ bias for multi-base deletions.
-    #[arg(long = "indel-anchor-depth")]
+    /// By default the indel locus depth (EDP/EFREQ denominator) is counted from
+    /// reads observing the anchor base, which avoids under-counting depth and
+    /// EFREQ bias for multi-base deletions. Pass --legacy-indel-depth to restrict
+    /// the denominator to reads that fully span the REF allele instead.
+    #[arg(long = "legacy-indel-depth", action = clap::ArgAction::SetFalse)]
     pub indel_anchor_depth: bool,
 
     /// Minimum BAM-supporting reads required to emit a phased indel/complex
