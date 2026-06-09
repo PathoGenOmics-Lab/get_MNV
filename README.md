@@ -15,6 +15,8 @@
 
 [Quick Start](#quick-start) · [GUI](#desktop-gui) · [Features](#features) · [Docs](docs/) · [Citation](#citation)
 
+**English** · [Español](README.es.md)
+
 </div>
 
 __Paula Ruiz-Rodriguez<sup>1</sup>__
@@ -33,15 +35,9 @@ The tool takes:
 - Variant calls: VCF or iVar `variants.tsv`
 - Reference sequence: FASTA
 - Gene annotation: GFF/GFF3/GTF or a simple TSV file
-- Optional aligned reads: BAM, used to count SNP and MNV read support
+- Optional aligned reads: BAM, used to count SNP, MNV, and indel event support
 
 It writes annotated variants as TSV, VCF, or both.
-
-> [!WARNING]
-> get_MNV is designed for SNV/MNV interpretation. VCF insertions and deletions
-> can be reported as `INDEL`, but their codon and amino-acid annotation is
-> limited. iVar TSV indel rows, such as `+A` or `-N`, are skipped. For detailed
-> indel consequence annotation, use a dedicated variant annotation tool.
 
 <p align="center">
   <img src="images/get_mnv_aa.png" alt="MNV amino acid reclassification" width="650" />
@@ -51,8 +47,12 @@ It writes annotated variants as TSV, VCF, or both.
 
 - Groups SNVs by codon and reports SNP, MNV, or SNP/MNV calls
 - Recalculates amino acid changes from the full codon haplotype
-- Reads VCF and iVar TSV variant calls
-- Uses BAM reads, when provided, to count SNP/MNV support and strand bias
+- Decomposes VCF/iVar `REF/ALT` alleles into SNV, MNV, insertion, deletion,
+  delins, and complex indel event components
+- Reads VCF and iVar TSV variant calls, including iVar `+SEQ` and `-SEQ`
+  indel notation
+- Uses BAM reads, when provided, to count SNP/MNV support, exact indel event
+  support, and strand bias
 - Supports 9 NCBI genetic code tables
 - Includes a desktop GUI for drag-and-drop analysis
 
@@ -148,14 +148,14 @@ Run `get_mnv --help` for the full list of options.
 
 | Argument | What it does |
 |---|---|
-| `--vcf <FILE>` | Variant input file in VCF/BCF format. |
+| `--vcf <FILE>` | Variant input file in plain `.vcf` or BGZF-compressed `.vcf.gz` format. BCF input must be converted to VCF first. |
 | `--tsv <FILE>` | iVar `variants.tsv` input file. |
 | `--bam <FILE>` | Optional sorted and indexed BAM for read support. |
 | `--fasta <FILE>` | Reference FASTA. Contig names must match the variant file. |
 | `--gff <FILE>` | Gene annotation in GFF/GFF3/GTF format. |
 | `--genes <FILE>` | Simple gene annotation TSV. Use instead of `--gff`. |
 | `--gff-features <LIST>` | Feature types to analyze, for example `CDS` or `gene,pseudogene`. |
-| `--quality <N>` | Minimum variant quality. Default: `20`. |
+| `--quality <N>` | Minimum base Phred quality for BAM read support. Default: `20`. |
 | `--min-mapq <N>` | Minimum read mapping quality when using BAM. Default: `0`. |
 | `--snp <N>` | Minimum SNP-supporting reads. Default: `0`. |
 | `--min-snp-frequency <F>` | Minimum BAM-derived SNP frequency, from `0` to `1`. Default: `0`. |
@@ -214,7 +214,7 @@ When a BAM is provided, extra columns report read depth, SNP support, MNV suppor
 | 🧬 MNV detection | Groups SNVs in the same codon and reclassifies as MNVs |
 | 🔬 Accurate AA changes | Computes amino acid changes from the full codon haplotype |
 | 📊 Read support | BAM-based SNP/MNV read counts with strand-specific metrics |
-| 🔍 Strand bias | Fisher exact test (SB, FS, SOR) with configurable filtering |
+| 🔍 Strand bias | Fisher exact p-values for SNP and MNV strand-bias support (`SBP`/`MSBP` in VCF INFO) |
 | 📁 Multiple outputs | TSV, VCF (plain/BGZF+Tabix), BCF, JSON summary, run manifest |
 | ⚡ Parallel | Multi-threaded contig processing with Rayon |
 | 🧪 Genetic codes | 9 NCBI translation tables (1, 2, 3, 4, 5, 6, 11, 12, 25) |
@@ -248,9 +248,12 @@ MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    MNV           No
 
 **Variant types:**
 - **SNP**: single nucleotide change, one SNV per codon
-- **MNV**: all reads carry multiple SNVs together (Multi-Nucleotide Variant)
-- **SNP/MNV**: some reads carry individual SNVs, others carry the MNV combination
-- **INDEL**: insertion or deletion; detected/reported with limited codon and amino-acid annotation
+- **MNV**: multiple SNVs are represented as one combined codon haplotype
+- **SNP/MNV**: codon-level row with both individual SNV context and combined MNV haplotype context; with BAM, support columns distinguish the evidence
+- **INDEL**: insertion, deletion, delins, or complex allele; reported with event components, exact BAM support when available, and coding effect when it overlaps an annotated CDS/gene feature
+
+A ready-to-run *M. tuberculosis* dataset (reference, genes, VCF, and a tiny demo
+BAM for the read viewer) lives in [`example/`](example/README.md).
 
 ## Documentation
 
@@ -259,6 +262,7 @@ MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    MNV           No
 | [Usage](docs/usage.md) | Full CLI reference and examples |
 | [Input formats](docs/input-formats.md) | VCF, FASTA, GFF, TSV, BAM specifications |
 | [Output formats](docs/output-formats.md) | TSV, VCF, BCF, JSON output details |
+| [Indel and MNV semantics](docs/indel-mnv-semantics.md) | How indels, MNVs, boundaries, and complex haplotypes are represented |
 | [Troubleshooting](docs/troubleshooting.md) | Common errors and solutions |
 | [Benchmarking](docs/benchmarking.md) | Performance testing |
 | [Changelog](CHANGELOG.md) | Version history |
@@ -277,10 +281,31 @@ bash scripts/build_get_mnv.sh
 bash scripts/build_gui_bundle.sh
 ```
 
+### End-to-end scenario tests
+
+`tests/scenarios/` contains a Python harness that builds synthetic FASTA,
+GFF, VCF (or iVar TSV) and BAM inputs from declarative scenarios, runs
+the compiled `get_mnv` binary, and checks each TSV output against
+expected rows. The suite currently covers 30 scenarios including
+codon-level SNP/MNV grouping, frameshift propagation, complex_indel
+haplotype emission, negative-strand and multi-exon CDS annotation,
+multiallelic split, and iVar TSV input.
+
+```bash
+cargo build                                # produces target/debug/get_mnv
+python3 tests/scenarios/run.py             # run all 30 scenarios
+python3 tests/scenarios/run.py 22 27       # run a subset by name prefix
+```
+
+Requires `samtools` on `PATH` (or `SAMTOOLS=/path/to/samtools`). See
+[tests/scenarios/README.md](tests/scenarios/README.md) for the full list
+of validated cases, the mini-genome layout, and how to add new scenarios.
+
 ## Limitations
 
-- Designed for SNVs against a reference sequence
-- VCF insertions and deletions are detected but not fully codon-annotated; iVar TSV indel notation such as `+A` or `-N` is skipped
+- Designed for small SNV/MNV/indel events against a reference sequence
+- With `--gff-features CDS`, GFF/GTF records that provide `transcript_id` or `Parent` are reconstructed as spliced CDS models, allowing exon-junction codons and transcript-level indel frameshift context to be annotated.
+- Unphased heterozygous eukaryotic variants still require care: get_MNV reannotates caller alleles, but it does not re-estimate ploidy, genotype likelihoods, or long-range phase.
 - Multiallelic VCF records require `--split-multiallelic` or pre-splitting (`bcftools norm -m -`)
 - Variant contig names must match FASTA and GFF exactly
 - **Multiple transcripts per gene**: when using `--gff-features CDS` with a GFF file that contains multiple transcripts for the same gene, each transcript is annotated independently, producing one output line per transcript per variant. If you want a single line per variant, filter your GFF to keep only the canonical transcript before running get_MNV (e.g., using [AGAT](https://github.com/NBISweden/AGAT) `agat_sp_keep_longest_isoform.pl` or a similar tool)

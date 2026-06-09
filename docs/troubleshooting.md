@@ -74,6 +74,28 @@ or pre-split the VCF:
 bcftools norm -m - input.vcf > split.vcf
 ```
 
+`--split-multiallelic` emits one annotated row per ALT, even when multiple
+alts share the same codon position. Each row reports its own amino-acid
+effect, codon, and BAM-derived read support. Pre-splitting the VCF with
+`bcftools norm -m -` produces the same output.
+
+## BCF Input
+
+Example:
+
+```text
+BCF input is not supported. Convert to VCF first
+```
+
+Fix:
+
+```bash
+bcftools view input.bcf > input.vcf
+get_mnv --vcf input.vcf ...
+```
+
+`--bcf` is an output option only; it does not make BCF valid as input.
+
 ## TSV Annotation with Multiple Contigs
 
 Example:

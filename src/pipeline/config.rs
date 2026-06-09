@@ -87,6 +87,30 @@ pub(crate) fn validate_contig_inputs(
     Ok(())
 }
 
+/// Validate the BAM file up front: it exists, is openable as a coordinate-sorted
+/// indexed BAM, and its header is readable. Run this before any output file is
+/// created so a missing/un-indexed BAM fails fast with an actionable message
+/// instead of erroring lazily inside a worker thread after partial output.
+pub(crate) fn validate_bam(bam_path: &str) -> AppResult<()> {
+    if !std::path::Path::new(bam_path).exists() {
+        return Err(AppError::validation(format!(
+            "BAM file not found: '{bam_path}'"
+        )));
+    }
+    let mut reader = noodles::bam::io::indexed_reader::Builder::default()
+        .build_from_path(bam_path)
+        .map_err(|e| {
+            AppError::validation(format!(
+                "Cannot open BAM '{bam_path}'. It must be coordinate-sorted and indexed \
+                 (run `samtools index {bam_path}`). Underlying error: {e}"
+            ))
+        })?;
+    reader.read_header().map_err(|e| {
+        AppError::validation(format!("Cannot read BAM header from '{bam_path}': {e}"))
+    })?;
+    Ok(())
+}
+
 pub(crate) fn sanitized_command_line() -> String {
     let command_line_args = std::env::args()
         .skip(1)
@@ -383,6 +407,10 @@ mod tests {
             min_snp_strand_reads: 0,
             min_mnv_strand_reads: 0,
             min_strand_bias_p: 0.0,
+            frameshift_min_freq: 0.0,
+            indel_anchor_depth: false,
+            phased_indel_min_reads: 1,
+            phased_indel_min_freq: 0.0,
             dry_run: false,
             strict: false,
             split_multiallelic: false,

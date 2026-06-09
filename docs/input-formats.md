@@ -18,13 +18,15 @@ The supported variant-call inputs are:
 - VCF (`.vcf` or `.vcf.gz`)
 - iVar variants TSV (`.tsv`)
 
-Use `--vcf` for VCF/BCF files and `--tsv` for iVar `variants.tsv` files.
+Use `--vcf` for plain `.vcf` or BGZF-compressed `.vcf.gz` files and `--tsv`
+for iVar `variants.tsv` files. BCF input is not accepted directly; convert it
+first, for example with `bcftools view input.bcf > input.vcf`.
 Older commands that pass an iVar TSV through `--vcf` are still auto-detected
 when the header has the standard iVar columns.
 
 ### VCF
 
-Use a standard VCF file containing SNV calls.
+Use a standard VCF file containing SNV/MNV calls, indels, or complex alleles.
 
 Requirements:
 
@@ -67,8 +69,9 @@ Filtering:
 - If `PASS` exists, get_MNV keeps truthy values such as `TRUE`, `PASS`, `1`,
   or `YES`.
 - Rows where `REF == ALT` are skipped.
-- iVar indel notation such as `+A` or `-N` is skipped for now. get_MNV is
-  SNV-based.
+- iVar indel notation such as `+SEQ` or `-SEQ` is converted to VCF-like
+  anchored alleles using the FASTA reference, then analysed with the same
+  allele-event model as VCF input.
 - `ALT_FREQ` is reported as original frequency (`OFREQ`). It is separate from
   the BAM-derived frequency filters.
 
@@ -110,8 +113,9 @@ Important details:
 - Coordinates are read from columns 4 and 5.
 - Strand is read from column 7.
 - For `CDS` features, phase from column 8 is used when present.
-- For multi-exon CDS annotations, amino acid numbering is reported against the
-  full transcript when transcript information is available.
+- For `CDS` rows with `transcript_id` or `Parent`, get_MNV builds the spliced
+  CDS sequence for each transcript. Codon grouping, MNV amino-acid effects, and
+  indel frameshift context are then evaluated on the full transcript CDS.
 - If a GFF/GTF contains multiple transcripts for the same gene, one variant can
   produce one output line per overlapping transcript.
 

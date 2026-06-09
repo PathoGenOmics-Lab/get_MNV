@@ -1,16 +1,19 @@
-//! VCF loading via noodles (for .vcf.gz and .bcf files), metrics extraction,
+//! VCF loading for plain and BGZF-compressed VCF files, metrics extraction,
 //! allele normalisation, and original INFO field preservation.
 //!
 //! Plain `.vcf` files use the fast text parser in `vcf_fast.rs`.
 
 use super::validation::validate_vcf_allele;
 use crate::error::AppResult;
+use crate::variants::{
+    decompose_allele, substitution_components, AlleleComponent, AlleleComponentKind, AlleleEvent,
+};
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader};
 
 const GET_MNV_INFO_TAGS: &[&str] = &[
     "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
-    "FREQ", "SBP", "MSBP",
+    "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ",
 ];
 
 #[derive(Debug, Clone)]
@@ -21,6 +24,49 @@ pub struct VcfPosition {
     pub original_dp: Option<usize>,
     pub original_freq: Option<f64>,
     pub original_info: Option<String>,
+}
+
+impl VcfPosition {
+    pub fn event(&self) -> AlleleEvent {
+        decompose_allele(self.position, &self.ref_allele, &self.alt_allele)
+    }
+
+    pub fn substitution_components(&self) -> Vec<AlleleComponent> {
+        substitution_components(self.position, &self.ref_allele, &self.alt_allele)
+    }
+
+    pub fn is_single_nucleotide_substitution(&self) -> bool {
+        let components = self.substitution_components();
+        components.len() == 1
+            && self.ref_allele.chars().count() == 1
+            && self.alt_allele.chars().count() == 1
+    }
+
+    pub fn overlaps_interval(&self, start: usize, end: usize) -> bool {
+        if start == 0 || end == 0 || start > end {
+            return false;
+        }
+        let event = self.event();
+        event
+            .components
+            .iter()
+            .any(|component| match component.kind {
+                AlleleComponentKind::Snp => {
+                    component.position >= start && component.position <= end
+                }
+                AlleleComponentKind::Insertion => {
+                    component.position >= start && component.position < end
+                }
+                AlleleComponentKind::Deletion
+                | AlleleComponentKind::Delins
+                | AlleleComponentKind::Symbolic => {
+                    let component_end = component
+                        .position
+                        .saturating_add(component.ref_allele.len().saturating_sub(1));
+                    component.position <= end && component_end >= start
+                }
+            })
+    }
 }
 
 fn parse_optional_freq_token(raw_token: &str) -> Option<f64> {
@@ -254,12 +300,76 @@ fn parse_original_metrics_from_fields(
     (original_dp, original_freq)
 }
 
-fn extract_original_info_from_line(info: &str, own_tags: &HashSet<&str>) -> Option<String> {
-    let parts: Vec<&str> = info
+/// Read a `key=...` attribute value out of a `##INFO` header line, up to the
+/// next `,` or `>`.
+fn header_attr(line: &str, key: &str) -> Option<String> {
+    let start = line.find(key)? + key.len();
+    let rest = &line[start..];
+    let end = rest.find([',', '>']).unwrap_or(rest.len());
+    Some(rest[..end].to_string())
+}
+
+/// Parse `Number=` from `##INFO` header lines into a map of field ID → its
+/// per-allele cardinality code (`A`, `R` or `G`). Fixed-Number fields (1, 0,
+/// ., a constant) are omitted because they need no per-allele subsetting.
+pub(crate) fn per_allele_info_numbers(header_lines: &[String]) -> HashMap<String, char> {
+    let mut map = HashMap::new();
+    for line in header_lines {
+        if let (Some(id), Some(number)) = (header_attr(line, "ID="), header_attr(line, "Number=")) {
+            match number.as_str() {
+                "A" => drop(map.insert(id, 'A')),
+                "R" => drop(map.insert(id, 'R')),
+                "G" => drop(map.insert(id, 'G')),
+                _ => {}
+            }
+        }
+    }
+    map
+}
+
+/// Subset a per-allele INFO field value to a single ALT so it is valid on a
+/// single-ALT output record. `Number=A` keeps the value at `alt_idx`;
+/// `Number=R` keeps `[REF, ALT@alt_idx]`. `Number=G` and arrays too short for
+/// `alt_idx` are dropped (cannot be safely attributed to one allele).
+fn subset_per_allele_field(key: &str, value: &str, kind: char, alt_idx: usize) -> Option<String> {
+    let elems: Vec<&str> = value.split(',').collect();
+    match kind {
+        'A' => elems.get(alt_idx).map(|v| format!("{key}={v}")),
+        'R' => match (elems.first(), elems.get(alt_idx + 1)) {
+            (Some(r), Some(a)) => Some(format!("{key}={r},{a}")),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// Filter get_mnv's own INFO tags out of an original record's INFO string and
+/// subset any per-allele field to `alt_idx`, so the result is valid when copied
+/// onto a single-ALT output record (`--keep-original-info` + multiallelic
+/// input previously copied whole `Number=A/R` arrays, producing invalid VCF).
+pub(crate) fn filter_and_subset_original_info<F: Fn(&str) -> bool>(
+    info: &str,
+    is_own_tag: F,
+    per_allele: &HashMap<String, char>,
+    alt_idx: usize,
+) -> Option<String> {
+    if info.is_empty() || info == "." {
+        return None;
+    }
+    let parts: Vec<String> = info
         .split(';')
-        .filter(|field| {
-            let key = field.split_once('=').map(|(k, _)| k).unwrap_or(field);
-            !own_tags.contains(key)
+        .filter_map(|field| {
+            let (key, value) = match field.split_once('=') {
+                Some((k, v)) => (k, Some(v)),
+                None => (field, None),
+            };
+            if is_own_tag(key) {
+                return None;
+            }
+            match (per_allele.get(key), value) {
+                (Some(&kind), Some(v)) => subset_per_allele_field(key, v, kind, alt_idx),
+                _ => Some(field.to_string()),
+            }
         })
         .collect();
     if parts.is_empty() {
@@ -288,7 +398,7 @@ pub fn list_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
     // Parse header to find #CHROM line
     for line_result in reader.lines() {
         let line = line_result?;
-        if line.starts_with("#CHROM") {
+        if line.starts_with("#CHROM") || line.starts_with("#chrom") {
             let fields: Vec<&str> = line.split('\t').collect();
             if fields.len() > 9 {
                 return Ok(fields[9..].iter().map(|s| s.to_string()).collect());
@@ -383,6 +493,11 @@ pub fn load_vcf_positions_by_contig(
     let samples = list_vcf_samples(vcf_file)?;
     let sample_index = resolve_sample_index(&samples, sample_name)?;
     let own_tags: HashSet<&str> = GET_MNV_INFO_TAGS.iter().copied().collect();
+    let per_allele_info = if keep_original_info {
+        per_allele_info_numbers(&extract_original_info_headers(vcf_file)?)
+    } else {
+        HashMap::new()
+    };
 
     if vcf_file.ends_with(".bcf") {
         return Err(
@@ -402,13 +517,22 @@ pub fn load_vcf_positions_by_contig(
     let mut positions_by_contig: HashMap<String, Vec<VcfPosition>> = HashMap::new();
     let mut split_count = 0usize;
     let mut record_idx = 0usize;
+    let mut header_seen = false;
 
     for line_result in reader.lines() {
         let line = line_result?;
+        if line.starts_with("#CHROM") || line.starts_with("#chrom") {
+            header_seen = true;
+        }
         let fields = match parse_vcf_line(&line) {
             Some(f) => f,
             None => continue,
         };
+        // Skip any data line appearing before the #CHROM header, matching the
+        // plain-text fast parser. A well-formed VCF has no records before it.
+        if !header_seen {
+            continue;
+        }
         record_idx += 1;
 
         if fields.len() < 8 {
@@ -422,6 +546,12 @@ pub fn load_vcf_positions_by_contig(
                 record_idx, fields[1]
             )
         })?;
+        if pos == 0 {
+            return Err(format!(
+                "Invalid VCF position 0 at record {record_idx} (VCF coordinates are 1-based)"
+            )
+            .into());
+        }
         let ref_allele = fields[3];
         let alt_field = fields[4];
         let info = fields[7];
@@ -470,7 +600,12 @@ pub fn load_vcf_positions_by_contig(
             let (original_dp, original_freq) =
                 parse_original_metrics_from_fields(info, &format_keys, sample_field, alt_idx);
             let original_info = if keep_original_info {
-                extract_original_info_from_line(info, &own_tags)
+                filter_and_subset_original_info(
+                    info,
+                    |k| own_tags.contains(k),
+                    &per_allele_info,
+                    alt_idx,
+                )
             } else {
                 None
             };
@@ -492,6 +627,10 @@ pub fn load_vcf_positions_by_contig(
         }
     }
 
+    if !header_seen {
+        return Err("No #CHROM header line found in VCF".into());
+    }
+
     for values in positions_by_contig.values_mut() {
         values.sort_by_key(|v| v.position);
     }
@@ -505,3 +644,113 @@ pub fn load_vcf_positions_by_contig(
 
 // BCF input is not supported in the pure-Rust build.
 // Use `bcftools view input.bcf > input.vcf` to convert.
+
+#[cfg(test)]
+mod tests {
+    use super::VcfPosition;
+
+    fn variant(position: usize, ref_allele: &str, alt_allele: &str) -> VcfPosition {
+        VcfPosition {
+            position,
+            ref_allele: ref_allele.to_string(),
+            alt_allele: alt_allele.to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }
+    }
+
+    #[test]
+    fn test_list_vcf_samples_accepts_lowercase_chrom_header() {
+        use std::io::Write;
+        let path =
+            std::env::temp_dir().join(format!("get_mnv_lc_samples_{}.vcf", std::process::id()));
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "##fileformat=VCFv4.2").unwrap();
+        writeln!(
+            f,
+            "#chrom\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE_A"
+        )
+        .unwrap();
+        drop(f);
+        let samples = super::list_vcf_samples(path.to_str().unwrap()).unwrap();
+        assert_eq!(samples, vec!["SAMPLE_A".to_string()]);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_load_vcf_accepts_lowercase_chrom_and_skips_preheader_data() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join(format!("get_mnv_lc_load_{}.vcf", std::process::id()));
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "##fileformat=VCFv4.2").unwrap();
+        // A stray data-shaped line before the header must be ignored, and a
+        // lowercase #chrom header must be accepted (parity with the fast parser).
+        writeln!(f, "chr1\t1\t.\tA\tG\t.\tPASS\t.").unwrap();
+        writeln!(f, "#chrom\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO").unwrap();
+        writeln!(f, "chr1\t5\t.\tA\tT\t.\tPASS\t.").unwrap();
+        drop(f);
+        let by_contig =
+            super::load_vcf_positions_by_contig(path.to_str().unwrap(), None, false, false, false)
+                .unwrap();
+        assert_eq!(by_contig.get("chr1").map(std::vec::Vec::len), Some(1));
+        assert_eq!(by_contig["chr1"][0].position, 5);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_per_allele_info_numbers_parses_number() {
+        let headers = vec![
+            "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"alt count\">".to_string(),
+            "##INFO=<ID=AD,Number=R,Type=Integer,Description=\"allele depth\">".to_string(),
+            "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"depth\">".to_string(),
+        ];
+        let map = super::per_allele_info_numbers(&headers);
+        assert_eq!(map.get("AC"), Some(&'A'));
+        assert_eq!(map.get("AD"), Some(&'R'));
+        assert_eq!(map.get("DP"), None); // fixed-Number field omitted
+    }
+
+    #[test]
+    fn test_filter_and_subset_original_info_multiallelic() {
+        let headers = vec![
+            "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"x\">".to_string(),
+            "##INFO=<ID=AF,Number=A,Type=Float,Description=\"x\">".to_string(),
+            "##INFO=<ID=AD,Number=R,Type=Integer,Description=\"x\">".to_string(),
+        ];
+        let map = super::per_allele_info_numbers(&headers);
+        let info = "AC=5,7;AF=0.5,0.7;AD=10,5,7;DP=22;FOO=bar";
+        // Split allele index 1: per-allele fields subset to that ALT.
+        let out = super::filter_and_subset_original_info(info, |k| k == "GENE", &map, 1).unwrap();
+        assert_eq!(out, "AC=7;AF=0.7;AD=10,7;DP=22;FOO=bar");
+    }
+
+    #[test]
+    fn test_filter_and_subset_original_info_biallelic_unchanged() {
+        let headers = vec![
+            "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"x\">".to_string(),
+            "##INFO=<ID=AD,Number=R,Type=Integer,Description=\"x\">".to_string(),
+        ];
+        let map = super::per_allele_info_numbers(&headers);
+        let out =
+            super::filter_and_subset_original_info("AC=5;AD=10,5", |_| false, &map, 0).unwrap();
+        assert_eq!(out, "AC=5;AD=10,5");
+    }
+
+    #[test]
+    fn insertion_overlaps_only_between_interval_bases() {
+        let insertion = variant(10, "A", "AT");
+        assert!(insertion.overlaps_interval(9, 11));
+        assert!(insertion.overlaps_interval(10, 11));
+        assert!(!insertion.overlaps_interval(11, 12));
+        assert!(!insertion.overlaps_interval(10, 10));
+    }
+
+    #[test]
+    fn anchored_deletion_overlaps_deleted_reference_span() {
+        let deletion = variant(10, "AT", "A");
+        assert!(deletion.overlaps_interval(11, 11));
+        assert!(deletion.overlaps_interval(10, 11));
+        assert!(!deletion.overlaps_interval(10, 10));
+    }
+}

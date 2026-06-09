@@ -17,7 +17,7 @@ pub enum VariantInputFormat {
     name = "get_mnv",
     version,
     author = "Paula Ruiz Rodriguez",
-    about = "Identifies SNPs within codons, reclassifies multi-nucleotide variants (MNVs), calculates amino acid changes, and outputs results in TSV/VCF format."
+    about = "Identifies codon-level SNPs/MNVs, annotates indels and complex alleles, calculates amino acid changes, and outputs results in TSV/VCF format."
 )]
 #[command(
     group(
@@ -27,7 +27,7 @@ pub enum VariantInputFormat {
     )
 )]
 pub struct Args {
-    /// Variant input file containing SNPs in VCF/BCF format
+    /// Variant input file containing SNVs/MNVs and indels in plain or BGZF-compressed VCF format
     #[arg(
         short = 'v',
         long = "vcf",
@@ -77,7 +77,7 @@ pub struct Args {
     #[arg(long)]
     pub sample: Option<String>,
 
-    /// Minimum Phred quality (default: 20)
+    /// Minimum base Phred quality for BAM read support (default: 20)
     #[arg(short = 'q', long = "quality", default_value_t = 20)]
     pub min_quality: u8,
 
@@ -120,6 +120,30 @@ pub struct Args {
     /// Minimum Fisher exact p-value accepted for strand-bias metrics (default: 0.0)
     #[arg(long = "min-strand-bias-p", default_value_t = 0.0)]
     pub min_strand_bias_p: f64,
+
+    /// Minimum allele frequency (0.0-1.0) an upstream indel must reach to mark
+    /// downstream SNV/MNV codons as frameshifted. Default 0.0 propagates from
+    /// every indel (historical behaviour); raise it to avoid relabelling
+    /// high-frequency downstream substitutions because of a low-frequency
+    /// upstream indel that is likely on a different molecule (intra-host data).
+    #[arg(long = "frameshift-min-freq", default_value_t = 0.0)]
+    pub frameshift_min_freq: f64,
+
+    /// Count indel locus depth (EDP/EFREQ denominator) from reads observing the
+    /// anchor base, instead of only reads that fully span the REF allele.
+    /// Reduces depth under-counting and EFREQ bias for multi-base deletions.
+    #[arg(long = "indel-anchor-depth")]
+    pub indel_anchor_depth: bool,
+
+    /// Minimum BAM-supporting reads required to emit a phased indel/complex
+    /// haplotype row (default: 1).
+    #[arg(long = "phased-indel-min-reads", default_value_t = 1)]
+    pub phased_indel_min_reads: usize,
+
+    /// Minimum BAM-derived frequency (0.0-1.0) required to emit a phased
+    /// indel/complex haplotype row (default: 0.0).
+    #[arg(long = "phased-indel-min-freq", default_value_t = 0.0)]
+    pub phased_indel_min_freq: f64,
 
     /// Parse and validate inputs, print per-contig summary, and skip writing TSV/VCF outputs
     #[arg(long = "dry-run")]

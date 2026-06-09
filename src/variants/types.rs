@@ -23,6 +23,7 @@ pub enum ChangeType {
     Unknown,
     Synonymous,
     NonSynonymous,
+    StartLost,
     StopGained,
     StopLost,
     IndelOverlap,
@@ -30,6 +31,7 @@ pub enum ChangeType {
     FrameshiftNonSynonymous,
     FrameshiftStopGained,
     FrameshiftStopLost,
+    FrameshiftDownstreamOfStop,
     FrameshiftUnknown,
     FrameshiftIndel,
     InFrameIndel,
@@ -48,6 +50,7 @@ impl ChangeType {
         match label {
             "Synonymous" => ChangeType::Synonymous,
             "Non-synonymous" => ChangeType::NonSynonymous,
+            "Start lost" => ChangeType::StartLost,
             "Stop gained" => ChangeType::StopGained,
             "Stop lost" => ChangeType::StopLost,
             "Unknown" => ChangeType::Unknown,
@@ -56,6 +59,7 @@ impl ChangeType {
             "Non-synonymous (frameshift)" => ChangeType::FrameshiftNonSynonymous,
             "Stop gained (frameshift)" => ChangeType::FrameshiftStopGained,
             "Stop lost (frameshift)" => ChangeType::FrameshiftStopLost,
+            "Downstream of premature stop" => ChangeType::FrameshiftDownstreamOfStop,
             "Unknown (frameshift)" => ChangeType::FrameshiftUnknown,
             "Frameshift Indel" => ChangeType::FrameshiftIndel,
             "In-frame Indel" => ChangeType::InFrameIndel,
@@ -77,6 +81,9 @@ impl ChangeType {
         match self {
             ChangeType::Synonymous => ChangeType::FrameshiftSynonymous,
             ChangeType::NonSynonymous => ChangeType::FrameshiftNonSynonymous,
+            // The initiator codon (protein position 1) has nothing upstream, so a
+            // start-lost is never reached through downstream frameshift propagation.
+            ChangeType::StartLost => ChangeType::StartLost,
             ChangeType::StopGained => ChangeType::FrameshiftStopGained,
             ChangeType::StopLost => ChangeType::FrameshiftStopLost,
             ChangeType::Unknown => ChangeType::FrameshiftUnknown,
@@ -85,6 +92,7 @@ impl ChangeType {
             ChangeType::FrameshiftNonSynonymous => ChangeType::FrameshiftNonSynonymous,
             ChangeType::FrameshiftStopGained => ChangeType::FrameshiftStopGained,
             ChangeType::FrameshiftStopLost => ChangeType::FrameshiftStopLost,
+            ChangeType::FrameshiftDownstreamOfStop => ChangeType::FrameshiftDownstreamOfStop,
             ChangeType::FrameshiftUnknown => ChangeType::FrameshiftUnknown,
             ChangeType::FrameshiftIndel => ChangeType::FrameshiftIndel,
             ChangeType::InFrameIndel => ChangeType::InFrameIndel,
@@ -123,6 +131,7 @@ impl Display for ChangeType {
             ChangeType::Unknown => "Unknown",
             ChangeType::Synonymous => "Synonymous",
             ChangeType::NonSynonymous => "Non-synonymous",
+            ChangeType::StartLost => "Start lost",
             ChangeType::StopGained => "Stop gained",
             ChangeType::StopLost => "Stop lost",
             ChangeType::IndelOverlap => "Indel overlap",
@@ -130,6 +139,7 @@ impl Display for ChangeType {
             ChangeType::FrameshiftNonSynonymous => "Non-synonymous (frameshift)",
             ChangeType::FrameshiftStopGained => "Stop gained (frameshift)",
             ChangeType::FrameshiftStopLost => "Stop lost (frameshift)",
+            ChangeType::FrameshiftDownstreamOfStop => "Downstream of premature stop",
             ChangeType::FrameshiftUnknown => "Unknown (frameshift)",
             ChangeType::FrameshiftIndel => "Frameshift Indel",
             ChangeType::InFrameIndel => "In-frame Indel",
@@ -148,6 +158,12 @@ impl FromStr for Strand {
             _ => Err(()),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct CdsSegment {
+    pub start: usize,
+    pub end: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -170,6 +186,35 @@ pub struct Gene {
     /// annotations) this is always 0 and the historical per-feature numbering
     /// is preserved.
     pub protein_offset: usize,
+    /// Parent transcript identifier for GFF/GTF CDS-derived records. `None`
+    /// for TSV annotations and non-transcript features.
+    pub transcript_id: Option<String>,
+    /// CDS segments belonging to the parent transcript in transcript order.
+    /// Empty for legacy per-feature annotations. When present, codon grouping
+    /// and indel protein effects are computed on the spliced CDS sequence.
+    pub cds_segments: Vec<CdsSegment>,
+}
+
+impl Gene {
+    /// Whether an insertion anchored at genomic `position` lands at an internal
+    /// exon-exon junction of the spliced CDS — i.e. immediately after the last
+    /// base of an internal coding exon. The inserted bases then fall between two
+    /// exons in the spliced transcript, so the insertion is coding, even though
+    /// the exon's terminal base is excluded from the half-open exon interval used
+    /// elsewhere. An anchor at the CDS terminus (after the last exon on the plus
+    /// strand, before the first on the minus strand) is UTR, not an internal
+    /// junction. `cds_segments` is in transcript order, so the terminal exon is
+    /// the last entry on the plus strand and the first on the minus strand.
+    pub(crate) fn insertion_at_internal_junction(&self, position: usize) -> bool {
+        let segment_count = self.cds_segments.len();
+        self.cds_segments.iter().enumerate().any(|(idx, segment)| {
+            position == segment.end
+                && match self.strand {
+                    Strand::Plus => idx + 1 < segment_count,
+                    Strand::Minus => idx > 0,
+                }
+        })
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -245,6 +290,16 @@ pub struct VariantInfo {
     pub original_dp: Option<Vec<usize>>,
     pub original_freq: Option<Vec<f64>>,
     pub original_info: Option<String>,
+    /// Canonical allele event class derived from REF/ALT, e.g. `mnv`,
+    /// `insertion`, `deletion`, `complex_indel`. Kept separate from
+    /// `variant_type` so length-changing events that also contain SNV/MNV
+    /// components can be represented without inventing false downstream MNVs.
+    #[serde(default)]
+    pub event_class: Option<String>,
+    /// Human-readable decomposition of the original allele into event
+    /// components such as `SNV:10:A>G`, `INS:10:+T` or `DEL:11-12:TG`.
+    #[serde(default)]
+    pub event_components: Vec<String>,
 }
 
 #[cfg(test)]

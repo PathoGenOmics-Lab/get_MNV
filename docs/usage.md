@@ -11,8 +11,9 @@ get_mnv \
   (--gff <ANNOTATION_GFF> | --genes <ANNOTATION_TSV>)
 ```
 
-Use `--vcf` for VCF/BCF input and `--tsv` for the `variants.tsv` file produced
-by `ivar variants`.
+Use `--vcf` for plain `.vcf` or BGZF-compressed `.vcf.gz` input and `--tsv`
+for the `variants.tsv` file produced by `ivar variants`. BCF input is not
+accepted directly; convert it to VCF first with `bcftools view`.
 
 ## Common Recipes
 
@@ -66,13 +67,14 @@ get_mnv \
 ```
 
 Use `--gff-features CDS` when you want codon-aware protein annotation from CDS
-features, especially for eukaryotic GFF/GTF files.
+features, especially for eukaryotic GFF/GTF files. CDS rows with
+`transcript_id` or `Parent` are reconstructed as spliced transcript CDS models.
 
 ## Required Arguments
 
 | Argument | Meaning |
 |---|---|
-| `--vcf <FILE>` | Variant calls in VCF/BCF format. |
+| `--vcf <FILE>` | Variant calls in plain `.vcf` or `.vcf.gz` format. |
 | `--tsv <FILE>` | iVar `variants.tsv` calls. |
 | `--fasta <FILE>` | Reference FASTA used to call the variants. |
 | `--gff <FILE>` | Gene annotation in GFF/GFF3/GTF format. |
@@ -94,7 +96,7 @@ You must provide either `--gff` or `--genes`.
 
 | Argument | Default | Meaning |
 |---|---:|---|
-| `--quality <N>` | `20` | Minimum variant quality. |
+| `--quality <N>` | `20` | Minimum base Phred quality for BAM read support. |
 | `--min-mapq <N>` | `0` | Minimum mapping quality for BAM reads. |
 | `--snp <N>` | `0` | Minimum SNP-supporting reads. |
 | `--mnv <N>` | `0` | Minimum MNV-supporting reads. |
@@ -115,6 +117,19 @@ remove SNP observations that pass the SNP threshold.
 Read-count and strand-support filters follow the same rule: `--snp` and
 `--min-snp-strand` apply to SNP observations, while `--mnv` and
 `--min-mnv-strand` apply to MNV haplotypes.
+
+## Indel annotation tuning
+
+These opt-in knobs refine indel/frameshift annotation. The defaults reproduce
+the historical behaviour, so existing commands are unaffected. See
+[indel-mnv-semantics.md](indel-mnv-semantics.md) for the biological rationale.
+
+| Argument | Default | Meaning |
+|---|---:|---|
+| `--frameshift-min-freq <F>` | `0.0` | Minimum allele frequency an *upstream* indel must reach to mark downstream SNV/MNV codons as frameshifted. `0.0` propagates from every indel; raise it (e.g. `0.5`) to avoid relabelling high-frequency downstream substitutions because of a low-frequency upstream indel (intra-host data). |
+| `--indel-anchor-depth` | off | Count indel locus depth (the EDP/EFREQ denominator) from reads observing the anchor base instead of only reads that fully span the REF allele. Reduces depth under-counting for multi-base deletions. Requires `--bam`. |
+| `--phased-indel-min-reads <N>` | `1` | Minimum BAM-supporting reads required to emit a phased indel / complex (indel+SNV) haplotype row. Requires `--bam`. |
+| `--phased-indel-min-freq <F>` | `0.0` | Minimum BAM-derived frequency required to emit a phased indel / complex haplotype row. Requires `--bam`. |
 
 ## Output Arguments
 
@@ -140,12 +155,13 @@ Read-count and strand-support filters follow the same rule: `--snp` and
 | `--dry-run` | Validate inputs without writing output files. |
 | `--threads <N>` | Number of worker threads. Default: automatic. |
 | `--normalize-alleles` | Trim shared REF/ALT context before processing. |
-| `--split-multiallelic` | Split multiallelic VCF records inside get_MNV. |
+| `--split-multiallelic` | Split multiallelic VCF records inside get_MNV. Each ALT becomes an independent annotation row, including alts that share the same codon position. |
 
 ## Notes
 
 - Contig names must match exactly across the variant file, FASTA, GFF, and BAM.
-- iVar TSV parsing keeps passing SNV rows and skips iVar indel notation such as
-  `+A` or `-N`.
+- iVar TSV parsing keeps passing SNV and indel rows. Indel notation such as
+  `+SEQ` or `-SEQ` is converted to VCF-like anchored `REF/ALT` alleles using
+  the FASTA reference.
 - If you use `--genes`, the annotation TSV has no contig column. For
   multi-contig data, prefer `--gff`.

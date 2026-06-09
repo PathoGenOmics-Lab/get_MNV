@@ -1,0 +1,59 @@
+name: CI
+
+# Quality gate for the core get_mnv crate. Runs on every push and pull request.
+# The Tauri desktop GUI crate is intentionally excluded here (it needs system
+# WebKit/GTK libraries); it is exercised by the release workflow.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Build · test · clippy · fmt (core)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format check
+        run: cargo fmt --check
+      - name: Clippy (deny warnings)
+        run: cargo clippy -p get_mnv --all-targets -- -D warnings
+      - name: Build
+        run: cargo build -p get_mnv --locked
+      - name: Test
+        run: cargo test -p get_mnv --locked
+
+  scenarios:
+    name: End-to-end scenario suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install samtools
+        run: sudo apt-get update && sudo apt-get install -y samtools
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --locked
+      - name: Run scenario suite
+        # run.py exits non-zero if any scenario FAILs.
+        run: python3 tests/scenarios/run.py
+
+  audit:
+    name: cargo audit (advisory, non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Audit dependencies
+        run: cargo audit

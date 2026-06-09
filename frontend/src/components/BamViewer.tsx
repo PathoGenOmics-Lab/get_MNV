@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { BamReadView, BamVariantSite, BamViewResponse, TsvData } from "../types";
+import type { BamReadView, BamVariantSite, BamViewColumn, BamViewResponse, TsvData } from "../types";
 
 interface BamViewerProps {
   bamPath: string;
@@ -22,6 +22,10 @@ interface ViewerLocus {
   aaChanges: string;
   mnvReads: string;
   mnvFrequency: string;
+  eventClass: string;
+  eventComponents: string;
+  eventReads: string;
+  eventFrequency: string;
   refCodon: string;
   mnvCodon: string;
   snpCodons: string;
@@ -46,6 +50,7 @@ const DEFAULT_CELL_SIZE = 14;
 const MIN_CELL_SIZE = 6;
 const MAX_CELL_SIZE = 24;
 const SUPPORT_TYPES = ["mnv", "partial", "reference", "other"] as const;
+const INDEL_EVENT_CLASSES = new Set(["insertion", "deletion", "delins", "complex_indel", "symbolic"]);
 
 /* ── Pure helpers ─────────────────────────────────────── */
 
@@ -55,6 +60,11 @@ function headerIndex(headers: string[], label: string): number {
 
 function splitField(value: string): string[] {
   return value.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
+function nonPlaceholder(value: string | undefined): string {
+  const trimmed = (value ?? "").trim();
+  return trimmed === "-" ? "" : trimmed;
 }
 
 /** Parse an AA-change string like "Gly92Asp" → { refAa: "Gly", pos: "92", altAa: "Asp" } */
@@ -70,6 +80,34 @@ function parsePositions(value: string): number[] {
     .filter((n) => Number.isFinite(n) && n > 0);
 }
 
+function parseFirstCount(value: string): number {
+  const raw = splitField(value)[0] ?? value.trim();
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isIndelEventClass(eventClass: string): boolean {
+  return INDEL_EVENT_CLASSES.has(eventClass.trim().toLowerCase());
+}
+
+function isRenderableLocus(variantType: string, eventClass: string): boolean {
+  const vt = variantType.toLowerCase();
+  return vt.includes("mnv") || vt.includes("indel") || isIndelEventClass(eventClass);
+}
+
+function locusEvidenceReads(locus: Pick<ViewerLocus, "eventReads" | "mnvReads">): string {
+  return locus.eventReads && locus.eventReads !== "-" ? locus.eventReads : locus.mnvReads;
+}
+
+function locusEvidenceFrequency(locus: Pick<ViewerLocus, "eventFrequency" | "mnvFrequency">): string {
+  return locus.eventFrequency && locus.eventFrequency !== "-" ? locus.eventFrequency : locus.mnvFrequency;
+}
+
+function locusTypeLabel(locus: Pick<ViewerLocus, "eventClass" | "variantType">): string {
+  if (isIndelEventClass(locus.eventClass)) return locus.eventClass.replace("_", " ").toUpperCase();
+  return locus.variantType || "Variant";
+}
+
 function buildLoci(data: TsvData): ViewerLocus[] {
   const ci = headerIndex(data.headers, "Chromosome");
   const gi = headerIndex(data.headers, "Gene");
@@ -81,6 +119,10 @@ function buildLoci(data: TsvData): ViewerLocus[] {
   const aai = headerIndex(data.headers, "AA Changes");
   const mri = headerIndex(data.headers, "MNV Reads");
   const mfi = headerIndex(data.headers, "MNV Frequencies");
+  const eci = headerIndex(data.headers, "Event Class");
+  const ecpi = headerIndex(data.headers, "Event Components");
+  const eri = headerIndex(data.headers, "Event Reads");
+  const efi = headerIndex(data.headers, "Event Frequency");
   const rci = headerIndex(data.headers, "Reference Codon");
   const mci = headerIndex(data.headers, "MNV Codon");
   const sci = headerIndex(data.headers, "SNP Codon");
@@ -91,41 +133,49 @@ function buildLoci(data: TsvData): ViewerLocus[] {
   return data.rows
     .map((row) => {
       const vt = row[vi] ?? "";
-      if (!vt.toLowerCase().includes("mnv")) return null;
+      const eventClass = eci >= 0 ? nonPlaceholder(row[eci]) : "";
+      if (!isRenderableLocus(vt, eventClass)) return null;
 
-      // Skip loci with 0 MNV reads — nothing meaningful to visualise
-      const mnvReadCount = mri >= 0 ? Number.parseInt(row[mri] ?? "0", 10) : 0;
-      if (!mnvReadCount || mnvReadCount <= 0) return null;
+      // Skip loci with zero BAM support when read-derived columns are present.
+      const eventReadCount = eri >= 0 ? parseFirstCount(row[eri] ?? "0") : 0;
+      const mnvReadCount = mri >= 0 ? parseFirstCount(row[mri] ?? "0") : 0;
+      if ((eri >= 0 || mri >= 0) && Math.max(eventReadCount, mnvReadCount) <= 0) return null;
 
       const positions = parsePositions(row[pi] ?? "");
       const refBases = splitField(row[ri] ?? "");
       const altBases = splitField(row[ai] ?? "");
-      if (positions.length < 2 || positions.length !== refBases.length || positions.length !== altBases.length) return null;
+      if (positions.length === 0 || positions.length !== refBases.length || positions.length !== altBases.length) return null;
 
       const chrom = row[ci] ?? "";
       return {
-        id: `${chrom}:${positions.join("-")}:${altBases.join("")}`,
+        id: `${chrom}:${positions.join("-")}:${refBases.join("")}>${altBases.join("")}:${eventClass || vt}`,
         chrom,
         gene: (row[gi] && row[gi].trim()) || `${row[ci] ?? "?"}:${parsePositions(row[pi] ?? "").join("-")}`,
         positions,
         refBases,
         altBases,
         variantType: vt,
-        changeType: cti >= 0 ? row[cti] ?? "" : "",
-        aaChanges: aai >= 0 ? row[aai] ?? "" : "",
-        mnvReads: mri >= 0 ? row[mri] ?? "" : "",
-        mnvFrequency: mfi >= 0 ? row[mfi] ?? "" : "",
-        refCodon: rci >= 0 ? row[rci] ?? "" : "",
-        mnvCodon: mci >= 0 ? row[mci] ?? "" : "",
-        snpCodons: sci >= 0 ? row[sci] ?? "" : "",
-        snpAaChanges: sai >= 0 ? row[sai] ?? "" : "",
+        changeType: cti >= 0 ? nonPlaceholder(row[cti]) : "",
+        aaChanges: aai >= 0 ? nonPlaceholder(row[aai]) : "",
+        mnvReads: mri >= 0 ? nonPlaceholder(row[mri]) : "",
+        mnvFrequency: mfi >= 0 ? nonPlaceholder(row[mfi]) : "",
+        eventClass,
+        eventComponents: ecpi >= 0 ? nonPlaceholder(row[ecpi]) : "",
+        eventReads: eri >= 0 ? nonPlaceholder(row[eri]) : "",
+        eventFrequency: efi >= 0 ? nonPlaceholder(row[efi]) : "",
+        refCodon: rci >= 0 ? nonPlaceholder(row[rci]) : "",
+        mnvCodon: mci >= 0 ? nonPlaceholder(row[mci]) : "",
+        snpCodons: sci >= 0 ? nonPlaceholder(row[sci]) : "",
+        snpAaChanges: sai >= 0 ? nonPlaceholder(row[sai]) : "",
       };
     })
     .filter((l): l is ViewerLocus => l !== null);
 }
 
 function locusBounds(locus: ViewerLocus): WindowRange {
-  return { start: Math.min(...locus.positions), end: Math.max(...locus.positions) };
+  const starts = locus.positions;
+  const ends = locus.positions.map((p, i) => p + Math.max(1, locus.refBases[i]?.length ?? 1) - 1);
+  return { start: Math.min(...starts), end: Math.max(...ends) };
 }
 
 function countLabel(n: number): string {
@@ -134,7 +184,7 @@ function countLabel(n: number): string {
 
 function supportLabel(s: BamReadView["support"]): string {
   switch (s) {
-    case "mnv": return "MNV";
+    case "mnv": return "ALT";
     case "partial": return "SNP/partial";
     case "reference": return "Ref";
     case "other": return "Other";
@@ -149,11 +199,76 @@ function supportButtonTitle(visibleSupport: Set<string>, type: string, label: st
 }
 
 function locusTitle(l: ViewerLocus): string {
-  return `${l.gene} · ${l.chrom}:${l.positions.join(", ")}`;
+  return `${l.gene} · ${l.chrom}:${l.positions.join(", ")} · ${locusTypeLabel(l)}`;
 }
 
-function focusSiteMap(sites: BamVariantSite[]): Map<number, BamVariantSite> {
-  return new Map(sites.map((s) => [s.position, s]));
+function expectedInsertionAfterSite(site: BamVariantSite): { anchor: number; sequence: string } | null {
+  const refChars = Array.from(site.referenceBase);
+  const altChars = Array.from(site.altBase);
+  if (altChars.length <= refChars.length) return null;
+
+  const minLen = Math.min(refChars.length, altChars.length);
+  let prefix = 0;
+  while (prefix < minLen && refChars[prefix].toUpperCase() === altChars[prefix].toUpperCase()) {
+    prefix += 1;
+  }
+
+  const insertedLen = altChars.length - refChars.length;
+  const anchor = prefix === 0 ? site.position : site.position + prefix - 1;
+  return { anchor, sequence: altChars.slice(prefix, prefix + insertedLen).join("") };
+}
+
+function siteForColumn(column: BamViewColumn, sites: BamVariantSite[]): BamVariantSite | undefined {
+  if (column.kind === "ins") {
+    return sites.find((site) => {
+      const insertion = expectedInsertionAfterSite(site);
+      return Boolean(
+        insertion
+        && insertion.anchor === column.position
+        && (column.insertionIndex ?? 0) >= 1
+        && (column.insertionIndex ?? 0) <= insertion.sequence.length,
+      );
+    });
+  }
+
+  return sites.find((site) => {
+    const spanEnd = site.position + Math.max(1, site.referenceBase.length) - 1;
+    return column.position >= site.position && column.position <= spanEnd;
+  });
+}
+
+function expectedBaseForColumn(column: BamViewColumn, site?: BamVariantSite): string | null {
+  if (!site) return null;
+  if (column.kind === "ins") {
+    const insertion = expectedInsertionAfterSite(site);
+    if (!insertion || insertion.anchor !== column.position) return null;
+    return insertion.sequence[(column.insertionIndex ?? 1) - 1] ?? null;
+  }
+  const offset = column.position - site.position;
+  if (site.altBase.length === site.referenceBase.length) return site.altBase[offset] ?? null;
+  return null;
+}
+
+function refColumnIndex(columns: BamViewColumn[], position: number): number {
+  return columns.findIndex((column) => column.kind === "ref" && column.position === position);
+}
+
+function columnRangeForLocus(columns: BamViewColumn[], locus: ViewerLocus): { left: number; width: number } {
+  const bounds = locusBounds(locus);
+  let left = columns.findIndex((column) => column.kind === "ref" && column.position >= bounds.start);
+  if (left < 0) left = 0;
+
+  let right = left;
+  columns.forEach((column, idx) => {
+    if (column.position >= bounds.start && column.position <= bounds.end) {
+      right = Math.max(right, idx);
+    }
+  });
+
+  return {
+    left,
+    width: Math.max(1, right - left + 1),
+  };
 }
 
 function nucleotideClass(base: string): string {
@@ -258,30 +373,42 @@ function layoutVisibleLoci(loci: ViewerLocus[], chrom: string, range: WindowRang
 
 /* ── BamCell ──────────────────────────────────────────── */
 
-function BamCell({ value, position, referenceBase, site, isReadStart, isReadEnd, strand }: {
+function BamCell({ value, column, site, expectedBase, isReadStart, isReadEnd, strand }: {
   value: string;
-  position: number;
-  referenceBase: string;
+  column: BamViewColumn;
   site?: BamVariantSite;
+  expectedBase?: string | null;
   isReadStart?: boolean;
   isReadEnd?: boolean;
   strand?: string;
 }) {
   const cls = ["bam-cell"];
   let text = value || "";
+  const isInsertionColumn = column.kind === "ins";
 
   const uc = value?.toUpperCase() ?? "";
   if (!value || value === " ") {
     cls.push("bam-cell--empty");
+    if (isInsertionColumn) cls.push("bam-cell--insertion");
+  } else if (isInsertionColumn) {
+    cls.push("bam-cell--insertion-base");
+    if (site) {
+      cls.push("bam-cell--focus");
+      if (expectedBase && uc === expectedBase.toUpperCase()) cls.push("bam-cell--focus-alt");
+      else cls.push("bam-cell--focus-other");
+    }
+    const nc = nucleotideClass(value);
+    if (nc) cls.push(nc);
   } else if (site) {
     cls.push("bam-cell--focus");
-    if (uc === site.altBase.toUpperCase()) cls.push("bam-cell--focus-alt");
+    if (expectedBase && uc === expectedBase.toUpperCase()) cls.push("bam-cell--focus-alt");
+    else if (uc === site.altBase.toUpperCase()) cls.push("bam-cell--focus-alt");
     else if (uc === site.referenceBase.toUpperCase()) cls.push("bam-cell--focus-ref");
     else if (value === "-") cls.push("bam-cell--focus-gap");
     else cls.push("bam-cell--focus-other");
   } else if (value === "-") {
     cls.push("bam-cell--gap");
-  } else if (uc === referenceBase.toUpperCase()) {
+  } else if (uc === column.referenceBase.toUpperCase()) {
     cls.push("bam-cell--match");
     text = ""; // IGV-style: match = colored bar, no text
   } else {
@@ -297,9 +424,12 @@ function BamCell({ value, position, referenceBase, site, isReadStart, isReadEnd,
   // Arrow direction: forward reads point right (▶ at end), reverse point left (◀ at start)
   const isFwd = strand === "+";
   const showArrow = (isFwd && isReadEnd) || (!isFwd && isReadStart);
+  const titlePosition = isInsertionColumn
+    ? `${column.position}+${column.insertionIndex ?? ""}`
+    : `${column.position}`;
 
   return (
-    <span className={cls.join(" ")} title={`${position}: ${value || "–"}`}>
+    <span className={cls.join(" ")} title={`${titlePosition}: ${value || "–"}`}>
       {text}
       {showArrow && <span className={`bam-cell-arrow bam-cell-arrow--${isFwd ? "fwd" : "rev"}`}>{isFwd ? "▸" : "◂"}</span>}
     </span>
@@ -434,7 +564,7 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
     return () => { cancelled = true; };
   }, [bamPath, fastaPath, minBaseQuality, minMapq, selectedId, loci]);
 
-  /* ── Auto-scroll to center MNV when data loads ── */
+  /* ── Auto-scroll to center variant when data loads ── */
   // Uses `selectedId` (string) instead of `selectedLocus` (object) to avoid
   // spurious scroll resets when typing in search. Guards against stale view
   // data by checking that the locus positions fall within the display range.
@@ -446,7 +576,8 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
     // Only scroll if the view data actually covers this locus
     if (bounds.start < view.displayStart || bounds.end > view.displayEnd) return;
     const center = Math.round((bounds.start + bounds.end) / 2);
-    const offsetPx = (center - view.displayStart) * cellSize;
+    const centerIdx = refColumnIndex(view.columns, center);
+    const offsetPx = Math.max(0, centerIdx) * cellSize;
     const vw = gridWrapRef.current.clientWidth;
     requestAnimationFrame(() => {
       if (gridWrapRef.current) {
@@ -517,19 +648,17 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
   }, [view]);
 
   /* ── Derived data ── */
-  const siteMap = useMemo(
-    () => view ? focusSiteMap(view.sites) : new Map<number, BamVariantSite>(),
+  const displayColumns = useMemo(
+    () => view ? view.columns : [],
     [view],
   );
-  const referenceBases = useMemo(
-    () => view ? view.reference.split("") : [],
-    [view],
+  const focusColumnIndexes = useMemo(
+    () => displayColumns
+      .map((column, idx) => (siteForColumn(column, view?.sites ?? []) ? idx : -1))
+      .filter((idx) => idx >= 0),
+    [displayColumns, view],
   );
-  const windowPositions = useMemo(
-    () => view ? Array.from({ length: view.reference.length }, (_, i) => view.displayStart + i) : [],
-    [view],
-  );
-  const trackWidth = windowPositions.length * cellSize;
+  const trackWidth = displayColumns.length * cellSize;
   const tickStep = tickStepForCellSize(cellSize);
   const trackStyle = { "--bam-cell-size": `${cellSize}px` } as CSSProperties;
 
@@ -620,7 +749,7 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
           </svg>
         </div>
         <h3 className="step-title">Genomic Track Viewer</h3>
-        <span className="step-subtitle">{countLabel(loci.length)} MNV loci</span>
+        <span className="step-subtitle">{countLabel(loci.length)} variant loci</span>
       </div>
 
         <div className="bam-viewer-shell">
@@ -646,12 +775,12 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                 >
                   <div className="bam-locus-item-top">
                     <span className="bam-locus-gene">{l.gene}</span>
-                    <span className="bam-locus-type">{l.variantType}</span>
+                    <span className="bam-locus-type">{locusTypeLabel(l)}</span>
                   </div>
                   <div className="bam-locus-item-mid">{l.chrom}:{l.positions.join(", ")}</div>
                   <div className="bam-locus-item-bottom">
                     <span>{l.refBases.join(",")} → {l.altBases.join(",")}</span>
-                    {l.mnvReads && <span>×{l.mnvReads}</span>}
+                    {locusEvidenceReads(l) && <span>×{locusEvidenceReads(l)}</span>}
                   </div>
                 </button>
               ))}
@@ -712,7 +841,7 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
             {selectedLocus && (
               <div className="bam-focus-strip">
                 {selectedLocus.positions.map((pos, i) => (
-                  <span key={pos} className="bam-focus-chip">
+                  <span key={`${pos}-${selectedLocus.refBases[i]}-${selectedLocus.altBases[i]}`} className="bam-focus-chip">
                     {pos} {selectedLocus.refBases[i]}&gt;{selectedLocus.altBases[i]}
                   </span>
                 ))}
@@ -754,6 +883,7 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                 )}
                 {view && (
                   <span className="bam-focus-summary">
+                    {locusEvidenceFrequency(selectedLocus) && locusEvidenceFrequency(selectedLocus) !== "-" ? `${locusEvidenceFrequency(selectedLocus)} freq · ` : ""}
                     {filteredReads.length !== view.reads.length
                       ? `${countLabel(filteredReads.length)} shown · `
                       : ""}
@@ -789,8 +919,8 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
             {view && (
               <>
                 <div className="bam-count-grid">
-                  <button type="button" className={`bam-count-card${visibleSupport.has("mnv") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("mnv")} title={supportButtonTitle(visibleSupport, "mnv", "MNV")}>
-                    <strong>{countLabel(displayCounts.mnv)}</strong><span>MNV</span>
+                  <button type="button" className={`bam-count-card${visibleSupport.has("mnv") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("mnv")} title={supportButtonTitle(visibleSupport, "mnv", "ALT/event")}>
+                    <strong>{countLabel(displayCounts.mnv)}</strong><span>ALT</span>
                   </button>
                   <button type="button" className={`bam-count-card${visibleSupport.has("partial") ? "" : " bam-count-card--off"}`} onClick={() => toggleSupport("partial")} title={supportButtonTitle(visibleSupport, "partial", "SNP/partial")}>
                     <strong>{countLabel(displayCounts.partial)}</strong><span>SNP/partial</span>
@@ -810,6 +940,7 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                   <span className="bam-legend-item"><span className="bam-legend-swatch bam-legend-swatch--g" />G</span>
                   <span className="bam-legend-item"><span className="bam-legend-swatch bam-legend-swatch--c" />C</span>
                   <span className="bam-legend-item"><span className="bam-legend-swatch bam-legend-swatch--gap" />Deletion</span>
+                  <span className="bam-legend-item"><span className="bam-legend-swatch bam-legend-swatch--insertion" />Insertion</span>
                   <span className="bam-legend-item"><span className="bam-legend-swatch bam-legend-swatch--variant" />Variant site</span>
                 </div>
 
@@ -822,24 +953,26 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                       </div>
                       <div className="bam-scale-track">
                         <div className="bam-scale-track-inner" style={{ width: `${trackWidth}px` }}>
-                          {windowPositions.map((pos, i) => {
-                            const isFocus = siteMap.has(pos);
-                            const isEdge = i === 0 || i === windowPositions.length - 1;
+                          {displayColumns.map((column, i) => {
+                            const site = siteForColumn(column, view.sites);
+                            const isFocus = Boolean(site);
+                            const isInsertion = column.kind === "ins";
+                            const isEdge = i === 0 || i === displayColumns.length - 1;
                             const isTick = i % tickStep === 0;
+                            if (isInsertion && !isFocus) return null;
                             if (!isFocus && !isEdge && !isTick) return null;
                             // Skip regular ticks too close to a focus position to avoid label overlap.
                             // Label width ≈ digits × 5px; need at least that many cells clearance.
                             if (!isFocus && (isEdge || isTick)) {
                               const minGap = Math.ceil(35 / cellSize);
-                              for (const [focusPos] of siteMap) {
-                                const focusIdx = focusPos - view.displayStart;
+                              for (const focusIdx of focusColumnIndexes) {
                                 if (Math.abs(i - focusIdx) > 0 && Math.abs(i - focusIdx) < minGap) return null;
                               }
                             }
                             return (
-                              <span key={pos} className={`bam-scale-tick${isFocus ? " bam-scale-tick--focus" : ""}`} style={{ left: `${i * cellSize}px` }}>
+                              <span key={column.key} className={`bam-scale-tick${isFocus ? " bam-scale-tick--focus" : ""}${isInsertion ? " bam-scale-tick--insertion" : ""}`} style={{ left: `${i * cellSize}px` }}>
                                 <span className="bam-scale-mark" />
-                                <span className="bam-scale-label">{pos}</span>
+                                <span className="bam-scale-label">{isInsertion ? column.label : column.position}</span>
                               </span>
                             );
                           })}
@@ -856,8 +989,9 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                         <div className="bam-feature-stage">
                           <div className="bam-feature-canvas" style={{ width: `${trackWidth}px`, height: `${Math.max(1, visibleLocusLanes) * 28}px` }}>
                             {visibleLoci.map((l) => {
-                              const left = (l.start - view.displayStart) * cellSize;
-                              const w = Math.max(cellSize, (l.end - l.start + 1) * cellSize);
+                              const columnRange = columnRangeForLocus(displayColumns, l);
+                              const left = columnRange.left * cellSize;
+                              const w = Math.max(cellSize, columnRange.width * cellSize);
                               return (
                                 <button
                                   key={l.id}
@@ -889,14 +1023,16 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                       </div>
                       <div className="bam-coverage-track" style={{ width: `${trackWidth + 12}px` }}>
                         {coverageData.map((depth, i) => {
-                          const pos = view.displayStart + i;
-                          const site = siteMap.get(pos);
+                          const column = displayColumns[i];
+                          if (!column) return null;
+                          const site = siteForColumn(column, view.sites);
+                          const label = column.kind === "ins" ? `${column.position}+${column.insertionIndex ?? ""}` : `${column.position}`;
                           return (
                             <span
-                              key={pos}
-                              className={`bam-coverage-bar${site ? " bam-coverage-bar--variant" : ""}`}
+                              key={column.key}
+                              className={`bam-coverage-bar${site ? " bam-coverage-bar--variant" : ""}${column.kind === "ins" ? " bam-coverage-bar--insertion" : ""}`}
                               style={{ width: `${cellSize}px`, height: `${(depth / maxCoverage) * 100}%` }}
-                              title={`${pos}: ${depth}×`}
+                              title={`${label}: ${depth}×`}
                             />
                           );
                         })}
@@ -909,12 +1045,14 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                         <span className="bam-read-name">Reference</span>
                       </div>
                       <div className="bam-track" style={trackStyle}>
-                        {referenceBases.map((base, i) => {
-                          const pos = view.displayStart + i;
-                          const site = siteMap.get(pos);
+                        {displayColumns.map((column) => {
+                          const base = column.referenceBase;
+                          const site = siteForColumn(column, view.sites);
+                          const isInsertion = column.kind === "ins";
+                          const titlePosition = isInsertion ? `${column.position}+${column.insertionIndex ?? ""}` : `${column.position}`;
                           return (
-                            <span key={pos} className={`bam-cell bam-cell--ref-base ${nucleotideClass(base)}${site ? " bam-cell--focus" : ""}`} title={`${pos}: ${base}`}>
-                              {base}
+                            <span key={column.key} className={`bam-cell bam-cell--ref-base ${isInsertion ? " bam-cell--ref-insertion" : nucleotideClass(base)}${site ? " bam-cell--focus" : ""}`} title={`${titlePosition}: ${isInsertion ? "insertion slot" : base}`}>
+                              {isInsertion ? "+" : base}
                             </span>
                           );
                         })}
@@ -937,19 +1075,19 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                           )}
                         </div>
                         <div className="bam-track" style={trackStyle}>
-                          {windowPositions.map((pos, i) => {
-                            const inCodon = i >= codonAnnotation.startIdx && i < codonAnnotation.startIdx + 3;
+                          {displayColumns.map((column) => {
+                            const inCodon = column.kind === "ref" && column.position >= codonAnnotation.startPos && column.position < codonAnnotation.startPos + 3;
                             if (!inCodon) {
-                              return <span key={pos} className="bam-cell bam-cell--codon-empty" />;
+                              return <span key={column.key} className={`bam-cell bam-cell--codon-empty${column.kind === "ins" ? " bam-cell--insertion" : ""}`} />;
                             }
-                            const codonOffset = i - codonAnnotation.startIdx;
+                            const codonOffset = column.position - codonAnnotation.startPos;
                             const refBase = codonAnnotation.refCodon[codonOffset] ?? "";
                             const mnvBase = codonAnnotation.mnvCodon?.[codonOffset] ?? "";
                             const changed = mnvBase !== "" && refBase.toUpperCase() !== mnvBase.toUpperCase();
-                            const isVariant = selectedLocus!.positions.includes(pos);
+                            const isVariant = selectedLocus!.positions.includes(column.position);
                             return (
                               <span
-                                key={pos}
+                                key={column.key}
                                 className={[
                                   "bam-cell",
                                   "bam-cell--codon",
@@ -1006,15 +1144,15 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                           })()}
                         </div>
                         <div className="bam-track" style={trackStyle}>
-                          {windowPositions.map((pos, i) => {
-                            const inCodon = i >= codonAnnotation.startIdx && i < codonAnnotation.startIdx + 3;
+                          {displayColumns.map((column) => {
+                            const inCodon = column.kind === "ref" && column.position >= codonAnnotation.startPos && column.position < codonAnnotation.startPos + 3;
                             if (!inCodon) {
-                              return <span key={pos} className="bam-cell bam-cell--codon-empty" />;
+                              return <span key={column.key} className={`bam-cell bam-cell--codon-empty${column.kind === "ins" ? " bam-cell--insertion" : ""}`} />;
                             }
-                            const codonOffset = i - codonAnnotation.startIdx;
-                            const isVariantPos = selectedLocus!.positions.includes(pos);
+                            const codonOffset = column.position - codonAnnotation.startPos;
+                            const isVariantPos = selectedLocus!.positions.includes(column.position);
                             if (isVariantPos) {
-                              const snpIdx = selectedLocus!.positions.indexOf(pos);
+                              const snpIdx = selectedLocus!.positions.indexOf(column.position);
                               const snpCodonList = codonAnnotation.snpCodons.split(",").map((s) => s.trim());
                               const snpCodon = snpCodonList[snpIdx] ?? "";
                               const snpBase = snpCodon[codonOffset] ?? "";
@@ -1023,7 +1161,7 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                               const refBase = codonAnnotation.refCodon[codonOffset] ?? "";
                               return (
                                 <span
-                                  key={pos}
+                                  key={column.key}
                                   className="bam-cell bam-cell--codon bam-cell--snp-highlight"
                                   title={`SNP${snpIdx + 1}: REF ${codonAnnotation.refCodon}${parsed ? ` (${parsed.refAa})` : ""} → ALT ${snpCodon}${parsed ? ` (${parsed.altAa})` : snpAaList[snpIdx] ? ` (${snpAaList[snpIdx]})` : ""} | Base: ${refBase}→${snpBase}`}
                                 >
@@ -1033,7 +1171,7 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                             }
                             const refBase = codonAnnotation.refCodon[codonOffset] ?? "";
                             return (
-                              <span key={pos} className="bam-cell bam-cell--codon bam-cell--codon-ref">
+                              <span key={column.key} className="bam-cell bam-cell--codon bam-cell--codon-ref">
                                 {refBase}
                               </span>
                             );
@@ -1065,13 +1203,13 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                                 lastIdx = j;
                               }
                             }
-                            return read.bases.map((value, i) => (
+                            return displayColumns.map((column, i) => (
                               <BamCell
-                                key={`${read.name}-${view.displayStart + i}`}
-                                value={value}
-                                position={view.displayStart + i}
-                                referenceBase={referenceBases[i] ?? ""}
-                                site={siteMap.get(view.displayStart + i)}
+                                key={`${read.name}-${column.key}`}
+                                value={read.bases[i] ?? " "}
+                                column={column}
+                                site={siteForColumn(column, view.sites)}
+                                expectedBase={expectedBaseForColumn(column, siteForColumn(column, view.sites))}
                                 isReadStart={i === firstIdx}
                                 isReadEnd={i === lastIdx}
                                 strand={read.strand}

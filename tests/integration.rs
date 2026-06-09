@@ -5,8 +5,9 @@
 
 use get_mnv::cli::{Args, VariantInputFormat};
 use get_mnv::pipeline;
+use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn example_dir() -> PathBuf {
@@ -47,6 +48,10 @@ fn base_args() -> Args {
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
+        frameshift_min_freq: 0.0,
+        indel_anchor_depth: false,
+        phased_indel_min_reads: 1,
+        phased_indel_min_freq: 0.0,
         dry_run: false,
         strict: false,
         split_multiallelic: false,
@@ -66,6 +71,168 @@ fn base_args() -> Args {
         translation_table: 11,
         output_prefix: None,
     }
+}
+
+struct SyntheticRead {
+    name: &'static str,
+    start: usize,
+    cigar: &'static str,
+    sequence: &'static str,
+}
+
+fn parse_test_cigar(cigar: &str) -> noodles::sam::alignment::record_buf::Cigar {
+    use noodles::sam::alignment::record::cigar::op::{Kind, Op};
+
+    let mut ops = Vec::new();
+    let mut len = String::new();
+    for symbol in cigar.chars() {
+        if symbol.is_ascii_digit() {
+            len.push(symbol);
+            continue;
+        }
+        let count = len
+            .parse::<usize>()
+            .expect("synthetic CIGAR operation length");
+        len.clear();
+        let kind = match symbol {
+            'M' => Kind::Match,
+            'I' => Kind::Insertion,
+            'D' => Kind::Deletion,
+            'N' => Kind::Skip,
+            'S' => Kind::SoftClip,
+            'H' => Kind::HardClip,
+            'P' => Kind::Pad,
+            '=' => Kind::SequenceMatch,
+            'X' => Kind::SequenceMismatch,
+            _ => panic!("unsupported synthetic CIGAR operator: {symbol}"),
+        };
+        ops.push(Op::new(kind, count));
+    }
+    assert!(len.is_empty(), "dangling synthetic CIGAR length");
+    ops.into_iter().collect()
+}
+
+fn write_synthetic_bam(path: &Path, reference_len: usize, reads: &[SyntheticRead]) {
+    write_synthetic_bam_q(path, reference_len, reads, Some(40));
+}
+
+fn write_synthetic_bam_q(
+    path: &Path,
+    reference_len: usize,
+    reads: &[SyntheticRead],
+    quality: Option<u8>,
+) {
+    use noodles::core::Position;
+    use noodles::sam::{
+        self,
+        alignment::{
+            io::Write as _,
+            record::{Flags, MappingQuality},
+            record_buf::{QualityScores, Sequence},
+            RecordBuf,
+        },
+        header::record::value::{
+            map::{
+                self,
+                header::{sort_order::COORDINATE, tag::SORT_ORDER},
+                ReferenceSequence,
+            },
+            Map,
+        },
+    };
+    use std::num::NonZeroUsize;
+
+    let header = sam::Header::builder()
+        .set_header(
+            Map::<map::Header>::builder()
+                .insert(SORT_ORDER, COORDINATE)
+                .build()
+                .expect("synthetic BAM header"),
+        )
+        .add_reference_sequence(
+            "chr1",
+            Map::<ReferenceSequence>::new(
+                NonZeroUsize::new(reference_len).expect("non-empty reference"),
+            ),
+        )
+        .build();
+
+    let file = fs::File::create(path).expect("create synthetic BAM");
+    let mut writer = noodles::bam::io::Writer::new(file);
+    writer.write_header(&header).expect("write BAM header");
+
+    for read in reads {
+        let cigar = parse_test_cigar(read.cigar);
+        assert_eq!(
+            cigar.read_length(),
+            read.sequence.len(),
+            "synthetic read {} has a sequence/CIGAR length mismatch",
+            read.name
+        );
+        let qualities = match quality {
+            Some(q) => QualityScores::from(vec![q; read.sequence.len()]),
+            None => QualityScores::default(), // SAM QUAL='*' (no per-base qualities)
+        };
+        let record = RecordBuf::builder()
+            .set_name(read.name)
+            .set_flags(Flags::empty())
+            .set_reference_sequence_id(0)
+            .set_alignment_start(Position::try_from(read.start).expect("alignment start"))
+            .set_mapping_quality(MappingQuality::new(60).expect("mapping quality"))
+            .set_cigar(cigar)
+            .set_sequence(Sequence::from(read.sequence.as_bytes()))
+            .set_quality_scores(qualities)
+            .build();
+        writer
+            .write_alignment_record(&header, &record)
+            .expect("write BAM record");
+    }
+    writer.try_finish().expect("finish synthetic BAM");
+
+    let index = noodles::bam::fs::index(path).expect("index synthetic BAM");
+    noodles::bam::bai::fs::write(path.with_extension("bam.bai"), &index)
+        .expect("write synthetic BAI");
+}
+
+fn write_phase_reference_files(tmp: &Path) -> (PathBuf, PathBuf) {
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+    fs::write(&ref_path, ">chr1\nATGAAATTTCCC\n").unwrap();
+    fs::write(&genes_path, "gene1\t1\t12\t+\n").unwrap();
+    (ref_path, genes_path)
+}
+
+fn read_tsv_rows(path: &Path) -> Vec<HashMap<String, String>> {
+    let content = fs::read_to_string(path).expect("read TSV output");
+    let mut lines = content.lines();
+    let header = lines
+        .next()
+        .expect("TSV header")
+        .split('\t')
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    lines
+        .map(|line| {
+            header
+                .iter()
+                .zip(line.split('\t'))
+                .map(|(key, value)| (key.clone(), value.to_string()))
+                .collect()
+        })
+        .collect()
+}
+
+fn find_row<'a>(
+    rows: &'a [HashMap<String, String>],
+    event_class: &str,
+    reference_bases: &str,
+    base_changes: &str,
+) -> Option<&'a HashMap<String, String>> {
+    rows.iter().find(|row| {
+        row.get("Event Class").map(String::as_str) == Some(event_class)
+            && row.get("Reference Bases").map(String::as_str) == Some(reference_bases)
+            && row.get("Base Changes").map(String::as_str) == Some(base_changes)
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -163,13 +330,485 @@ chr1\t8\tC\t+A\t1\t9\t0.9\t10\tTRUE\n",
     args.output_prefix = Some("ivar_out".to_string());
 
     let summary = pipeline::run(&args).expect("iVar TSV pipeline should succeed");
-    assert_eq!(summary.global.snp_records_in_vcf, 3);
-    assert_eq!(summary.global.produced_variants, 1);
+    assert_eq!(summary.global.snp_records_in_vcf, 4);
+    assert_eq!(summary.global.produced_variants, 2);
     assert_eq!(summary.global.snp_mnv_variants, 1);
+    assert_eq!(summary.global.indel_variants, 1);
 
     let tsv_content = fs::read_to_string(tmp.join("ivar_out.MNV.tsv")).expect("read TSV");
     assert!(tsv_content.contains("4, 5, 6"));
     assert!(tsv_content.contains("SNP/MNV"));
+    assert!(tsv_content.contains("insertion"));
+    assert!(tsv_content.contains("INS:8:+A"));
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
+fn test_e2e_vcf_phased_insertion_haplotype_is_supported_by_same_read() {
+    let tmp = temp_dir("e2e_phased_ins_vcf");
+    let (ref_path, genes_path) = write_phase_reference_files(&tmp);
+    let vcf_path = tmp.join("phase.vcf");
+    let bam_path = tmp.join("phase.bam");
+
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=12>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t4\t.\tA\tC\t.\tPASS\t.\n\
+chr1\t6\t.\tA\tAT\t.\tPASS\t.\n",
+    )
+    .unwrap();
+    write_synthetic_bam(
+        &bam_path,
+        12,
+        &[
+            SyntheticRead {
+                name: "phased_ins",
+                start: 1,
+                cigar: "6M1I6M",
+                sequence: "ATGCAATTTTCCC",
+            },
+            SyntheticRead {
+                name: "ins_only",
+                start: 1,
+                cigar: "6M1I6M",
+                sequence: "ATGAAATTTTCCC",
+            },
+            SyntheticRead {
+                name: "snv_only",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGCAATTTCCC",
+            },
+            SyntheticRead {
+                name: "ref",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGAAATTTCCC",
+            },
+        ],
+    );
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.tsv_file = None;
+    args.bam_file = Some(bam_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.gff_file = None;
+    args.threads = Some(1);
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("phase".to_string());
+
+    let summary = pipeline::run(&args).expect("phased insertion pipeline should succeed");
+    assert_eq!(summary.global.snp_records_in_vcf, 2);
+    assert!(
+        summary.global.indel_variants >= 2,
+        "expected original insertion plus phased haplotype"
+    );
+
+    let rows = read_tsv_rows(&tmp.join("phase.MNV.tsv"));
+    let compound = find_row(&rows, "complex_indel", "AAA", "CAAT")
+        .expect("compound insertion+SNV haplotype row");
+    assert_eq!(compound["Positions"], "4");
+    assert_eq!(compound["Event Reads"], "1");
+    assert_eq!(compound["Event Depth"], "4");
+    assert!(compound["Event Components"].contains("SNV:4:A>C"));
+    assert!(compound["Event Components"].contains("INS:6:+T"));
+
+    let insertion = find_row(&rows, "insertion", "A", "AT").expect("original insertion row");
+    assert_eq!(insertion["Event Reads"], "2");
+    assert_eq!(insertion["Event Depth"], "4");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
+fn test_e2e_vcf_phased_mnv_plus_insertion_emits_full_complex_haplotype() {
+    let tmp = temp_dir("e2e_phased_mnv_ins_vcf");
+    let (ref_path, genes_path) = write_phase_reference_files(&tmp);
+    let vcf_path = tmp.join("phase_mnv.vcf");
+    let bam_path = tmp.join("phase_mnv.bam");
+
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=12>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t4\t.\tA\tC\t.\tPASS\t.\n\
+chr1\t5\t.\tA\tG\t.\tPASS\t.\n\
+chr1\t6\t.\tA\tAT\t.\tPASS\t.\n",
+    )
+    .unwrap();
+    write_synthetic_bam(
+        &bam_path,
+        12,
+        &[
+            SyntheticRead {
+                name: "full_complex",
+                start: 1,
+                cigar: "6M1I6M",
+                sequence: "ATGCGATTTTCCC",
+            },
+            SyntheticRead {
+                name: "mnv_only",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGCGATTTCCC",
+            },
+            SyntheticRead {
+                name: "ins_only",
+                start: 1,
+                cigar: "6M1I6M",
+                sequence: "ATGAAATTTTCCC",
+            },
+            SyntheticRead {
+                name: "ref",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGAAATTTCCC",
+            },
+        ],
+    );
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.tsv_file = None;
+    args.bam_file = Some(bam_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.gff_file = None;
+    args.threads = Some(1);
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("phase_mnv".to_string());
+
+    let summary = pipeline::run(&args).expect("phased MNV+insertion pipeline should succeed");
+    assert_eq!(summary.global.snp_records_in_vcf, 3);
+    assert!(
+        summary.global.indel_variants >= 2,
+        "expected original insertion plus phased complex haplotype"
+    );
+
+    let rows = read_tsv_rows(&tmp.join("phase_mnv.MNV.tsv"));
+    let mnv_row = find_row(&rows, "mnv", "A, A", "C, G").expect("codon MNV row");
+    assert_eq!(mnv_row["Positions"], "4, 5");
+    assert_eq!(mnv_row["Change Type"], "Non-synonymous");
+    assert_ne!(mnv_row["AA Changes"], "Unknown");
+
+    let compound =
+        find_row(&rows, "complex_indel", "AAA", "CGAT").expect("full MNV+insertion haplotype row");
+    assert_eq!(compound["Positions"], "4");
+    assert_eq!(compound["Event Reads"], "1");
+    assert_eq!(compound["Event Depth"], "4");
+    assert!(compound["Event Components"].contains("SNV:4:A>C"));
+    assert!(compound["Event Components"].contains("SNV:5:A>G"));
+    assert!(compound["Event Components"].contains("INS:6:+T"));
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
+fn test_e2e_vcf_phased_two_indels_require_cigar_components() {
+    let tmp = temp_dir("e2e_phased_two_indels_vcf");
+    let (ref_path, genes_path) = write_phase_reference_files(&tmp);
+    let vcf_path = tmp.join("phase_two_indels.vcf");
+    let bam_path = tmp.join("phase_two_indels.bam");
+
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=12>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t4\t.\tA\tAG\t.\tPASS\t.\n\
+chr1\t5\t.\tAA\tA\t.\tPASS\t.\n",
+    )
+    .unwrap();
+    write_synthetic_bam(
+        &bam_path,
+        12,
+        &[
+            SyntheticRead {
+                name: "full_complex",
+                start: 1,
+                cigar: "4M1I1M1D6M",
+                sequence: "ATGAGATTTCCC",
+            },
+            SyntheticRead {
+                name: "sequence_mimic_snp",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGAGATTTCCC",
+            },
+            SyntheticRead {
+                name: "ins_only",
+                start: 1,
+                cigar: "4M1I8M",
+                sequence: "ATGAGAATTTCCC",
+            },
+            SyntheticRead {
+                name: "del_only",
+                start: 1,
+                cigar: "5M1D6M",
+                sequence: "ATGAATTTCCC",
+            },
+            SyntheticRead {
+                name: "ref",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGAAATTTCCC",
+            },
+        ],
+    );
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.tsv_file = None;
+    args.bam_file = Some(bam_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.gff_file = None;
+    args.threads = Some(1);
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("phase_two_indels".to_string());
+
+    let summary = pipeline::run(&args).expect("phased two-indel pipeline should succeed");
+    assert_eq!(summary.global.snp_records_in_vcf, 2);
+    assert!(
+        summary.global.indel_variants >= 3,
+        "expected original indels plus phased complex haplotype"
+    );
+
+    let rows = read_tsv_rows(&tmp.join("phase_two_indels.MNV.tsv"));
+    let compound = find_row(&rows, "complex_indel", "AAA", "AGA").expect("two-indel haplotype row");
+    assert_eq!(compound["Event Reads"], "1");
+    assert_eq!(compound["Event Depth"], "5");
+    assert!(compound["Event Components"].contains("INS:4:+G"));
+    assert!(compound["Event Components"].contains("DEL:6:A"));
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
+fn test_e2e_vcf_close_indel_and_snv_do_not_phase_without_shared_read() {
+    let tmp = temp_dir("e2e_unphased_ins_vcf");
+    let (ref_path, genes_path) = write_phase_reference_files(&tmp);
+    let vcf_path = tmp.join("unphased.vcf");
+    let bam_path = tmp.join("unphased.bam");
+
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=12>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t4\t.\tA\tC\t.\tPASS\t.\n\
+chr1\t6\t.\tA\tAT\t.\tPASS\t.\n",
+    )
+    .unwrap();
+    write_synthetic_bam(
+        &bam_path,
+        12,
+        &[
+            SyntheticRead {
+                name: "ins_only",
+                start: 1,
+                cigar: "6M1I6M",
+                sequence: "ATGAAATTTTCCC",
+            },
+            SyntheticRead {
+                name: "snv_only",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGCAATTTCCC",
+            },
+            SyntheticRead {
+                name: "ref",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGAAATTTCCC",
+            },
+        ],
+    );
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.tsv_file = None;
+    args.bam_file = Some(bam_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.gff_file = None;
+    args.threads = Some(1);
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("unphased".to_string());
+
+    let summary = pipeline::run(&args).expect("unphased insertion pipeline should succeed");
+    assert_eq!(summary.global.indel_variants, 1);
+
+    let rows = read_tsv_rows(&tmp.join("unphased.MNV.tsv"));
+    assert!(
+        find_row(&rows, "complex_indel", "AAA", "CAAT").is_none(),
+        "compound haplotype must require a read carrying both events"
+    );
+    let insertion = find_row(&rows, "insertion", "A", "AT").expect("original insertion row");
+    assert_eq!(insertion["Event Reads"], "1");
+    assert_eq!(insertion["Event Depth"], "3");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
+fn test_e2e_vcf_phased_deletion_haplotype_is_supported_by_same_read() {
+    let tmp = temp_dir("e2e_phased_del_vcf");
+    let (ref_path, genes_path) = write_phase_reference_files(&tmp);
+    let vcf_path = tmp.join("phase_del.vcf");
+    let bam_path = tmp.join("phase_del.bam");
+
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=12>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t4\t.\tA\tC\t.\tPASS\t.\n\
+chr1\t5\t.\tAA\tA\t.\tPASS\t.\n",
+    )
+    .unwrap();
+    write_synthetic_bam(
+        &bam_path,
+        12,
+        &[
+            SyntheticRead {
+                name: "phased_del",
+                start: 1,
+                cigar: "5M1D6M",
+                sequence: "ATGCATTTCCC",
+            },
+            SyntheticRead {
+                name: "del_only",
+                start: 1,
+                cigar: "5M1D6M",
+                sequence: "ATGAATTTCCC",
+            },
+            SyntheticRead {
+                name: "snv_only",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGCAATTTCCC",
+            },
+            SyntheticRead {
+                name: "ref",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGAAATTTCCC",
+            },
+        ],
+    );
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.tsv_file = None;
+    args.bam_file = Some(bam_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.gff_file = None;
+    args.threads = Some(1);
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("phase_del".to_string());
+
+    let summary = pipeline::run(&args).expect("phased deletion pipeline should succeed");
+    assert_eq!(summary.global.snp_records_in_vcf, 2);
+    assert!(
+        summary.global.indel_variants >= 2,
+        "expected original deletion plus phased haplotype"
+    );
+
+    let rows = read_tsv_rows(&tmp.join("phase_del.MNV.tsv"));
+    let compound =
+        find_row(&rows, "complex_indel", "AAA", "CA").expect("compound deletion+SNV row");
+    assert_eq!(compound["Positions"], "4");
+    assert_eq!(compound["Event Reads"], "1");
+    assert_eq!(compound["Event Depth"], "4");
+    assert!(compound["Event Components"].contains("SNV:4:A>C"));
+    assert!(compound["Event Components"].contains("DEL:6:A"));
+
+    let deletion = find_row(&rows, "deletion", "AA", "A").expect("original deletion row");
+    assert_eq!(deletion["Event Reads"], "2");
+    assert_eq!(deletion["Event Depth"], "4");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
+fn test_e2e_ivar_phased_insertion_haplotype_matches_vcf_semantics() {
+    let tmp = temp_dir("e2e_phased_ins_ivar");
+    let (ref_path, genes_path) = write_phase_reference_files(&tmp);
+    let ivar_path = tmp.join("phase.tsv");
+    let bam_path = tmp.join("phase.bam");
+
+    fs::write(
+        &ivar_path,
+        "REGION\tPOS\tREF\tALT\tREF_DP\tALT_DP\tALT_FREQ\tTOTAL_DP\tPASS\n\
+chr1\t4\tA\tC\t1\t9\t0.9\t10\tTRUE\n\
+chr1\t6\tA\t+T\t1\t9\t0.9\t10\tTRUE\n",
+    )
+    .unwrap();
+    write_synthetic_bam(
+        &bam_path,
+        12,
+        &[
+            SyntheticRead {
+                name: "phased_ins",
+                start: 1,
+                cigar: "6M1I6M",
+                sequence: "ATGCAATTTTCCC",
+            },
+            SyntheticRead {
+                name: "ins_only",
+                start: 1,
+                cigar: "6M1I6M",
+                sequence: "ATGAAATTTTCCC",
+            },
+            SyntheticRead {
+                name: "snv_only",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGCAATTTCCC",
+            },
+            SyntheticRead {
+                name: "ref",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGAAATTTCCC",
+            },
+        ],
+    );
+
+    let mut args = base_args();
+    args.vcf_file = None;
+    args.tsv_file = Some(ivar_path.to_string_lossy().into());
+    args.input_format = VariantInputFormat::Auto;
+    args.bam_file = Some(bam_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.gff_file = None;
+    args.threads = Some(1);
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("phase_ivar".to_string());
+
+    let summary = pipeline::run(&args).expect("phased iVar pipeline should succeed");
+    assert_eq!(summary.global.snp_records_in_vcf, 2);
+    assert!(
+        summary.global.indel_variants >= 2,
+        "expected original iVar insertion plus phased haplotype"
+    );
+
+    let rows = read_tsv_rows(&tmp.join("phase_ivar.MNV.tsv"));
+    let compound = find_row(&rows, "complex_indel", "AAA", "CAAT")
+        .expect("compound iVar insertion+SNV haplotype row");
+    assert_eq!(compound["Event Reads"], "1");
+    assert_eq!(compound["Event Depth"], "4");
+    assert!(compound["Event Components"].contains("SNV:4:A>C"));
+    assert!(compound["Event Components"].contains("INS:6:+T"));
 
     fs::remove_dir_all(&tmp).ok();
 }
@@ -349,6 +988,126 @@ fn test_e2e_exclude_intergenic() {
     fs::remove_dir_all(&tmp).ok();
 }
 
+#[test]
+fn test_e2e_deletion_anchored_before_gene_not_intergenic_duplicate() {
+    let tmp = temp_dir("e2e_boundary_del");
+    let vcf_path = tmp.join("boundary.vcf");
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.3\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t1\t.\tCA\tC\t60\tPASS\tDP=12;AF=0.5\n",
+    )
+    .unwrap();
+    fs::write(&ref_path, ">chr1\nCATGAAATTT\n").unwrap();
+    fs::write(&genes_path, "gene1\t2\t10\t+\n").unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("boundary_del".to_string());
+
+    let summary = pipeline::run(&args).expect("pipeline should annotate boundary deletion");
+    assert_eq!(summary.global.indel_variants, 1);
+    assert_eq!(summary.global.intergenic_variants, 0);
+
+    let rows = read_tsv_rows(&tmp.join("boundary_del.MNV.tsv"));
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["Gene"], "gene1");
+    assert_eq!(rows[0]["Event Class"], "deletion");
+    assert_eq!(rows[0]["Event Components"], "DEL:2:A");
+    assert_ne!(rows[0]["AA Changes"], "Unknown");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
+fn test_e2e_bam_without_base_qualities_still_counts_reads() {
+    // Regression: a BAM with QUAL='*' (no per-base qualities) must not lose all
+    // read support. Missing base quality is treated as passing (mirroring the
+    // missing-MAPQ default of 255); otherwise every base scored 0, failed the
+    // default --quality 20 gate, and EDP/EFREQ collapsed to 0 for every read.
+    let tmp = temp_dir("e2e_qual_star");
+    let (ref_path, genes_path) = write_phase_reference_files(&tmp); // ATGAAATTTCCC, gene1 1-12 +
+    let vcf_path = tmp.join("q.vcf");
+    let bam_path = tmp.join("q.bam");
+
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=12>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t4\t.\tA\tC\t.\tPASS\t.\n",
+    )
+    .unwrap();
+    // Four reads span position 4; two carry the C alt. All have QUAL='*'.
+    write_synthetic_bam_q(
+        &bam_path,
+        12,
+        &[
+            SyntheticRead {
+                name: "alt1",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGCAATTTCCC",
+            },
+            SyntheticRead {
+                name: "alt2",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGCAATTTCCC",
+            },
+            SyntheticRead {
+                name: "ref1",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGAAATTTCCC",
+            },
+            SyntheticRead {
+                name: "ref2",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGAAATTTCCC",
+            },
+        ],
+        None, // QUAL='*'
+    );
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.tsv_file = None;
+    args.bam_file = Some(bam_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.gff_file = None;
+    args.threads = Some(1);
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("q".to_string());
+
+    pipeline::run(&args).expect("pipeline should succeed on a QUAL='*' BAM");
+
+    let rows = read_tsv_rows(&tmp.join("q.MNV.tsv"));
+    let snp = rows
+        .iter()
+        .find(|r| r["Base Changes"] == "C" && r["Positions"] == "4")
+        .expect("SNP row at position 4");
+    assert_eq!(
+        snp["Total Reads"], "4",
+        "all four spanning reads must count toward depth even without base qualities"
+    );
+    assert_eq!(
+        snp["SNP Reads"], "2",
+        "the two reads carrying the C allele must be counted"
+    );
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
 // ---------------------------------------------------------------------------
 // T1g: Run manifest with checksums
 // ---------------------------------------------------------------------------
@@ -519,6 +1278,10 @@ chr1\t300\t.\tG\tA\t.\tPASS\t.\tGT:DP\t1/1:25\t1/1:30
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
+        frameshift_min_freq: 0.0,
+        indel_anchor_depth: false,
+        phased_indel_min_reads: 1,
+        phased_indel_min_freq: 0.0,
         dry_run: false,
         strict: false,
         split_multiallelic: false,
@@ -599,6 +1362,10 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT:DP\t1/1:20\t0/0:15
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
+        frameshift_min_freq: 0.0,
+        indel_anchor_depth: false,
+        phased_indel_min_reads: 1,
+        phased_indel_min_freq: 0.0,
         dry_run: false,
         strict: false,
         split_multiallelic: false,
@@ -670,6 +1437,10 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT\t1/1
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
+        frameshift_min_freq: 0.0,
+        indel_anchor_depth: false,
+        phased_indel_min_reads: 1,
+        phased_indel_min_freq: 0.0,
         dry_run: false,
         strict: false,
         split_multiallelic: false,
@@ -745,6 +1516,10 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
+        frameshift_min_freq: 0.0,
+        indel_anchor_depth: false,
+        phased_indel_min_reads: 1,
+        phased_indel_min_freq: 0.0,
         dry_run: false,
         strict: true,
         split_multiallelic: false,
@@ -812,11 +1587,43 @@ fn test_e2e_bcf_without_convert_errors() {
 }
 
 #[test]
+fn test_e2e_bcf_input_errors_with_conversion_hint() {
+    let mut args = base_args();
+    args.vcf_file = Some("input.bcf".to_string());
+
+    let err = pipeline::run(&args).expect_err("BCF input should fail");
+    let message = err.to_string();
+    assert!(message.contains("BCF input is not supported"));
+    assert!(message.contains("bcftools view"));
+}
+
+#[test]
 fn test_e2e_frequency_filters_require_bam() {
     let mut args = base_args();
     args.min_snp_frequency = 0.05;
     let err = pipeline::run(&args).expect_err("frequency filtering without BAM should fail");
     assert!(err.to_string().contains("require --bam"));
+}
+
+#[test]
+fn test_e2e_frameshift_min_freq_out_of_range_errors() {
+    // A common mistake is passing a percentage (50) instead of a fraction (0.5),
+    // which previously silently disabled all frameshift propagation. It must now
+    // be rejected like the other frequency flags.
+    let mut args = base_args();
+    args.frameshift_min_freq = 50.0;
+    let err =
+        pipeline::run(&args).expect_err("out-of-range --frameshift-min-freq should be rejected");
+    assert!(err.to_string().contains("frameshift-min-freq"));
+}
+
+#[test]
+fn test_e2e_phased_indel_min_freq_out_of_range_errors() {
+    let mut args = base_args();
+    args.phased_indel_min_freq = 1.5;
+    let err =
+        pipeline::run(&args).expect_err("out-of-range --phased-indel-min-freq should be rejected");
+    assert!(err.to_string().contains("phased-indel-min-freq"));
 }
 
 // ---------------------------------------------------------------------------
@@ -976,6 +1783,10 @@ fn test_invalid_translation_table_fails() {
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
+        frameshift_min_freq: 0.0,
+        indel_anchor_depth: false,
+        phased_indel_min_reads: 1,
+        phased_indel_min_freq: 0.0,
         dry_run: true,
         strict: false,
         split_multiallelic: false,
@@ -1033,6 +1844,10 @@ fn test_translation_table_1_standard() {
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
+        frameshift_min_freq: 0.0,
+        indel_anchor_depth: false,
+        phased_indel_min_reads: 1,
+        phased_indel_min_freq: 0.0,
         dry_run: true,
         strict: false,
         split_multiallelic: false,
@@ -1105,6 +1920,10 @@ fn test_empty_vcf_no_records() {
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
+        frameshift_min_freq: 0.0,
+        indel_anchor_depth: false,
+        phased_indel_min_reads: 1,
+        phased_indel_min_freq: 0.0,
         dry_run: true,
         strict: false,
         split_multiallelic: false,
@@ -1182,6 +2001,10 @@ fn test_truncated_vcf_record() {
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
+        frameshift_min_freq: 0.0,
+        indel_anchor_depth: false,
+        phased_indel_min_reads: 1,
+        phased_indel_min_freq: 0.0,
         dry_run: true,
         strict: false,
         split_multiallelic: false,
@@ -1260,6 +2083,10 @@ fn test_vcf_no_header() {
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
+        frameshift_min_freq: 0.0,
+        indel_anchor_depth: false,
+        phased_indel_min_reads: 1,
+        phased_indel_min_freq: 0.0,
         dry_run: true,
         strict: false,
         split_multiallelic: false,
@@ -1334,6 +2161,10 @@ fn test_error_json_written_on_failure() {
         min_snp_strand_reads: 0,
         min_mnv_strand_reads: 0,
         min_strand_bias_p: 0.0,
+        frameshift_min_freq: 0.0,
+        indel_anchor_depth: false,
+        phased_indel_min_reads: 1,
+        phased_indel_min_freq: 0.0,
         dry_run: true,
         strict: false,
         split_multiallelic: false,

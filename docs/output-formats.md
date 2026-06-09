@@ -23,13 +23,15 @@ Main columns:
 | `Base Changes` | Alternative bases. |
 | `AA Changes` | Amino acid change after combining all SNVs in the codon. |
 | `SNP AA Changes` | Amino acid change for each SNV considered separately. |
-| `Local AA Changes` | Exon/local numbering, useful for older downstream workflows. |
+| `Local AA Changes` | Per-feature numbering for legacy feature models; identical to `AA Changes` when a spliced transcript CDS model is available. |
 | `Local SNP AA Changes` | Per-SNP amino acid changes in local numbering. |
 | `Variant Type` | `SNP`, `MNV`, `SNP/MNV`, or `INDEL`. |
 | `Change Type` | Synonymous, non-synonymous, stop gained/lost, unknown, etc. |
 | `Reference Codon` | Original codon. |
 | `SNP Codon` | Codon with individual SNP substitutions. |
 | `MNV Codon` | Codon with all grouped substitutions. |
+| `Event Class` | Canonical allele event class: `snp`, `mnv`, `insertion`, `deletion`, `delins`, `complex_indel`, or `symbolic`. |
+| `Event Components` | REF/ALT decomposition such as `SNV:10:A>G`, `INS:10:+T`, or `DEL:11-12:TG`. |
 
 Extra columns when `--bam` is used:
 
@@ -42,6 +44,15 @@ Extra columns when `--bam` is used:
 | `Total Reads` | Depth at the variant positions. |
 | `SNP Frequencies` | Per-position SNP frequencies. |
 | `MNV Frequencies` | MNV haplotype frequency. |
+| `Event Reads` | Exact reads supporting an indel/complex event. |
+| `Event Forward/Reverse Reads` | Strand-specific exact event support. |
+| `Event Depth` | Reads with an observed allele across the indel/complex event span. |
+| `Event Frequency` | Exact event reads divided by event depth. |
+
+Exact event support is CIGAR-aware. A read must reconstruct the same local ALT
+sequence and, for complex haplotypes, contain the expected insertion and
+deletion components. This prevents net-neutral insertion/deletion combinations
+from being counted as support merely because their sequence looks like an MNV.
 
 Frequency columns are calculated from BAM support. `--min-snp-frequency` and
 `--min-mnv-frequency` use these same BAM-derived values. The filters are
@@ -51,6 +62,17 @@ calls, a row or VCF record is kept when either component passes its own active
 threshold.
 Read-count and strand-support filters (`--snp`, `--mnv`, `--min-snp-strand`,
 and `--min-mnv-strand`) follow the same independent SNP/MNV behavior.
+
+When a codon-level MNV overlaps an indel, the MNV row is kept as a positional
+context row but its amino-acid effect is marked `Unknown` with
+`Change Type = Indel overlap`. If BAM reads support the full combined event,
+get_MNV emits a separate exact `complex_indel` row with the combined REF/ALT,
+event components, and event read support.
+
+Indel overlap follows VCF interbase semantics. Deletions overlap a feature by
+their deleted reference span. Insertions overlap a feature only when the inserted
+sequence falls between two reference bases inside that feature, so an insertion
+anchored at the final feature base is reported outside that feature.
 
 Example:
 
@@ -94,12 +116,17 @@ Common INFO fields:
 | `AA` | Amino acid change |
 | `CT` | Change type |
 | `TYPE` | Variant type |
+| `EC` | Canonical allele event class |
+| `COMP` | REF/ALT event components |
 | `ODP` | Original depth from the input variant file |
 | `OFREQ` | Original allele frequency from the input variant file |
 | `SR`, `SRF`, `SRR` | SNP reads: total, forward, reverse |
 | `MR`, `MRF`, `MRR` | MNV reads: total, forward, reverse |
 | `DP` | Depth recalculated from BAM |
 | `FREQ` | Frequency recalculated from BAM |
+| `ER`, `ERF`, `ERR` | Exact indel/complex event reads: total, forward, reverse |
+| `EDP` | Exact event depth for indel/complex alleles |
+| `EFREQ` | Exact event frequency for indel/complex alleles |
 | `SBP` | SNP strand-bias p-value |
 | `MSBP` | MNV strand-bias p-value |
 
@@ -118,6 +145,7 @@ Write BCF with:
 ```
 
 BCF requires VCF output mode, so use it with `--convert` or `--both`.
+This is output conversion only; BCF is not accepted as an input format.
 
 Default file name:
 

@@ -46,6 +46,17 @@ pub fn determine_change_type(aa_change: &str) -> String {
         return "Unknown".to_string();
     }
 
+    // Start lost: the initiator Met (protein position 1) changed to another
+    // residue. A Met1 -> stop is left classified as "Stop gained".
+    if original == 'M' && mutated != 'M' && mutated != '*' {
+        let position = aa_change
+            .get(1..aa_change.len().saturating_sub(1))
+            .and_then(|s| s.parse::<usize>().ok());
+        if position == Some(1) {
+            return "Start lost".to_string();
+        }
+    }
+
     if original == mutated {
         "Synonymous".to_string()
     } else if mutated == '*' {
@@ -57,7 +68,7 @@ pub fn determine_change_type(aa_change: &str) -> String {
     }
 }
 
-fn aa_three_letter(code: char) -> &'static str {
+pub(crate) fn aa_three_letter(code: char) -> &'static str {
     match code {
         'A' => "Ala",
         'C' => "Cys",
@@ -163,6 +174,18 @@ mod tests {
         assert_eq!(determine_change_type("E112*"), "Stop gained");
         assert_eq!(determine_change_type("*50Q"), "Stop lost");
         assert_eq!(determine_change_type(""), "Unknown");
+    }
+
+    #[test]
+    fn test_determine_change_type_start_lost() {
+        // Initiator Met (protein position 1) changed to another residue.
+        assert_eq!(determine_change_type("M1T"), "Start lost");
+        assert_eq!(determine_change_type("M1L"), "Start lost");
+        // Internal Met (not the start codon) is an ordinary substitution.
+        assert_eq!(determine_change_type("M50T"), "Non-synonymous");
+        // Synonymous start, and start->stop, keep their usual classification.
+        assert_eq!(determine_change_type("M1M"), "Synonymous");
+        assert_eq!(determine_change_type("M1*"), "Stop gained");
     }
 
     #[test]

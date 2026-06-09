@@ -1,0 +1,49 @@
+name: Docs
+
+# Build the bilingual Material for MkDocs site and publish it to the gh-pages
+# branch, which GitHub Pages serves at https://pathogenomics-lab.github.io/get_MNV/.
+#
+# Triggers:
+#   - push to the default branch touching docs/, mkdocs.yml or this workflow
+#   - manual run (workflow_dispatch), selectable on any branch that has this file
+#
+# You can also publish from any branch locally, without CI:
+#   .venv-docs/bin/mkdocs gh-deploy --force
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install build dependencies
+        run: pip install -r docs/requirements.txt
+      - name: Validate (strict build)
+        run: mkdocs build --strict
+      - name: Configure git identity
+        run: |
+          git config user.name "Paururo"
+          git config user.email "50167687+Paururo@users.noreply.github.com"
+      - name: Deploy to gh-pages
+        run: mkdocs gh-deploy --force

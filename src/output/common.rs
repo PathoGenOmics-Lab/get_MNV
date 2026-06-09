@@ -2,7 +2,7 @@
 //! test, VCF entry formatting, variant shape validation, and header generation.
 
 use crate::error::AppResult;
-use crate::variants::VariantInfo;
+use crate::variants::{VariantInfo, VariantType};
 use std::io::Write;
 
 /// INFO keys emitted by get_mnv itself. Original VCF fields with these names
@@ -27,6 +27,13 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "OFREQ"
             | "DP"
             | "FREQ"
+            | "EC"
+            | "COMP"
+            | "ER"
+            | "ERF"
+            | "ERR"
+            | "EDP"
+            | "EFREQ"
     )
 }
 
@@ -38,6 +45,14 @@ struct InfoBuilder {
 impl InfoBuilder {
     fn push(&mut self, key: &str, value: impl ToString) {
         self.fields.push((key.to_string(), value.to_string()));
+    }
+
+    /// Push a free-text value (gene name, AA change, change type, event
+    /// components), percent-encoding characters that are structurally reserved
+    /// in a VCF INFO column so the value cannot corrupt downstream parsing.
+    fn push_text(&mut self, key: &str, value: &str) {
+        self.fields
+            .push((key.to_string(), encode_info_value(value)));
     }
 
     fn build(self) -> String {
@@ -53,6 +68,35 @@ impl InfoBuilder {
             .collect::<Vec<_>>()
             .join(";")
     }
+}
+
+/// Percent-encode the characters that are structurally reserved in a VCF INFO
+/// value: the field separator `;`, the key/value separator `=`, the array
+/// separator `,`, a literal `%`, and the line-structural tab/newline/CR. Spaces,
+/// `:` and `|` are intentionally left intact so controlled labels (e.g.
+/// "Stop gained") and `COMP` components (e.g. "SNV:28:G>T") stay readable, while
+/// arbitrary GFF-derived gene names can no longer break the INFO column.
+fn encode_info_value(value: &str) -> String {
+    if !value
+        .bytes()
+        .any(|b| matches!(b, b'%' | b';' | b'=' | b',' | b'\t' | b'\n' | b'\r'))
+    {
+        return value.to_string();
+    }
+    let mut out = String::with_capacity(value.len() + 8);
+    for c in value.chars() {
+        match c {
+            '%' => out.push_str("%25"),
+            ';' => out.push_str("%3B"),
+            '=' => out.push_str("%3D"),
+            ',' => out.push_str("%2C"),
+            '\t' => out.push_str("%09"),
+            '\n' => out.push_str("%0A"),
+            '\r' => out.push_str("%0D"),
+            other => out.push(other),
+        }
+    }
+    out
 }
 
 pub(crate) fn snp_aa_for_index(variant: &VariantInfo, index: usize) -> String {
@@ -142,12 +186,12 @@ pub(crate) fn build_info_string(
     original_info: Option<&str>,
 ) -> String {
     let mut builder = InfoBuilder::default();
-    builder.push("GENE", &variant.gene);
+    builder.push_text("GENE", &variant.gene);
     if let Some(aa_change) = aa {
-        builder.push("AA", aa_change);
+        builder.push_text("AA", aa_change);
     }
-    builder.push("CT", variant.change_type.to_string());
-    builder.push("TYPE", variant_type);
+    builder.push_text("CT", &variant.change_type.to_string());
+    builder.push_text("TYPE", variant_type);
 
     if let Some((sr, srf, srr)) = snp_metrics {
         builder.push("SR", sr);
@@ -166,12 +210,34 @@ pub(crate) fn build_info_string(
         builder.push("MSBP", format!("{msbp:.6}"));
     }
 
+    if let Some(event_class) = variant.event_class.as_deref() {
+        builder.push_text("EC", event_class);
+    }
+    if !variant.event_components.is_empty() {
+        builder.push_text("COMP", &variant.event_components.join("|"));
+    }
+
     push_original_metrics(&mut builder, variant, original_index);
 
     if let (Some(dp), Some(support)) = (depth, support_reads) {
         let freq = allele_frequency(support, dp);
         builder.push("DP", dp);
         builder.push("FREQ", format_freq(freq));
+    }
+
+    if variant.variant_type == VariantType::Indel {
+        if let (Some(reads), Some(forward), Some(reverse), Some(depth)) = (
+            variant.mnv_reads,
+            variant.mnv_forward_reads,
+            variant.mnv_reverse_reads,
+            variant.mnv_total_reads,
+        ) {
+            builder.push("ER", reads);
+            builder.push("ERF", forward);
+            builder.push("ERR", reverse);
+            builder.push("EDP", depth);
+            builder.push("EFREQ", format_freq(allele_frequency(reads, depth)));
+        }
     }
 
     // Append original INFO fields from the input VCF (if --keep-original-info).
@@ -470,6 +536,14 @@ pub(crate) fn write_info_header(
     )?;
     writeln!(
         writer,
+        "##INFO=<ID=EC,Number=1,Type=String,Description=\"Canonical allele event class derived from REF/ALT\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=COMP,Number=.,Type=String,Description=\"Allele event components derived from REF/ALT\">"
+    )?;
+    writeln!(
+        writer,
         "##INFO=<ID=ODP,Number=.,Type=Integer,Description=\"Original depth from input VCF\">"
     )?;
     writeln!(
@@ -508,6 +582,26 @@ pub(crate) fn write_info_header(
         writeln!(
             writer,
             "##INFO=<ID=FREQ,Number=1,Type=Float,Description=\"Calculated allele frequency from BAM at the site\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=ER,Number=1,Type=Integer,Description=\"Exact event read count for indel/complex alleles\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=ERF,Number=1,Type=Integer,Description=\"Exact event forward read count for indel/complex alleles\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=ERR,Number=1,Type=Integer,Description=\"Exact event reverse read count for indel/complex alleles\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=EDP,Number=1,Type=Integer,Description=\"Exact event depth for indel/complex alleles\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=EFREQ,Number=1,Type=Float,Description=\"Exact event allele frequency for indel/complex alleles\">"
         )?;
         if include_strand_bias_info {
             writeln!(
@@ -562,6 +656,8 @@ mod tests {
             original_dp: Some(vec![30]),
             original_freq: Some(vec![0.25]),
             original_info: None,
+            event_class: Some("snp".to_string()),
+            event_components: vec!["SNV:100:A>T".to_string()],
         }
     }
 
@@ -573,6 +669,45 @@ mod tests {
         assert_eq!(format_freq(1.0), "1.0000");
         assert_eq!(format_freq(0.0), "0.0000");
         assert_eq!(format_freq(0.12345), "0.1235");
+    }
+
+    // ---- INFO value encoding ----
+
+    #[test]
+    fn test_encode_info_value_escapes_structural_chars() {
+        assert_eq!(encode_info_value("a;b=c,d%e"), "a%3Bb%3Dc%2Cd%25e");
+        assert_eq!(encode_info_value("x\ty\nz\r"), "x%09y%0Az%0D");
+        // Spaces, ':' and '|' stay readable.
+        assert_eq!(encode_info_value("Stop gained"), "Stop gained");
+        assert_eq!(
+            encode_info_value("SNV:28:G>T|INS:29:+GCT"),
+            "SNV:28:G>T|INS:29:+GCT"
+        );
+        // No reserved chars → unchanged (fast path).
+        assert_eq!(encode_info_value("geneA"), "geneA");
+    }
+
+    #[test]
+    fn test_build_info_string_special_gene_name_does_not_corrupt_info() {
+        let mut v = make_snp_variant();
+        v.gene = "weird;gene=x,y".to_string();
+        let info = build_info_string(
+            &v,
+            Some("Ala10Val"),
+            "SNP",
+            None,
+            None,
+            Some(0),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        // The whole gene value stays inside the GENE field instead of spilling
+        // into spurious INFO keys via its ';' and '='.
+        let gene_field = info.split(';').next().unwrap();
+        assert_eq!(gene_field, "GENE=weird%3Bgene%3Dx%2Cy", "got: {info}");
     }
 
     // ---- filter_value ----

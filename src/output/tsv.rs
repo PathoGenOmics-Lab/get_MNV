@@ -30,6 +30,45 @@ fn mnv_frequency(variant: &VariantInfo, total_reads: &[usize]) -> f64 {
     )
 }
 
+fn event_class(variant: &VariantInfo) -> String {
+    variant
+        .event_class
+        .clone()
+        .unwrap_or_else(|| variant.variant_type.to_string().to_ascii_lowercase())
+}
+
+fn event_components(variant: &VariantInfo) -> String {
+    if variant.event_components.is_empty() {
+        "-".to_string()
+    } else {
+        variant.event_components.join(" | ")
+    }
+}
+
+fn event_read_columns(variant: &VariantInfo) -> Vec<String> {
+    if variant.variant_type != VariantType::Indel {
+        return vec![
+            "-".to_string(),
+            "-".to_string(),
+            "-".to_string(),
+            "-".to_string(),
+            "-".to_string(),
+        ];
+    }
+
+    let reads = variant.mnv_reads.unwrap_or(0);
+    let forward = variant.mnv_forward_reads.unwrap_or(0);
+    let reverse = variant.mnv_reverse_reads.unwrap_or(0);
+    let depth = variant.mnv_total_reads.unwrap_or(0);
+    vec![
+        reads.to_string(),
+        forward.to_string(),
+        reverse.to_string(),
+        depth.to_string(),
+        format_freq(allele_frequency(reads, depth)),
+    ]
+}
+
 #[derive(Clone, Copy)]
 struct TsvFilterConfig {
     min_snp_reads: usize,
@@ -48,6 +87,10 @@ impl TsvFilterConfig {
             || self.min_mnv_frequency > 0.0
             || self.min_snp_strand_reads > 0
             || self.min_mnv_strand_reads > 0
+    }
+
+    fn has_active_mnv_filters(self) -> bool {
+        self.min_mnv_reads > 0 || self.min_mnv_frequency > 0.0 || self.min_mnv_strand_reads > 0
     }
 }
 
@@ -92,18 +135,32 @@ fn passes_filters(variant: &VariantInfo, filters: TsvFilterConfig) -> AppResult<
     if !filters.has_active_filters() {
         return Ok(true);
     }
-    if variant.variant_type == VariantType::Indel {
-        return Ok(true);
-    }
+    // Intergenic variants carry no recomputed read support, so they cannot
+    // satisfy a read-based filter. Drop them when the filters relevant to their
+    // variant type are active (indels/MNV use the MNV filters, SNPs the SNP
+    // filters); keep them otherwise. Checked before the indel branch so an
+    // intergenic indel is filtered consistently with an intergenic SNP.
     if is_intergenic(variant) {
         // Intergenic SNPs are read-counted at their position, so filter them by
-        // their real support like any SNP. Intergenic indels carry no read
-        // counts and are kept.
-        if variant.variant_type != VariantType::Snp {
-            return Ok(true);
+        // their real support exactly like any SNP.
+        if variant.variant_type == VariantType::Snp {
+            let bam_vectors = snp_bam_vectors(variant)?;
+            return Ok(snp_component_passes_filters(&bam_vectors, filters));
         }
-        let bam_vectors = snp_bam_vectors(variant)?;
-        return Ok(snp_component_passes_filters(&bam_vectors, filters));
+        // Intergenic indels carry no recomputed read support, so they cannot
+        // satisfy a read-based filter; drop them when the relevant (MNV) filters
+        // are active, keep them otherwise.
+        return Ok(!filters.has_active_mnv_filters());
+    }
+    if variant.variant_type == VariantType::Indel {
+        if variant.mnv_reads.is_some() || variant.mnv_total_reads.is_some() {
+            return Ok(mnv_component_passes_filters(
+                variant,
+                &[variant.mnv_total_reads.unwrap_or(0)],
+                filters,
+            ));
+        }
+        return Ok(true);
     }
 
     let bam_vectors = snp_bam_vectors(variant)?;
@@ -132,7 +189,7 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
             .join(", ");
         let ref_base_str = variant.ref_bases.join(", ");
         let base_str = variant.base_changes.join(", ");
-        return Ok(vec![
+        let mut row = vec![
             variant.chrom.clone(),
             variant.gene.clone(),
             pos_str,
@@ -156,7 +213,11 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
             "-".to_string(),
             "-".to_string(),
             "-".to_string(),
-        ]);
+        ];
+        row.push(event_class(variant));
+        row.push(event_components(variant));
+        row.extend(event_read_columns(variant));
+        return Ok(row);
     }
 
     let bam_vectors = snp_bam_vectors(variant)?;
@@ -228,7 +289,7 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
     let mnv_forward_reads_str = variant.mnv_forward_reads.unwrap_or(0).to_string();
     let mnv_reverse_reads_str = variant.mnv_reverse_reads.unwrap_or(0).to_string();
 
-    Ok(vec![
+    let mut row = vec![
         variant.chrom.clone(),
         variant.gene.clone(),
         pos_str,
@@ -252,7 +313,11 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
         total_str,
         snp_freq.join(", "),
         mnv_freq_str,
-    ])
+    ];
+    row.push(event_class(variant));
+    row.push(event_components(variant));
+    row.extend(event_read_columns(variant));
+    Ok(row)
 }
 
 fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
@@ -266,7 +331,7 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
             .join(", ");
         let ref_base_str = variant.ref_bases.join(", ");
         let base_str = variant.base_changes.join(", ");
-        return Ok(vec![
+        let mut row = vec![
             variant.chrom.clone(),
             variant.gene.clone(),
             pos_str,
@@ -281,7 +346,10 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
             variant.ref_codon.clone().unwrap_or_else(|| "-".to_string()),
             variant.snp_codon.clone().unwrap_or_else(|| "-".to_string()),
             variant.mnv_codon.clone().unwrap_or_else(|| "-".to_string()),
-        ]);
+        ];
+        row.push(event_class(variant));
+        row.push(event_components(variant));
+        return Ok(row);
     }
 
     let pos_str = variant
@@ -297,7 +365,7 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
     let local_aa_str = local_aa_or_fallback(&variant.aa_changes_local, &variant.aa_changes);
     let local_snp_aa_str =
         local_aa_or_fallback(&variant.snp_aa_changes_local, &variant.snp_aa_changes);
-    Ok(vec![
+    let mut row = vec![
         variant.chrom.clone(),
         variant.gene.clone(),
         pos_str,
@@ -312,7 +380,10 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
         variant.ref_codon.clone().unwrap_or_default(),
         variant.snp_codon.clone().unwrap_or_default(),
         variant.mnv_codon.clone().unwrap_or_default(),
-    ])
+    ];
+    row.push(event_class(variant));
+    row.push(event_components(variant));
+    Ok(row)
 }
 
 pub struct TsvWriter {
@@ -353,6 +424,13 @@ impl TsvWriter {
                 "Total Reads",
                 "SNP Frequencies",
                 "MNV Frequencies",
+                "Event Class",
+                "Event Components",
+                "Event Reads",
+                "Event Forward Reads",
+                "Event Reverse Reads",
+                "Event Depth",
+                "Event Frequency",
             ]
         } else {
             vec![
@@ -370,6 +448,8 @@ impl TsvWriter {
                 "Reference Codon",
                 "SNP Codon",
                 "MNV Codon",
+                "Event Class",
+                "Event Components",
             ]
         };
         writer.write_record(&header)?;
@@ -460,6 +540,8 @@ mod tests {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            event_class: Some("mnv".to_string()),
+            event_components: vec!["SNV:10:A>T".to_string(), "SNV:11:C>G".to_string()],
         }
     }
 
@@ -487,6 +569,47 @@ mod tests {
             row[8], "Val26His",
             "Local SNP AA Changes should be exon-local"
         );
+    }
+
+    fn intergenic_indel() -> VariantInfo {
+        // As produced by build_intergenic_variant: no recomputed read support.
+        let mut v = variant_with_reads();
+        v.gene = "intergenic".to_string();
+        v.variant_type = VariantType::Indel;
+        v.positions = vec![10];
+        v.ref_bases = vec!["AC".to_string()];
+        v.base_changes = vec!["A".to_string()];
+        v.snp_reads = None;
+        v.snp_forward_reads = None;
+        v.snp_reverse_reads = None;
+        v.mnv_reads = None;
+        v.mnv_forward_reads = None;
+        v.mnv_reverse_reads = None;
+        v.mnv_total_reads = None;
+        v.total_reads = None;
+        v.total_forward_reads = None;
+        v.total_reverse_reads = None;
+        v.mnv_total_forward_reads = None;
+        v.mnv_total_reverse_reads = None;
+        v.event_class = Some("deletion".to_string());
+        v
+    }
+
+    #[test]
+    fn test_intergenic_indel_respects_mnv_filters() {
+        // Regression: an intergenic indel carries no recomputed read support, so
+        // it must be dropped when the relevant (MNV) filters are active, the same
+        // way an intergenic SNP is dropped under active SNP filters - instead of
+        // being kept unconditionally by the indel branch.
+        let variant = intergenic_indel();
+        // No filters -> kept.
+        assert!(passes_filters(&variant, filters(0, 0.0, 0, 0.0, 0, 0)).unwrap());
+        // Active MNV frequency / read / strand filters -> dropped.
+        assert!(!passes_filters(&variant, filters(0, 0.0, 0, 0.20, 0, 0)).unwrap());
+        assert!(!passes_filters(&variant, filters(0, 0.0, 2, 0.0, 0, 0)).unwrap());
+        assert!(!passes_filters(&variant, filters(0, 0.0, 0, 0.0, 0, 1)).unwrap());
+        // A SNP-only filter does not affect an intergenic indel.
+        assert!(passes_filters(&variant, filters(5, 0.0, 0, 0.0, 0, 0)).unwrap());
     }
 
     #[test]
@@ -568,6 +691,8 @@ mod tests {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            event_class: None,
+            event_components: Vec::new(),
         }
     }
 

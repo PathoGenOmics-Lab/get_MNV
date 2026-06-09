@@ -1,0 +1,119 @@
+site_name: get_MNV
+site_description: >-
+  Codon-level Multi-Nucleotide Variant detection and indel annotation
+  from VCF or iVar TSV. Pure Rust, no C dependencies.
+site_author: Paula Ruiz-Rodriguez
+# Update site_url to wherever the built site is published.
+site_url: https://pathogenomics-lab.github.io/get_MNV/
+
+repo_url: https://github.com/PathoGenOmics-Lab/get_MNV
+repo_name: PathoGenOmics-Lab/get_MNV
+edit_uri: edit/indels/docs/
+copyright: >-
+  Copyright &copy; Paula Ruiz-Rodriguez & Mireia Coscolla —
+  I&sup2;SysBio, University of Valencia-CSIC
+
+theme:
+  name: material
+  logo: assets/get_mnv.svg
+  favicon: assets/get_mnv.png
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tracking
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.action.edit
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: es
+          name: Español
+          build: true
+          site_name: get_MNV
+          nav_translations:
+            Home: Inicio
+            Getting Started: Primeros pasos
+            Usage: Uso
+            CLI Reference: Referencia de CLI
+            Input Formats: Formatos de entrada
+            Output Formats: Formatos de salida
+            Indel & MNV Semantics: Semántica de indels y MNV
+            Desktop GUI: GUI de escritorio
+            Troubleshooting: Resolución de problemas
+            FAQ: Preguntas frecuentes
+            Benchmarking: Rendimiento
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/PathoGenOmics-Lab/get_MNV
+      name: get_MNV on GitHub
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Usage: usage.md
+  - CLI Reference: cli-reference.md
+  - Input Formats: input-formats.md
+  - Output Formats: output-formats.md
+  - Indel & MNV Semantics: indel-mnv-semantics.md
+  - Desktop GUI: gui.md
+  - Troubleshooting: troubleshooting.md
+  - FAQ: faq.md
+  - Benchmarking: benchmarking.md

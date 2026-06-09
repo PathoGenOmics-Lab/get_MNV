@@ -63,6 +63,37 @@ fn run_single(
     let inputs = build_input_metadata(args, needs_checksums)?;
     let paths = output_paths::OutputPaths::resolve(args, &parsed.base_name, sample_suffix);
 
+    // Fail fast on a missing/un-indexed BAM before any output file is created.
+    if !args.dry_run {
+        if let Some(bam_path) = args.bam_file.as_deref() {
+            config::validate_bam(bam_path)?;
+        }
+    }
+
+    // Transactional output: if the run errors after the output files are created,
+    // remove the partial files on unwind so downstream tooling never consumes a
+    // truncated VCF/TSV. Disarmed once the outputs are fully written.
+    struct OutputCleanup {
+        paths: Vec<String>,
+        armed: bool,
+    }
+    impl Drop for OutputCleanup {
+        fn drop(&mut self) {
+            if self.armed {
+                for path in &self.paths {
+                    let _ = std::fs::remove_file(path);
+                }
+            }
+        }
+    }
+    let mut output_cleanup = OutputCleanup {
+        paths: [paths.tsv.clone(), paths.vcf.clone(), paths.bcf.clone()]
+            .into_iter()
+            .flatten()
+            .collect(),
+        armed: true,
+    };
+
     let mut tsv_writer = if paths.tsv.is_some() {
         Some(output::TsvWriter::new(output::TsvWriterConfig {
             filename: &paths.output_stem,
@@ -180,8 +211,14 @@ fn run_single(
     summary.timings.emit_ms = emit_ms;
     summary.timings.total_ms = total_start.elapsed().as_secs_f64() * 1000.0;
 
+    if let Some(writer) = vcf_writer.as_mut() {
+        writer.flush()?;
+    }
     drop(tsv_writer);
     drop(vcf_writer);
+    // Outputs are fully written; keep them even if a post-write step (tabix/BCF
+    // index, report JSON) fails.
+    output_cleanup.armed = false;
 
     if args.index_vcf_gz {
         if let Some(vcf_path) = summary.output_vcf.as_deref() {
@@ -273,6 +310,16 @@ pub fn run_with_progress(
     if !(0.0..=1.0).contains(&args.min_mnv_frequency) {
         return Err(AppError::config(
             "--min-mnv-frequency must be between 0 and 1",
+        ));
+    }
+    if !(0.0..=1.0).contains(&args.frameshift_min_freq) {
+        return Err(AppError::config(
+            "--frameshift-min-freq must be between 0 and 1 (it is an allele frequency, not a percentage)",
+        ));
+    }
+    if !(0.0..=1.0).contains(&args.phased_indel_min_freq) {
+        return Err(AppError::config(
+            "--phased-indel-min-freq must be between 0 and 1 (it is an allele frequency, not a percentage)",
         ));
     }
     if (args.min_snp_frequency > 0.0 || args.min_mnv_frequency > 0.0) && args.bam_file.is_none() {

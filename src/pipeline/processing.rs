@@ -1,27 +1,32 @@
 //! Per-contig parallel processing: variant annotation, BAM read counting,
 //! LRU cache, and output emission.
+//!
+//! Input parsing and per-gene read support live in submodules; this file owns
+//! the worker state types and the per-contig orchestration (`process_contig`)
+//! plus output emission.
 
-use super::config::{
-    sanitized_command_line, selected_contigs, validate_contig_inputs,
-    validate_strict_original_metrics,
-};
-// build_input_metadata used by mod.rs, not here
 use super::summary::{summarize_contig_variants, ContigSummary};
 use crate::cli::Args;
-use crate::cli::VariantInputFormat;
-use crate::error::ErrorCode;
-use crate::error::{AppError, AppResult};
-use crate::io::{self, AnnotationFormat, ReferenceMap, VcfPosition};
+use crate::error::{AppError, AppResult, ErrorCode};
+use crate::io::{self, ReferenceMap, VcfPosition};
 use crate::output;
-use crate::read_count::{self, ReadCountSummary, RegionObservationCache};
+use crate::read_count::{self, RegionObservationCache};
 use crate::variants::{self, Gene, VariantInfo, VariantType};
 use log::info;
 use lru::LruCache;
 use noodles::bam;
 use noodles::sam::Header;
 use rayon::prelude::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
+
+mod inputs;
+mod read_support;
+
+pub(crate) use inputs::{parse_inputs, resolve_variant_input_format};
+use read_support::{
+    append_supported_phased_indel_haplotypes, apply_read_summary, count_gene_variant_reads,
+};
 
 #[derive(Debug)]
 pub(crate) struct ParsedInputs {
@@ -56,6 +61,14 @@ struct WorkerResult {
     region_cache_misses: usize,
 }
 
+struct PhasedIndelInputs<'a, 'r> {
+    contig: &'a str,
+    gene: &'a Gene,
+    reference: &'a io::Reference<'r>,
+    snp_list: &'a [VcfPosition],
+    genetic_code: crate::genetic_code::GeneticCode,
+}
+
 pub(crate) fn sort_variants(variants: &mut [VariantInfo]) {
     variants.sort_by(|a, b| {
         let a_min = a.positions.iter().copied().min().unwrap_or(usize::MAX);
@@ -69,106 +82,6 @@ pub(crate) fn sort_variants(variants: &mut [VariantInfo]) {
     });
 }
 
-pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppResult<ParsedInputs> {
-    let variant_file = args.variant_file();
-    let base_name = io::get_base_name(variant_file).map_err(reclassify_generic_as_validation)?;
-    let references =
-        io::load_references(&args.fasta_file).map_err(reclassify_generic_as_validation)?;
-    let input_format = resolve_variant_input_format(args)?;
-    if input_format == VariantInputFormat::Tsv && sample_override.is_some() {
-        return Err(AppError::config(
-            "--sample is only supported for VCF input; TSV input is treated as a single sample",
-        ));
-    }
-
-    let snp_by_contig = match input_format {
-        VariantInputFormat::Tsv => {
-            io::ivar::load_ivar_tsv(variant_file).map_err(reclassify_generic_as_validation)?
-        }
-        VariantInputFormat::Vcf | VariantInputFormat::Auto => {
-            // Use fast text parser for plain .vcf files, htslib for .bcf/.vcf.gz
-            if io::vcf_fast::use_fast_parser(variant_file) {
-                io::vcf_fast::load_vcf_text(
-                    variant_file,
-                    sample_override,
-                    args.split_multiallelic,
-                    args.normalize_alleles,
-                    args.keep_original_info,
-                )
-                .map_err(reclassify_generic_as_validation)?
-            } else {
-                io::load_vcf_positions_by_contig(
-                    variant_file,
-                    sample_override,
-                    args.split_multiallelic,
-                    args.normalize_alleles,
-                    args.keep_original_info,
-                )
-                .map_err(reclassify_generic_as_validation)?
-            }
-        }
-    };
-    let annotation_format = io::detect_annotation_format(args.genes_file())
-        .map_err(reclassify_generic_as_validation)?;
-    let contigs = selected_contigs(args, &snp_by_contig)?;
-    validate_strict_original_metrics(&contigs, &snp_by_contig, args.strict)?;
-    validate_contig_inputs(&contigs, &references, &snp_by_contig, annotation_format)?;
-
-    let preloaded_gff = if annotation_format == AnnotationFormat::Gff {
-        Some(
-            io::preload_gff_genes(args.genes_file(), &args.gff_features())
-                .map_err(reclassify_generic_as_validation)?,
-        )
-    } else {
-        None
-    };
-
-    let original_info_headers =
-        if args.keep_original_info && input_format == VariantInputFormat::Vcf {
-            if io::vcf_fast::use_fast_parser(variant_file) {
-                io::vcf_fast::extract_text_info_headers(variant_file)
-                    .map_err(reclassify_generic_as_validation)?
-            } else {
-                io::extract_original_info_headers(variant_file)
-                    .map_err(reclassify_generic_as_validation)?
-            }
-        } else {
-            Vec::new()
-        };
-
-    Ok(ParsedInputs {
-        base_name,
-        references,
-        snp_by_contig,
-        contigs,
-        command_line: sanitized_command_line(),
-        preloaded_gff,
-        original_info_headers,
-    })
-}
-
-pub(crate) fn resolve_variant_input_format(args: &Args) -> AppResult<VariantInputFormat> {
-    if args.tsv_file.is_some() && args.input_format == VariantInputFormat::Vcf {
-        return Err(AppError::config(
-            "--tsv cannot be combined with --input-format vcf",
-        ));
-    }
-
-    let variant_file = args.variant_file();
-    match args.effective_input_format() {
-        VariantInputFormat::Auto => {
-            if io::ivar::looks_like_ivar_tsv(variant_file)
-                .map_err(reclassify_generic_as_validation)?
-            {
-                Ok(VariantInputFormat::Tsv)
-            } else {
-                Ok(VariantInputFormat::Vcf)
-            }
-        }
-        explicit => Ok(explicit),
-    }
-}
-
 pub(crate) fn reclassify_generic_as_validation(error: AppError) -> AppError {
     if error.code == ErrorCode::Generic {
         AppError::validation(error.message)
@@ -177,123 +90,22 @@ pub(crate) fn reclassify_generic_as_validation(error: AppError) -> AppError {
     }
 }
 
-fn apply_read_summary(variant: &mut VariantInfo, summary: ReadCountSummary) {
-    variant.snp_reads = Some(summary.snp_counts);
-    variant.snp_forward_reads = Some(summary.snp_forward_counts);
-    variant.snp_reverse_reads = Some(summary.snp_reverse_counts);
-    variant.mnv_reads = Some(summary.mnv_count);
-    variant.mnv_forward_reads = Some(summary.mnv_forward_count);
-    variant.mnv_reverse_reads = Some(summary.mnv_reverse_count);
-    variant.mnv_total_reads = Some(summary.mnv_total_reads);
-    variant.total_reads = Some(summary.total_reads);
-    variant.total_forward_reads = Some(summary.total_forward_reads);
-    variant.total_reverse_reads = Some(summary.total_reverse_reads);
-    variant.mnv_total_forward_reads = Some(summary.mnv_total_forward_reads);
-    variant.mnv_total_reverse_reads = Some(summary.mnv_total_reverse_reads);
-}
-
 fn annotate_variants_for_gene(
     gene: &Gene,
     snp_list: &[VcfPosition],
     reference: &io::Reference,
     contig: &str,
     genetic_code: crate::genetic_code::GeneticCode,
+    indel_config: &variants::IndelAnnotationConfig,
 ) -> Vec<VariantInfo> {
-    variants::get_mnv_variants_for_gene(gene, snp_list, reference, contig, genetic_code)
-}
-
-fn count_gene_variant_reads(
-    state: &mut WorkerState,
-    args: &Args,
-    contig: &str,
-    gene: &Gene,
-    variants: &mut [VariantInfo],
-) -> AppResult<(usize, usize)> {
-    if args.dry_run || state.bam.is_none() {
-        return Ok((0, 0));
-    }
-
-    let mut target_positions = variants
-        .iter()
-        .filter(|variant| variant.variant_type != VariantType::Indel)
-        .flat_map(|variant| variant.positions.iter().copied())
-        .collect::<Vec<_>>();
-    if target_positions.is_empty() {
-        return Ok((0, 0));
-    }
-
-    target_positions.sort_unstable();
-    target_positions.dedup();
-
-    let cache_key = RegionCacheKey {
-        contig: contig.to_string(),
-        start: gene.start,
-        end: gene.end,
-        positions: target_positions.clone(),
-        min_mapq: args.min_mapq,
-    };
-
-    let (cache, cache_hits, cache_misses) = if let Some(cached) = state.region_cache.get(&cache_key)
-    {
-        (cached.clone(), 1, 0)
-    } else {
-        let bam = match state.bam.as_mut() {
-            Some(b) => b,
-            None => {
-                return Err(AppError::validation(
-                    "BAM reader unavailable in worker thread",
-                ))
-            }
-        };
-        let bam_header = match state.bam_header.as_ref() {
-            Some(h) => h,
-            None => {
-                return Err(AppError::validation(
-                    "BAM header unavailable in worker thread",
-                ))
-            }
-        };
-        let built = read_count::build_region_observation_cache(
-            bam,
-            bam_header,
-            contig,
-            gene.start,
-            gene.end,
-            &target_positions,
-            args.min_mapq,
-        )
-        .map_err(|e| {
-            AppError::validation(format!(
-                "Failed building read cache for contig '{}' gene '{}' at interval {}-{}: {}",
-                contig, gene.name, gene.start, gene.end, e
-            ))
-        })?;
-
-        let result = built.clone();
-        state.region_cache.put(cache_key, built);
-        (result, 0, 1)
-    };
-
-    for variant in variants {
-        if variant.variant_type == VariantType::Indel {
-            continue;
-        }
-        let summary = read_count::count_reads_from_cache(
-            &cache,
-            &variant.positions,
-            &variant.base_changes,
-            args.min_quality,
-        )
-        .map_err(|e| {
-            AppError::validation(format!(
-                "Failed counting reads from cache for contig '{}' gene '{}' at positions {:?}: {}",
-                contig, gene.name, variant.positions, e
-            ))
-        })?;
-        apply_read_summary(variant, summary);
-    }
-
-    Ok((cache_hits, cache_misses))
+    variants::get_mnv_variants_for_gene_with_config(
+        gene,
+        snp_list,
+        reference,
+        contig,
+        genetic_code,
+        indel_config,
+    )
 }
 
 /// Count BAM read support for intergenic variants. These fall outside every
@@ -474,13 +286,34 @@ pub(crate) fn process_contig(
                 let state = state_result
                     .as_mut()
                     .map_err(|err| AppError::validation(err.to_string()))?;
-                let mut variants =
-                    annotate_variants_for_gene(gene, snp_list, &reference, contig, genetic_code);
+                let indel_config = variants::IndelAnnotationConfig {
+                    frameshift_min_freq: args.frameshift_min_freq,
+                };
+                let mut variants = annotate_variants_for_gene(
+                    gene,
+                    snp_list,
+                    &reference,
+                    contig,
+                    genetic_code,
+                    &indel_config,
+                );
                 if variants.is_empty() {
                     return Ok(WorkerResult::default());
                 }
                 let (cache_hits, cache_misses) =
                     count_gene_variant_reads(state, args, contig, gene, &mut variants)?;
+                append_supported_phased_indel_haplotypes(
+                    state,
+                    args,
+                    PhasedIndelInputs {
+                        contig,
+                        gene,
+                        reference: &reference,
+                        snp_list,
+                        genetic_code,
+                    },
+                    &mut variants,
+                )?;
                 Ok(WorkerResult {
                     variants,
                     region_cache_hits: cache_hits,
@@ -503,17 +336,17 @@ pub(crate) fn process_contig(
 
     // Collect intergenic variants (positions not covered by any gene).
     if !args.exclude_intergenic {
-        let mut covered: HashSet<usize> = HashSet::with_capacity(snp_list.len());
+        let mut covered = vec![false; snp_list.len()];
         for gene in &genes {
-            for snp in snp_list {
-                if snp.position >= gene.start && snp.position <= gene.end {
-                    covered.insert(snp.position);
+            for (idx, snp) in snp_list.iter().enumerate() {
+                if io::gene_overlaps_variant(gene, snp) {
+                    covered[idx] = true;
                 }
             }
         }
         let mut intergenic: Vec<VariantInfo> = Vec::new();
-        for snp in snp_list {
-            if !covered.contains(&snp.position) {
+        for (idx, snp) in snp_list.iter().enumerate() {
+            if !covered[idx] {
                 intergenic.push(variants::build_intergenic_variant(contig, snp));
             }
         }

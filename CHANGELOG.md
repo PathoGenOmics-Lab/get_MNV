@@ -4,8 +4,50 @@ All notable changes to this project are documented in this file.
 
 ## [1.1.4] - 2026-06-09
 
+### Added
+- Added regression coverage for phased MNV-plus-indel haplotypes, verifying that codon MNV rows overlapping an indel are flagged as `Indel overlap` while BAM-supported combined events are emitted as exact `complex_indel` rows.
+- Added an indel/MNV semantics note documenting caller compatibility, boundary rules, current limits, and how exact complex haplotypes are represented.
+- Added transcript-aware regression coverage for exon-junction MNV codons and restored-frame indel contexts in multi-exon CDS models.
+
+### Changed
+- `--chrom` now restricts FASTA loading: when a single contig is requested, only that contig is read and IUPAC-validated instead of the whole genome, cutting peak memory for large (e.g. eukaryotic) references. A missing requested contig now fails with a clear "not found in FASTA" error.
+- SNVs/MNVs that alter the initiator Met (protein position 1) are now reported with Change Type `Start lost` instead of `Non-synonymous`, matching standard annotators. The reported amino-acid change was already correct; only the classification label changes. `Met1` → stop is still `Stop gained`.
+- Added a tuned `[profile.release]` (thin LTO, single codegen unit) and wrapped plain (non-BGZF) VCF output in a buffered writer with an explicit flush, for faster production builds and record emission.
+- Pinned `sha2` to the stable `0.10` line (previously a `0.11` pre-release), removing a duplicate hashing dependency stack from the resolved graph.
+- `get_mnv_variants_for_gene` and `get_mnv_variants_for_transcript` now build a list of mutually-exclusive codon interpretations per codon start. Multi-allelic positions expand the interpretation set as a Cartesian product, deduplicated by `(position, alt)` keys, so a codon that contains N independent alts emits N output rows.
+- Bumped project, GUI, citation, README, and frontend metadata to version 1.1.4.
+- Updated the Tauri desktop dependency set to the 2.11 patch line, including `tauri` 2.11.2 and `tauri-plugin-dialog` 2.7.1.
+- Updated frontend lockfile dependencies, including `postcss` 8.5.10.
+- Added allele-level event decomposition for `snp`, `mnv`, `insertion`, `deletion`, `delins`, `complex_indel`, and symbolic alleles so length-changing events that also contain SNV/MNV components are represented as a single local haplotype event.
+- Expanded phased local haplotype discovery from indel-plus-SNV pairs to bounded multi-event windows, allowing supported combinations such as insertion-plus-deletion haplotypes to be emitted as exact `complex_indel` rows.
+- iVar TSV inputs now keep insertion and deletion rows by converting `+SEQ` and `-SEQ` alleles into VCF-compatible anchored `REF/ALT` alleles using the FASTA reference.
+- TSV and VCF outputs now include canonical event class/component annotations plus exact BAM-derived event support metrics for indel/complex alleles.
+- The desktop BAM viewer now renders insertion-aware interbase columns, so inserted bases are shown between reference positions with matching coverage, ruler, reference, and read-pileup alignment instead of being hidden inside the anchor base.
+- When a BAM is provided, nearby SNV/MNV rows that phase with an indel on the same reads are now emitted as an additional exact `complex_indel` haplotype row, preserving the original rows while reporting the combined `REF/ALT`, protein effect, and event support.
+- GFF/GTF `CDS` rows with `transcript_id` or `Parent` are now collapsed into spliced transcript CDS models, so codon grouping, MNV amino-acid effects, and indel frameshift context are evaluated against the full coding sequence instead of isolated exon rows.
+
 ### Fixed
 - Intergenic variants were silently dropped under read or strand thresholds because they were never read-counted. Read counting runs gene by gene, so intergenic positions reached the output filters with a support of 0, and any positive `--snp`, `--mnv`, `--min-snp-strand`, `--min-mnv-strand`, or `--min-snp-frequency` removed them whenever a BAM was supplied (affecting the VCF since 1.1.0 and the TSV since 1.1.3). Intergenic SNPs are now read-counted at their own position and filtered by their real support, exactly like SNPs inside genes, so a threshold applies uniformly to every variant. Use `--exclude-intergenic` to drop intergenic variants on purpose.
+- **Scientific**: `--split-multiallelic` no longer silently drops alternate ALT alleles when two or more alts share the same codon position. Each alt now produces an independent annotation row with its own AA effect, codon, and BAM-derived read support; true duplicates (same position + same alt) still collapse to one row.
+- VCF output INFO values (`GENE`, `AA`, `CT`, `TYPE`, `EC`, `COMP`) are now percent-encoded for the structurally reserved characters (`;`, `=`, `,`, `%`, and tab/newline/CR), so GFF gene names containing those characters can no longer corrupt the INFO column or spawn bogus keys.
+- `--keep-original-info` now subsets per-allele (`Number=A/R/G`) INFO fields to the split allele when a multiallelic record is divided, instead of copying the whole array onto each single-ALT output record (which produced a cardinality-invalid VCF that `bcftools` rejects).
+- The BAM is now validated up front (exists, is coordinate-sorted/indexed, header readable) before any output file is created, so a missing index fails fast with an actionable message instead of erroring lazily inside a worker thread after partial output was already written.
+- Output is now transactional: if a run errors after the output files are created, the partial `.MNV.tsv` / `.MNV.vcf` / BCF files are removed on exit so downstream tooling never consumes a truncated file.
+- BAM region queries are now built with the structured noodles `Region` API instead of a `chrom:start-end` string, so contig names containing `:` (e.g. HLA allele contigs) are queried at the correct coordinates instead of being misparsed.
+- The BGZF VCF parser now rejects `POS=0` and a missing `#CHROM` header line, matching the plain-text fast parser so both code paths validate inputs identically.
+- When `--gff-features` is not specified and the GFF contains `CDS` features, get_mnv now analyses `CDS` (phase- and splice-aware) automatically instead of whole-gene spans, so eukaryotic/multi-exon annotations are no longer silently mis-numbered over introns. Passing `--gff-features gene` keeps the previous whole-gene behaviour (and still emits the CDS-phase-ignored warning).
+- In a spliced transcript (CDS) model, an indel falling in an intron is no longer merged into a phased coding haplotype with nearby exonic SNVs; only exonic variants participate in coding haplotype phasing.
+- A variant lying downstream of a premature stop introduced by an upstream frameshift is no longer labelled `(fs)` as if it were translated; it is reported with Change Type `Downstream of premature stop`. Applies only when a single upstream frameshift indel introduces a stop earlier than the natural one; ordinary frameshift propagation (no early stop) is unchanged.
+- Resolved the frontend security audit by updating vulnerable transitive packages, including `brace-expansion` 5.0.6.
+- Regenerated the Rust lockfile so vulnerable `rand` package entries are no longer present in the resolved dependency graph.
+- Corrected CLI, GUI, and documentation wording for BCF input, BAM base-quality filtering, strand-bias INFO tags, and MNV rows that overlap indels.
+- VCF records that already encode an MNV as a multi-base `REF/ALT` allele are now decomposed into codon-level haplotypes instead of being treated as generic indels.
+- Deletions whose VCF anchor falls just outside a CDS/gene feature now still apply the overlapping deleted bases to the feature sequence, preserving frameshift/in-frame protein effects instead of reporting `Unknown`.
+- Insertions anchored at the final base of a CDS/gene feature are no longer treated as if the inserted sequence were inside that feature, and boundary-spanning indels are no longer duplicated as intergenic rows.
+- Indel and complex alleles in coding regions now reconstruct the local alternate CDS sequence, respect strand/phase/protein offset, and report in-frame or frameshift protein effects instead of leaving amino-acid changes blank.
+- Codons split across neighbouring CDS exons can now produce a single transcript-level MNV annotation when the selected GFF/GTF `CDS` records provide a usable transcript model.
+- BAM support for indels is now counted from the CIGAR-derived observed allele across the event span, including inserted sequence and deleted reference bases; exact complex haplotypes now also require the expected insertion/deletion components in the read CIGAR so net-neutral indel complexes are not mistaken for simple MNVs.
+- Phased `complex_indel` rows now preserve the original event component coordinates from the input variants, so ambiguous repeat-context deletions remain consistent with the source VCF/iVar event and the original indel row.
 
 ## [1.1.3] - 2026-05-11
 

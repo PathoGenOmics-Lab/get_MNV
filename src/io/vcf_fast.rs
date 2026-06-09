@@ -1,8 +1,9 @@
-//! Fast plain-text VCF parser that bypasses htslib for uncompressed `.vcf`
-//! files. Achieves ~10× speedup over htslib by avoiding FFI overhead and
-//! unnecessary header/index parsing.
+//! Fast plain-text VCF parser for uncompressed `.vcf` files. This avoids
+//! unnecessary BGZF/header work and keeps common VCF parsing on the fastest
+//! path.
 //!
-//! Falls back to htslib for `.bcf` and `.vcf.gz` formats.
+//! `.vcf.gz` files are handled by the BGZF-aware parser. BCF input is not
+//! supported; convert BCF to VCF before running get_MNV.
 
 use super::validation::validate_vcf_allele;
 use super::vcf::{normalize_ref_alt, parse_optional_depth, VcfPosition};
@@ -18,7 +19,7 @@ pub fn use_fast_parser(path: &str) -> bool {
 
 /// Parse a plain-text VCF file into positions by contig.
 /// This replicates the behaviour of `load_vcf_positions_by_contig` but operates
-/// on raw text lines instead of htslib records.
+/// on raw text lines instead of the BGZF-aware parser.
 pub fn load_vcf_text(
     vcf_file: &str,
     sample_name: Option<&str>,
@@ -41,8 +42,16 @@ pub fn load_vcf_text(
     // INFO tags to preserve when keep_original_info is active
     let get_mnv_tags: &[&str] = &[
         "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
-        "FREQ", "SBP", "MSBP",
+        "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ",
     ];
+
+    // Per-allele (Number=A/R/G) INFO fields, so they can be subset to a single
+    // ALT when a multiallelic record is split (avoids invalid copied arrays).
+    let per_allele_info = if keep_original_info {
+        crate::io::vcf::per_allele_info_numbers(&extract_text_info_headers(vcf_file)?)
+    } else {
+        HashMap::new()
+    };
 
     for line_result in reader.lines() {
         let line = line_result.map_err(|e| format!("Error reading VCF line: {e}"))?;
@@ -121,13 +130,8 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
         let freq_idx = format_keys.iter().position(|k| *k == "FREQ");
         let af_idx = format_keys.iter().position(|k| *k == "AF");
         let ad_idx = format_keys.iter().position(|k| *k == "AD");
-
-        // Extract original INFO if requested
-        let original_info = if keep_original_info {
-            extract_text_original_info(cols[7], get_mnv_tags)
-        } else {
-            None
-        };
+        let ao_idx = format_keys.iter().position(|k| *k == "AO");
+        let ro_idx = format_keys.iter().position(|k| *k == "RO");
 
         for (alt_idx, alt_allele) in alt_alleles.iter().enumerate() {
             if alt_allele.is_empty() || *alt_allele == "." {
@@ -151,9 +155,16 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                 freq_idx,
                 af_idx,
                 ad_idx,
+                ao_idx,
+                ro_idx,
                 alt_idx,
                 cols[7],
             );
+            let original_info = if keep_original_info {
+                extract_text_original_info(cols[7], get_mnv_tags, &per_allele_info, alt_idx)
+            } else {
+                None
+            };
 
             positions_by_contig
                 .entry(chrom.to_string())
@@ -164,7 +175,7 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                     alt_allele: norm_alt,
                     original_dp,
                     original_freq,
-                    original_info: original_info.clone(),
+                    original_info,
                 });
         }
         if alt_alleles.len() > 1 {
@@ -220,12 +231,15 @@ fn resolve_text_sample_index(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn parse_text_metrics(
     sample_values: &[&str],
     dp_idx: Option<usize>,
     freq_idx: Option<usize>,
     af_idx: Option<usize>,
     ad_idx: Option<usize>,
+    ao_idx: Option<usize>,
+    ro_idx: Option<usize>,
     alt_index: usize,
     info_field: &str,
 ) -> (Option<usize>, Option<f64>) {
@@ -266,6 +280,16 @@ fn parse_text_metrics(
         }
     }
 
+    // Try FORMAT:AO/RO → derive freq (FreeBayes-style)
+    if original_freq.is_none() {
+        if let Some(idx) = ao_idx {
+            if let Some(ao_val) = sample_values.get(idx) {
+                let ro_val = ro_idx.and_then(|i| sample_values.get(i)).copied();
+                original_freq = derive_freq_from_ao_ro(ao_val, ro_val, original_dp, alt_index);
+            }
+        }
+    }
+
     // Fallback to INFO:DP
     if original_dp.is_none() {
         if let Some(dp_val) = find_info_tag(info_field, "DP") {
@@ -289,6 +313,14 @@ fn parse_text_metrics(
     if original_freq.is_none() {
         if let Some(ad_val) = find_info_tag(info_field, "AD") {
             original_freq = derive_freq_from_text_ad(ad_val, alt_index);
+        }
+    }
+
+    // Fallback to INFO:AO/RO (FreeBayes-style)
+    if original_freq.is_none() {
+        if let Some(ao_val) = find_info_tag(info_field, "AO") {
+            let ro_val = find_info_tag(info_field, "RO");
+            original_freq = derive_freq_from_ao_ro(ao_val, ro_val, original_dp, alt_index);
         }
     }
 
@@ -322,6 +354,37 @@ fn parse_freq_indexed(raw: &str, alt_index: usize) -> Option<f64> {
         return None;
     };
     parse_freq_token(token)
+}
+
+/// Derive an alternate-allele frequency from FreeBayes-style AO (alt observation
+/// counts, one per ALT) and RO (reference observation count). The denominator is
+/// the original depth when known, otherwise `sum(AO) + RO`. Mirrors the BGZF
+/// parser so a plain `.vcf` and its `.vcf.gz` equivalent derive the same OFREQ.
+fn derive_freq_from_ao_ro(
+    ao_raw: &str,
+    ro_raw: Option<&str>,
+    original_dp: Option<usize>,
+    alt_index: usize,
+) -> Option<f64> {
+    let ao_values: Vec<i64> = ao_raw
+        .split(',')
+        .filter_map(|s| s.trim().parse().ok())
+        .collect();
+    let alt_count = *ao_values.get(alt_index)?;
+    let ro = ro_raw
+        .and_then(|s| s.trim().parse::<i64>().ok())
+        .unwrap_or(0);
+    let total = if let Some(dp) = original_dp {
+        dp as i64
+    } else {
+        let ao_sum: i64 = ao_values.iter().filter(|v| **v >= 0).sum();
+        ao_sum + ro
+    };
+    if total > 0 && alt_count >= 0 {
+        Some(alt_count as f64 / total as f64)
+    } else {
+        None
+    }
 }
 
 fn derive_freq_from_text_ad(raw: &str, alt_index: usize) -> Option<f64> {
@@ -359,22 +422,18 @@ fn find_info_tag<'a>(info: &'a str, tag: &str) -> Option<&'a str> {
     None
 }
 
-fn extract_text_original_info(info: &str, skip_tags: &[&str]) -> Option<String> {
-    if info == "." {
-        return None;
-    }
-    let kept: Vec<&str> = info
-        .split(';')
-        .filter(|field| {
-            let tag = field.split('=').next().unwrap_or("");
-            !skip_tags.contains(&tag)
-        })
-        .collect();
-    if kept.is_empty() {
-        None
-    } else {
-        Some(kept.join(";"))
-    }
+fn extract_text_original_info(
+    info: &str,
+    skip_tags: &[&str],
+    per_allele: &HashMap<String, char>,
+    alt_idx: usize,
+) -> Option<String> {
+    super::vcf::filter_and_subset_original_info(
+        info,
+        |k| skip_tags.contains(&k),
+        per_allele,
+        alt_idx,
+    )
 }
 
 /// List sample names from a plain-text VCF.
@@ -401,7 +460,7 @@ pub fn list_text_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
 pub fn extract_text_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
     let get_mnv_tags: &[&str] = &[
         "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
-        "FREQ", "SBP", "MSBP",
+        "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ",
     ];
     let file = std::fs::File::open(vcf_file)
         .map_err(|e| format!("Cannot open VCF file '{}': {}", vcf_file, e))?;
@@ -479,6 +538,26 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_text_metrics_derives_freq_from_info_ao_ro() {
+        // FreeBayes INFO carrying only AO/RO must derive the same OFREQ as the
+        // BGZF parser (regression: the fast parser ignored AO/RO entirely, so a
+        // plain .vcf and its .vcf.gz produced different OFREQ).
+        let (dp, freq) =
+            parse_text_metrics(&[], None, None, None, None, None, None, 0, "AO=30;RO=70");
+        assert_eq!(dp, None);
+        assert_eq!(freq, Some(0.3));
+    }
+
+    #[test]
+    fn test_parse_text_metrics_derives_freq_from_format_ao_ro() {
+        // FORMAT AO at column 0, RO at column 1.
+        let sample = ["30", "70"];
+        let (_dp, freq) =
+            parse_text_metrics(&sample, None, None, None, None, Some(0), Some(1), 0, ".");
+        assert_eq!(freq, Some(0.3));
+    }
+
+    #[test]
     fn test_parse_freq_token_percent() {
         assert!((parse_freq_token("50%").unwrap() - 0.5).abs() < 1e-6);
     }
@@ -532,18 +611,32 @@ mod tests {
     #[test]
     fn test_extract_original_info_filters_tags() {
         let get_mnv_tags = &["GENE", "AA", "DP"];
-        let result = extract_text_original_info("GENE=rpoB;CUSTOM=yes;DP=100", get_mnv_tags);
+        let result = extract_text_original_info(
+            "GENE=rpoB;CUSTOM=yes;DP=100",
+            get_mnv_tags,
+            &std::collections::HashMap::new(),
+            0,
+        );
         assert_eq!(result.as_deref(), Some("CUSTOM=yes"));
     }
 
     #[test]
     fn test_extract_original_info_all_filtered() {
         let get_mnv_tags = &["GENE"];
-        assert!(extract_text_original_info("GENE=x", get_mnv_tags).is_none());
+        assert!(extract_text_original_info(
+            "GENE=x",
+            get_mnv_tags,
+            &std::collections::HashMap::new(),
+            0
+        )
+        .is_none());
     }
 
     #[test]
     fn test_extract_original_info_dot() {
-        assert!(extract_text_original_info(".", &["GENE"]).is_none());
+        assert!(
+            extract_text_original_info(".", &["GENE"], &std::collections::HashMap::new(), 0)
+                .is_none()
+        );
     }
 }
