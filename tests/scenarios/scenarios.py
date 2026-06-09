@@ -1331,15 +1331,15 @@ scenario_stop_lost_inframe_del = Scenario(
 )
 
 
-# 32. Gate de frameshift --frameshift-min-freq: COMPORTAMIENTO POR DEFECTO.
+# 32. Gate de frameshift --frameshift-min-freq 0.0: COMPORTAMIENTO OPT-IN.
 # Misma estructura que el escenario 07: del frameshift de 1bp en pos 31 +
 # SNV downstream pos 39. El VCF declara AF=0.20 para la del y AF=0.95 para
-# el SNV. Por defecto (--frameshift-min-freq 0.0) cualquier indel upstream
-# propaga el frameshift -> el SNV downstream lleva marcador "(fs)".
-# Comparar con el escenario 33 (mismos inputs, flag 0.5).
+# el SNV. Con --frameshift-min-freq 0.0 (opt-in) cualquier indel upstream
+# propaga el frameshift -> el SNV downstream lleva marcador "(fs)". El
+# default ahora es 0.5, que SUPRIME esta propagacion (ver escenario 33).
 scenario_fs_gate_default = Scenario(
-    name="32_fs_gate_default_propagates",
-    description="Del fs upstream AF=0.20 + SNV downstream: por defecto el frameshift se propaga -> SNV con '(fs)'",
+    name="32_fs_gate_zero_propagates",
+    description="Del fs upstream AF=0.20 + SNV downstream con --frameshift-min-freq 0.0 (opt-in): el frameshift se propaga desde cualquier indel -> SNV con '(fs)'. El default ahora es 0.5 (ver 33)",
     variants=[
         VcfRecord(pos=30, ref="TG", alt="T", af=0.20),
         VcfRecord(pos=39, ref="T", alt="A", af=0.95),
@@ -1374,6 +1374,7 @@ scenario_fs_gate_default = Scenario(
         ),
     ],
     expected_row_count=2,
+    extra_cli_args=["--frameshift-min-freq", "0.0"],
 )
 
 

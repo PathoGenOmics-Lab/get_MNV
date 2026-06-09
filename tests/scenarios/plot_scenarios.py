@@ -109,8 +109,8 @@ DESC = {
     "29_ivar_tsv_deletion": "iVar TSV: frameshift deletion -G at pos 31 (-SEQ notation).",
     "30_stop_gained_inframe_ins": "In-frame insertion of TAA after pos 30 creates a premature stop → Change Type 'Stop gained' (not 'In-frame Indel').",
     "31_stop_lost_inframe_del": "In-frame 3 bp deletion removing the stop TAA (298-300) → Change Type 'Stop lost'.",
-    "32_fs_gate_default_propagates": "Upstream frameshift deletion AF=0.20 + downstream SNV: by default the frameshift propagates → SNV marked (fs).",
-    "33_fs_gate_high_freq_suppressed": "Same inputs as scenario 32 but with --frameshift-min-freq 0.5: the AF=0.20 deletion fails the gate → downstream SNV WITHOUT (fs).",
+    "32_fs_gate_zero_propagates": "Upstream frameshift deletion AF=0.20 + downstream SNV with --frameshift-min-freq 0.0 (opt-in): the frameshift propagates from every indel → SNV marked (fs). The default is now 0.5 (see 33).",
+    "33_fs_gate_high_freq_suppressed": "Same inputs as scenario 32 but with --frameshift-min-freq 0.5 (now the default): the AF=0.20 deletion fails the gate → downstream SNV WITHOUT (fs).",
     "34_eukaryote_autocds_default": "GFF has CDS features but --gff-features is not set: get_mnv auto-selects the CDS model → correct multi-exon annotation (pos 1048 Ala50Thr in geneC).",
     "35_frameshift_past_premature_stop": "geneE: a frameshift deletion at pos 304 creates a premature stop (codon 2); the downstream SNV at pos 313 (codon 5) is reported as 'Downstream of premature stop', not '(fs)'.",
 }
