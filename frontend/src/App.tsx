@@ -290,7 +290,7 @@ function App() {
   const [gffAvailableFeatures, setGffAvailableFeatures] = useState<string[]>([]);
   const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme);
   const [showCrab, setShowCrab] = useState(getInitialCrab);
-  const [appVersion, setAppVersion] = useState("v1.1.4");
+  const [appVersion, setAppVersion] = useState("v1.1.5");
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const [runProgress, setRunProgress] = useState<ProgressEvent | null>(null);
   const [confirmationPrompt, setConfirmationPrompt] = useState<ConfirmationPrompt | null>(null);

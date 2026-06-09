@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [1.1.4] - 2026-06-09
+## [1.1.5] - 2026-06-09
 
 ### Added
 - Added regression coverage for phased MNV-plus-indel haplotypes, verifying that codon MNV rows overlapping an indel are flagged as `Indel overlap` while BAM-supported combined events are emitted as exact `complex_indel` rows.
@@ -25,9 +25,10 @@ All notable changes to this project are documented in this file.
 - The desktop BAM viewer now renders insertion-aware interbase columns, so inserted bases are shown between reference positions with matching coverage, ruler, reference, and read-pileup alignment instead of being hidden inside the anchor base.
 - When a BAM is provided, nearby SNV/MNV rows that phase with an indel on the same reads are now emitted as an additional exact `complex_indel` haplotype row, preserving the original rows while reporting the combined `REF/ALT`, protein effect, and event support.
 - GFF/GTF `CDS` rows with `transcript_id` or `Parent` are now collapsed into spliced transcript CDS models, so codon grouping, MNV amino-acid effects, and indel frameshift context are evaluated against the full coding sequence instead of isolated exon rows.
+- `--frameshift-min-freq` now defaults to `0.5` instead of `0.0`: an upstream indel only shifts the reading frame of downstream SNV/MNV codons when it is the consensus (majority) allele, so a high-frequency downstream substitution is no longer relabelled frameshifted because of a low-frequency upstream indel that is almost certainly on a different molecule (intra-host data). Indels without a known frequency still propagate. Pass `--frameshift-min-freq 0.0` for the previous behaviour.
+- Indel locus depth (the `EDP`/`EFREQ` denominator) is now counted from reads observing the anchor base by default, removing the depth under-counting and `EFREQ` bias for multi-base deletions. Pass `--legacy-indel-depth` to restrict the denominator to reads that fully span the REF allele.
 
 ### Fixed
-- Intergenic variants were silently dropped under read or strand thresholds because they were never read-counted. Read counting runs gene by gene, so intergenic positions reached the output filters with a support of 0, and any positive `--snp`, `--mnv`, `--min-snp-strand`, `--min-mnv-strand`, or `--min-snp-frequency` removed them whenever a BAM was supplied (affecting the VCF since 1.1.0 and the TSV since 1.1.3). Intergenic SNPs are now read-counted at their own position and filtered by their real support, exactly like SNPs inside genes, so a threshold applies uniformly to every variant. Use `--exclude-intergenic` to drop intergenic variants on purpose.
 - **Scientific**: `--split-multiallelic` no longer silently drops alternate ALT alleles when two or more alts share the same codon position. Each alt now produces an independent annotation row with its own AA effect, codon, and BAM-derived read support; true duplicates (same position + same alt) still collapse to one row.
 - VCF output INFO values (`GENE`, `AA`, `CT`, `TYPE`, `EC`, `COMP`) are now percent-encoded for the structurally reserved characters (`;`, `=`, `,`, `%`, and tab/newline/CR), so GFF gene names containing those characters can no longer corrupt the INFO column or spawn bogus keys.
 - `--keep-original-info` now subsets per-allele (`Number=A/R/G`) INFO fields to the split allele when a multiallelic record is divided, instead of copying the whole array onto each single-ALT output record (which produced a cardinality-invalid VCF that `bcftools` rejects).
@@ -48,6 +49,11 @@ All notable changes to this project are documented in this file.
 - Codons split across neighbouring CDS exons can now produce a single transcript-level MNV annotation when the selected GFF/GTF `CDS` records provide a usable transcript model.
 - BAM support for indels is now counted from the CIGAR-derived observed allele across the event span, including inserted sequence and deleted reference bases; exact complex haplotypes now also require the expected insertion/deletion components in the read CIGAR so net-neutral indel complexes are not mistaken for simple MNVs.
 - Phased `complex_indel` rows now preserve the original event component coordinates from the input variants, so ambiguous repeat-context deletions remain consistent with the source VCF/iVar event and the original indel row.
+
+## [1.1.4] - 2026-06-09
+
+### Fixed
+- Intergenic variants were silently dropped under read or strand thresholds because they were never read-counted. Read counting runs gene by gene, so intergenic positions reached the output filters with a support of 0, and any positive `--snp`, `--mnv`, `--min-snp-strand`, `--min-mnv-strand`, or `--min-snp-frequency` removed them whenever a BAM was supplied (affecting the VCF since 1.1.0 and the TSV since 1.1.3). Intergenic SNPs are now read-counted at their own position and filtered by their real support, exactly like SNPs inside genes, so a threshold applies uniformly to every variant. Use `--exclude-intergenic` to drop intergenic variants on purpose.
 
 ## [1.1.3] - 2026-05-11
 

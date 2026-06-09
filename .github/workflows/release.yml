@@ -142,7 +142,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "get_MNV ${{ github.ref_name }}"
           releaseBody: |
-            get_MNV ${{ github.ref_name }} updates the project metadata and refreshes security-sensitive Rust and frontend dependencies for the 1.1.4 release line.
+            get_MNV ${{ github.ref_name }} updates the project metadata and refreshes security-sensitive Rust and frontend dependencies for the 1.1.5 release line.
 
             See [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for the full list of changes.
           releaseDraft: true

@@ -1,6 +1,6 @@
 # Referencia de la CLI
 
-Referencia completa de las opciones de línea de comandos de `get_mnv` (versión 1.1.4). Ejecuta
+Referencia completa de las opciones de línea de comandos de `get_mnv` (versión 1.1.5). Ejecuta
 `get_mnv --help` para ver la misma lista en tu terminal.
 
 ## Sinopsis

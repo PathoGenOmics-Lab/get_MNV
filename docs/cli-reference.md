@@ -1,6 +1,6 @@
 # CLI Reference
 
-Full reference for the `get_mnv` command-line options (version 1.1.4). Run
+Full reference for the `get_mnv` command-line options (version 1.1.5). Run
 `get_mnv --help` for the same list in your terminal.
 
 ## Synopsis
