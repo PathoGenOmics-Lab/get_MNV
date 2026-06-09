@@ -591,6 +591,113 @@ chr1\t5\t.\tAA\tA\t.\tPASS\t.\n",
 }
 
 #[test]
+fn test_e2e_vcf_phased_deletion_and_insertion_in_adjacent_codons_combine() {
+    // A deletion in one codon and an insertion in the next codon, carried on the
+    // same reads, are emitted as a single exact `complex_indel` haplotype, while
+    // the individual indel rows are preserved. This is the cross-codon case:
+    // codon 2 (pos 4-6) carries the deletion of pos 6, codon 3 (pos 7-9) carries
+    // the insertion after pos 7. Only the read that carries BOTH supports the
+    // combined event.
+    let tmp = temp_dir("e2e_phased_crosscodon_delins");
+    let (ref_path, genes_path) = write_phase_reference_files(&tmp);
+    let vcf_path = tmp.join("crosscodon.vcf");
+    let bam_path = tmp.join("crosscodon.bam");
+
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=12>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t5\t.\tAA\tA\t.\tPASS\t.\n\
+chr1\t7\t.\tT\tTG\t.\tPASS\t.\n",
+    )
+    .unwrap();
+    write_synthetic_bam(
+        &bam_path,
+        12,
+        &[
+            // Carries the codon-2 deletion (pos 6) AND the codon-3 insertion
+            // (G after pos 7) on the same molecule.
+            SyntheticRead {
+                name: "both",
+                start: 1,
+                cigar: "5M1D1M1I5M",
+                sequence: "ATGAATGTTCCC",
+            },
+            // Deletion only.
+            SyntheticRead {
+                name: "del_only",
+                start: 1,
+                cigar: "5M1D6M",
+                sequence: "ATGAATTTCCC",
+            },
+            // Insertion only.
+            SyntheticRead {
+                name: "ins_only",
+                start: 1,
+                cigar: "7M1I5M",
+                sequence: "ATGAAATGTTCCC",
+            },
+            // Plain reference.
+            SyntheticRead {
+                name: "ref",
+                start: 1,
+                cigar: "12M",
+                sequence: "ATGAAATTTCCC",
+            },
+        ],
+    );
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.tsv_file = None;
+    args.bam_file = Some(bam_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.gff_file = None;
+    args.threads = Some(1);
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("crosscodon".to_string());
+
+    let summary = pipeline::run(&args).expect("cross-codon del+ins pipeline should succeed");
+    assert_eq!(summary.global.snp_records_in_vcf, 2);
+    assert!(
+        summary.global.indel_variants >= 3,
+        "expected the two original indels plus the phased cross-codon haplotype"
+    );
+
+    let rows = read_tsv_rows(&tmp.join("crosscodon.MNV.tsv"));
+
+    // The combined complex_indel row carries both indel components and is
+    // supported only by the single read that carries both indels.
+    let compound = rows
+        .iter()
+        .find(|row| {
+            row.get("Event Class").map(String::as_str) == Some("complex_indel")
+                && row.get("Event Components").is_some_and(|c| {
+                    c.contains("DEL:6:A") && c.contains("INS:7:+G")
+                })
+        })
+        .expect("a complex_indel row combining the codon-2 deletion and codon-3 insertion");
+    assert_eq!(
+        compound["Event Reads"], "1",
+        "only the read carrying both the deletion and the insertion supports the combined event"
+    );
+
+    // The individual indels are preserved as their own rows.
+    assert!(
+        find_row(&rows, "deletion", "AA", "A").is_some(),
+        "the standalone codon-2 deletion row should still be present"
+    );
+    assert!(
+        find_row(&rows, "insertion", "T", "TG").is_some(),
+        "the standalone codon-3 insertion row should still be present"
+    );
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
 fn test_e2e_vcf_close_indel_and_snv_do_not_phase_without_shared_read() {
     let tmp = temp_dir("e2e_unphased_ins_vcf");
     let (ref_path, genes_path) = write_phase_reference_files(&tmp);

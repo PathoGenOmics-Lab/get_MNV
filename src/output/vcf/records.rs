@@ -290,6 +290,21 @@ impl VcfWriter {
                     strand_bias_p,
                 })
             }
+            None if self.bam_provided && variant.variant_type != VariantType::Snp => {
+                // Intergenic indels carry no recomputed read support, so they
+                // cannot satisfy a read-based filter; drop them when the relevant
+                // MNV filters are active, matching the TSV output (support = 0).
+                self.build_support_filters(SupportFilterInput {
+                    support_reads: 0,
+                    min_reads: self.min_mnv_reads,
+                    depth: 0,
+                    min_frequency: self.min_mnv_frequency,
+                    forward_reads: 0,
+                    reverse_reads: 0,
+                    min_strand_reads: self.min_mnv_strand_reads,
+                    strand_bias_p: None,
+                })
+            }
             None => Vec::new(),
         };
         if !self.should_emit_record(&filters) {
