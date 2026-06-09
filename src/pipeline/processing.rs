@@ -296,6 +296,72 @@ fn count_gene_variant_reads(
     Ok((cache_hits, cache_misses))
 }
 
+/// Count BAM read support for intergenic variants. These fall outside every
+/// gene, so the per-gene counting loop never reaches them. Each intergenic SNP
+/// is counted at its own position so it can be filtered by its real support
+/// like any other SNP; intergenic indels are left uncounted (as elsewhere).
+fn count_intergenic_variant_reads(
+    args: &Args,
+    contig: &str,
+    variants: &mut [VariantInfo],
+) -> AppResult<()> {
+    let bam_path = match args.bam_file.as_ref() {
+        Some(path) => path,
+        None => return Ok(()),
+    };
+    if !variants.iter().any(|v| v.variant_type == VariantType::Snp) {
+        return Ok(());
+    }
+
+    let mut reader = bam::io::indexed_reader::Builder::default()
+        .build_from_path(bam_path)
+        .map_err(|e| {
+            AppError::validation(format!(
+                "Failed to open BAM '{bam_path}' for intergenic read counting: {e}"
+            ))
+        })?;
+    let header = reader.read_header().map_err(|e| {
+        AppError::validation(format!("Failed to read BAM header from '{bam_path}': {e}"))
+    })?;
+
+    for variant in variants.iter_mut() {
+        if variant.variant_type != VariantType::Snp {
+            continue;
+        }
+        let pos = match variant.positions.first().copied() {
+            Some(p) => p,
+            None => continue,
+        };
+        let cache = read_count::build_region_observation_cache(
+            &mut reader,
+            &header,
+            contig,
+            pos,
+            pos,
+            &[pos],
+            args.min_mapq,
+        )
+        .map_err(|e| {
+            AppError::validation(format!(
+                "Failed building read cache for intergenic position {contig}:{pos}: {e}"
+            ))
+        })?;
+        let summary = read_count::count_reads_from_cache(
+            &cache,
+            &variant.positions,
+            &variant.base_changes,
+            args.min_quality,
+        )
+        .map_err(|e| {
+            AppError::validation(format!(
+                "Failed counting reads for intergenic position {contig}:{pos}: {e}"
+            ))
+        })?;
+        apply_read_summary(variant, summary);
+    }
+    Ok(())
+}
+
 pub(crate) fn process_contig(
     args: &Args,
     contig: &str,
@@ -413,14 +479,18 @@ pub(crate) fn process_contig(
                 }
             }
         }
-        let mut intergenic_count = 0usize;
+        let mut intergenic: Vec<VariantInfo> = Vec::new();
         for snp in snp_list {
             if !covered.contains(&snp.position) {
-                all_variants.push(variants::build_intergenic_variant(contig, snp));
-                intergenic_count += 1;
+                intergenic.push(variants::build_intergenic_variant(contig, snp));
             }
         }
-        if intergenic_count > 0 {
+        if !intergenic.is_empty() {
+            let intergenic_count = intergenic.len();
+            if should_count_reads {
+                count_intergenic_variant_reads(args, contig, &mut intergenic)?;
+            }
+            all_variants.extend(intergenic);
             info!("Contig '{contig}' -> {intergenic_count} intergenic variant(s) added");
         }
     }
