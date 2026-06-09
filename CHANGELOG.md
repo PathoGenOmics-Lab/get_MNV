@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.1.4] - 2026-06-09
+
+### Fixed
+- Intergenic variants were silently dropped under read or strand thresholds because they were never read-counted. Read counting runs gene by gene, so intergenic positions reached the output filters with a support of 0, and any positive `--snp`, `--mnv`, `--min-snp-strand`, `--min-mnv-strand`, or `--min-snp-frequency` removed them whenever a BAM was supplied (affecting the VCF since 1.1.0 and the TSV since 1.1.3). Intergenic SNPs are now read-counted at their own position and filtered by their real support, exactly like SNPs inside genes, so a threshold applies uniformly to every variant. Use `--exclude-intergenic` to drop intergenic variants on purpose.
+
 ## [1.1.3] - 2026-05-11
 
 ### Added
