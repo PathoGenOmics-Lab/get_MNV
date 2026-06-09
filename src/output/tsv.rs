@@ -49,10 +49,6 @@ impl TsvFilterConfig {
             || self.min_snp_strand_reads > 0
             || self.min_mnv_strand_reads > 0
     }
-
-    fn has_active_snp_filters(self) -> bool {
-        self.min_snp_reads > 0 || self.min_snp_frequency > 0.0 || self.min_snp_strand_reads > 0
-    }
 }
 
 pub struct TsvWriterConfig<'a> {
@@ -100,7 +96,14 @@ fn passes_filters(variant: &VariantInfo, filters: TsvFilterConfig) -> AppResult<
         return Ok(true);
     }
     if is_intergenic(variant) {
-        return Ok(!filters.has_active_snp_filters());
+        // Intergenic SNPs are read-counted at their position, so filter them by
+        // their real support like any SNP. Intergenic indels carry no read
+        // counts and are kept.
+        if variant.variant_type != VariantType::Snp {
+            return Ok(true);
+        }
+        let bam_vectors = snp_bam_vectors(variant)?;
+        return Ok(snp_component_passes_filters(&bam_vectors, filters));
     }
 
     let bam_vectors = snp_bam_vectors(variant)?;
@@ -117,7 +120,10 @@ fn passes_filters(variant: &VariantInfo, filters: TsvFilterConfig) -> AppResult<
 
 fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
     validate_variant_shape(variant)?;
-    if variant.variant_type == VariantType::Indel || is_intergenic(variant) {
+    // Indels (genic or intergenic) have no read counts and use the placeholder
+    // layout. Intergenic SNPs are read-counted, so they fall through to the
+    // normal SNP path below and report their read support like any SNP.
+    if variant.variant_type == VariantType::Indel {
         let pos_str = variant
             .positions
             .iter()
@@ -529,5 +535,53 @@ mod tests {
             !passes_filters(&variant, filters(0, 0.0, 0, 0.0, 1, 3)).unwrap(),
             "a mixed SNP/MNV row should be removed when neither SNP nor MNV strand support passes"
         );
+    }
+
+    fn intergenic_snp(support: usize, forward: usize, reverse: usize, depth: usize) -> VariantInfo {
+        VariantInfo {
+            chrom: "chr1".to_string(),
+            gene: "intergenic".to_string(),
+            positions: vec![35],
+            ref_bases: vec!["G".to_string()],
+            base_changes: vec!["A".to_string()],
+            aa_changes: vec!["-".to_string()],
+            snp_aa_changes: vec!["-".to_string()],
+            aa_changes_local: vec!["-".to_string()],
+            snp_aa_changes_local: vec!["-".to_string()],
+            variant_type: VariantType::Snp,
+            change_type: ChangeType::Unknown,
+            snp_reads: Some(vec![support]),
+            snp_forward_reads: Some(vec![forward]),
+            snp_reverse_reads: Some(vec![reverse]),
+            mnv_reads: Some(support),
+            mnv_forward_reads: Some(forward),
+            mnv_reverse_reads: Some(reverse),
+            mnv_total_reads: Some(depth),
+            total_reads: Some(vec![depth]),
+            total_forward_reads: Some(vec![forward]),
+            total_reverse_reads: Some(vec![reverse]),
+            mnv_total_forward_reads: Some(forward),
+            mnv_total_reverse_reads: Some(reverse),
+            ref_codon: None,
+            snp_codon: None,
+            mnv_codon: None,
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }
+    }
+
+    #[test]
+    fn test_intergenic_snp_filtered_by_real_read_support() {
+        // Intergenic SNPs are read-counted, so thresholds apply to them like any
+        // SNP: kept when their real support passes, dropped when it does not.
+        let variant = intergenic_snp(10, 5, 5, 10);
+        assert!(passes_filters(&variant, filters(1, 0.0, 0, 0.0, 0, 0)).unwrap());
+        assert!(passes_filters(&variant, filters(10, 0.5, 0, 0.0, 5, 0)).unwrap());
+        assert!(!passes_filters(&variant, filters(11, 0.0, 0, 0.0, 0, 0)).unwrap());
+        assert!(!passes_filters(&variant, filters(0, 0.0, 0, 0.0, 6, 0)).unwrap());
+
+        let weak = intergenic_snp(1, 1, 0, 1);
+        assert!(!passes_filters(&weak, filters(5, 0.0, 0, 0.0, 0, 0)).unwrap());
     }
 }

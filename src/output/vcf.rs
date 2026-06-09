@@ -647,38 +647,67 @@ impl VcfWriter {
 
     fn write_intergenic(&mut self, variant: &VariantInfo) -> AppResult<()> {
         validate_variant_shape(variant)?;
-        // When BAM-based filters are active, intergenic variants have no read
-        // support so they are subject to the same thresholds (support=0).
-        let filters = if self.bam_provided {
-            self.build_support_filters(SupportFilterInput {
-                support_reads: 0,
-                min_reads: self.min_snp_reads,
-                depth: 0,
-                min_frequency: self.min_snp_frequency,
-                forward_reads: 0,
-                reverse_reads: 0,
-                min_strand_reads: self.min_snp_strand_reads,
-                strand_bias_p: None,
-            })
+        let ref_base = get_required(&variant.ref_bases, 0, "ref_bases", variant)?;
+        let alt_base = get_required(&variant.base_changes, 0, "base_changes", variant)?;
+        let pos = *get_required(&variant.positions, 0, "positions", variant)?;
+
+        // Intergenic SNPs are read-counted at their position, so they are
+        // filtered by their real support exactly like any SNP. Intergenic
+        // indels carry no read counts and are always emitted.
+        let snp_support = if self.bam_provided && variant.variant_type == VariantType::Snp {
+            let support = variant.snp_reads.as_ref().and_then(|c| c.first()).copied();
+            let forward = variant.snp_forward_reads.as_ref().and_then(|c| c.first()).copied();
+            let reverse = variant.snp_reverse_reads.as_ref().and_then(|c| c.first()).copied();
+            let depth = variant.total_reads.as_ref().and_then(|c| c.first()).copied();
+            match (support, forward, reverse, depth) {
+                (Some(s), Some(f), Some(r), Some(d)) => Some((s, f, r, d)),
+                _ => None,
+            }
         } else {
-            Vec::new()
+            None
+        };
+
+        // Strand-bias p-value, computed like the genic SNP path so the
+        // --min-strand-bias-p filter and the SBP INFO field apply to intergenic
+        // SNPs too (the strand read counts are populated for them).
+        let strand_bias_p = if snp_support.is_some() {
+            self.snp_strand_bias(variant, 0)
+        } else {
+            None
+        };
+        let filters = match snp_support {
+            Some((support, forward, reverse, depth)) => {
+                self.build_support_filters(SupportFilterInput {
+                    support_reads: support,
+                    min_reads: self.min_snp_reads,
+                    depth,
+                    min_frequency: self.min_snp_frequency,
+                    forward_reads: forward,
+                    reverse_reads: reverse,
+                    min_strand_reads: self.min_snp_strand_reads,
+                    strand_bias_p,
+                })
+            }
+            None => Vec::new(),
         };
         if !self.should_emit_record(&filters) {
             return Ok(());
         }
-        let ref_base = get_required(&variant.ref_bases, 0, "ref_bases", variant)?;
-        let alt_base = get_required(&variant.base_changes, 0, "base_changes", variant)?;
-        let pos = *get_required(&variant.positions, 0, "positions", variant)?;
+
         let info = build_info_string(
             variant,
             None,
             variant.variant_type.as_str(),
-            None,
+            snp_support.map(|(s, f, r, _)| (s, f, r)),
             None,
             Some(0),
-            None,
-            None,
-            None,
+            snp_support.map(|(_, _, _, d)| d),
+            snp_support.map(|(s, _, _, _)| s),
+            if self.include_strand_bias_info {
+                strand_bias_p
+            } else {
+                None
+            },
             None,
             variant.original_info.as_deref(),
         );
@@ -873,6 +902,112 @@ mod tests {
         assert!(contents.contains("##FILTER=<ID=LowFrequency"));
         assert!(contents.contains("\tLowFrequency\t"));
         assert!(contents.contains("FREQ=0.2000"));
+        let _ = fs::remove_file(out_path);
+    }
+
+    fn intergenic_snp(
+        pos: usize,
+        support: usize,
+        forward: usize,
+        reverse: usize,
+        depth: usize,
+    ) -> VariantInfo {
+        VariantInfo {
+            chrom: "chr1".to_string(),
+            gene: "intergenic".to_string(),
+            positions: vec![pos],
+            ref_bases: vec!["G".to_string()],
+            base_changes: vec!["A".to_string()],
+            aa_changes: vec!["-".to_string()],
+            snp_aa_changes: vec!["-".to_string()],
+            aa_changes_local: vec!["-".to_string()],
+            snp_aa_changes_local: vec!["-".to_string()],
+            variant_type: VariantType::Snp,
+            change_type: ChangeType::Unknown,
+            snp_reads: Some(vec![support]),
+            snp_forward_reads: Some(vec![forward]),
+            snp_reverse_reads: Some(vec![reverse]),
+            mnv_reads: None,
+            mnv_forward_reads: None,
+            mnv_reverse_reads: None,
+            mnv_total_reads: None,
+            total_reads: Some(vec![depth]),
+            total_forward_reads: Some(vec![forward]),
+            total_reverse_reads: Some(vec![reverse]),
+            mnv_total_forward_reads: None,
+            mnv_total_reverse_reads: None,
+            ref_codon: None,
+            snp_codon: None,
+            mnv_codon: None,
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }
+    }
+
+    #[test]
+    fn test_intergenic_snp_filtered_by_real_support_in_vcf() {
+        // Intergenic SNPs are read-counted, so a threshold applies to them like
+        // any SNP: a well-supported one is written with FILTER=PASS and its read
+        // counts; one below the threshold is dropped.
+        let stem = unique_temp_path("get_mnv_vcf_intergenic", "out");
+        let stem_str = stem.to_string_lossy().into_owned();
+        let out_path = format!("{stem_str}.MNV.vcf");
+        let mut writer = VcfWriter::new(VcfWriterConfig {
+            filename: &stem_str,
+            bam_provided: true,
+            min_snp_reads: 5,
+            min_snp_frequency: 0.0,
+            min_mnv_reads: 0,
+            min_mnv_frequency: 0.0,
+            min_quality: 20,
+            min_mapq: 0,
+            command_line: "get_mnv test",
+            contigs: &["chr1".to_string()],
+            bgzf_output: false,
+            min_snp_strand_reads: 0,
+            min_mnv_strand_reads: 0,
+            min_strand_bias_p: 0.0,
+            emit_filtered: false,
+            include_strand_bias_info: false,
+            original_info_headers: &[],
+        })
+        .expect("writer should build");
+        writer
+            .write_variants(
+                &[
+                    intergenic_snp(35, 10, 5, 5, 10),
+                    intergenic_snp(40, 2, 1, 1, 2),
+                ],
+                &HashMap::new(),
+            )
+            .expect("variants should write");
+        drop(writer);
+
+        let mut contents = String::new();
+        File::open(&out_path)
+            .expect("failed to open VCF")
+            .read_to_string(&mut contents)
+            .expect("failed to read VCF");
+        let kept = contents
+            .lines()
+            .find(|line| !line.starts_with('#') && line.contains("\t35\t"))
+            .expect("well-supported intergenic SNP should be present");
+        assert!(
+            kept.contains("\tPASS\t"),
+            "kept intergenic SNP should be PASS, got: {kept}"
+        );
+        assert!(kept.contains("GENE=intergenic"));
+        assert!(
+            kept.contains("SR=10"),
+            "kept intergenic SNP should report its read support, got: {kept}"
+        );
+        assert!(
+            !contents
+                .lines()
+                .any(|line| !line.starts_with('#') && line.contains("\t40\t")),
+            "low-support intergenic SNP should be dropped"
+        );
         let _ = fs::remove_file(out_path);
     }
 }

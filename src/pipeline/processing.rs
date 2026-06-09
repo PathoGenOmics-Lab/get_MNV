@@ -296,6 +296,104 @@ fn count_gene_variant_reads(
     Ok((cache_hits, cache_misses))
 }
 
+/// Count BAM read support for intergenic variants. These fall outside every
+/// gene, so the per-gene counting loop never reaches them. Intergenic SNPs are
+/// counted so they can be filtered by their real support like any other SNP;
+/// intergenic indels are left uncounted (as elsewhere).
+///
+/// Nearby intergenic SNPs are grouped into bounded windows and counted from a
+/// single region observation cache per window, so clustered sites share one BAM
+/// query instead of one query each. The window span and position count are
+/// capped so memory stays bounded when sites are dense; distant sites simply
+/// fall into separate windows.
+fn count_intergenic_variant_reads(
+    args: &Args,
+    contig: &str,
+    variants: &mut [VariantInfo],
+) -> AppResult<()> {
+    const MAX_WINDOW_SPAN: usize = 50_000;
+    const MAX_WINDOW_POSITIONS: usize = 256;
+
+    let bam_path = match args.bam_file.as_ref() {
+        Some(path) => path,
+        None => return Ok(()),
+    };
+
+    // Indices of the intergenic SNPs, ordered by position so neighbours batch.
+    let mut snp_indices: Vec<usize> = variants
+        .iter()
+        .enumerate()
+        .filter(|(_, v)| v.variant_type == VariantType::Snp && !v.positions.is_empty())
+        .map(|(i, _)| i)
+        .collect();
+    if snp_indices.is_empty() {
+        return Ok(());
+    }
+    snp_indices.sort_by_key(|&i| variants[i].positions[0]);
+
+    let mut reader = bam::io::indexed_reader::Builder::default()
+        .build_from_path(bam_path)
+        .map_err(|e| {
+            AppError::validation(format!(
+                "Failed to open BAM '{bam_path}' for intergenic read counting: {e}"
+            ))
+        })?;
+    let header = reader.read_header().map_err(|e| {
+        AppError::validation(format!("Failed to read BAM header from '{bam_path}': {e}"))
+    })?;
+
+    let mut start = 0usize;
+    while start < snp_indices.len() {
+        let window_start_pos = variants[snp_indices[start]].positions[0];
+        let mut end = start + 1;
+        while end < snp_indices.len()
+            && end - start < MAX_WINDOW_POSITIONS
+            && variants[snp_indices[end]].positions[0].saturating_sub(window_start_pos)
+                <= MAX_WINDOW_SPAN
+        {
+            end += 1;
+        }
+
+        let window = &snp_indices[start..end];
+        let region_end_pos = variants[window[window.len() - 1]].positions[0];
+        let positions: Vec<usize> = window.iter().map(|&i| variants[i].positions[0]).collect();
+
+        let cache = read_count::build_region_observation_cache(
+            &mut reader,
+            &header,
+            contig,
+            window_start_pos,
+            region_end_pos,
+            &positions,
+            args.min_mapq,
+        )
+        .map_err(|e| {
+            AppError::validation(format!(
+                "Failed building read cache for intergenic window {contig}:{window_start_pos}-{region_end_pos}: {e}"
+            ))
+        })?;
+
+        for &i in window {
+            let summary = read_count::count_reads_from_cache(
+                &cache,
+                &variants[i].positions,
+                &variants[i].base_changes,
+                args.min_quality,
+            )
+            .map_err(|e| {
+                AppError::validation(format!(
+                    "Failed counting reads for intergenic position {contig}:{}: {e}",
+                    variants[i].positions[0]
+                ))
+            })?;
+            apply_read_summary(&mut variants[i], summary);
+        }
+
+        start = end;
+    }
+    Ok(())
+}
+
 pub(crate) fn process_contig(
     args: &Args,
     contig: &str,
@@ -413,14 +511,18 @@ pub(crate) fn process_contig(
                 }
             }
         }
-        let mut intergenic_count = 0usize;
+        let mut intergenic: Vec<VariantInfo> = Vec::new();
         for snp in snp_list {
             if !covered.contains(&snp.position) {
-                all_variants.push(variants::build_intergenic_variant(contig, snp));
-                intergenic_count += 1;
+                intergenic.push(variants::build_intergenic_variant(contig, snp));
             }
         }
-        if intergenic_count > 0 {
+        if !intergenic.is_empty() {
+            let intergenic_count = intergenic.len();
+            if should_count_reads {
+                count_intergenic_variant_reads(args, contig, &mut intergenic)?;
+            }
+            all_variants.extend(intergenic);
             info!("Contig '{contig}' -> {intergenic_count} intergenic variant(s) added");
         }
     }
