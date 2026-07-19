@@ -260,7 +260,11 @@ impl VcfWriter {
                 .as_ref()
                 .and_then(|c| c.first())
                 .copied();
-            let depth = variant.total_reads.as_ref().and_then(|c| c.first()).copied();
+            let depth = variant
+                .total_reads
+                .as_ref()
+                .and_then(|c| c.first())
+                .copied();
             match (support, forward, reverse, depth) {
                 (Some(s), Some(f), Some(r), Some(d)) => Some((s, f, r, d)),
                 _ => None,

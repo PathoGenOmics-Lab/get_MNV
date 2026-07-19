@@ -674,9 +674,9 @@ chr1\t7\t.\tT\tTG\t.\tPASS\t.\n",
         .iter()
         .find(|row| {
             row.get("Event Class").map(String::as_str) == Some("complex_indel")
-                && row.get("Event Components").is_some_and(|c| {
-                    c.contains("DEL:6:A") && c.contains("INS:7:+G")
-                })
+                && row
+                    .get("Event Components")
+                    .is_some_and(|c| c.contains("DEL:6:A") && c.contains("INS:7:+G"))
         })
         .expect("a complex_indel row combining the codon-2 deletion and codon-3 insertion");
     assert_eq!(
