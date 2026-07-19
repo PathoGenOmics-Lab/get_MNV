@@ -1,7 +1,46 @@
 //! Genomic-coordinate codon construction, processing, and codon-bounds math.
 
-use crate::utils::{determine_change_type, iupac_aa, reverse_complement};
-use crate::variants::{ChangeType, CodonInfo, Gene, Snp, Strand, VariantInfo, VariantType};
+use crate::utils::{determine_change_type, grantham_distance, iupac_aa, reverse_complement};
+
+/// Coarse severity of an amino-acid change: stop (3) > missense (2) >
+/// synonymous (1) > ambiguous (0).
+fn aa_severity(orig: char, mutated: char) -> u8 {
+    if orig == 'X' || mutated == 'X' {
+        0
+    } else if orig == '*' || mutated == '*' {
+        3
+    } else if orig == mutated {
+        1
+    } else {
+        2
+    }
+}
+
+/// Compare the combined MNV consequence against its individual SNVs.
+fn compute_consequence_shift(
+    orig: char,
+    combined_mut: char,
+    single_muts: &[char],
+) -> ConsequenceShift {
+    if single_muts.len() <= 1 || orig == 'X' {
+        return ConsequenceShift::NotApplicable;
+    }
+    let combined = aa_severity(orig, combined_mut);
+    let max_individual = single_muts
+        .iter()
+        .map(|&m| aa_severity(orig, m))
+        .max()
+        .unwrap_or(0);
+    match combined.cmp(&max_individual) {
+        std::cmp::Ordering::Greater => ConsequenceShift::Gained,
+        std::cmp::Ordering::Less => ConsequenceShift::Masked,
+        std::cmp::Ordering::Equal => ConsequenceShift::Concordant,
+    }
+}
+use crate::variants::{
+    ChangeType, CodonInfo, ConsequenceShift, Gene, Snp, Strand, VariantAnnotations, VariantInfo,
+    VariantType,
+};
 
 use super::grouping::{collect_all_f64, collect_all_usize, merge_original_info};
 
@@ -123,7 +162,9 @@ pub fn process_codon(
     let combined_aa_local = iupac_aa(&combined_change_local);
     let change_type = ChangeType::from_label(&determine_change_type(&combined_change));
 
-    let snp_changes: Vec<String> = codon_info
+    // Single-residue result of each SNV on its own (reused for the per-SNP
+    // columns and the MNV-vs-SNV consequence comparison).
+    let single_aas: Vec<char> = codon_info
         .codon_list
         .iter()
         .map(|snp| {
@@ -132,23 +173,32 @@ pub fn process_codon(
                 Strand::Minus => reverse_complement(&single_codon),
                 Strand::Plus => single_codon,
             };
-            let single_aa = genetic_code.translate_seq(single.as_bytes());
-            iupac_aa(&format!("{orig_aa}{aa_pos}{single_aa}"))
+            genetic_code
+                .translate_seq(single.as_bytes())
+                .chars()
+                .next()
+                .unwrap_or('X')
         })
         .collect();
-    let snp_changes_local: Vec<String> = codon_info
-        .codon_list
+    let snp_changes: Vec<String> = single_aas
         .iter()
-        .map(|snp| {
-            let single_codon = construct_codon(&codon_info, &[snp]);
-            let single = match strand {
-                Strand::Minus => reverse_complement(&single_codon),
-                Strand::Plus => single_codon,
-            };
-            let single_aa = genetic_code.translate_seq(single.as_bytes());
-            iupac_aa(&format!("{orig_aa}{local_aa_pos}{single_aa}"))
-        })
+        .map(|aa| iupac_aa(&format!("{orig_aa}{aa_pos}{aa}")))
         .collect();
+    let snp_changes_local: Vec<String> = single_aas
+        .iter()
+        .map(|aa| iupac_aa(&format!("{orig_aa}{local_aa_pos}{aa}")))
+        .collect();
+
+    let orig_c = orig_aa.chars().next().unwrap_or('X');
+    let mut_c = mut_aa.chars().next().unwrap_or('X');
+    let annotations = VariantAnnotations {
+        grantham: if change_type == ChangeType::NonSynonymous {
+            grantham_distance(orig_c, mut_c)
+        } else {
+            None
+        },
+        consequence_shift: compute_consequence_shift(orig_c, mut_c, &single_aas),
+    };
 
     VariantInfo {
         chrom: chrom.to_string(),
@@ -202,7 +252,7 @@ pub fn process_codon(
             .iter()
             .map(|s| format!("SNV:{}:{}>{}", s.position, s.ref_base, s.base))
             .collect(),
-        annotations: crate::variants::VariantAnnotations::default(),
+        annotations,
     }
 }
 

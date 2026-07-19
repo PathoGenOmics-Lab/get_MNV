@@ -15,6 +15,22 @@ fn is_intergenic(variant: &VariantInfo) -> bool {
     variant.gene == "intergenic"
 }
 
+/// Trailing annotation cells appended to every TSV row: SO consequence term,
+/// impact, Grantham distance (with category), and MNV-vs-SNV consequence shift.
+fn annotation_cells(variant: &VariantInfo) -> [String; 4] {
+    let grantham = match variant.annotations.grantham {
+        Some(d) => format!("{d} ({})", crate::utils::grantham_category(d)),
+        None => "-".to_string(),
+    };
+    let (so_term, impact) = super::common::so_consequence(variant);
+    [
+        so_term.to_string(),
+        impact.to_string(),
+        grantham,
+        variant.annotations.consequence_shift.to_string(),
+    ]
+}
+
 /// Render a "Local …" column. Falls back to the protein-wide column when the
 /// local vector is empty (e.g. records produced before this field existed and
 /// then deserialized via `#[serde(default)]`).
@@ -431,6 +447,10 @@ impl TsvWriter {
                 "Event Reverse Reads",
                 "Event Depth",
                 "Event Frequency",
+                "SO Term",
+                "Impact",
+                "Grantham",
+                "MNV Consequence Shift",
             ]
         } else {
             vec![
@@ -450,6 +470,10 @@ impl TsvWriter {
                 "MNV Codon",
                 "Event Class",
                 "Event Components",
+                "SO Term",
+                "Impact",
+                "Grantham",
+                "MNV Consequence Shift",
             ]
         };
         writer.write_record(&header)?;
@@ -474,10 +498,12 @@ impl TsvWriter {
                 if !passes_filters(variant, self.filters)? {
                     continue;
                 }
-                let row = build_tsv_row_with_reads(variant)?;
+                let mut row = build_tsv_row_with_reads(variant)?;
+                row.extend(annotation_cells(variant));
                 self.writer.write_record(&row)?;
             } else {
-                let row = build_tsv_row_without_reads(variant)?;
+                let mut row = build_tsv_row_without_reads(variant)?;
+                row.extend(annotation_cells(variant));
                 self.writer.write_record(&row)?;
             }
         }

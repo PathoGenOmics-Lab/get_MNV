@@ -34,7 +34,43 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "ERR"
             | "EDP"
             | "EFREQ"
+            | "SO"
+            | "IMPACT"
+            | "GD"
+            | "MNVSHIFT"
     )
+}
+
+/// Map a variant to a Sequence Ontology consequence term and its impact level
+/// (`HIGH` / `MODERATE` / `LOW` / `MODIFIER`), following SnpEff/VEP conventions.
+pub(crate) fn so_consequence(variant: &VariantInfo) -> (&'static str, &'static str) {
+    use crate::variants::ChangeType;
+    if variant.gene == "intergenic" {
+        return ("intergenic_variant", "MODIFIER");
+    }
+    match variant.change_type {
+        ChangeType::Synonymous => ("synonymous_variant", "LOW"),
+        ChangeType::NonSynonymous => ("missense_variant", "MODERATE"),
+        ChangeType::StartLost => ("start_lost", "HIGH"),
+        ChangeType::StopGained | ChangeType::FrameshiftStopGained => ("stop_gained", "HIGH"),
+        ChangeType::StopLost | ChangeType::FrameshiftStopLost => ("stop_lost", "HIGH"),
+        ChangeType::FrameshiftIndel
+        | ChangeType::FrameshiftSynonymous
+        | ChangeType::FrameshiftNonSynonymous
+        | ChangeType::FrameshiftUnknown => ("frameshift_variant", "HIGH"),
+        // A frameshift after the stop codon does not alter the protein.
+        ChangeType::FrameshiftDownstreamOfStop => ("coding_sequence_variant", "MODIFIER"),
+        ChangeType::InFrameIndel => {
+            let ref_len = variant.ref_bases.first().map_or(0, |b| b.len());
+            let alt_len = variant.base_changes.first().map_or(0, |b| b.len());
+            if alt_len > ref_len {
+                ("inframe_insertion", "MODERATE")
+            } else {
+                ("inframe_deletion", "MODERATE")
+            }
+        }
+        ChangeType::IndelOverlap | ChangeType::Unknown => ("coding_sequence_variant", "MODIFIER"),
+    }
 }
 
 #[derive(Default)]
@@ -192,6 +228,15 @@ pub(crate) fn build_info_string(
     }
     builder.push_text("CT", &variant.change_type.to_string());
     builder.push_text("TYPE", variant_type);
+    let (so_term, impact) = so_consequence(variant);
+    builder.push_text("SO", so_term);
+    builder.push_text("IMPACT", impact);
+    if let Some(gd) = variant.annotations.grantham {
+        builder.push("GD", gd);
+    }
+    if variant.annotations.consequence_shift != crate::variants::ConsequenceShift::NotApplicable {
+        builder.push_text("MNVSHIFT", variant.annotations.consequence_shift.as_str());
+    }
 
     if let Some((sr, srf, srr)) = snp_metrics {
         builder.push("SR", sr);
@@ -533,6 +578,22 @@ pub(crate) fn write_info_header(
     writeln!(
         writer,
         "##INFO=<ID=CT,Number=1,Type=String,Description=\"Change type\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=SO,Number=1,Type=String,Description=\"Sequence Ontology consequence term\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=IMPACT,Number=1,Type=String,Description=\"Predicted impact (HIGH, MODERATE, LOW, MODIFIER)\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=GD,Number=1,Type=Integer,Description=\"Grantham distance of the (combined) missense change\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=MNVSHIFT,Number=1,Type=String,Description=\"Combined MNV consequence vs. individual SNVs (MNV-gained / MNV-masked / Concordant)\">"
     )?;
     writeln!(
         writer,
