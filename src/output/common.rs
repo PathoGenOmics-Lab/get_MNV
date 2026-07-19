@@ -658,6 +658,7 @@ mod tests {
             original_info: None,
             event_class: Some("snp".to_string()),
             event_components: vec!["SNV:100:A>T".to_string()],
+            annotations: crate::variants::VariantAnnotations::default(),
         }
     }
 

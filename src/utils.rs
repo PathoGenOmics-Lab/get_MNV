@@ -115,6 +115,65 @@ pub fn iupac_aa(aa_change_1_letter: &str) -> String {
     format!("{first}{position}{last}")
 }
 
+/// Grantham (1974) physicochemical properties of the 20 standard amino acids:
+/// `(composition, polarity, molecular volume)`.
+fn grantham_properties(aa: char) -> Option<(f64, f64, f64)> {
+    let props = match aa.to_ascii_uppercase() {
+        'S' => (1.42, 9.2, 32.0),
+        'R' => (0.65, 10.5, 124.0),
+        'L' => (0.00, 4.9, 111.0),
+        'P' => (0.39, 8.0, 32.5),
+        'T' => (0.71, 8.6, 61.0),
+        'A' => (0.00, 8.1, 31.0),
+        'V' => (0.00, 5.9, 84.0),
+        'G' => (0.74, 9.0, 3.0),
+        'I' => (0.00, 5.2, 111.0),
+        'F' => (0.00, 5.2, 132.0),
+        'Y' => (0.20, 6.2, 136.0),
+        'C' => (2.75, 5.5, 55.0),
+        'H' => (0.58, 10.4, 96.0),
+        'Q' => (0.89, 10.5, 85.0),
+        'N' => (1.33, 11.6, 56.0),
+        'K' => (0.33, 11.3, 119.0),
+        'D' => (1.38, 13.0, 54.0),
+        'E' => (0.92, 12.3, 83.0),
+        'M' => (0.00, 5.7, 105.0),
+        'W' => (0.13, 5.4, 170.0),
+        _ => return None,
+    };
+    Some(props)
+}
+
+/// Grantham distance between two amino acids (single-letter codes), rounded to
+/// the nearest integer. Returns `None` unless both are standard amino acids.
+///
+/// Uses Grantham's original formula `D = ρ · sqrt(α·Δc² + β·Δp² + γ·Δv²)` with
+/// `α = 1.833`, `β = 0.1018`, `γ = 0.000399`, `ρ = 50.723`, reproducing the
+/// published matrix (Ser↔Arg ≈ 110, Leu↔Ile ≈ 5, Cys↔Trp ≈ 215).
+pub fn grantham_distance(a: char, b: char) -> Option<u16> {
+    let (ca, pa, va) = grantham_properties(a)?;
+    let (cb, pb, vb) = grantham_properties(b)?;
+    const ALPHA: f64 = 1.833;
+    const BETA: f64 = 0.1018;
+    const GAMMA: f64 = 0.000399;
+    const RHO: f64 = 50.723;
+    let d = RHO
+        * (ALPHA * (ca - cb).powi(2) + BETA * (pa - pb).powi(2) + GAMMA * (va - vb).powi(2)).sqrt();
+    Some(d.round() as u16)
+}
+
+/// Grantham's conservation category for a distance: conservative (0–50),
+/// moderately conservative (51–100), moderately radical (101–150) or
+/// radical (>150).
+pub fn grantham_category(distance: u16) -> &'static str {
+    match distance {
+        0..=50 => "conservative",
+        51..=100 => "moderately conservative",
+        101..=150 => "moderately radical",
+        _ => "radical",
+    }
+}
+
 pub fn reverse_complement(seq: &str) -> String {
     seq.bytes()
         .rev()
@@ -165,6 +224,19 @@ pub fn process_translate(seq: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_grantham_distance_and_category() {
+        // Published Grantham (1974) values, within ±1.
+        assert!((grantham_distance('S', 'R').unwrap() as i32 - 110).abs() <= 1);
+        assert!((grantham_distance('L', 'I').unwrap() as i32 - 5).abs() <= 1);
+        assert!((grantham_distance('C', 'W').unwrap() as i32 - 215).abs() <= 1);
+        assert_eq!(grantham_distance('D', 'K'), grantham_distance('K', 'D'));
+        assert_eq!(grantham_distance('*', 'A'), None);
+        assert_eq!(grantham_category(5), "conservative");
+        assert_eq!(grantham_category(110), "moderately radical");
+        assert_eq!(grantham_category(215), "radical");
+    }
 
     #[test]
     fn test_determine_change_type() {

@@ -542,6 +542,7 @@ mod tests {
             original_info: None,
             event_class: Some("mnv".to_string()),
             event_components: vec!["SNV:10:A>T".to_string(), "SNV:11:C>G".to_string()],
+            annotations: crate::variants::VariantAnnotations::default(),
         }
     }
 
@@ -693,6 +694,7 @@ mod tests {
             original_info: None,
             event_class: None,
             event_components: Vec::new(),
+            annotations: crate::variants::VariantAnnotations::default(),
         }
     }
 

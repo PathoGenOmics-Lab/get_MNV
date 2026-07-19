@@ -124,6 +124,7 @@ pub(super) fn process_transcript_codon(
             .iter()
             .map(|s| format!("SNV:{}:{}>{}", s.snp.position, s.snp.ref_base, s.snp.base))
             .collect(),
+        annotations: crate::variants::VariantAnnotations::default(),
     }
 }
 

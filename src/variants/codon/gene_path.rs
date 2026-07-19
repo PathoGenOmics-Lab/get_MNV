@@ -73,6 +73,7 @@ pub fn process_codon(
             original_info: None,
             event_class: None,
             event_components: Vec::new(),
+            annotations: crate::variants::VariantAnnotations::default(),
         };
     }
     let ref_codon = codon_info.original_codon.clone();
@@ -201,6 +202,7 @@ pub fn process_codon(
             .iter()
             .map(|s| format!("SNV:{}:{}>{}", s.position, s.ref_base, s.base))
             .collect(),
+        annotations: crate::variants::VariantAnnotations::default(),
     }
 }
 

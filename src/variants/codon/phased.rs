@@ -289,6 +289,7 @@ pub(super) fn phased_variant_from_group(
         original_info: None,
         event_class: Some(event_class.as_str().to_string()),
         event_components,
+        annotations: crate::variants::VariantAnnotations::default(),
     })
 }
 

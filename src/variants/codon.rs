@@ -204,6 +204,7 @@ fn get_mnv_variants_for_transcript(
             original_info: indel.original_info.clone(),
             event_class: Some(event_class),
             event_components,
+            annotations: crate::variants::VariantAnnotations::default(),
         });
     }
 
@@ -422,6 +423,7 @@ pub fn get_mnv_variants_for_gene_with_config(
             original_info: indel.original_info.clone(),
             event_class: Some(event_class),
             event_components,
+            annotations: crate::variants::VariantAnnotations::default(),
         });
     }
 
@@ -471,5 +473,6 @@ pub fn build_intergenic_variant(chrom: &str, vcf_pos: &crate::io::VcfPosition) -
         original_info: vcf_pos.original_info.clone(),
         event_class: Some(event.class.as_str().to_string()),
         event_components: event.component_labels(),
+        annotations: crate::variants::VariantAnnotations::default(),
     }
 }

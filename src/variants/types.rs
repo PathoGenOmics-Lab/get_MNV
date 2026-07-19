@@ -100,6 +100,54 @@ impl ChangeType {
     }
 }
 
+/// How the amino-acid consequence of a *combined* MNV compares with the
+/// consequence of its individual constituent SNVs. Only meaningful for
+/// MNV / SNP-MNV records; single SNVs are always `NotApplicable`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum ConsequenceShift {
+    #[default]
+    NotApplicable,
+    /// Same severity as the most severe individual SNV.
+    Concordant,
+    /// More severe than any single SNV alone (e.g. two individually-synonymous
+    /// SNVs producing a non-synonymous residue) — what per-SNV annotation misses.
+    Gained,
+    /// Less severe than the most severe single SNV (e.g. a nonsense SNV rescued
+    /// to a missense by its neighbour).
+    Masked,
+}
+
+impl ConsequenceShift {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ConsequenceShift::NotApplicable => "-",
+            ConsequenceShift::Concordant => "Concordant",
+            ConsequenceShift::Gained => "MNV-gained",
+            ConsequenceShift::Masked => "MNV-masked",
+        }
+    }
+}
+
+impl Display for ConsequenceShift {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Extra, biologist-facing annotations layered on top of the core variant call
+/// (Grantham distance, MNV-vs-SNV consequence shift). Grouped in one `Default`
+/// struct so it can be added to `VariantInfo` without touching every
+/// constructor.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct VariantAnnotations {
+    /// Grantham distance of a genuine missense change (None otherwise).
+    #[serde(default)]
+    pub grantham: Option<u16>,
+    /// How the combined MNV consequence compares with its individual SNVs.
+    #[serde(default)]
+    pub consequence_shift: ConsequenceShift,
+}
+
 impl VariantType {
     /// Return the short display label.
     ///
@@ -300,6 +348,10 @@ pub struct VariantInfo {
     /// components such as `SNV:10:A>G`, `INS:10:+T` or `DEL:11-12:TG`.
     #[serde(default)]
     pub event_components: Vec<String>,
+    /// Biologist-facing annotations (Grantham distance, MNV-vs-SNV consequence
+    /// shift). Defaulted so older serialized records still deserialize.
+    #[serde(default)]
+    pub annotations: VariantAnnotations,
 }
 
 #[cfg(test)]

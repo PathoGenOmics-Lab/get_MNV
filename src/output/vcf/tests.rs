@@ -72,6 +72,7 @@ fn snp_variant_with_reads(support_reads: usize, depth: usize) -> VariantInfo {
         original_info: None,
         event_class: Some("snp".to_string()),
         event_components: vec!["SNV:10:A>T".to_string()],
+        annotations: crate::variants::VariantAnnotations::default(),
     }
 }
 
