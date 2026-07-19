@@ -67,14 +67,23 @@ pub(super) fn process_transcript_codon(
     let combined_aa = iupac_aa(&combined_change);
     let change_type = ChangeType::from_label(&determine_change_type(&combined_change));
 
-    let snp_changes = codon_snps
+    let single_aas: Vec<char> = codon_snps
         .iter()
         .map(|snp| {
             let single_codon = construct_transcript_codon(ref_codon, &[snp]);
-            let single_aa = genetic_code.translate_seq(single_codon.as_bytes());
-            iupac_aa(&format!("{orig_aa}{aa_pos}{single_aa}"))
+            genetic_code
+                .translate_seq(single_codon.as_bytes())
+                .chars()
+                .next()
+                .unwrap_or('X')
         })
+        .collect();
+    let snp_changes = single_aas
+        .iter()
+        .map(|aa| iupac_aa(&format!("{orig_aa}{aa_pos}{aa}")))
         .collect::<Vec<_>>();
+    let annotations =
+        super::gene_path::compute_annotations(&orig_aa, &mut_aa, &single_aas, change_type);
 
     let raw_snps = codon_snps
         .iter()
@@ -124,7 +133,7 @@ pub(super) fn process_transcript_codon(
             .iter()
             .map(|s| format!("SNV:{}:{}>{}", s.snp.position, s.snp.ref_base, s.snp.base))
             .collect(),
-        annotations: crate::variants::VariantAnnotations::default(),
+        annotations,
     }
 }
 

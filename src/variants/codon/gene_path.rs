@@ -16,6 +16,27 @@ fn aa_severity(orig: char, mutated: char) -> u8 {
     }
 }
 
+/// Build the biologist annotations (Grantham distance for a genuine missense,
+/// and the MNV-vs-SNV consequence shift) from the translated amino acids.
+/// Shared by the genomic and transcript codon paths.
+pub(super) fn compute_annotations(
+    orig_aa: &str,
+    mut_aa: &str,
+    single_aas: &[char],
+    change_type: ChangeType,
+) -> VariantAnnotations {
+    let orig_c = orig_aa.chars().next().unwrap_or('X');
+    let mut_c = mut_aa.chars().next().unwrap_or('X');
+    VariantAnnotations {
+        grantham: if change_type == ChangeType::NonSynonymous {
+            grantham_distance(orig_c, mut_c)
+        } else {
+            None
+        },
+        consequence_shift: compute_consequence_shift(orig_c, mut_c, single_aas),
+    }
+}
+
 /// Compare the combined MNV consequence against its individual SNVs.
 fn compute_consequence_shift(
     orig: char,
@@ -189,16 +210,7 @@ pub fn process_codon(
         .map(|aa| iupac_aa(&format!("{orig_aa}{local_aa_pos}{aa}")))
         .collect();
 
-    let orig_c = orig_aa.chars().next().unwrap_or('X');
-    let mut_c = mut_aa.chars().next().unwrap_or('X');
-    let annotations = VariantAnnotations {
-        grantham: if change_type == ChangeType::NonSynonymous {
-            grantham_distance(orig_c, mut_c)
-        } else {
-            None
-        },
-        consequence_shift: compute_consequence_shift(orig_c, mut_c, &single_aas),
-    };
+    let annotations = compute_annotations(&orig_aa, &mut_aa, &single_aas, change_type);
 
     VariantInfo {
         chrom: chrom.to_string(),
