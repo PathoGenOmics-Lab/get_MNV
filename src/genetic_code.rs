@@ -208,10 +208,10 @@ mod tests {
         // Tables 1 and 11 should produce identical results for all 64 codons.
         let t1 = GeneticCode::new(1).unwrap();
         let t11 = GeneticCode::new(11).unwrap();
-        let bases = [b'A', b'T', b'C', b'G'];
-        for &a in &bases {
-            for &b in &bases {
-                for &c in &bases {
+        let bases = b"ATCG";
+        for &a in bases {
+            for &b in bases {
+                for &c in bases {
                     let codon = [a, b, c];
                     assert_eq!(
                         t1.translate(&codon),
