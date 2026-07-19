@@ -5,6 +5,9 @@ All notable changes to this project are documented in this file.
 ## [1.1.5] - 2026-06-09
 
 ### Added
+- **Sequence Ontology consequence terms and impact levels.** New `SO Term` and `Impact` TSV columns (and `SO` / `IMPACT` VCF INFO fields) annotate every variant with a standard SO term (`missense_variant`, `synonymous_variant`, `stop_gained`, `stop_lost`, `start_lost`, `frameshift_variant`, `inframe_insertion`/`inframe_deletion`, `intergenic_variant`, `coding_sequence_variant`) and a `HIGH`/`MODERATE`/`LOW`/`MODIFIER` impact, following SnpEff/VEP conventions.
+- **Grantham distance for missense changes.** A new `Grantham` TSV column (and `GD` VCF INFO field) reports the Grantham (1974) distance of the combined amino-acid substitution together with its conservation category (e.g. `177 (radical)`), for genuine missense changes only.
+- **MNV-vs-SNV consequence shift.** A new `MNV Consequence Shift` TSV column (and `MNVSHIFT` VCF INFO field) flags whether a combined MNV is `MNV-gained` (more severe than any single SNV alone — e.g. two individually-synonymous SNVs producing a non-synonymous residue, which per-SNV annotators miss), `MNV-masked` (a nonsense SNV rescued by its neighbour), or `Concordant`.
 - Added regression coverage for phased MNV-plus-indel haplotypes, verifying that codon MNV rows overlapping an indel are flagged as `Indel overlap` while BAM-supported combined events are emitted as exact `complex_indel` rows.
 - Added an indel/MNV semantics note documenting caller compatibility, boundary rules, current limits, and how exact complex haplotypes are represented.
 - Added transcript-aware regression coverage for exon-junction MNV codons and restored-frame indel contexts in multi-exon CDS models.

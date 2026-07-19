@@ -32,6 +32,10 @@ Columnas principales:
 | `MNV Codon` | Codón con todas las sustituciones agrupadas. |
 | `Event Class` | Clase canónica del evento de alelo: `snp`, `mnv`, `insertion`, `deletion`, `delins`, `complex_indel` o `symbolic`. |
 | `Event Components` | Descomposición REF/ALT como `SNV:10:A>G`, `INS:10:+T` o `DEL:11-12:TG`. |
+| `SO Term` | Término de consecuencia Sequence Ontology (`missense_variant`, `synonymous_variant`, `stop_gained`, `start_lost`, `frameshift_variant`, `inframe_deletion`, `intergenic_variant`, …). |
+| `Impact` | Impacto previsto según convenciones SnpEff/VEP: `HIGH`, `MODERATE`, `LOW` o `MODIFIER`. |
+| `Grantham` | Distancia de Grantham y categoría de conservación de un cambio missense (p. ej. `177 (radical)`); `-` si es sinónimo, sin sentido o no codificante. |
+| `MNV Consequence Shift` | Cómo compara el MNV combinado con sus SNV individuales: `MNV-gained` (más severo que cualquier SNV solo — lo que se pierden los anotadores por-SNV), `MNV-masked` (un SNV sin sentido rescatado por su vecino) o `Concordant`. `-` para SNV individuales. |
 
 Columnas adicionales cuando se usa `--bam`:
 
