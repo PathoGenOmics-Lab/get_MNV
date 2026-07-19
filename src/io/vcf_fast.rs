@@ -42,7 +42,8 @@ pub fn load_vcf_text(
     // INFO tags to preserve when keep_original_info is active
     let get_mnv_tags: &[&str] = &[
         "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
-        "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ",
+        "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ", "SO", "IMPACT",
+        "GD", "MNVSHIFT",
     ];
 
     // Per-allele (Number=A/R/G) INFO fields, so they can be subset to a single
@@ -460,7 +461,8 @@ pub fn list_text_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
 pub fn extract_text_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
     let get_mnv_tags: &[&str] = &[
         "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
-        "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ",
+        "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ", "SO", "IMPACT",
+        "GD", "MNVSHIFT",
     ];
     let file = std::fs::File::open(vcf_file)
         .map_err(|e| format!("Cannot open VCF file '{}': {}", vcf_file, e))?;

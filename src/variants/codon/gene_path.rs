@@ -7,10 +7,12 @@ use crate::utils::{determine_change_type, grantham_distance, iupac_aa, reverse_c
 fn aa_severity(orig: char, mutated: char) -> u8 {
     if orig == 'X' || mutated == 'X' {
         0
+    } else if orig == mutated {
+        // Synonymous, including a retained stop (`*` -> `*`). Must precede the
+        // stop branch so a stop-retained change is not scored as stop severity.
+        1
     } else if orig == '*' || mutated == '*' {
         3
-    } else if orig == mutated {
-        1
     } else {
         2
     }
@@ -343,5 +345,49 @@ pub(super) fn codon_bounds_for_position(gene: &Gene, position: usize) -> Option<
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod annotation_tests {
+    use super::{aa_severity, compute_consequence_shift};
+    use crate::variants::ConsequenceShift;
+
+    #[test]
+    fn test_aa_severity_retained_stop_is_synonymous() {
+        // A retained stop (`*` -> `*`) is synonymous (1), not stop severity (3).
+        assert_eq!(aa_severity('*', '*'), 1);
+        assert_eq!(aa_severity('A', 'A'), 1);
+        assert_eq!(aa_severity('A', '*'), 3); // stop gained
+        assert_eq!(aa_severity('*', 'A'), 3); // stop lost
+        assert_eq!(aa_severity('M', 'A'), 2); // missense
+        assert_eq!(aa_severity('X', 'A'), 0);
+    }
+
+    #[test]
+    fn test_consequence_shift_masked_when_mnv_retains_stop() {
+        // Reference stop codon MNV: one SNV alone loses the stop (*->W), the
+        // combined MNV retains it (*->*). The MNV masks the stop-loss call.
+        assert_eq!(
+            compute_consequence_shift('*', '*', &['W', '*']),
+            ConsequenceShift::Masked
+        );
+    }
+
+    #[test]
+    fn test_consequence_shift_gained_two_synonymous() {
+        // Two individually-synonymous SNVs producing a non-synonymous residue.
+        assert_eq!(
+            compute_consequence_shift('L', 'F', &['L', 'L']),
+            ConsequenceShift::Gained
+        );
+    }
+
+    #[test]
+    fn test_consequence_shift_single_snv_not_applicable() {
+        assert_eq!(
+            compute_consequence_shift('M', 'A', &['A']),
+            ConsequenceShift::NotApplicable
+        );
     }
 }
