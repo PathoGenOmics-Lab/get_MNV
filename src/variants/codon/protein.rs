@@ -114,11 +114,25 @@ pub(super) fn describe_protein_change(
         };
 
         if ref_mid.is_empty() {
+            // HGVS protein insertions name the two flanking (unchanged) residues
+            // bracketing the insertion point, e.g. `Lys2_Phe3insGly` — matching
+            // the residue-aware form already used for `del` / `delins`. The
+            // flanks are the last residue of the common prefix (`prefix - 1`) and
+            // the first of the common suffix (`prefix`). A `wrapping_sub` on a
+            // zero prefix yields `usize::MAX`, so `get` returns `None` and we fall
+            // back to bare positions for the degenerate N-/C-terminal insertions.
             let anchor = start_pos.saturating_sub(1);
-            format!(
-                "{anchor}_{start_pos}ins{}",
-                aa_segment_three_letter(alt_mid)
-            )
+            let inserted = aa_segment_three_letter(alt_mid);
+            let left = ref_chars.get(prefix.wrapping_sub(1)).copied();
+            let right = ref_chars.get(prefix).copied();
+            match (left, right) {
+                (Some(left), Some(right)) => format!(
+                    "{}{anchor}_{}{start_pos}ins{inserted}",
+                    aa_three_letter(left),
+                    aa_three_letter(right)
+                ),
+                _ => format!("{anchor}_{start_pos}ins{inserted}"),
+            }
         } else if alt_mid.is_empty() {
             format!("{ref_range}del")
         } else {
@@ -137,5 +151,51 @@ pub(super) fn complement_base(base: char) -> char {
         'C' => 'G',
         'N' => 'N',
         other => other,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::describe_protein_change;
+
+    #[test]
+    fn inframe_insertion_names_both_flanking_residues() {
+        // Ref MKF, alt inserts Gly between Lys2 and Phe3 (-> MKGF). Proper HGVS
+        // protein insertion names both flanking residues, like `del`/`delins`.
+        let (protein, local) = describe_protein_change("MKF", "MKGF", 0, false);
+        assert_eq!(protein, "Lys2_Phe3insGly");
+        assert_eq!(local, "Lys2_Phe3insGly");
+    }
+
+    #[test]
+    fn inframe_insertion_applies_protein_offset_to_positions_only() {
+        // The exon protein offset shifts the numbering but not the residue names.
+        let (protein, local) = describe_protein_change("MKF", "MKGF", 100, false);
+        assert_eq!(protein, "Lys102_Phe103insGly");
+        assert_eq!(local, "Lys2_Phe3insGly");
+    }
+
+    #[test]
+    fn multi_residue_insertion_names_flanks_once() {
+        // Insert Gly-Ser between Lys2 and Phe3.
+        let (protein, _) = describe_protein_change("MKF", "MKGSF", 0, false);
+        assert_eq!(protein, "Lys2_Phe3insGlySer");
+    }
+
+    #[test]
+    fn c_terminal_insertion_falls_back_to_bare_positions() {
+        // Insertion after the last residue has no right-hand flank; keep the
+        // bare-position form rather than fabricating a residue.
+        let (protein, _) = describe_protein_change("MKF", "MKFG", 0, false);
+        assert_eq!(protein, "3_4insGly");
+    }
+
+    #[test]
+    fn inframe_deletion_and_delins_keep_residue_aware_hgvs() {
+        // Regression guard: the residue-aware del/delins forms are unchanged.
+        let (del, _) = describe_protein_change("MKLF", "MKF", 0, false);
+        assert_eq!(del, "Leu3del");
+        let (delins, _) = describe_protein_change("MKLF", "MKWWF", 0, false);
+        assert_eq!(delins, "Leu3delinsTrpTrp");
     }
 }

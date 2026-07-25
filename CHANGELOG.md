@@ -32,6 +32,7 @@ All notable changes to this project are documented in this file.
 - Indel locus depth (the `EDP`/`EFREQ` denominator) is now counted from reads observing the anchor base by default, removing the depth under-counting and `EFREQ` bias for multi-base deletions. Pass `--legacy-indel-depth` to restrict the denominator to reads that fully span the REF allele.
 
 ### Fixed
+- Protein-level insertions now use residue-aware HGVS notation naming both flanking residues (e.g. `Lys2_Phe3insGly`), matching the `del` / `delins` forms, instead of the bare-position `2_3insGly`. Insertions at the protein N- or C-terminus, which have no flanking residue on one side, keep the bare-position form.
 - **Scientific**: `--split-multiallelic` no longer silently drops alternate ALT alleles when two or more alts share the same codon position. Each alt now produces an independent annotation row with its own AA effect, codon, and BAM-derived read support; true duplicates (same position + same alt) still collapse to one row.
 - VCF output INFO values (`GENE`, `AA`, `CT`, `TYPE`, `EC`, `COMP`) are now percent-encoded for the structurally reserved characters (`;`, `=`, `,`, `%`, and tab/newline/CR), so GFF gene names containing those characters can no longer corrupt the INFO column or spawn bogus keys.
 - `--keep-original-info` now subsets per-allele (`Number=A/R/G`) INFO fields to the split allele when a multiallelic record is divided, instead of copying the whole array onto each single-ALT output record (which produced a cardinality-invalid VCF that `bcftools` rejects).
