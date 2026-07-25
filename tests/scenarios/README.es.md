@@ -200,7 +200,7 @@ control de propagación aguas abajo `--frameshift-min-freq`.
 
 | # | Name | What it validates |
 |---|------|-------------------|
-| 30 | `stop_gained_inframe_ins` | Una inserción en marco de `TAA` tras la pos 30 forma un codón de stop prematuro → `Change Type = Stop gained`, `AA Changes = 10_11ins*` (en lugar del genérico `In-frame Indel`). Lo gobierna `indel_stop_effect`, que compara el número de residuos de stop en la proteína ref frente a la alt |
+| 30 | `stop_gained_inframe_ins` | Una inserción en marco de `TAA` tras la pos 30 forma un codón de stop prematuro → `Change Type = Stop gained`, `AA Changes = Ala10_Ala11ins*` (en lugar del genérico `In-frame Indel`). Lo gobierna `indel_stop_effect`, que compara el número de residuos de stop en la proteína ref frente a la alt |
 | 31 | `stop_lost_inframe_del` | Deleción en marco de 3 bp del stop terminal `TAA` (pos 298-300, `DEL:298-300:TAA`) → `Change Type = Stop lost`, `AA Changes = *100del` |
 | 32 | `fs_gate_default_propagates` | Deleción con frameshift aguas arriba de baja frecuencia (`AF=0.20`) + un SNV aguas abajo. Con el valor por defecto `--frameshift-min-freq 0.0` el frameshift se propaga → el SNV aguas abajo se etiqueta como `Synonymous (frameshift)` / `Ala13Ala (fs)` |
 | 33 | `fs_gate_high_freq_suppressed` | Entradas idénticas a las del escenario 32, pero con `--frameshift-min-freq 0.5`. La deleción aguas arriba (`AF=0.20`) no supera el control, por lo que el frameshift **no** se propaga → el SNV aguas abajo es un simple `Synonymous` / `Ala13Ala` |

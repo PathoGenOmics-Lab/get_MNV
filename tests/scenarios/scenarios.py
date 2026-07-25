@@ -384,8 +384,8 @@ scenario_fs_plus_downstream_snv = Scenario(
 #   1) complex_indel SNV:28 + INS:29              -> Ala10delinsSerLeu
 #   2) complex_indel SNV:28 + INS:29 + SNV:30     -> Ala10delinsSerLeu (todo)
 #   3) SNP/MNV pos28+pos30 marcado Indel overlap  -> AA Unknown
-#   4) insertion INS:29 sola                       -> 10_11insLeu
-#   5) complex_indel INS:29 + SNV:30              -> 10_11insLeu
+#   4) insertion INS:29 sola                       -> Ala10_Ala11insLeu
+#   5) complex_indel INS:29 + SNV:30              -> Ala10_Ala11insLeu
 scenario_inframe_ins_with_mnv = Scenario(
     name="08_inframe_ins_inside_codon_with_mnv",
     description="Ins in-frame DENTRO de codon 10 + MNV pos28+pos30 todo en cis: 5 filas (2 complex_indel, MNV-overlap, ins solo, complex_indel ins+SNV)",
@@ -443,7 +443,7 @@ scenario_inframe_ins_with_mnv = Scenario(
             variant_type="INDEL",
             event_class="insertion",
             event_components="INS:29:+GCT",
-            aa_changes="10_11insLeu",
+            aa_changes="Ala10_Ala11insLeu",
             change_type="In-frame Indel",
             event_reads="20",
             event_frequency="1.0000",
@@ -1287,7 +1287,7 @@ scenario_stop_gained_inframe_ins = Scenario(
             event_class="insertion",
             event_components="INS:30:+TAA",
             change_type="Stop gained",
-            aa_changes="10_11ins*",
+            aa_changes="Ala10_Ala11ins*",
             event_reads="20",
             event_frequency="1.0000",
         ),

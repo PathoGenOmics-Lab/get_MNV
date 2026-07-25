@@ -198,7 +198,7 @@ These exercise the indel-handling refinements added on the `indels` branch
 
 | # | Name | What it validates |
 |---|------|-------------------|
-| 30 | `stop_gained_inframe_ins` | In-frame insertion of `TAA` after pos 30 forms a premature stop codon → `Change Type = Stop gained`, `AA Changes = 10_11ins*` (instead of the generic `In-frame Indel`). Driven by `indel_stop_effect`, which compares the number of stop residues in the ref vs alt protein |
+| 30 | `stop_gained_inframe_ins` | In-frame insertion of `TAA` after pos 30 forms a premature stop codon → `Change Type = Stop gained`, `AA Changes = Ala10_Ala11ins*` (instead of the generic `In-frame Indel`). Driven by `indel_stop_effect`, which compares the number of stop residues in the ref vs alt protein |
 | 31 | `stop_lost_inframe_del` | In-frame 3 bp deletion of the terminal stop `TAA` (pos 298-300, `DEL:298-300:TAA`) → `Change Type = Stop lost`, `AA Changes = *100del` |
 | 32 | `fs_gate_default_propagates` | Low-frequency upstream frameshift deletion (`AF=0.20`) + a downstream SNV. With the default `--frameshift-min-freq 0.0` the frameshift propagates → the downstream SNV is labelled `Synonymous (frameshift)` / `Ala13Ala (fs)` |
 | 33 | `fs_gate_high_freq_suppressed` | Identical inputs to scenario 32 but run with `--frameshift-min-freq 0.5`. The upstream deletion (`AF=0.20`) does not pass the gate, so the frameshift is **not** propagated → the downstream SNV is a plain `Synonymous` / `Ala13Ala` |
