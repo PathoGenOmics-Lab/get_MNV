@@ -242,13 +242,16 @@ The report contains:
   and high-impact variants.
 - **Variants per sample**, stacked by variant type, and the **consequence
   distribution** by Sequence Ontology term. Both follow the active filters.
-- **A variant matrix**: samples by variable sites, in the style of an alignment
-  view, coloured by the alternate base. A column is a site where at least one
-  sample carries a call. Samples can be ordered by shared profile (identical
-  patterns land together), by variant count or by name, and a zoom control goes
-  from fit-to-width down to a cell wide enough to read the base letter. Positions
-  called together on the same reads (codon MNVs, phased complex indels) are
-  marked with a tick above their columns.
+- **A variant matrix**, plotted as a small genome browser: samples down the side,
+  real genomic coordinates across the top, coloured by the alternate base. Scroll
+  to zoom around the cursor, drag to pan, drag on the whole-contig strip to jump,
+  and double-click to reset. The region box takes `start-end`, `contig:start-end`,
+  a single coordinate, or a gene name, and frames it. Zooming in far enough shows
+  the base letter inside each cell. Samples can be ordered by shared profile
+  (identical patterns land together), by variant count or by name. Positions
+  called together on the same reads (codon MNVs, phased complex indels) are marked
+  with a tick above their columns, and a contig selector appears for multi-contig
+  data, since a continuous coordinate axis cannot span contigs.
 
     A cell is only ever "an ALT call" or **"not called"**. get_MNV output cannot
     distinguish a reference base from a position with no coverage, so a blank

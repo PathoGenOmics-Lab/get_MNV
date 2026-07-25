@@ -242,14 +242,18 @@ El informe contiene:
   MNV y variantes de alto impacto.
 - **Variantes por muestra**, apiladas por tipo de variante, y la **distribución de
   consecuencias** por término de Sequence Ontology. Ambas siguen los filtros activos.
-- **Una matriz de variantes**: muestras por sitios variables, al estilo de un visor
-  de alineamiento, coloreada por la base alternativa. Una columna es un sitio donde
-  al menos una muestra tiene una llamada. Las muestras se pueden ordenar por perfil
-  compartido (los patrones idénticos quedan juntos), por número de variantes o por
-  nombre, y un control de zoom va desde ajustar al ancho hasta una celda lo bastante
-  ancha para leer la letra de la base. Las posiciones llamadas juntas en las mismas
-  lecturas (MNV de codón, indels complejos faseados) llevan una marca sobre sus
-  columnas.
+- **Una matriz de variantes**, dibujada como un pequeño navegador genómico: las
+  muestras en el lateral, coordenadas genómicas reales arriba y color por la base
+  alternativa. Rueda para hacer zoom alrededor del cursor, arrastrar para
+  desplazarse, arrastrar sobre la tira del contig completo para saltar, y doble
+  clic para volver al inicio. La caja de región acepta `inicio-fin`,
+  `contig:inicio-fin`, una coordenada suelta o un nombre de gen, y lo encuadra. Al
+  acercarse lo suficiente aparece la letra de la base dentro de cada celda. Las
+  muestras se pueden ordenar por perfil compartido (los patrones idénticos quedan
+  juntos), por número de variantes o por nombre. Las posiciones llamadas juntas en
+  las mismas lecturas (MNV de codón, indels complejos faseados) llevan una marca
+  sobre sus columnas, y aparece un selector de contig con datos multi-contig, ya
+  que un eje de coordenadas continuo no puede abarcar varios contigs.
 
     Una celda solo puede ser "llamada ALT" o **"no llamada"**. La salida de get_MNV
     no distingue una base de referencia de una posición sin cobertura, así que una

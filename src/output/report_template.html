@@ -75,7 +75,11 @@ h1{font-size:19px;margin:0 0 4px;letter-spacing:-.01em}
 .scrollY{max-height:220px;overflow-y:auto}
 .panelhead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
 .ctl{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-2)}
-.ctl select{background:var(--page);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:4px 8px;font:inherit;font-size:12px}
+.ctl select,.ctl input{background:var(--page);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:4px 8px;font:inherit;font-size:12px}
+.ctl input{width:190px}
+.btn.sm{padding:4px 9px;font-size:12px}
+#matrix{cursor:grab}
+#matrix:active{cursor:grabbing}
 #matrixPanel{margin-bottom:16px}
 #matrixScroll{overflow-x:auto;overflow-y:hidden;margin-top:6px;border:1px solid var(--border);border-radius:8px;background:var(--page)}
 #matrix{display:block}
@@ -199,13 +203,13 @@ footer{margin-top:22px;color:var(--muted);font-size:11.5px;text-align:center}
         <p class="hint" id="matrixHint"></p>
       </div>
       <div class="ctl">
-        <label for="zoomSel">Zoom</label>
-        <select id="zoomSel" aria-label="Zoom">
-          <option value="0">fit width</option>
-          <option value="6">medium</option>
-          <option value="11">show bases</option>
-        </select>
-        <label for="orderSel">Order samples</label>
+        <select id="contigSel" aria-label="Contig" hidden></select>
+        <input type="search" id="regionBox" placeholder="region or gene, e.g. 761000-763500" aria-label="Go to region">
+        <button class="btn sm" id="goBtn" type="button">Go</button>
+        <button class="btn sm" id="zoomOutBtn" type="button" aria-label="Zoom out">&minus;</button>
+        <button class="btn sm" id="zoomInBtn" type="button" aria-label="Zoom in">+</button>
+        <button class="btn sm" id="fitBtn" type="button">Fit</button>
+        <label for="orderSel">Order</label>
         <select id="orderSel" aria-label="Sample order">
           <option value="similar">by shared profile</option>
           <option value="count">by variant count</option>
@@ -384,21 +388,31 @@ function drawCharts(){
   stackedBars(document.getElementById("soChart"), so.slice(0,14), ["v"], function(){return "var(--s1)"});
 }
 
-// ---------- variant matrix (MSA of variable sites) ----------
-// Cell states are deliberately only two: an ALT call, or "not called". The TSV
-// cannot distinguish reference from absent coverage, so a blank cell is never
-// claimed to be reference.
+// ---------- variant matrix (genomic browser over variable sites) ----------
+// The x axis is a real genomic coordinate range, so panning and zooming behave
+// like a genome browser. Cell states are deliberately only two: an ALT call, or
+// "not called". The TSV cannot distinguish reference from absent coverage, so a
+// blank cell is never claimed to be reference.
 var NT = ["A","C","G","T"];
-var MAX_SITES = 3000, LABEL_W = 96, CELL_H = 12, GROUP_H = 7;
-var mtx = {sites:[], samples:[], grid:null, cellW:0, order:"similar", zoom:0, dropped:0, groups:[]};
+var MAX_SITES = 20000, LABEL_W = 96, CELL_H = 12;
+var OVER_H = 16, RULER_H = 17, GROUP_H = 5, PAD_TOP = 4;
+var MIN_TICK = 2;       // a site is never thinner than this, so sparse views stay readable
+var MIN_SPAN = 40;      // deepest zoom, in base pairs
+
+var mtx = {contig:null, contigs:[], sites:[], samples:[], grid:null, owner:null,
+           order:"similar", groups:[], view:null, span:null, dropped:0, drag:null};
 
 function themeColor(name){
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#888";
 }
+function fmtPos(n){
+  // Grouped with thin spaces: a locale separator (1.234) reads as a decimal.
+  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
 
 function buildMatrix(){
   var siteMeta = {}, siteKeys = [], sampleIdx = {}, sampleNames = [];
-  var recs = [], groupKeys = [];
+  var recs = [], groupKeys = [], contigCount = {};
   for(var n=0;n<view.length;n++){
     var r = ROWS[view[n]], s = sampleOf(r);
     if(sampleIdx[s]===undefined){ sampleIdx[s]=sampleNames.length; sampleNames.push(s); }
@@ -407,6 +421,7 @@ function buildMatrix(){
     var mine = [];
     for(var i=0;i<poss.length;i++){
       var p = parseInt(poss[i],10); if(!p) continue;
+      contigCount[chrom] = (contigCount[chrom]||0)+1;
       var k = chrom+"|"+p;
       if(siteMeta[k]===undefined){ siteMeta[k] = {chrom:chrom,pos:p,gene:geneOf(r)}; siteKeys.push(k); }
       var raw = String(alts[i]!==undefined?alts[i]:(alts[0]||"")).trim().toUpperCase();
@@ -416,10 +431,13 @@ function buildMatrix(){
     }
     if(mine.length>1) groupKeys.push(mine);
   }
-  siteKeys.sort(function(a,b){
-    var A=siteMeta[a], B=siteMeta[b];
-    return A.chrom<B.chrom ? -1 : A.chrom>B.chrom ? 1 : A.pos-B.pos;
-  });
+
+  mtx.contigs = Object.keys(contigCount).sort(function(a,b){ return contigCount[b]-contigCount[a]; });
+  if(mtx.contigs.indexOf(mtx.contig) < 0) { mtx.contig = mtx.contigs[0] || null; mtx.view = null; }
+
+  // Only the selected contig is plotted: a continuous coordinate axis cannot span contigs.
+  siteKeys = siteKeys.filter(function(k){ return siteMeta[k].chrom === mtx.contig; });
+  siteKeys.sort(function(a,b){ return siteMeta[a].pos - siteMeta[b].pos; });
   mtx.dropped = Math.max(0, siteKeys.length - MAX_SITES);
   if(mtx.dropped) siteKeys = siteKeys.slice(0, MAX_SITES);
   var col = {};
@@ -428,8 +446,8 @@ function buildMatrix(){
   mtx.sites = siteKeys.map(function(k){ return siteMeta[k]; });
   mtx.samples = sampleNames;
   var nS = sampleNames.length, nC = siteKeys.length;
-  var grid = new Uint8Array(nS*nC);          // 0 none, 1..4 ACGT, 5 indel
-  var owner = new Int32Array(nS*nC).fill(-1); // row index behind each cell
+  var grid = new Uint8Array(nS*nC);
+  var owner = new Int32Array(nS*nC); owner.fill(-1);
   for(var j=0;j<recs.length;j++){
     var c = col[recs[j][1]]; if(c===undefined) continue;
     var at = recs[j][0]*nC + c;
@@ -439,11 +457,20 @@ function buildMatrix(){
   }
   mtx.grid = grid; mtx.owner = owner;
   mtx.groups = groupKeys.map(function(ks){
-    var cs = ks.map(function(k){ return col[k]; }).filter(function(c){ return c!==undefined; });
-    return cs.length>1 ? [Math.min.apply(null,cs), Math.max.apply(null,cs)] : null;
+    var ps = ks.map(function(k){ return col[k]; }).filter(function(c){ return c!==undefined; });
+    return ps.length>1 ? [mtx.sites[Math.min.apply(null,ps)].pos, mtx.sites[Math.max.apply(null,ps)].pos] : null;
   }).filter(Boolean);
 
-  // Sample ordering.
+  // Full extent of the contig's called sites, and the current window.
+  if(nC){
+    var lo = mtx.sites[0].pos, hi = mtx.sites[nC-1].pos;
+    var pad = Math.max(20, Math.round((hi-lo)*0.02));
+    // Genomic coordinates are 1-based: the padded extent must never go below 1.
+    mtx.span = [Math.max(1, lo-pad), hi+pad];
+    if(!mtx.view) mtx.view = mtx.span.slice();
+    clampView();
+  } else { mtx.span = null; mtx.view = null; }
+
   var idx = sampleNames.map(function(_,i){ return i; });
   if(mtx.order==="name"){
     idx.sort(function(a,b){ return sampleNames[a].localeCompare(sampleNames[b]); });
@@ -451,7 +478,6 @@ function buildMatrix(){
     var cnt = idx.map(function(i){ var t=0; for(var c=0;c<nC;c++) if(grid[i*nC+c]) t++; return t; });
     idx.sort(function(a,b){ return cnt[b]-cnt[a] || sampleNames[a].localeCompare(sampleNames[b]); });
   } else {
-    // Shared-profile ordering: identical presence patterns land next to each other.
     var prof = idx.map(function(i){
       var out = new Array(nC);
       for(var c=0;c<nC;c++) out[c] = grid[i*nC+c] ? "1" : "0";
@@ -462,27 +488,67 @@ function buildMatrix(){
   mtx.rowOrder = idx;
 }
 
+function clampView(){
+  if(!mtx.view || !mtx.span) return;
+  var full = mtx.span[1]-mtx.span[0];
+  var w = Math.min(Math.max(mtx.view[1]-mtx.view[0], MIN_SPAN), Math.max(full, MIN_SPAN));
+  var mid = (mtx.view[0]+mtx.view[1])/2;
+  var s = mid - w/2, e = mid + w/2;
+  if(s < mtx.span[0]){ s = mtx.span[0]; e = s + w; }
+  if(e > mtx.span[1]){ e = mtx.span[1]; s = e - w; }
+  if(s < mtx.span[0]) s = mtx.span[0];
+  mtx.view = [s, e];
+}
+function plotWidth(){
+  var wrap = document.getElementById("matrixScroll");
+  return Math.max(240, (wrap.clientWidth || 900) - LABEL_W - 2);
+}
+function xOf(pos){
+  return LABEL_W + ((pos - mtx.view[0]) / (mtx.view[1] - mtx.view[0])) * plotWidth();
+}
+function posOf(x){
+  return mtx.view[0] + ((x - LABEL_W) / plotWidth()) * (mtx.view[1] - mtx.view[0]);
+}
+
+function niceStep(span, target){
+  var raw = span / Math.max(1,target), mag = Math.pow(10, Math.floor(Math.log(raw)/Math.LN10));
+  var norm = raw/mag;
+  return (norm<=1?1:norm<=2?2:norm<=5?5:10) * mag;
+}
+
 function drawMatrix(){
   buildMatrix();
-  var cv = document.getElementById("matrix"), wrap = document.getElementById("matrixScroll");
+  var cv = document.getElementById("matrix");
   var nS = mtx.samples.length, nC = mtx.sites.length;
   var hint = document.getElementById("matrixHint"), note = document.getElementById("matrixNote");
-  if(!nS || !nC){
+  var contigSel = document.getElementById("contigSel");
+
+  if(mtx.contigs.length > 1){
+    contigSel.hidden = false;
+    if(contigSel.dataset.built !== mtx.contigs.join("|")){
+      contigSel.innerHTML = mtx.contigs.map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+'</option>'; }).join("");
+      contigSel.dataset.built = mtx.contigs.join("|");
+    }
+    contigSel.value = mtx.contig;
+  } else { contigSel.hidden = true; }
+
+  if(!nS || !nC || !mtx.view){
     cv.width = 0; cv.height = 0;
     hint.textContent = "No variable sites under the current filters.";
     note.textContent = ""; document.getElementById("matrixLegend").innerHTML = "";
     return;
   }
-  hint.textContent = nS + " sample" + (nS===1?"":"s") + " by " + nC.toLocaleString() +
-                     " variable site" + (nC===1?"":"s") + ". A column is a site where at least one sample carries a call.";
 
-  var avail = Math.max(320, wrap.clientWidth - LABEL_W - 2);
-  // Zoom 0 fits the width; a fixed step scrolls horizontally instead, so the
-  // base letter (the secondary encoding colour must never stand alone) is always
-  // reachable however many sites are in view.
-  var cellW = mtx.zoom > 0 ? mtx.zoom : Math.max(2, Math.min(14, Math.floor(avail / nC)));
-  mtx.cellW = cellW;
-  var w = LABEL_W + nC*cellW, h = GROUP_H + nS*CELL_H;
+  var span = mtx.view[1]-mtx.view[0];
+  var inView = 0;
+  for(var i=0;i<nC;i++) if(mtx.sites[i].pos>=mtx.view[0] && mtx.sites[i].pos<=mtx.view[1]) inView++;
+  hint.textContent = nS + " sample" + (nS===1?"":"s") + " · " + nC.toLocaleString() +
+    " variable site" + (nC===1?"":"s") + " on " + mtx.contig + " · showing " +
+    fmtPos(mtx.view[0]) + "-" + fmtPos(mtx.view[1]) + " (" + fmtPos(span) + " bp, " +
+    inView.toLocaleString() + " site" + (inView===1?"":"s") + " in view)";
+
+  var pw = plotWidth();
+  var w = LABEL_W + pw, h = OVER_H + RULER_H + GROUP_H + PAD_TOP + nS*CELL_H;
   var dpr = window.devicePixelRatio || 1;
   cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
   cv.style.width = w+"px"; cv.style.height = h+"px";
@@ -491,79 +557,240 @@ function drawMatrix(){
 
   var colors = ["", themeColor("--nt-A"), themeColor("--nt-C"), themeColor("--nt-G"),
                 themeColor("--nt-T"), themeColor("--nt-indel")];
-  var none = themeColor("--nt-none"), ink = themeColor("--text-2"), surface = themeColor("--page");
-  g.clearRect(0,0,w,h);
-  g.fillStyle = surface; g.fillRect(0,0,w,h);
+  var none = themeColor("--nt-none"), ink = themeColor("--text-2"), muted = themeColor("--muted");
+  var grid = themeColor("--grid"), surface = themeColor("--page");
+  g.clearRect(0,0,w,h); g.fillStyle = surface; g.fillRect(0,0,w,h);
 
-  // MNV / complex groups: a tick above the columns that were called together.
-  g.fillStyle = ink;
+  // Overview strip: the whole contig extent with the current window highlighted.
+  var fullSpan = mtx.span[1]-mtx.span[0];
+  g.fillStyle = grid; g.fillRect(LABEL_W, 3, pw, OVER_H-7);
+  g.fillStyle = muted;
+  for(var i2=0;i2<nC;i2++){
+    var ox = LABEL_W + ((mtx.sites[i2].pos - mtx.span[0]) / fullSpan) * pw;
+    g.fillRect(ox, 3, 1, OVER_H-7);
+  }
+  var vx = LABEL_W + ((mtx.view[0]-mtx.span[0])/fullSpan)*pw;
+  var vw = Math.max(2, (span/fullSpan)*pw);
+  g.strokeStyle = themeColor("--s1"); g.lineWidth = 1.5;
+  g.strokeRect(vx, 2.5, vw, OVER_H-6);
+  g.fillStyle = themeColor("--s1"); g.globalAlpha = .15;
+  g.fillRect(vx, 3, vw, OVER_H-7); g.globalAlpha = 1;
+  g.fillStyle = muted; g.font = "9px system-ui,-apple-system,sans-serif";
+  g.textAlign = "left"; g.textBaseline = "middle";
+  g.fillText("whole contig", 4, 3+(OVER_H-7)/2);
+
+  // Ruler.
+  var ry = OVER_H + RULER_H - 4;
+  var step = niceStep(span, Math.max(2, Math.floor(pw/110)));
+  g.strokeStyle = grid; g.beginPath(); g.moveTo(LABEL_W, ry+0.5); g.lineTo(LABEL_W+pw, ry+0.5); g.stroke();
+  g.fillStyle = muted; g.font = "10px system-ui,-apple-system,sans-serif"; g.textBaseline = "bottom";
+  var first = Math.ceil(mtx.view[0]/step)*step;
+  for(var t=first; t<=mtx.view[1]; t+=step){
+    var tx = xOf(t);
+    g.strokeStyle = grid; g.beginPath(); g.moveTo(tx+0.5, ry-3); g.lineTo(tx+0.5, ry); g.stroke();
+    g.textAlign = (tx < LABEL_W+26) ? "left" : "center";
+    g.fillText(fmtPos(t), tx, ry-4);
+  }
+
+  // Ticks marking positions called together on the same reads.
+  var gy = OVER_H + RULER_H;
+  g.fillStyle = ink; g.globalAlpha = .6;
   mtx.groups.forEach(function(gr){
-    var x = LABEL_W + gr[0]*cellW, wd = (gr[1]-gr[0]+1)*cellW;
-    g.globalAlpha = .55; g.fillRect(x, 1, Math.max(1,wd), 2); g.globalAlpha = 1;
+    if(gr[1] < mtx.view[0] || gr[0] > mtx.view[1]) return;
+    var x1 = xOf(gr[0]), x2 = xOf(gr[1]);
+    g.fillRect(Math.min(x1,x2)-1, gy+1, Math.max(3, Math.abs(x2-x1)+2), 2);
   });
+  g.globalAlpha = 1;
 
-  var showLetter = cellW>=8 && CELL_H>=10;
-  if(showLetter){ g.font = "9px system-ui,-apple-system,sans-serif"; g.textAlign="center"; g.textBaseline="middle"; }
+  // Cells.
+  var top0 = OVER_H + RULER_H + GROUP_H + PAD_TOP;
+  var perBase = pw / span;
+  var cw = Math.max(MIN_TICK, Math.min(16, perBase));
+  var showLetter = cw >= 8;
+  g.save();
+  g.beginPath(); g.rect(LABEL_W, top0-2, pw, nS*CELL_H+2); g.clip();
   for(var vrow=0; vrow<nS; vrow++){
-    var si = mtx.rowOrder[vrow], y = GROUP_H + vrow*CELL_H;
-    g.fillStyle = ink; g.font = "10px system-ui,-apple-system,sans-serif";
-    g.textAlign = "left"; g.textBaseline = "middle";
-    var name = mtx.samples[si];
-    g.fillText(name.length>14 ? name.slice(0,13)+"…" : name, 4, y+CELL_H/2);
+    var si = mtx.rowOrder[vrow], y = top0 + vrow*CELL_H;
+    g.fillStyle = none; g.fillRect(LABEL_W, y, pw, CELL_H-1);
     for(var c=0;c<nC;c++){
-      var v = mtx.grid[si*nC + c];
-      g.fillStyle = v ? colors[v] : none;
-      g.fillRect(LABEL_W + c*cellW, y, Math.max(1,cellW-0.5), CELL_H-1);
-      if(showLetter && v){
-        g.fillStyle = "#fff";
-        g.font = "9px system-ui,-apple-system,sans-serif"; g.textAlign="center"; g.textBaseline="middle";
-        g.fillText(v===5 ? "•" : NT[v-1], LABEL_W + c*cellW + cellW/2, y + CELL_H/2);
+      var p = mtx.sites[c].pos;
+      if(p < mtx.view[0]-1 || p > mtx.view[1]+1) continue;
+      var v = mtx.grid[si*nC + c]; if(!v) continue;
+      var x = xOf(p) - cw/2;
+      g.fillStyle = colors[v];
+      g.fillRect(x, y, Math.max(1, cw-(cw>3?0.5:0)), CELL_H-1);
+      if(showLetter){
+        g.fillStyle = "#fff"; g.font = "9px system-ui,-apple-system,sans-serif";
+        g.textAlign = "center"; g.textBaseline = "middle";
+        g.fillText(v===5 ? "•" : NT[v-1], x + cw/2, y + (CELL_H-1)/2);
       }
     }
+  }
+  g.restore();
+
+  // Sample labels.
+  g.fillStyle = ink; g.font = "10px system-ui,-apple-system,sans-serif";
+  g.textAlign = "left"; g.textBaseline = "middle";
+  for(var vr=0; vr<nS; vr++){
+    var nm = mtx.samples[mtx.rowOrder[vr]];
+    g.fillText(nm.length>14 ? nm.slice(0,13)+"…" : nm, 4, top0 + vr*CELL_H + (CELL_H-1)/2);
   }
 
   document.getElementById("matrixLegend").innerHTML =
     NT.map(function(b){ return '<span><i class="sw" style="background:var(--nt-'+b+')"></i>'+b+'</span>'; }).join("") +
     '<span><i class="sw" style="background:var(--nt-indel)"></i>indel</span>' +
     '<span><i class="sw" style="background:var(--nt-none);border:1px solid var(--border)"></i>not called (reference or no coverage)</span>' +
-    '<span><i class="sw" style="background:var(--text-2);opacity:.55;height:3px"></i>called together on the same reads</span>';
+    '<span><i class="sw" style="background:var(--text-2);opacity:.6;height:3px"></i>called together on the same reads</span>';
 
-  var notes = [];
-  if(mtx.dropped) notes.push("Showing the first " + MAX_SITES.toLocaleString() + " sites; " +
-                            mtx.dropped.toLocaleString() + " further site(s) are not drawn. Filter to narrow the view.");
-  if(!showLetter) notes.push("Set Zoom to \u201cshow bases\u201d to read the base letter in each cell; hovering always names it.");
+  var notes = ["Scroll to zoom, drag to pan, drag on the strip above to jump. Double-click resets."];
+  if(mtx.dropped) notes.push("Showing the first " + MAX_SITES.toLocaleString() + " sites of this contig; " +
+                            mtx.dropped.toLocaleString() + " further site(s) are not drawn.");
+  if(!showLetter) notes.push("Zoom in to read the base letter in each cell; hovering always names it.");
   note.textContent = notes.join(" ");
 }
 
+// ---------- matrix interaction ----------
 var mcanvas = document.getElementById("matrix");
+function overviewHit(y){ return y <= OVER_H + 2; }
+function rowAt(y){
+  var top0 = OVER_H + RULER_H + GROUP_H + PAD_TOP;
+  var vr = Math.floor((y - top0)/CELL_H);
+  return (vr>=0 && vr<mtx.samples.length) ? vr : -1;
+}
+function nearestSite(pos){
+  var best = -1, bestD = Infinity;
+  var tolerance = (mtx.view[1]-mtx.view[0]) / plotWidth() * 4;
+  for(var i=0;i<mtx.sites.length;i++){
+    var d = Math.abs(mtx.sites[i].pos - pos);
+    if(d < bestD){ bestD = d; best = i; }
+  }
+  return bestD <= Math.max(tolerance, 0.5) ? best : -1;
+}
+function setViewCentered(center, width){
+  mtx.view = [center-width/2, center+width/2]; clampView(); drawMatrix();
+}
+
+mcanvas.addEventListener("wheel", function(e){
+  if(!mtx.view) return;
+  e.preventDefault();
+  var rect = this.getBoundingClientRect(), x = e.clientX-rect.left;
+  if(x < LABEL_W) return;
+  var anchor = posOf(x);
+  var factor = e.deltaY > 0 ? 1.25 : 0.8;
+  var span = (mtx.view[1]-mtx.view[0]) * factor;
+  var full = mtx.span[1]-mtx.span[0];
+  span = Math.min(Math.max(span, MIN_SPAN), full);
+  var frac = (anchor - mtx.view[0]) / (mtx.view[1]-mtx.view[0]);
+  mtx.view = [anchor - frac*span, anchor + (1-frac)*span];
+  clampView(); drawMatrix();
+}, {passive:false});
+
+mcanvas.addEventListener("mousedown", function(e){
+  if(!mtx.view) return;
+  var rect = this.getBoundingClientRect(), x = e.clientX-rect.left, y = e.clientY-rect.top;
+  if(x < LABEL_W) return;
+  if(overviewHit(y)){
+    var full = mtx.span[1]-mtx.span[0];
+    var pos = mtx.span[0] + ((x-LABEL_W)/plotWidth())*full;
+    setViewCentered(pos, mtx.view[1]-mtx.view[0]);
+    mtx.drag = {mode:"over"};
+  } else {
+    mtx.drag = {mode:"pan", x:x, view:mtx.view.slice(), moved:false};
+  }
+});
+window.addEventListener("mousemove", function(e){
+  if(!mtx.drag) return;
+  var rect = mcanvas.getBoundingClientRect(), x = e.clientX-rect.left;
+  if(mtx.drag.mode === "over"){
+    var full = mtx.span[1]-mtx.span[0];
+    var pos = mtx.span[0] + ((x-LABEL_W)/plotWidth())*full;
+    setViewCentered(pos, mtx.view[1]-mtx.view[0]);
+  } else {
+    var dx = x - mtx.drag.x;
+    if(Math.abs(dx) > 2) mtx.drag.moved = true;
+    var perPx = (mtx.drag.view[1]-mtx.drag.view[0]) / plotWidth();
+    mtx.view = [mtx.drag.view[0] - dx*perPx, mtx.drag.view[1] - dx*perPx];
+    clampView(); drawMatrix();
+  }
+});
+window.addEventListener("mouseup", function(){ mtx.drag = null; });
+
 mcanvas.addEventListener("mousemove", function(e){
+  if(mtx.drag || !mtx.view) return;
   var rect = this.getBoundingClientRect();
   var x = e.clientX-rect.left, y = e.clientY-rect.top;
   var tip = document.getElementById("matrixTip");
-  var c = Math.floor((x-LABEL_W)/mtx.cellW), vrow = Math.floor((y-GROUP_H)/CELL_H);
-  if(x<LABEL_W || c<0 || c>=mtx.sites.length || vrow<0 || vrow>=mtx.samples.length){ tip.textContent=""; return; }
-  var si = mtx.rowOrder[vrow], nC = mtx.sites.length;
-  var v = mtx.grid[si*nC+c], site = mtx.sites[c];
+  var vr = rowAt(y);
+  if(x < LABEL_W || vr < 0){ tip.textContent = ""; return; }
+  var c = nearestSite(posOf(x));
+  if(c < 0){ tip.textContent = mtx.contig + ":" + fmtPos(posOf(x)) + "  ·  no called site here"; return; }
+  var si = mtx.rowOrder[vr], v = mtx.grid[si*mtx.sites.length + c], site = mtx.sites[c];
   var what = v ? (v===5 ? "indel" : "ALT "+NT[v-1]) : "not called (reference or no coverage)";
-  // Genomic coordinates stay unseparated: a locale thousands separator (1.234)
-  // reads as a decimal and is ambiguous for a position.
   tip.textContent = mtx.samples[si] + "  ·  " + site.chrom + ":" + site.pos +
                     "  ·  " + site.gene + "  ·  " + what;
 });
 mcanvas.addEventListener("mouseleave", function(){ document.getElementById("matrixTip").textContent=""; });
 mcanvas.addEventListener("click", function(e){
+  if(mtx.drag && mtx.drag.moved) return;
   var rect = this.getBoundingClientRect();
-  var c = Math.floor((e.clientX-rect.left-LABEL_W)/mtx.cellW);
-  var vrow = Math.floor((e.clientY-rect.top-GROUP_H)/CELL_H);
-  if(c<0||c>=mtx.sites.length||vrow<0||vrow>=mtx.samples.length) return;
-  var si = mtx.rowOrder[vrow], ri = mtx.owner[si*mtx.sites.length+c];
-  if(ri>=0) openDrawer(ri);
+  var x = e.clientX-rect.left, y = e.clientY-rect.top;
+  var vr = rowAt(y); if(x < LABEL_W || vr < 0) return;
+  var c = nearestSite(posOf(x)); if(c < 0) return;
+  var si = mtx.rowOrder[vr], ri = mtx.owner[si*mtx.sites.length + c];
+  if(ri >= 0) openDrawer(ri);
+});
+mcanvas.addEventListener("dblclick", function(){
+  if(!mtx.span) return;
+  mtx.view = mtx.span.slice(); drawMatrix();
+});
+
+function zoomBy(factor){
+  if(!mtx.view) return;
+  var mid = (mtx.view[0]+mtx.view[1])/2;
+  var full = mtx.span[1]-mtx.span[0];
+  setViewCentered(mid, Math.min(Math.max((mtx.view[1]-mtx.view[0])*factor, MIN_SPAN), full));
+}
+document.getElementById("zoomInBtn").addEventListener("click", function(){ zoomBy(0.5); });
+document.getElementById("zoomOutBtn").addEventListener("click", function(){ zoomBy(2); });
+document.getElementById("fitBtn").addEventListener("click", function(){
+  if(mtx.span){ mtx.view = mtx.span.slice(); drawMatrix(); }
+});
+document.getElementById("contigSel").addEventListener("change", function(){
+  mtx.contig = this.value; mtx.view = null; drawMatrix();
 });
 document.getElementById("orderSel").addEventListener("change", function(){
   mtx.order = this.value; drawMatrix();
 });
-document.getElementById("zoomSel").addEventListener("change", function(){
-  mtx.zoom = parseInt(this.value,10) || 0; drawMatrix();
+
+// Region box: "start-end", "contig:start-end", a single coordinate, or a gene name.
+function gotoRegion(){
+  var q = document.getElementById("regionBox").value.trim();
+  var note = document.getElementById("matrixNote");
+  if(!q || !mtx.span) return;
+  var m = q.match(/^(?:([^:]+):)?\s*([\d ,.\s]+?)\s*(?:[-–]\s*([\d ,.\s]+))?$/);
+  if(m && m[2]){
+    if(m[1] && mtx.contigs.indexOf(m[1].trim())>=0){ mtx.contig = m[1].trim(); mtx.view = null; drawMatrix(); }
+    var a = parseInt(String(m[2]).replace(/[^\d]/g,""),10);
+    var b = m[3] ? parseInt(String(m[3]).replace(/[^\d]/g,""),10) : null;
+    if(!isNaN(a)){
+      if(b && b>a){ mtx.view = [a,b]; } else { setViewCentered(a, Math.max(MIN_SPAN, (mtx.view[1]-mtx.view[0])/4)); return; }
+      clampView(); drawMatrix(); return;
+    }
+  }
+  // Otherwise treat it as a gene name and frame every called site of that gene.
+  var lo = Infinity, hi = -Infinity, needle = q.toLowerCase();
+  mtx.sites.forEach(function(s){
+    if(String(s.gene).toLowerCase().indexOf(needle) >= 0){
+      if(s.pos<lo) lo = s.pos; if(s.pos>hi) hi = s.pos;
+    }
+  });
+  if(lo === Infinity){ note.textContent = 'No called site matches "'+q+'" on '+mtx.contig+'.'; return; }
+  var pad = Math.max(20, Math.round((hi-lo)*0.1) || 200);
+  mtx.view = [lo-pad, hi+pad]; clampView(); drawMatrix();
+}
+document.getElementById("goBtn").addEventListener("click", gotoRegion);
+document.getElementById("regionBox").addEventListener("keydown", function(e){
+  if(e.key === "Enter"){ e.preventDefault(); gotoRegion(); }
 });
 
 // ---------- read-backed haplotypes ----------
