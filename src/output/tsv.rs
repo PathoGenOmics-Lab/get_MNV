@@ -45,7 +45,7 @@ fn annotation_cells(variant: &VariantInfo) -> [String; 9] {
         .clone()
         .unwrap_or_else(|| "-".to_string());
     [
-        so_term.to_string(),
+        so_term,
         impact.to_string(),
         grantham,
         variant.annotations.consequence_shift.to_string(),

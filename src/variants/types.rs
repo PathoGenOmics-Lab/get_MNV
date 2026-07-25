@@ -160,6 +160,47 @@ impl Display for NmdPrediction {
     }
 }
 
+/// Splice consequence of a variant near an internal exon-exon junction, using
+/// the standard Sequence Ontology terms. The two intronic bases at each end of
+/// an intron are the essential donor / acceptor sites (HIGH impact); the exon's
+/// first/last 3 bases and the intron's 3rd-8th bases are the wider splice region
+/// (LOW impact). Only defined for the multi-exon transcript CDS model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SpliceConsequence {
+    Donor,
+    Acceptor,
+    Region,
+}
+
+impl SpliceConsequence {
+    /// Sequence Ontology term.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SpliceConsequence::Donor => "splice_donor_variant",
+            SpliceConsequence::Acceptor => "splice_acceptor_variant",
+            SpliceConsequence::Region => "splice_region_variant",
+        }
+    }
+
+    /// Predicted impact: the essential donor / acceptor sites are HIGH, the
+    /// wider splice region is LOW.
+    pub fn impact(self) -> &'static str {
+        match self {
+            SpliceConsequence::Donor | SpliceConsequence::Acceptor => "HIGH",
+            SpliceConsequence::Region => "LOW",
+        }
+    }
+
+    /// Rank used to keep the most severe match when a position is near more than
+    /// one junction (donor / acceptor outrank the wider region).
+    pub fn severity(self) -> u8 {
+        match self {
+            SpliceConsequence::Region => 1,
+            SpliceConsequence::Donor | SpliceConsequence::Acceptor => 2,
+        }
+    }
+}
+
 /// Extra, biologist-facing annotations layered on top of the core variant call
 /// (Grantham distance, MNV-vs-SNV consequence shift). Grouped in one `Default`
 /// struct so it can be added to `VariantInfo` without touching every
@@ -187,6 +228,12 @@ pub struct VariantAnnotations {
     /// variants; the genomic (`g.`) descriptor is derived at output time.
     #[serde(default)]
     pub hgvs_c: Option<String>,
+    /// Splice consequence near an internal exon-exon junction (multi-exon
+    /// transcripts only). Folded into the SO term / impact rather than reported
+    /// as a separate column: an exonic coding change is combined (e.g.
+    /// `missense_variant&splice_region_variant`), an intronic site stands alone.
+    #[serde(default)]
+    pub splice: Option<SpliceConsequence>,
 }
 
 impl VariantType {

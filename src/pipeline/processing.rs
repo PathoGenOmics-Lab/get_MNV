@@ -118,6 +118,20 @@ fn annotate_variants_for_gene(
 /// query instead of one query each. The window span and position count are
 /// capped so memory stays bounded when sites are dense; distant sites simply
 /// fall into separate windows.
+/// First gene whose intron places this variant in a splice region, with the
+/// splice consequence. The variant's anchor position is tested; only multi-exon
+/// transcript models have internal junctions, so single-feature (prokaryotic)
+/// annotations never match.
+fn splice_site_for_variant(
+    genes: &[Gene],
+    snp: &VcfPosition,
+) -> Option<(String, crate::variants::SpliceConsequence)> {
+    genes.iter().find_map(|gene| {
+        variants::splice::splice_consequence_for_position(gene, snp.position)
+            .map(|consequence| (gene.name.clone(), consequence))
+    })
+}
+
 fn count_intergenic_variant_reads(
     args: &Args,
     contig: &str,
@@ -347,7 +361,16 @@ pub(crate) fn process_contig(
         let mut intergenic: Vec<VariantInfo> = Vec::new();
         for (idx, snp) in snp_list.iter().enumerate() {
             if !covered[idx] {
-                intergenic.push(variants::build_intergenic_variant(contig, snp));
+                // A variant not in any CDS may still fall in the splice region of
+                // a gene's intron; annotate it as a splice variant (gene-named)
+                // instead of intergenic. It stays in this vector so its read
+                // support is counted with the intergenic SNPs.
+                match splice_site_for_variant(&genes, snp) {
+                    Some((gene_name, splice)) => intergenic.push(variants::build_splice_variant(
+                        contig, snp, &gene_name, splice,
+                    )),
+                    None => intergenic.push(variants::build_intergenic_variant(contig, snp)),
+                }
             }
         }
         if !intergenic.is_empty() {

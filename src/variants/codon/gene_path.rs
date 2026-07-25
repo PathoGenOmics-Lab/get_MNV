@@ -42,6 +42,8 @@ pub(super) fn compute_annotations(
         nmd: None,
         // Set by the caller, which has the strand and CDS offsets.
         hgvs_c: None,
+        // Set by the transcript caller for exonic near-junction substitutions.
+        splice: None,
     }
 }
 

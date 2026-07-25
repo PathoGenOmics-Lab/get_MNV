@@ -46,9 +46,60 @@ fn is_reserved_info_key(key: &str) -> bool {
     )
 }
 
+/// Severity rank of an impact level, for keeping the more severe of two.
+fn impact_rank(impact: &str) -> u8 {
+    match impact {
+        "HIGH" => 3,
+        "MODERATE" => 2,
+        "LOW" => 1,
+        _ => 0,
+    }
+}
+
+/// Whether a change type is a coding substitution consequence, which is combined
+/// with an exonic `splice_region_variant` (e.g. `missense_variant&splice_region_variant`)
+/// rather than being replaced by it.
+fn is_substitution_consequence(change_type: crate::variants::ChangeType) -> bool {
+    use crate::variants::ChangeType;
+    matches!(
+        change_type,
+        ChangeType::Synonymous
+            | ChangeType::NonSynonymous
+            | ChangeType::StartLost
+            | ChangeType::StopGained
+            | ChangeType::StopLost
+    )
+}
+
 /// Map a variant to a Sequence Ontology consequence term and its impact level
 /// (`HIGH` / `MODERATE` / `LOW` / `MODIFIER`), following SnpEff/VEP conventions.
-pub(crate) fn so_consequence(variant: &VariantInfo) -> (&'static str, &'static str) {
+///
+/// A splice consequence is folded in: an exonic coding substitution near a
+/// junction is combined (`missense_variant&splice_region_variant`, keeping the
+/// more severe impact), and an intronic splice site stands on its own.
+pub(crate) fn so_consequence(variant: &VariantInfo) -> (String, &'static str) {
+    let (base_term, base_impact) = base_so_consequence(variant);
+    match variant.annotations.splice {
+        None => (base_term.to_string(), base_impact),
+        Some(splice) => {
+            let (splice_term, splice_impact) = (splice.as_str(), splice.impact());
+            if is_substitution_consequence(variant.change_type) {
+                let impact = if impact_rank(base_impact) >= impact_rank(splice_impact) {
+                    base_impact
+                } else {
+                    splice_impact
+                };
+                (format!("{base_term}&{splice_term}"), impact)
+            } else {
+                (splice_term.to_string(), splice_impact)
+            }
+        }
+    }
+}
+
+/// Base SO consequence from the gene context and change type, before any splice
+/// refinement.
+fn base_so_consequence(variant: &VariantInfo) -> (&'static str, &'static str) {
     use crate::variants::ChangeType;
     if variant.gene == "intergenic" {
         return ("intergenic_variant", "MODIFIER");
@@ -258,7 +309,7 @@ pub(crate) fn build_info_string(
     builder.push_text("CT", &variant.change_type.to_string());
     builder.push_text("TYPE", variant_type);
     let (so_term, impact) = so_consequence(variant);
-    builder.push_text("SO", so_term);
+    builder.push_text("SO", &so_term);
     builder.push_text("IMPACT", impact);
     if let Some(gd) = variant.annotations.grantham {
         builder.push("GD", gd);

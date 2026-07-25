@@ -94,6 +94,14 @@ pub(super) fn process_transcript_codon(
         })
         .collect();
     annotations.hgvs_c = crate::variants::hgvs::coding_substitution(&hgvs_entries);
+    // Exonic bases within 3 nt of an internal junction are in the splice region;
+    // fold that into the SO term alongside the coding consequence.
+    annotations.splice = codon_snps
+        .iter()
+        .filter_map(|ts| {
+            crate::variants::splice::splice_consequence_for_position(gene, ts.snp.position)
+        })
+        .max_by_key(|consequence| consequence.severity());
 
     let raw_snps = codon_snps
         .iter()

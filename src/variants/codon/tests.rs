@@ -1565,3 +1565,70 @@ fn test_hgvs_coding_descriptor_plus_and_minus_strand() {
         "minus-strand coding descriptor should use CDS numbering and coding-strand bases"
     );
 }
+
+// An exonic coding variant within 3 nt of an internal exon-exon junction must be
+// flagged as a splice-region variant (folded into the SO term downstream). Uses
+// the real transcript path via get_mnv_variants_for_gene.
+#[test]
+fn test_exonic_variant_near_junction_is_splice_region() {
+    // Two-exon plus-strand CDS: exon1 = 120 nt (genomic 1..120), exon2 141..200.
+    let mut exon1 = String::from("ATG");
+    exon1.push_str(&"GCT".repeat(39)); // 3 + 117 = 120 nt
+    let intron = "T".repeat(20);
+    let exon2 = "GCT".repeat(20); // 60 nt
+    let seq = format!("{exon1}{intron}{exon2}");
+    let gene = Gene {
+        name: "tx".to_string(),
+        start: 1,
+        end: seq.len(),
+        strand: Strand::Plus,
+        phase: 0,
+        protein_offset: 0,
+        transcript_id: Some("tx".to_string()),
+        cds_segments: vec![
+            CdsSegment { start: 1, end: 120 },
+            CdsSegment {
+                start: 141,
+                end: 200,
+            },
+        ],
+    };
+    let reference = crate::io::Reference { sequence: &seq };
+    // Genomic 120 is exon1's last base: exonic, at the donor boundary.
+    let near = crate::variants::get_mnv_variants_for_gene(
+        &gene,
+        &[crate::io::VcfPosition {
+            position: 120,
+            ref_allele: "T".to_string(),
+            alt_allele: "A".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }],
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+    assert_eq!(
+        near[0].annotations.splice,
+        Some(crate::variants::SpliceConsequence::Region),
+        "a coding variant at the exon boundary should be in the splice region"
+    );
+
+    // Genomic 60 is deep inside exon1: coding only, no splice region.
+    let deep = crate::variants::get_mnv_variants_for_gene(
+        &gene,
+        &[crate::io::VcfPosition {
+            position: 60,
+            ref_allele: "T".to_string(),
+            alt_allele: "A".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }],
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+    assert_eq!(deep[0].annotations.splice, None);
+}

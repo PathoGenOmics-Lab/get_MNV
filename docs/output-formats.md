@@ -32,8 +32,8 @@ Main columns:
 | `MNV Codon` | Codon with all grouped substitutions. |
 | `Event Class` | Canonical allele event class: `snp`, `mnv`, `insertion`, `deletion`, `delins`, `complex_indel`, or `symbolic`. |
 | `Event Components` | REF/ALT decomposition such as `SNV:10:A>G`, `INS:10:+T`, or `DEL:11-12:TG`. |
-| `SO Term` | Sequence Ontology consequence term (`missense_variant`, `synonymous_variant`, `stop_gained`, `start_lost`, `frameshift_variant`, `inframe_deletion`, `intergenic_variant`, …). |
-| `Impact` | Predicted impact following SnpEff/VEP conventions: `HIGH`, `MODERATE`, `LOW` or `MODIFIER`. |
+| `SO Term` | Sequence Ontology consequence term (`missense_variant`, `synonymous_variant`, `stop_gained`, `start_lost`, `frameshift_variant`, `inframe_deletion`, `intergenic_variant`, …). Variants near an internal exon-exon junction of a multi-exon transcript also carry a splice term: `splice_donor_variant` / `splice_acceptor_variant` (the two essential intronic bases at each intron end, `HIGH`) or `splice_region_variant` (the exon's last 3 bases or the intron's 3rd-8th bases, `LOW`). An exonic coding change near a junction is combined, e.g. `missense_variant&splice_region_variant`. |
+| `Impact` | Predicted impact following SnpEff/VEP conventions: `HIGH`, `MODERATE`, `LOW` or `MODIFIER`. A combined splice/coding consequence keeps the more severe impact. |
 | `Grantham` | Grantham distance and conservation category of a missense change (e.g. `177 (radical)`); `-` for synonymous, nonsense or non-coding changes. |
 | `MNV Consequence Shift` | How the combined MNV compares with its individual SNVs: `MNV-gained` (more severe than any single SNV — what per-SNV annotators miss), `MNV-masked` (a nonsense SNV rescued by its neighbour) or `Concordant`. `-` for single SNVs. |
 | `DBS Class` | COSMIC-style doublet base substitution class for an MNV of two adjacent single-base substitutions, e.g. `CC>TT` (reverse-complement collapsed, so `GG>AA` reports as `CC>TT`). `-` for single SNVs, indels, and non-adjacent or 3-SNV MNVs. |

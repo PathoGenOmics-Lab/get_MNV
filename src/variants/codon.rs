@@ -442,6 +442,22 @@ pub fn get_mnv_variants_for_gene_with_config(
     variants
 }
 
+/// Build a `VariantInfo` for a variant in the splice region of a gene's intron.
+/// It carries the gene name and splice consequence; everything else mirrors an
+/// intergenic entry (no codon annotation), so its read support is counted
+/// alongside intergenic SNPs and it renders through the normal genic path.
+pub fn build_splice_variant(
+    chrom: &str,
+    vcf_pos: &crate::io::VcfPosition,
+    gene_name: &str,
+    splice: crate::variants::SpliceConsequence,
+) -> VariantInfo {
+    let mut variant = build_intergenic_variant(chrom, vcf_pos);
+    variant.gene = gene_name.to_string();
+    variant.annotations.splice = Some(splice);
+    variant
+}
+
 /// Build a `VariantInfo` for a VCF position that falls outside all annotated
 /// genes (intergenic).  The entry preserves the original position, alleles and
 /// any original metrics but has no codon / amino-acid annotation.

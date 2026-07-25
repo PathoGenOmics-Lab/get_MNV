@@ -4,12 +4,14 @@
 mod codon;
 mod event;
 pub mod hgvs;
+pub mod splice;
 mod types;
 
 // Re-export all public types and functions
 pub use codon::{
-    build_intergenic_variant, build_phased_indel_haplotype_variants, get_mnv_variants_for_gene,
-    get_mnv_variants_for_gene_with_config, process_codon, IndelAnnotationConfig,
+    build_intergenic_variant, build_phased_indel_haplotype_variants, build_splice_variant,
+    get_mnv_variants_for_gene, get_mnv_variants_for_gene_with_config, process_codon,
+    IndelAnnotationConfig,
 };
 pub use event::{
     decompose_allele, parse_component_label, substitution_components, AlleleComponent,

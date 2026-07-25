@@ -514,29 +514,43 @@ fn test_filter_genes_with_snps() {
 }
 
 #[test]
-fn test_transcript_gene_filter_ignores_intronic_variants() {
+fn test_transcript_gene_filter_keeps_splice_but_drops_deep_intronic() {
+    // Two-exon transcript with a large intron (genomic 101..149).
     let genes = vec![Gene {
         name: "tx_gene".into(),
         start: 1,
-        end: 20,
+        end: 200,
         strand: crate::variants::Strand::Plus,
         phase: 0,
         protein_offset: 0,
         transcript_id: Some("tx1".to_string()),
         cds_segments: vec![
-            CdsSegment { start: 1, end: 4 },
-            CdsSegment { start: 10, end: 14 },
+            CdsSegment { start: 1, end: 100 },
+            CdsSegment {
+                start: 150,
+                end: 200,
+            },
         ],
     }];
-    let snps = vec![VcfPosition {
-        position: 7,
+    let snp = |position: usize| VcfPosition {
+        position,
         ref_allele: "A".to_string(),
         alt_allele: "G".to_string(),
         original_dp: None,
         original_freq: None,
         original_info: None,
-    }];
+    };
 
-    assert!(filter_genes_with_snps(&genes, &snps).is_empty());
-    assert!(!gene_overlaps_variant(&genes[0], &snps[0]));
+    // A deep intronic variant (>8 nt from either junction) does not make the gene
+    // coding and is not a splice site: the gene is dropped.
+    let deep = vec![snp(125)];
+    assert!(filter_genes_with_snps(&genes, &deep).is_empty());
+    assert!(!gene_overlaps_variant(&genes[0], &deep[0]));
+
+    // An intronic variant in the essential donor site (first base of the intron)
+    // keeps the gene so it can be annotated as a splice variant, even though it
+    // still does not overlap the CDS.
+    let splice = vec![snp(101)];
+    assert_eq!(filter_genes_with_snps(&genes, &splice).len(), 1);
+    assert!(!gene_overlaps_variant(&genes[0], &splice[0]));
 }
