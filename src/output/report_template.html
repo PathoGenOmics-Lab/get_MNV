@@ -395,12 +395,14 @@ function drawCharts(){
 // blank cell is never claimed to be reference.
 var NT = ["A","C","G","T"];
 var MAX_SITES = 20000, LABEL_W = 96, CELL_H = 12;
-var OVER_H = 16, RULER_H = 17, GROUP_H = 5, PAD_TOP = 4;
+var OVER_H = 16, DENS_H = 36, RULER_H = 17, GENE_H = 13, GROUP_H = 5, PAD_TOP = 4;
+var TOP_H = OVER_H + DENS_H + RULER_H + GENE_H + GROUP_H + PAD_TOP;
 var MIN_TICK = 2;       // a site is never thinner than this, so sparse views stay readable
 var MIN_SPAN = 40;      // deepest zoom, in base pairs
 
 var mtx = {contig:null, contigs:[], sites:[], samples:[], grid:null, owner:null,
-           order:"similar", groups:[], view:null, span:null, dropped:0, drag:null};
+           order:"similar", groups:[], view:null, span:null, dropped:0, drag:null,
+           calls:[], geneSpans:[]};
 
 function themeColor(name){
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#888";
@@ -412,7 +414,7 @@ function fmtPos(n){
 
 function buildMatrix(){
   var siteMeta = {}, siteKeys = [], sampleIdx = {}, sampleNames = [];
-  var recs = [], groupKeys = [], contigCount = {};
+  var recs = [], groupKeys = [], contigCount = {}, calls = [];
   for(var n=0;n<view.length;n++){
     var r = ROWS[view[n]], s = sampleOf(r);
     if(sampleIdx[s]===undefined){ sampleIdx[s]=sampleNames.length; sampleNames.push(s); }
@@ -427,6 +429,7 @@ function buildMatrix(){
       var raw = String(alts[i]!==undefined?alts[i]:(alts[0]||"")).trim().toUpperCase();
       var base = isIndel ? "I" : (NT.indexOf(raw)>=0 ? raw : "I");
       recs.push([sampleIdx[s], k, base, view[n]]);
+      calls.push([chrom, p, r[C.type]]);
       mine.push(k);
     }
     if(mine.length>1) groupKeys.push(mine);
@@ -456,6 +459,18 @@ function buildMatrix(){
     owner[at] = recs[j][3];
   }
   mtx.grid = grid; mtx.owner = owner;
+  mtx.calls = calls.filter(function(c){ return c[0] === mtx.contig; })
+                   .map(function(c){ return [c[1], c[2]]; });
+  // Extent of the called sites of each gene. This is not the annotated gene
+  // boundary, which the report does not carry; it is where calls were made.
+  var spans = {};
+  mtx.sites.forEach(function(st){
+    var g = st.gene;
+    if(!spans[g]) spans[g] = [st.pos, st.pos];
+    else { if(st.pos<spans[g][0]) spans[g][0]=st.pos; if(st.pos>spans[g][1]) spans[g][1]=st.pos; }
+  });
+  mtx.geneSpans = Object.keys(spans).map(function(g){ return {gene:g, lo:spans[g][0], hi:spans[g][1]}; })
+                        .sort(function(a,b){ return a.lo-b.lo; });
   mtx.groups = groupKeys.map(function(ks){
     var ps = ks.map(function(k){ return col[k]; }).filter(function(c){ return c!==undefined; });
     return ps.length>1 ? [mtx.sites[Math.min.apply(null,ps)].pos, mtx.sites[Math.max.apply(null,ps)].pos] : null;
@@ -533,7 +548,7 @@ function drawMatrix(){
   } else { contigSel.hidden = true; }
 
   if(!nS || !nC || !mtx.view){
-    cv.width = 0; cv.height = 0;
+    cv.width = 0; cv.height = 0; cv.style.width = "0px"; cv.style.height = "0px";
     hint.textContent = "No variable sites under the current filters.";
     note.textContent = ""; document.getElementById("matrixLegend").innerHTML = "";
     return;
@@ -548,7 +563,7 @@ function drawMatrix(){
     inView.toLocaleString() + " site" + (inView===1?"":"s") + " in view)";
 
   var pw = plotWidth();
-  var w = LABEL_W + pw, h = OVER_H + RULER_H + GROUP_H + PAD_TOP + nS*CELL_H;
+  var w = LABEL_W + pw, h = TOP_H + nS*CELL_H;
   var dpr = window.devicePixelRatio || 1;
   cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
   cv.style.width = w+"px"; cv.style.height = h+"px";
@@ -578,9 +593,52 @@ function drawMatrix(){
   g.fillStyle = muted; g.font = "9px system-ui,-apple-system,sans-serif";
   g.textAlign = "left"; g.textBaseline = "middle";
   g.fillText("whole contig", 4, 3+(OVER_H-7)/2);
+  if(mtx.drag && mtx.drag.mode === "brush" && mtx.drag.x2 !== undefined){
+    var bx1 = Math.min(mtx.drag.x1, mtx.drag.x2), bx2 = Math.max(mtx.drag.x1, mtx.drag.x2);
+    g.fillStyle = themeColor("--s1"); g.globalAlpha = .30;
+    g.fillRect(bx1, 3, Math.max(1,bx2-bx1), OVER_H-7); g.globalAlpha = 1;
+  }
+
+  // Density track: calls per genomic bin, stacked by variant type. Follows the
+  // active filters, like every other panel.
+  var dTop = OVER_H + 2, dH = DENS_H - 8;
+  var bins = Math.max(1, Math.floor(pw/3));
+  var binW = span/bins;
+  var counts = [], maxBin = 0;
+  for(var bi=0;bi<bins;bi++) counts.push([0,0,0,0]);
+  for(var ci=0;ci<mtx.calls.length;ci++){
+    var cp = mtx.calls[ci][0];
+    if(cp < mtx.view[0] || cp > mtx.view[1]) continue;
+    var b = Math.min(bins-1, Math.max(0, Math.floor((cp-mtx.view[0])/binW)));
+    var ti = mtx.calls[ci][1]; if(ti===null||ti===undefined||ti<0||ti>3) ti = 0;
+    counts[b][ti]++;
+  }
+  for(var bj=0;bj<bins;bj++){
+    var tot = counts[bj][0]+counts[bj][1]+counts[bj][2]+counts[bj][3];
+    if(tot>maxBin) maxBin = tot;
+  }
+  var typeCols = [themeColor("--s1"), themeColor("--s2"), themeColor("--s3"), themeColor("--s4")];
+  g.fillStyle = grid; g.fillRect(LABEL_W, dTop+dH, pw, 1);
+  if(maxBin > 0){
+    var bpx = pw/bins;
+    for(var b2=0;b2<bins;b2++){
+      var yb = dTop+dH;
+      for(var t2=0;t2<4;t2++){
+        var cv2 = counts[b2][t2]; if(!cv2) continue;
+        var hh = (cv2/maxBin)*dH;
+        g.fillStyle = typeCols[t2];
+        g.fillRect(LABEL_W + b2*bpx, yb-hh, Math.max(1, bpx-0.4), hh);
+        yb -= hh;
+      }
+    }
+  }
+  g.fillStyle = muted; g.font = "9px system-ui,-apple-system,sans-serif";
+  g.textAlign = "left"; g.textBaseline = "top";
+  g.fillText("calls / bin", 4, dTop);
+  if(maxBin>0) g.fillText("max " + maxBin, 4, dTop+11);
 
   // Ruler.
-  var ry = OVER_H + RULER_H - 4;
+  var ry = OVER_H + DENS_H + RULER_H - 4;
   var step = niceStep(span, Math.max(2, Math.floor(pw/110)));
   g.strokeStyle = grid; g.beginPath(); g.moveTo(LABEL_W, ry+0.5); g.lineTo(LABEL_W+pw, ry+0.5); g.stroke();
   g.fillStyle = muted; g.font = "10px system-ui,-apple-system,sans-serif"; g.textBaseline = "bottom";
@@ -592,8 +650,22 @@ function drawMatrix(){
     g.fillText(fmtPos(t), tx, ry-4);
   }
 
+  // Gene track: the extent of each gene's called sites. This is not the annotated
+  // gene boundary, which the report does not carry.
+  var geneY = OVER_H + DENS_H + RULER_H;
+  g.textBaseline = "middle";
+  mtx.geneSpans.forEach(function(gs, gi){
+    if(gs.hi < mtx.view[0] || gs.lo > mtx.view[1]) return;
+    var gx1 = Math.max(LABEL_W, xOf(gs.lo)), gx2 = Math.min(LABEL_W+pw, xOf(gs.hi));
+    var gwd = Math.max(2, gx2-gx1);
+    g.fillStyle = gi % 2 ? themeColor("--s1") : themeColor("--s3");
+    g.globalAlpha = .28; g.fillRect(gx1, geneY+1, gwd, GENE_H-4); g.globalAlpha = 1;
+    g.fillStyle = ink; g.font = "9px system-ui,-apple-system,sans-serif"; g.textAlign = "center";
+    if(gwd > g.measureText(gs.gene).width + 8) g.fillText(gs.gene, gx1+gwd/2, geneY+1+(GENE_H-4)/2);
+  });
+
   // Ticks marking positions called together on the same reads.
-  var gy = OVER_H + RULER_H;
+  var gy = OVER_H + DENS_H + RULER_H + GENE_H;
   g.fillStyle = ink; g.globalAlpha = .6;
   mtx.groups.forEach(function(gr){
     if(gr[1] < mtx.view[0] || gr[0] > mtx.view[1]) return;
@@ -603,7 +675,7 @@ function drawMatrix(){
   g.globalAlpha = 1;
 
   // Cells.
-  var top0 = OVER_H + RULER_H + GROUP_H + PAD_TOP;
+  var top0 = TOP_H;
   var perBase = pw / span;
   var cw = Math.max(MIN_TICK, Math.min(16, perBase));
   var showLetter = cw >= 8;
@@ -640,9 +712,13 @@ function drawMatrix(){
     NT.map(function(b){ return '<span><i class="sw" style="background:var(--nt-'+b+')"></i>'+b+'</span>'; }).join("") +
     '<span><i class="sw" style="background:var(--nt-indel)"></i>indel</span>' +
     '<span><i class="sw" style="background:var(--nt-none);border:1px solid var(--border)"></i>not called (reference or no coverage)</span>' +
-    '<span><i class="sw" style="background:var(--text-2);opacity:.6;height:3px"></i>called together on the same reads</span>';
+    '<span><i class="sw" style="background:var(--text-2);opacity:.6;height:3px"></i>called together on the same reads</span>' +
+    '<span style="opacity:.8">density: ' + D.types.map(function(t,i){
+      return '<i class="sw" style="background:var(--s'+(i+1)+')"></i>'+esc(t);
+    }).join(" ") + '</span>' +
+    '<span><i class="sw" style="background:var(--s1);opacity:.28"></i>gene (extent of called sites)</span>';
 
-  var notes = ["Scroll to zoom, drag to pan, drag on the strip above to jump. Double-click resets."];
+  var notes = ["Scroll to zoom, drag to pan, drag across the top strip to select a range. Double-click resets."];
   if(mtx.dropped) notes.push("Showing the first " + MAX_SITES.toLocaleString() + " sites of this contig; " +
                             mtx.dropped.toLocaleString() + " further site(s) are not drawn.");
   if(!showLetter) notes.push("Zoom in to read the base letter in each cell; hovering always names it.");
@@ -653,8 +729,7 @@ function drawMatrix(){
 var mcanvas = document.getElementById("matrix");
 function overviewHit(y){ return y <= OVER_H + 2; }
 function rowAt(y){
-  var top0 = OVER_H + RULER_H + GROUP_H + PAD_TOP;
-  var vr = Math.floor((y - top0)/CELL_H);
+  var vr = Math.floor((y - TOP_H)/CELL_H);
   return (vr>=0 && vr<mtx.samples.length) ? vr : -1;
 }
 function nearestSite(pos){
@@ -668,6 +743,11 @@ function nearestSite(pos){
 }
 function setViewCentered(center, width){
   mtx.view = [center-width/2, center+width/2]; clampView(); drawMatrix();
+}
+// Genomic coordinate under an x pixel on the whole-contig strip.
+function stripPos(x){
+  var full = mtx.span[1]-mtx.span[0];
+  return mtx.span[0] + ((x-LABEL_W)/plotWidth())*full;
 }
 
 mcanvas.addEventListener("wheel", function(e){
@@ -690,10 +770,8 @@ mcanvas.addEventListener("mousedown", function(e){
   var rect = this.getBoundingClientRect(), x = e.clientX-rect.left, y = e.clientY-rect.top;
   if(x < LABEL_W) return;
   if(overviewHit(y)){
-    var full = mtx.span[1]-mtx.span[0];
-    var pos = mtx.span[0] + ((x-LABEL_W)/plotWidth())*full;
-    setViewCentered(pos, mtx.view[1]-mtx.view[0]);
-    mtx.drag = {mode:"over"};
+    // Drag across the strip selects a range; a plain click just recentres.
+    mtx.drag = {mode:"brush", x1:x};
   } else {
     mtx.drag = {mode:"pan", x:x, view:mtx.view.slice(), moved:false};
   }
@@ -701,10 +779,8 @@ mcanvas.addEventListener("mousedown", function(e){
 window.addEventListener("mousemove", function(e){
   if(!mtx.drag) return;
   var rect = mcanvas.getBoundingClientRect(), x = e.clientX-rect.left;
-  if(mtx.drag.mode === "over"){
-    var full = mtx.span[1]-mtx.span[0];
-    var pos = mtx.span[0] + ((x-LABEL_W)/plotWidth())*full;
-    setViewCentered(pos, mtx.view[1]-mtx.view[0]);
+  if(mtx.drag.mode === "brush"){
+    mtx.drag.x2 = x; drawMatrix();
   } else {
     var dx = x - mtx.drag.x;
     if(Math.abs(dx) > 2) mtx.drag.moved = true;
@@ -713,7 +789,20 @@ window.addEventListener("mousemove", function(e){
     clampView(); drawMatrix();
   }
 });
-window.addEventListener("mouseup", function(){ mtx.drag = null; });
+window.addEventListener("mouseup", function(){
+  if(mtx.drag && mtx.drag.mode === "brush"){
+    var d = mtx.drag; mtx.drag = null;
+    if(d.x2 !== undefined && Math.abs(d.x2-d.x1) > 3){
+      var a = stripPos(Math.min(d.x1,d.x2)), b = stripPos(Math.max(d.x1,d.x2));
+      mtx.view = [a,b];
+    } else {
+      setViewCentered(stripPos(d.x1), mtx.view[1]-mtx.view[0]);
+      return;
+    }
+    clampView(); drawMatrix(); return;
+  }
+  mtx.drag = null;
+});
 
 mcanvas.addEventListener("mousemove", function(e){
   if(mtx.drag || !mtx.view) return;

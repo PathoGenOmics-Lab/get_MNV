@@ -246,8 +246,14 @@ El informe contiene:
   muestras en el lateral, coordenadas genómicas reales arriba y color por la base
   alternativa. Rueda para hacer zoom alrededor del cursor, arrastrar para
   desplazarse, arrastrar sobre la tira del contig completo para saltar, y doble
-  clic para volver al inicio. La caja de región acepta `inicio-fin`,
-  `contig:inicio-fin`, una coordenada suelta o un nombre de gen, y lo encuadra. Al
+  clic para volver al inicio. Arrastrar a lo largo de la tira del contig completo
+  selecciona un rango; un clic simple sobre ella recentra. La caja de región acepta
+  `inicio-fin`, `contig:inicio-fin`, una coordenada suelta o un nombre de gen, y lo
+  encuadra. Sobre la regla, una pista de densidad muestra las llamadas por bin
+  genómico apiladas por tipo de variante, así los cúmulos de MNV o indels destacan
+  a cualquier zoom, y una pista de genes marca la extensión de los sitios llamados
+  de cada gen (que es donde hubo llamadas, no el límite anotado del gen, que el
+  informe no lleva). Al
   acercarse lo suficiente aparece la letra de la base dentro de cada celda. Las
   muestras se pueden ordenar por perfil compartido (los patrones idénticos quedan
   juntos), por número de variantes o por nombre. Las posiciones llamadas juntas en

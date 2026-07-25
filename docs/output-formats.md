@@ -245,8 +245,13 @@ The report contains:
 - **A variant matrix**, plotted as a small genome browser: samples down the side,
   real genomic coordinates across the top, coloured by the alternate base. Scroll
   to zoom around the cursor, drag to pan, drag on the whole-contig strip to jump,
-  and double-click to reset. The region box takes `start-end`, `contig:start-end`,
-  a single coordinate, or a gene name, and frames it. Zooming in far enough shows
+  and double-click to reset. Dragging across the whole-contig strip selects a
+  range; a plain click on it recentres. The region box takes `start-end`,
+  `contig:start-end`, a single coordinate, or a gene name, and frames it. Above
+  the ruler a density track shows calls per genomic bin stacked by variant type,
+  so clusters of MNVs or indels stand out at any zoom, and a gene track marks the
+  extent of each gene's called sites (which is where calls were made, not the
+  annotated gene boundary, which the report does not carry). Zooming in far enough shows
   the base letter inside each cell. Samples can be ordered by shared profile
   (identical patterns land together), by variant count or by name. Positions
   called together on the same reads (codon MNVs, phased complex indels) are marked
