@@ -69,6 +69,7 @@ struct Row {
     event_class: Option<String>,
     event_components: Option<String>,
     reads: Option<u64>,
+    phasing: Option<f64>,
 }
 
 #[derive(Default)]
@@ -241,6 +242,7 @@ impl ReportBuilder {
                 event_class: optional(&get(&record, "Event Class")),
                 event_components: optional(&get(&record, "Event Components")),
                 reads,
+                phasing: first_number::<f64>(&get(&record, "MNV Phasing Support")),
             };
             self.rows.push(row);
         }
@@ -354,6 +356,8 @@ fn push_row(out: &mut String, row: &Row) {
     push_opt_str(out, row.event_components.as_deref());
     out.push(',');
     push_opt_num(out, row.reads);
+    out.push(',');
+    push_opt_freq(out, row.phasing);
     out.push(']');
 }
 

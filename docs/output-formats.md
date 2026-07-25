@@ -242,6 +242,24 @@ The report contains:
   and high-impact variants.
 - **Variants per sample**, stacked by variant type, and the **consequence
   distribution** by Sequence Ontology term. Both follow the active filters.
+- **A variant matrix**: samples by variable sites, in the style of an alignment
+  view, coloured by the alternate base. A column is a site where at least one
+  sample carries a call. Samples can be ordered by shared profile (identical
+  patterns land together), by variant count or by name, and a zoom control goes
+  from fit-to-width down to a cell wide enough to read the base letter. Positions
+  called together on the same reads (codon MNVs, phased complex indels) are
+  marked with a tick above their columns.
+
+    A cell is only ever "an ALT call" or **"not called"**. get_MNV output cannot
+    distinguish a reference base from a position with no coverage, so a blank
+    cell is never presented as reference. Read that state as "reference or no
+    coverage".
+
+- **Read-backed haplotypes**: the allele combinations get_MNV actually observed
+  on the same reads, that is codon-level MNVs and locally phased complex indels,
+  ranked by how many samples carry each one and shown with their phasing support
+  where a BAM was used. Long-range phasing between distant sites is not inferred
+  and is never displayed.
 - **A sortable, searchable table** of every variant, virtualised so tens of
   thousands of rows stay responsive. Filter by sample, gene, variant type and
   impact, or search across gene, position, amino-acid change and HGVS.

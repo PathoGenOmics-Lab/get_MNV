@@ -242,6 +242,25 @@ El informe contiene:
   MNV y variantes de alto impacto.
 - **Variantes por muestra**, apiladas por tipo de variante, y la **distribución de
   consecuencias** por término de Sequence Ontology. Ambas siguen los filtros activos.
+- **Una matriz de variantes**: muestras por sitios variables, al estilo de un visor
+  de alineamiento, coloreada por la base alternativa. Una columna es un sitio donde
+  al menos una muestra tiene una llamada. Las muestras se pueden ordenar por perfil
+  compartido (los patrones idénticos quedan juntos), por número de variantes o por
+  nombre, y un control de zoom va desde ajustar al ancho hasta una celda lo bastante
+  ancha para leer la letra de la base. Las posiciones llamadas juntas en las mismas
+  lecturas (MNV de codón, indels complejos faseados) llevan una marca sobre sus
+  columnas.
+
+    Una celda solo puede ser "llamada ALT" o **"no llamada"**. La salida de get_MNV
+    no distingue una base de referencia de una posición sin cobertura, así que una
+    celda vacía nunca se presenta como referencia. Ese estado se lee como
+    "referencia o sin cobertura".
+
+- **Haplotipos respaldados por lecturas**: las combinaciones de alelos que get_MNV
+  observó realmente en las mismas lecturas, es decir MNV de codón e indels complejos
+  faseados localmente, ordenados por cuántas muestras llevan cada uno y con su
+  soporte de fasing cuando se usó un BAM. El fasing de largo alcance entre sitios
+  distantes no se infiere ni se muestra nunca.
 - **Una tabla ordenable y buscable** con todas las variantes, virtualizada para que
   decenas de miles de filas sigan siendo fluidas. Filtra por muestra, gen, tipo de
   variante e impacto, o busca por gen, posición, cambio de aminoácido y HGVS.

@@ -13,6 +13,9 @@
   --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
   --critical:#d03b3b; --serious:#ec835a; --warning:#fab219; --good:#0ca30c;
   --hover:rgba(11,11,11,.04); --sel:rgba(42,120,214,.10);
+  /* Nucleotide palette: validated all-pairs (worst CVD dE 9.1, normal 22.0). */
+  --nt-A:#1baf7a; --nt-C:#2a78d6; --nt-G:#eda100; --nt-T:#b03fa0;
+  --nt-indel:#52514e; --nt-none:#eceae4;
 }
 @media (prefers-color-scheme: dark){
   :root:where(:not([data-theme="light"])){
@@ -22,6 +25,9 @@
     --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
     --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
     --hover:rgba(255,255,255,.06); --sel:rgba(57,135,229,.16);
+    /* Dark steps for the dark band: worst CVD dE 7.5, normal 17.7. */
+    --nt-A:#199e70; --nt-C:#3987e5; --nt-G:#c98500; --nt-T:#b05fbf;
+    --nt-indel:#c3c2b7; --nt-none:#252523;
   }
 }
 :root[data-theme="dark"]{
@@ -31,6 +37,9 @@
   --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
   --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
   --hover:rgba(255,255,255,.06); --sel:rgba(57,135,229,.16);
+  /* Dark steps for the dark band: worst CVD dE 7.5, normal 17.7. */
+  --nt-A:#199e70; --nt-C:#3987e5; --nt-G:#c98500; --nt-T:#b05fbf;
+  --nt-indel:#c3c2b7; --nt-none:#252523;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -64,6 +73,25 @@ h1{font-size:19px;margin:0 0 4px;letter-spacing:-.01em}
 .legend span{display:inline-flex;align-items:center;gap:5px}
 .sw{width:9px;height:9px;border-radius:2px;display:inline-block}
 .scrollY{max-height:220px;overflow-y:auto}
+.panelhead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.ctl{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-2)}
+.ctl select{background:var(--page);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:4px 8px;font:inherit;font-size:12px}
+#matrixPanel{margin-bottom:16px}
+#matrixScroll{overflow-x:auto;overflow-y:hidden;margin-top:6px;border:1px solid var(--border);border-radius:8px;background:var(--page)}
+#matrix{display:block}
+#matrixTip{min-height:17px;margin-top:6px;font-size:11.5px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.note{margin:6px 0 0;color:var(--muted)}
+#hapPanel{margin-bottom:16px}
+.hap{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12.5px}
+.hap:last-child{border-bottom:0}
+.hap .rec{flex:0 0 74px;font-size:11.5px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.hap .who{flex:1 1 auto;min-width:0}
+.hap .who b{font-weight:600}
+.hap .comp{color:var(--text-2);font-size:11.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hap .ph{flex:0 0 128px;text-align:right;font-size:11.5px;color:var(--text-2)}
+.bar{height:5px;border-radius:3px;background:var(--s1);display:inline-block;vertical-align:middle;margin-left:6px}
+.bartrack{display:inline-block;width:54px;height:5px;border-radius:3px;background:var(--grid);vertical-align:middle;margin-left:6px;position:relative;overflow:hidden}
+.bartrack i{position:absolute;left:0;top:0;bottom:0;background:var(--s1);border-radius:3px}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:11px 12px;margin-bottom:12px}
 .filters input[type=search],.filters select{
   background:var(--page);color:var(--text);border:1px solid var(--border);
@@ -141,6 +169,15 @@ footer{margin-top:22px;color:var(--muted);font-size:11.5px;text-align:center}
 
   <div class="kpis" id="kpis"></div>
 
+  <div class="card filters">
+    <input type="search" id="q" placeholder="Search gene, position, AA change, HGVS..." aria-label="Search">
+    <select id="sampleSel" aria-label="Sample"></select>
+    <select id="geneSel" aria-label="Gene"></select>
+    <div class="chips" id="typeChips" role="group" aria-label="Variant type"></div>
+    <div class="chips" id="impChips" role="group" aria-label="Impact"></div>
+    <button class="btn" id="resetBtn" type="button">Reset</button>
+  </div>
+
   <div class="charts">
     <div class="card panel">
       <h2>Variants per sample</h2>
@@ -155,13 +192,41 @@ footer{margin-top:22px;color:var(--muted);font-size:11.5px;text-align:center}
     </div>
   </div>
 
-  <div class="card filters">
-    <input type="search" id="q" placeholder="Search gene, position, AA change, HGVS..." aria-label="Search">
-    <select id="sampleSel" aria-label="Sample"></select>
-    <select id="geneSel" aria-label="Gene"></select>
-    <div class="chips" id="typeChips" role="group" aria-label="Variant type"></div>
-    <div class="chips" id="impChips" role="group" aria-label="Impact"></div>
-    <button class="btn" id="resetBtn" type="button">Reset</button>
+  <div class="card panel" id="matrixPanel">
+    <div class="panelhead">
+      <div>
+        <h2>Variant matrix</h2>
+        <p class="hint" id="matrixHint"></p>
+      </div>
+      <div class="ctl">
+        <label for="zoomSel">Zoom</label>
+        <select id="zoomSel" aria-label="Zoom">
+          <option value="0">fit width</option>
+          <option value="6">medium</option>
+          <option value="11">show bases</option>
+        </select>
+        <label for="orderSel">Order samples</label>
+        <select id="orderSel" aria-label="Sample order">
+          <option value="similar">by shared profile</option>
+          <option value="count">by variant count</option>
+          <option value="name">by name</option>
+        </select>
+      </div>
+    </div>
+    <div id="matrixScroll"><canvas id="matrix"></canvas></div>
+    <div id="matrixTip" role="status" aria-live="polite"></div>
+    <div class="legend" id="matrixLegend"></div>
+    <p class="hint note" id="matrixNote"></p>
+  </div>
+
+  <div class="card panel" id="hapPanel">
+    <h2>Read-backed haplotypes</h2>
+    <p class="hint">
+      Allele combinations get_MNV observed on the same reads: codon-level MNVs and
+      locally phased complex indels. Recurrence is how many samples carry the same
+      combination. Long-range phasing is not inferred.
+    </p>
+    <div class="scrollY" style="max-height:300px"><div id="hapList"></div></div>
   </div>
 
   <div class="card tablewrap">
@@ -194,7 +259,7 @@ var D = DATA.dict, ROWS = DATA.rows, META = DATA.meta;
 // Row schema (kept in sync with the Rust writer).
 var C = {sample:0,chrom:1,gene:2,pos:3,ref:4,alt:5,aa:6,type:7,change:8,so:9,impact:10,
          grantham:11,shift:12,dbs:13,nmd:14,hgvsg:15,hgvsc:16,freq:17,depth:18,
-         refCodon:19,altCodon:20,evClass:21,evComp:22,reads:23};
+         refCodon:19,altCodon:20,evClass:21,evComp:22,reads:23,phasing:24};
 
 var TYPE_COLOR = {"SNP":"var(--s1)","MNV":"var(--s2)","SNP/MNV":"var(--s3)","INDEL":"var(--s4)"};
 var IMP_COLOR  = {"HIGH":"var(--critical)","MODERATE":"var(--serious)","LOW":"var(--warning)","MODIFIER":"var(--muted)"};
@@ -319,6 +384,242 @@ function drawCharts(){
   stackedBars(document.getElementById("soChart"), so.slice(0,14), ["v"], function(){return "var(--s1)"});
 }
 
+// ---------- variant matrix (MSA of variable sites) ----------
+// Cell states are deliberately only two: an ALT call, or "not called". The TSV
+// cannot distinguish reference from absent coverage, so a blank cell is never
+// claimed to be reference.
+var NT = ["A","C","G","T"];
+var MAX_SITES = 3000, LABEL_W = 96, CELL_H = 12, GROUP_H = 7;
+var mtx = {sites:[], samples:[], grid:null, cellW:0, order:"similar", zoom:0, dropped:0, groups:[]};
+
+function themeColor(name){
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#888";
+}
+
+function buildMatrix(){
+  var siteMeta = {}, siteKeys = [], sampleIdx = {}, sampleNames = [];
+  var recs = [], groupKeys = [];
+  for(var n=0;n<view.length;n++){
+    var r = ROWS[view[n]], s = sampleOf(r);
+    if(sampleIdx[s]===undefined){ sampleIdx[s]=sampleNames.length; sampleNames.push(s); }
+    var chrom = chromOf(r), isIndel = typeOf(r)==="INDEL";
+    var poss = String(txt(r,"pos")).split(","), alts = String(txt(r,"alt")).split(",");
+    var mine = [];
+    for(var i=0;i<poss.length;i++){
+      var p = parseInt(poss[i],10); if(!p) continue;
+      var k = chrom+"|"+p;
+      if(siteMeta[k]===undefined){ siteMeta[k] = {chrom:chrom,pos:p,gene:geneOf(r)}; siteKeys.push(k); }
+      var raw = String(alts[i]!==undefined?alts[i]:(alts[0]||"")).trim().toUpperCase();
+      var base = isIndel ? "I" : (NT.indexOf(raw)>=0 ? raw : "I");
+      recs.push([sampleIdx[s], k, base, view[n]]);
+      mine.push(k);
+    }
+    if(mine.length>1) groupKeys.push(mine);
+  }
+  siteKeys.sort(function(a,b){
+    var A=siteMeta[a], B=siteMeta[b];
+    return A.chrom<B.chrom ? -1 : A.chrom>B.chrom ? 1 : A.pos-B.pos;
+  });
+  mtx.dropped = Math.max(0, siteKeys.length - MAX_SITES);
+  if(mtx.dropped) siteKeys = siteKeys.slice(0, MAX_SITES);
+  var col = {};
+  siteKeys.forEach(function(k,i){ col[k]=i; });
+
+  mtx.sites = siteKeys.map(function(k){ return siteMeta[k]; });
+  mtx.samples = sampleNames;
+  var nS = sampleNames.length, nC = siteKeys.length;
+  var grid = new Uint8Array(nS*nC);          // 0 none, 1..4 ACGT, 5 indel
+  var owner = new Int32Array(nS*nC).fill(-1); // row index behind each cell
+  for(var j=0;j<recs.length;j++){
+    var c = col[recs[j][1]]; if(c===undefined) continue;
+    var at = recs[j][0]*nC + c;
+    var bi = NT.indexOf(recs[j][2]);
+    grid[at] = bi>=0 ? bi+1 : 5;
+    owner[at] = recs[j][3];
+  }
+  mtx.grid = grid; mtx.owner = owner;
+  mtx.groups = groupKeys.map(function(ks){
+    var cs = ks.map(function(k){ return col[k]; }).filter(function(c){ return c!==undefined; });
+    return cs.length>1 ? [Math.min.apply(null,cs), Math.max.apply(null,cs)] : null;
+  }).filter(Boolean);
+
+  // Sample ordering.
+  var idx = sampleNames.map(function(_,i){ return i; });
+  if(mtx.order==="name"){
+    idx.sort(function(a,b){ return sampleNames[a].localeCompare(sampleNames[b]); });
+  } else if(mtx.order==="count"){
+    var cnt = idx.map(function(i){ var t=0; for(var c=0;c<nC;c++) if(grid[i*nC+c]) t++; return t; });
+    idx.sort(function(a,b){ return cnt[b]-cnt[a] || sampleNames[a].localeCompare(sampleNames[b]); });
+  } else {
+    // Shared-profile ordering: identical presence patterns land next to each other.
+    var prof = idx.map(function(i){
+      var out = new Array(nC);
+      for(var c=0;c<nC;c++) out[c] = grid[i*nC+c] ? "1" : "0";
+      return out.join("");
+    });
+    idx.sort(function(a,b){ return prof[a]<prof[b] ? 1 : prof[a]>prof[b] ? -1 : sampleNames[a].localeCompare(sampleNames[b]); });
+  }
+  mtx.rowOrder = idx;
+}
+
+function drawMatrix(){
+  buildMatrix();
+  var cv = document.getElementById("matrix"), wrap = document.getElementById("matrixScroll");
+  var nS = mtx.samples.length, nC = mtx.sites.length;
+  var hint = document.getElementById("matrixHint"), note = document.getElementById("matrixNote");
+  if(!nS || !nC){
+    cv.width = 0; cv.height = 0;
+    hint.textContent = "No variable sites under the current filters.";
+    note.textContent = ""; document.getElementById("matrixLegend").innerHTML = "";
+    return;
+  }
+  hint.textContent = nS + " sample" + (nS===1?"":"s") + " by " + nC.toLocaleString() +
+                     " variable site" + (nC===1?"":"s") + ". A column is a site where at least one sample carries a call.";
+
+  var avail = Math.max(320, wrap.clientWidth - LABEL_W - 2);
+  // Zoom 0 fits the width; a fixed step scrolls horizontally instead, so the
+  // base letter (the secondary encoding colour must never stand alone) is always
+  // reachable however many sites are in view.
+  var cellW = mtx.zoom > 0 ? mtx.zoom : Math.max(2, Math.min(14, Math.floor(avail / nC)));
+  mtx.cellW = cellW;
+  var w = LABEL_W + nC*cellW, h = GROUP_H + nS*CELL_H;
+  var dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
+  cv.style.width = w+"px"; cv.style.height = h+"px";
+  var g = cv.getContext("2d");
+  g.setTransform(dpr,0,0,dpr,0,0);
+
+  var colors = ["", themeColor("--nt-A"), themeColor("--nt-C"), themeColor("--nt-G"),
+                themeColor("--nt-T"), themeColor("--nt-indel")];
+  var none = themeColor("--nt-none"), ink = themeColor("--text-2"), surface = themeColor("--page");
+  g.clearRect(0,0,w,h);
+  g.fillStyle = surface; g.fillRect(0,0,w,h);
+
+  // MNV / complex groups: a tick above the columns that were called together.
+  g.fillStyle = ink;
+  mtx.groups.forEach(function(gr){
+    var x = LABEL_W + gr[0]*cellW, wd = (gr[1]-gr[0]+1)*cellW;
+    g.globalAlpha = .55; g.fillRect(x, 1, Math.max(1,wd), 2); g.globalAlpha = 1;
+  });
+
+  var showLetter = cellW>=8 && CELL_H>=10;
+  if(showLetter){ g.font = "9px system-ui,-apple-system,sans-serif"; g.textAlign="center"; g.textBaseline="middle"; }
+  for(var vrow=0; vrow<nS; vrow++){
+    var si = mtx.rowOrder[vrow], y = GROUP_H + vrow*CELL_H;
+    g.fillStyle = ink; g.font = "10px system-ui,-apple-system,sans-serif";
+    g.textAlign = "left"; g.textBaseline = "middle";
+    var name = mtx.samples[si];
+    g.fillText(name.length>14 ? name.slice(0,13)+"…" : name, 4, y+CELL_H/2);
+    for(var c=0;c<nC;c++){
+      var v = mtx.grid[si*nC + c];
+      g.fillStyle = v ? colors[v] : none;
+      g.fillRect(LABEL_W + c*cellW, y, Math.max(1,cellW-0.5), CELL_H-1);
+      if(showLetter && v){
+        g.fillStyle = "#fff";
+        g.font = "9px system-ui,-apple-system,sans-serif"; g.textAlign="center"; g.textBaseline="middle";
+        g.fillText(v===5 ? "•" : NT[v-1], LABEL_W + c*cellW + cellW/2, y + CELL_H/2);
+      }
+    }
+  }
+
+  document.getElementById("matrixLegend").innerHTML =
+    NT.map(function(b){ return '<span><i class="sw" style="background:var(--nt-'+b+')"></i>'+b+'</span>'; }).join("") +
+    '<span><i class="sw" style="background:var(--nt-indel)"></i>indel</span>' +
+    '<span><i class="sw" style="background:var(--nt-none);border:1px solid var(--border)"></i>not called (reference or no coverage)</span>' +
+    '<span><i class="sw" style="background:var(--text-2);opacity:.55;height:3px"></i>called together on the same reads</span>';
+
+  var notes = [];
+  if(mtx.dropped) notes.push("Showing the first " + MAX_SITES.toLocaleString() + " sites; " +
+                            mtx.dropped.toLocaleString() + " further site(s) are not drawn. Filter to narrow the view.");
+  if(!showLetter) notes.push("Set Zoom to \u201cshow bases\u201d to read the base letter in each cell; hovering always names it.");
+  note.textContent = notes.join(" ");
+}
+
+var mcanvas = document.getElementById("matrix");
+mcanvas.addEventListener("mousemove", function(e){
+  var rect = this.getBoundingClientRect();
+  var x = e.clientX-rect.left, y = e.clientY-rect.top;
+  var tip = document.getElementById("matrixTip");
+  var c = Math.floor((x-LABEL_W)/mtx.cellW), vrow = Math.floor((y-GROUP_H)/CELL_H);
+  if(x<LABEL_W || c<0 || c>=mtx.sites.length || vrow<0 || vrow>=mtx.samples.length){ tip.textContent=""; return; }
+  var si = mtx.rowOrder[vrow], nC = mtx.sites.length;
+  var v = mtx.grid[si*nC+c], site = mtx.sites[c];
+  var what = v ? (v===5 ? "indel" : "ALT "+NT[v-1]) : "not called (reference or no coverage)";
+  // Genomic coordinates stay unseparated: a locale thousands separator (1.234)
+  // reads as a decimal and is ambiguous for a position.
+  tip.textContent = mtx.samples[si] + "  ·  " + site.chrom + ":" + site.pos +
+                    "  ·  " + site.gene + "  ·  " + what;
+});
+mcanvas.addEventListener("mouseleave", function(){ document.getElementById("matrixTip").textContent=""; });
+mcanvas.addEventListener("click", function(e){
+  var rect = this.getBoundingClientRect();
+  var c = Math.floor((e.clientX-rect.left-LABEL_W)/mtx.cellW);
+  var vrow = Math.floor((e.clientY-rect.top-GROUP_H)/CELL_H);
+  if(c<0||c>=mtx.sites.length||vrow<0||vrow>=mtx.samples.length) return;
+  var si = mtx.rowOrder[vrow], ri = mtx.owner[si*mtx.sites.length+c];
+  if(ri>=0) openDrawer(ri);
+});
+document.getElementById("orderSel").addEventListener("change", function(){
+  mtx.order = this.value; drawMatrix();
+});
+document.getElementById("zoomSel").addEventListener("change", function(){
+  mtx.zoom = parseInt(this.value,10) || 0; drawMatrix();
+});
+
+// ---------- read-backed haplotypes ----------
+function drawHaplotypes(){
+  var groups = {};
+  view.forEach(function(vi){
+    var r = ROWS[vi], t = typeOf(r), ec = txt(r,"evClass");
+    var multi = String(txt(r,"pos")).indexOf(",") >= 0;
+    var codonMnv = (t==="MNV" || t==="SNP/MNV") && multi;
+    var complex = ec === "complex_indel";
+    if(!codonMnv && !complex) return;
+    var key = geneOf(r)+"|"+txt(r,"pos")+"|"+txt(r,"alt");
+    if(!groups[key]){
+      groups[key] = {gene:geneOf(r), pos:txt(r,"pos"), aa:txt(r,"aa"), chrom:chromOf(r),
+                     comp:txt(r,"evComp"), kind:complex?"complex indel":"codon MNV",
+                     samples:{}, ph:[], row:vi};
+    }
+    groups[key].samples[sampleOf(r)] = 1;
+    var p = r[C.phasing];
+    if(p!==null && p!==undefined) groups[key].ph.push(p);
+  });
+  var list = Object.keys(groups).map(function(k){
+    var g = groups[k];
+    g.n = Object.keys(g.samples).length;
+    g.phMean = g.ph.length ? g.ph.reduce(function(a,b){return a+b;},0)/g.ph.length : null;
+    return g;
+  });
+  list.sort(function(a,b){ return b.n-a.n || a.gene.localeCompare(b.gene); });
+
+  var el = document.getElementById("hapList");
+  if(!list.length){
+    el.innerHTML = '<p class="hint">No codon-level MNV or phased complex-indel haplotype under the current filters.</p>';
+    return;
+  }
+  var maxN = list[0].n;
+  el.innerHTML = list.slice(0,60).map(function(g){
+    var pct = Math.round((g.n/maxN)*100);
+    var ph = g.phMean===null ? '<span title="Needs --bam">phasing n/a</span>'
+           : 'phasing ' + g.phMean.toFixed(2) +
+             '<span class="bartrack"><i style="width:'+Math.round(g.phMean*100)+'%"></i></span>';
+    return '<div class="hap" data-r="'+g.row+'">' +
+      '<span class="rec">'+g.n+' sample'+(g.n===1?"":"s")+
+        '<span class="bartrack" style="width:34px"><i style="width:'+pct+'%"></i></span></span>' +
+      '<span class="who"><b>'+esc(g.gene)+'</b> '+esc(g.aa)+' <span style="color:var(--muted)">('+esc(g.kind)+')</span>' +
+        '<span class="comp">'+esc(g.chrom)+':'+esc(g.pos)+'  ·  '+esc(g.comp)+'</span></span>' +
+      '<span class="ph">'+ph+'</span></div>';
+  }).join("");
+  if(list.length>60){
+    el.innerHTML += '<p class="hint note">Showing the 60 most recurrent of '+list.length.toLocaleString()+' haplotypes.</p>';
+  }
+}
+document.getElementById("hapList").addEventListener("click", function(e){
+  var h = e.target.closest(".hap"); if(!h) return;
+  openDrawer(parseInt(h.dataset.r,10));
+});
+
 // ---------- KPIs ----------
 function drawKpis(){
   var genes = {}, samples = {}, high = 0, mnv = 0;
@@ -397,8 +698,12 @@ function render(){
   document.getElementById("count").textContent =
     view.length.toLocaleString()+" variant"+(view.length===1?"":"s")+" shown";
   document.getElementById("empty").hidden = view.length!==0;
-  buildHead(); drawKpis(); drawCharts(); paint();
+  buildHead(); drawKpis(); drawCharts(); drawMatrix(); drawHaplotypes(); paint();
 }
+var rsz;
+window.addEventListener("resize", function(){
+  clearTimeout(rsz); rsz = setTimeout(drawMatrix, 150);
+});
 viewport.addEventListener("scroll", paint, {passive:true});
 
 // ---------- drawer ----------
@@ -520,6 +825,8 @@ document.getElementById("themeBtn").addEventListener("click", function(){
   var dark = cur ? cur==="dark"
                  : window.matchMedia("(prefers-color-scheme: dark)").matches;
   document.documentElement.setAttribute("data-theme", dark?"light":"dark");
+  // The canvas holds resolved colours, so it has to be repainted on a theme change.
+  drawMatrix();
 });
 
 // ---------- boot ----------
