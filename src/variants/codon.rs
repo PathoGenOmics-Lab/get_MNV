@@ -18,7 +18,7 @@ mod transcript_path;
 #[cfg(test)]
 mod tests;
 
-pub use config::IndelAnnotationConfig;
+pub use config::{FrameshiftPhasing, IndelAnnotationConfig};
 pub use gene_path::process_codon;
 pub use phased::build_phased_indel_haplotype_variants;
 
@@ -46,6 +46,7 @@ fn get_mnv_variants_for_transcript(
     chrom: &str,
     genetic_code: crate::genetic_code::GeneticCode,
     config: &IndelAnnotationConfig,
+    phasing: &FrameshiftPhasing,
 ) -> Vec<VariantInfo> {
     let Some(ref_cds) = transcript_sequence_for_gene(gene, reference) else {
         return Vec::new();
@@ -120,6 +121,8 @@ fn get_mnv_variants_for_transcript(
                     .any(|offset| offset >= codon_start && offset < codon_end)
             });
 
+            let codon_positions: Vec<usize> =
+                codon_snps.iter().map(|snp| snp.snp.position).collect();
             let mut upstream_shift: isize = 0;
             let mut has_symbolic_sv = false;
             for indel in &indels {
@@ -130,6 +133,11 @@ fn get_mnv_variants_for_transcript(
                     // Only let sufficiently frequent upstream indels shift the frame
                     // of downstream codons (see IndelAnnotationConfig).
                     if !indel_passes_frameshift_gate(indel, config) {
+                        continue;
+                    }
+                    // Suppress propagation when the BAM shows this indel is in trans
+                    // with the codon's SNV: the codon's molecule does not carry it.
+                    if phasing.indel_in_trans_with(indel.position, &codon_positions) {
                         continue;
                     }
                     if indel.alt_allele.starts_with('<') {
@@ -237,12 +245,15 @@ pub fn get_mnv_variants_for_gene(
         chrom,
         genetic_code,
         &IndelAnnotationConfig::default(),
+        &FrameshiftPhasing::default(),
     )
 }
 
 /// Like [`get_mnv_variants_for_gene`] but with explicit indel-annotation
 /// configuration (e.g. the upstream-indel frequency gate for frameshift
-/// propagation). The no-config wrapper above preserves historical behaviour.
+/// propagation) and BAM-derived phasing evidence that suppresses propagation
+/// from indels shown to be in trans with a codon. The no-config wrapper above
+/// preserves historical behaviour.
 pub fn get_mnv_variants_for_gene_with_config(
     gene: &Gene,
     snp_list: &[crate::io::VcfPosition],
@@ -250,6 +261,7 @@ pub fn get_mnv_variants_for_gene_with_config(
     chrom: &str,
     genetic_code: crate::genetic_code::GeneticCode,
     config: &IndelAnnotationConfig,
+    phasing: &FrameshiftPhasing,
 ) -> Vec<VariantInfo> {
     if has_transcript_cds_model(gene) {
         return get_mnv_variants_for_transcript(
@@ -259,6 +271,7 @@ pub fn get_mnv_variants_for_gene_with_config(
             chrom,
             genetic_code,
             config,
+            phasing,
         );
     }
 
@@ -336,6 +349,7 @@ pub fn get_mnv_variants_for_gene_with_config(
                 .iter()
                 .any(|indel| indel.overlaps_interval(codon_start, codon_end));
 
+            let codon_positions: Vec<usize> = codon_snps.iter().map(|s| s.position).collect();
             let mut upstream_shift: isize = 0;
             let mut has_symbolic_sv = false;
 
@@ -349,6 +363,11 @@ pub fn get_mnv_variants_for_gene_with_config(
                     // Only sufficiently frequent upstream indels shift the frame of
                     // downstream codons (see IndelAnnotationConfig).
                     if !indel_passes_frameshift_gate(indel, config) {
+                        continue;
+                    }
+                    // Suppress propagation when the BAM shows this indel is in trans
+                    // with the codon's SNV: the codon's molecule does not carry it.
+                    if phasing.indel_in_trans_with(indel.position, &codon_positions) {
                         continue;
                     }
                     if indel.alt_allele.starts_with('<') {

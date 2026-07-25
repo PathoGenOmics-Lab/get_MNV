@@ -674,12 +674,34 @@ fn test_frameshift_frequency_gate_skips_low_freq_upstream_indel() {
         &crate::variants::IndelAnnotationConfig {
             frameshift_min_freq: 0.5,
         },
+        &crate::variants::FrameshiftPhasing::default(),
     );
     let gated_snp = find_snp(&gated_variants);
     assert!(
         !gated_snp.aa_changes[0].contains("fs"),
         "with gate the downstream SNP should not be frameshifted, got {:?}",
         gated_snp.aa_changes
+    );
+
+    // Phasing evidence that the indel (pos 3) and the downstream SNV (pos 11) are
+    // in trans suppresses propagation even with the default (0.0) frequency gate.
+    let trans = crate::variants::FrameshiftPhasing::from_trans_pairs(
+        std::collections::HashSet::from([(3usize, 11usize)]),
+    );
+    let phased_variants = crate::variants::get_mnv_variants_for_gene_with_config(
+        &gene,
+        &variants_in,
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+        &crate::variants::IndelAnnotationConfig::default(),
+        &trans,
+    );
+    let phased_snp = find_snp(&phased_variants);
+    assert!(
+        !phased_snp.aa_changes[0].contains("fs"),
+        "an indel in trans with the downstream SNV should not frameshift it, got {:?}",
+        phased_snp.aa_changes
     );
 }
 

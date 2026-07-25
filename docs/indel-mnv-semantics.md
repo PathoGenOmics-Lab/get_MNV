@@ -99,8 +99,14 @@ behaviour, so existing pipelines are unaffected unless a flag is set.
   propagates from every indel regardless of frequency. For intra-host / mixed
   populations, raising this avoids relabelling a high-frequency downstream
   substitution as frameshifted because of a low-frequency upstream indel that is
-  almost certainly on a different molecule. Frameshift propagation is positional,
-  not read-phased, so this is a coarse but useful guard.
+  almost certainly on a different molecule.
+  When a BAM is provided, propagation is additionally **read-phased**: for each
+  upstream indel and a downstream SNV within a read's reach, reads spanning both
+  loci are inspected, and the frame shift is *not* propagated to that codon when
+  the reads carrying the SNV overwhelmingly lack the indel (the two are in trans,
+  on different molecules). This is a conservative, suppression-only refinement
+  (it never adds propagation the frequency gate would not), and only applies where
+  reads span both loci; beyond a read's reach the frequency gate still governs.
 - `--indel-anchor-depth` (default off): count indel locus depth (the `EDP`/`EFREQ`
   denominator) from reads that observe the anchor base, instead of only reads
   that fully span the REF allele. Reduces depth under-counting and `EFREQ` bias

@@ -116,9 +116,15 @@ pipelines existentes no se ven afectados salvo que se establezca un flag.
   indel sin importar su frecuencia. En poblaciones intrahospedador o mixtas,
   elevar este umbral evita reetiquetar como frameshifted una sustitución de alta
   frecuencia aguas abajo a causa de un indel de baja frecuencia aguas arriba que
-  casi con seguridad reside en otra molécula. La propagación del frameshift es
-  posicional, no por fase de lecturas, así que constituye una protección tosca
-  pero útil.
+  casi con seguridad reside en otra molécula.
+  Cuando se proporciona un BAM, la propagación además se **fasea por lecturas**:
+  para cada indel aguas arriba y un SNV aguas abajo dentro del alcance de un read,
+  se inspeccionan las lecturas que abarcan ambos loci, y el corrimiento de marco
+  *no* se propaga a ese codón cuando las lecturas que llevan el SNV apenas llevan
+  el indel (están en trans, en moléculas distintas). Es un refinamiento
+  conservador que solo suprime (nunca añade propagación que el gate de frecuencia
+  no haría), y solo aplica donde hay lecturas que abarcan ambos loci; más allá del
+  alcance de un read sigue gobernando el gate de frecuencia.
 - `--indel-anchor-depth` (desactivado por defecto): cuenta la profundidad del
   locus del indel (el denominador de `EDP`/`EFREQ`) a partir de las lecturas que
   observan la base de anclaje, en lugar de solo las que abarcan por completo el

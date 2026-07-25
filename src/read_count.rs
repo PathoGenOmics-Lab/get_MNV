@@ -13,9 +13,11 @@ use noodles::sam::Header;
 mod cache;
 mod indel;
 mod observation;
+mod phasing;
 
 pub use cache::{build_region_observation_cache, count_reads_from_cache, RegionObservationCache};
 pub use indel::count_indel_reads;
+pub use phasing::indel_snv_in_trans;
 
 #[derive(Debug, Clone)]
 pub struct ReadCountSummary {

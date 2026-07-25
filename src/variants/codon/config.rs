@@ -1,6 +1,40 @@
 //! Indel-aware annotation configuration.
 
 use crate::io::VcfPosition;
+use std::collections::HashSet;
+
+/// BAM-derived phasing evidence for frameshift propagation: the set of
+/// `(indel_position, snv_position)` pairs that reads show are in **trans** (on
+/// different molecules). An upstream indel's frame shift is not propagated to a
+/// downstream codon when the indel is in trans with that codon's SNV, since the
+/// codon's molecule does not carry the indel. Empty (the default, and whenever
+/// no BAM is available) means no evidence, so every pair keeps the
+/// frequency-based behaviour. This is a suppression-only signal that never adds
+/// propagation the frequency gate would not.
+#[derive(Debug, Clone, Default)]
+pub struct FrameshiftPhasing {
+    trans_pairs: HashSet<(usize, usize)>,
+}
+
+impl FrameshiftPhasing {
+    /// Build from the set of `(indel_position, snv_position)` trans pairs.
+    pub fn from_trans_pairs(trans_pairs: HashSet<(usize, usize)>) -> Self {
+        Self { trans_pairs }
+    }
+
+    /// Whether the indel at `indel_position` is confirmed in trans with any of a
+    /// codon's SNV positions, so its frame shift must not propagate to that codon.
+    pub(super) fn indel_in_trans_with(
+        &self,
+        indel_position: usize,
+        snv_positions: &[usize],
+    ) -> bool {
+        !self.trans_pairs.is_empty()
+            && snv_positions
+                .iter()
+                .any(|snv| self.trans_pairs.contains(&(indel_position, *snv)))
+    }
+}
 
 /// Knobs for indel-aware annotation that can change scientific output. The
 /// `Default` impl reproduces the historical behaviour exactly, so callers that

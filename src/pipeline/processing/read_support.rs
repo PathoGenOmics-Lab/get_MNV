@@ -4,8 +4,87 @@
 use super::{PhasedIndelInputs, RegionCacheKey, WorkerState};
 use crate::cli::Args;
 use crate::error::{AppError, AppResult};
+use crate::io::VcfPosition;
 use crate::read_count::{self, ReadCountSummary};
 use crate::variants::{self, Gene, VariantInfo, VariantType};
+use std::collections::HashSet;
+
+/// Maximum genomic distance between an indel and a SNV for read-based phasing to
+/// be attempted. Beyond a single read's reach no record spans both loci, so the
+/// query would be wasted; those pairs stay frequency-gated.
+const MAX_PHASING_SPAN: usize = 600;
+
+/// BAM-derived phasing for frameshift propagation: the set of `(indel, SNV)`
+/// pairs the reads show are in trans. Computed before annotation so it can be
+/// threaded into the frameshift gate. Empty without a BAM (or in dry-run), which
+/// preserves the pure frequency-gated behaviour.
+pub(super) fn compute_frameshift_phasing(
+    state: &mut WorkerState,
+    args: &Args,
+    contig: &str,
+    gene: &Gene,
+    snp_list: &[VcfPosition],
+) -> AppResult<variants::FrameshiftPhasing> {
+    if args.dry_run || state.bam.is_none() {
+        return Ok(variants::FrameshiftPhasing::default());
+    }
+
+    let mut indels: Vec<&VcfPosition> = Vec::new();
+    let mut snvs: Vec<(usize, char)> = Vec::new();
+    for variant in snp_list
+        .iter()
+        .filter(|variant| variant.overlaps_interval(gene.start, gene.end))
+    {
+        if variant.event().class.has_indel_component() {
+            indels.push(variant);
+        }
+        for component in variant.substitution_components() {
+            if let Some(alt) = component.alt_allele.chars().next() {
+                snvs.push((component.position, alt));
+            }
+        }
+    }
+    if indels.is_empty() || snvs.is_empty() {
+        return Ok(variants::FrameshiftPhasing::default());
+    }
+    snvs.sort_unstable();
+    snvs.dedup();
+
+    let bam = state
+        .bam
+        .as_mut()
+        .ok_or_else(|| AppError::validation("BAM reader unavailable in worker thread"))?;
+    let header = state
+        .bam_header
+        .as_ref()
+        .ok_or_else(|| AppError::validation("BAM header unavailable in worker thread"))?;
+
+    let mut trans_pairs: HashSet<(usize, usize)> = HashSet::new();
+    for indel in &indels {
+        for &(snv_position, snv_alt) in &snvs {
+            let span = indel.position.abs_diff(snv_position);
+            if span > MAX_PHASING_SPAN {
+                continue;
+            }
+            if read_count::indel_snv_in_trans(
+                bam,
+                header,
+                contig,
+                indel.position,
+                &indel.ref_allele,
+                &indel.alt_allele,
+                snv_position,
+                snv_alt,
+                args.min_quality,
+                args.min_mapq,
+            )? {
+                trans_pairs.insert((indel.position, snv_position));
+            }
+        }
+    }
+
+    Ok(variants::FrameshiftPhasing::from_trans_pairs(trans_pairs))
+}
 
 pub(super) fn apply_read_summary(variant: &mut VariantInfo, summary: ReadCountSummary) {
     variant.snp_reads = Some(summary.snp_counts);

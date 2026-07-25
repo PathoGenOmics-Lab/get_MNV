@@ -25,7 +25,8 @@ mod read_support;
 
 pub(crate) use inputs::{parse_inputs, resolve_variant_input_format};
 use read_support::{
-    append_supported_phased_indel_haplotypes, apply_read_summary, count_gene_variant_reads,
+    append_supported_phased_indel_haplotypes, apply_read_summary, compute_frameshift_phasing,
+    count_gene_variant_reads,
 };
 
 #[derive(Debug)]
@@ -97,6 +98,7 @@ fn annotate_variants_for_gene(
     contig: &str,
     genetic_code: crate::genetic_code::GeneticCode,
     indel_config: &variants::IndelAnnotationConfig,
+    phasing: &variants::FrameshiftPhasing,
 ) -> Vec<VariantInfo> {
     variants::get_mnv_variants_for_gene_with_config(
         gene,
@@ -105,6 +107,7 @@ fn annotate_variants_for_gene(
         contig,
         genetic_code,
         indel_config,
+        phasing,
     )
 }
 
@@ -303,6 +306,9 @@ pub(crate) fn process_contig(
                 let indel_config = variants::IndelAnnotationConfig {
                     frameshift_min_freq: args.frameshift_min_freq,
                 };
+                // BAM-derived cis/trans phasing so an upstream indel does not
+                // frameshift a downstream codon it is not on the same molecule as.
+                let phasing = compute_frameshift_phasing(state, args, contig, gene, snp_list)?;
                 let mut variants = annotate_variants_for_gene(
                     gene,
                     snp_list,
@@ -310,6 +316,7 @@ pub(crate) fn process_contig(
                     contig,
                     genetic_code,
                     &indel_config,
+                    &phasing,
                 );
                 if variants.is_empty() {
                     return Ok(WorkerResult::default());
