@@ -272,9 +272,14 @@ The report contains:
   ranked by how many samples carry each one and shown with their phasing support
   where a BAM was used. Long-range phasing between distant sites is not inferred
   and is never displayed.
-- **A sortable, searchable table** of every variant, virtualised so tens of
-  thousands of rows stay responsive. Filter by sample, gene, variant type and
-  impact, or search across gene, position, amino-acid change and HGVS.
+- **A sortable, filterable table** of every variant, virtualised so tens of
+  thousands of rows stay responsive. Every column carries its own filter: a
+  checkbox list for sample, contig, gene, variant type, consequence and impact
+  (several values at once, with a search box when the list is long), a contains
+  match for position, base change and amino-acid change, and a min/max range for
+  Grantham and frequency. Column filters combine with each other and with the
+  free-text search box, and they drive the whole page: the headline counts, the
+  charts, the matrix and the haplotype panel all follow the same selection.
 - **A detail panel** for the selected variant with its location, consequence,
   HGVS `g.`/`c.`/`p.` descriptors, Grantham distance, DBS class, NMD prediction,
   codons, event components and read support.

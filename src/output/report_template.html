@@ -119,6 +119,26 @@ h1{font-size:19px;margin:0 0 4px;letter-spacing:-.01em}
 }
 .thead div:hover{color:var(--text)}
 .thead div .ind{color:var(--muted);font-weight:400}
+.thead div{position:relative}
+.fbtn{
+  border:0;background:none;color:var(--muted);cursor:pointer;font:inherit;font-size:11px;
+  padding:0 2px;margin-left:3px;border-radius:4px;line-height:1;
+}
+.fbtn:hover{color:var(--text)}
+.fbtn.on{color:var(--s1)}
+#pop{
+  position:absolute;z-index:40;background:var(--surface);border:1px solid var(--border);
+  border-radius:9px;box-shadow:0 8px 26px rgba(0,0,0,.16);padding:9px;min-width:200px;
+  max-height:320px;overflow:auto;font-size:12px;
+}
+#pop .ph{font-weight:600;margin:0 0 6px;color:var(--text-2);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+#pop label{display:flex;gap:6px;align-items:center;padding:2px 0;cursor:pointer}
+#pop input[type=text],#pop input[type=number]{
+  background:var(--page);color:var(--text);border:1px solid var(--border);
+  border-radius:6px;padding:4px 7px;font:inherit;font-size:12px;width:100%;
+}
+#pop .row2{display:flex;gap:6px;align-items:center}
+#pop .acts{display:flex;gap:6px;justify-content:space-between;margin-top:8px;padding-top:7px;border-top:1px solid var(--border)}
 #viewport{height:520px;overflow:auto;position:relative}
 #spacer{position:relative;width:100%}
 .row{
@@ -175,11 +195,8 @@ footer{margin-top:22px;color:var(--muted);font-size:11.5px;text-align:center}
 
   <div class="card filters">
     <input type="search" id="q" placeholder="Search gene, position, AA change, HGVS..." aria-label="Search">
-    <select id="sampleSel" aria-label="Sample"></select>
-    <select id="geneSel" aria-label="Gene"></select>
-    <div class="chips" id="typeChips" role="group" aria-label="Variant type"></div>
-    <div class="chips" id="impChips" role="group" aria-label="Impact"></div>
-    <button class="btn" id="resetBtn" type="button">Reset</button>
+    <span id="activeFilters" class="hint" style="margin:0"></span>
+    <button class="btn" id="resetBtn" type="button">Reset all</button>
   </div>
 
   <div class="charts">
@@ -251,6 +268,8 @@ footer{margin-top:22px;color:var(--muted);font-size:11.5px;text-align:center}
   <footer id="foot"></footer>
 </div>
 
+<div id="pop" hidden role="dialog" aria-label="Column filter"></div>
+
 <aside id="drawer" aria-hidden="true" aria-label="Variant detail">
   <div class="dhead">
     <h3 id="dTitle">Variant</h3>
@@ -293,14 +312,55 @@ function impOf(r){ return dictVal(r,"impact",D.impacts); }
 function chromOf(r){ return dictVal(r,"chrom",D.chroms); }
 
 // ---------- state ----------
-var state = {q:"",sample:"",gene:"",types:{},imps:{},sortCol:null,sortDir:1,sel:-1};
+var state = {q:"",col:{},sortCol:null,sortDir:1,sel:-1};
 var view = [];
 
+// What each filterable column is: a checkbox list of values, a free-text match,
+// or a numeric range.
+var FKIND = {sample:"cat", chrom:"cat", gene:"cat", type:"cat", so:"cat", impact:"cat",
+             pos:"text", change:"text", aa:"text", grantham:"num", freq:"num"};
+function fValues(key){
+  if(key==="sample") return D.samples;
+  if(key==="chrom")  return D.chroms;
+  if(key==="gene")   return D.genes.slice().sort();
+  if(key==="type")   return D.types;
+  if(key==="so")     return D.so.slice().sort();
+  if(key==="impact") return IMP_ORDER.filter(function(i){ return D.impacts.indexOf(i)>=0; });
+  return [];
+}
+function colOf(key){
+  for(var i=0;i<COLS.length;i++) if(COLS[i].k===key) return COLS[i];
+  return null;
+}
+function fNumber(r, key){
+  var v = r[C[key]];
+  return (v===null||v===undefined) ? null : v;
+}
+function colFilterActive(key){
+  var f = state.col[key];
+  if(!f) return false;
+  if(FKIND[key]==="cat")  return !!(f.set && Object.keys(f.set).length);
+  if(FKIND[key]==="text") return !!f.q;
+  return f.min!==null && f.min!==undefined || f.max!==null && f.max!==undefined;
+}
+
 function passes(r){
-  if(state.sample && sampleOf(r)!==state.sample) return false;
-  if(state.gene && geneOf(r)!==state.gene) return false;
-  var tk = Object.keys(state.types); if(tk.length && !state.types[typeOf(r)]) return false;
-  var ik = Object.keys(state.imps);  if(ik.length && !state.imps[impOf(r)]) return false;
+  for(var key in state.col){
+    if(!colFilterActive(key)) continue;
+    var f = state.col[key], kind = FKIND[key];
+    if(kind==="cat"){
+      var col = colOf(key);
+      if(!f.set[col ? col.get(r) : ""]) return false;
+    } else if(kind==="text"){
+      var c2 = colOf(key);
+      if(String(c2 ? c2.get(r) : "").toLowerCase().indexOf(f.q) < 0) return false;
+    } else {
+      var n = fNumber(r, key);
+      if(n===null) return false;
+      if(f.min!==null && f.min!==undefined && n < f.min) return false;
+      if(f.max!==null && f.max!==undefined && n > f.max) return false;
+    }
+  }
   if(state.q){
     var q = state.q.toLowerCase();
     var hay = [geneOf(r),chromOf(r),txt(r,"pos"),txt(r,"aa"),txt(r,"hgvsg"),txt(r,"hgvsc"),
@@ -1005,9 +1065,17 @@ function buildHead(){
   COLS.forEach(function(c,i){
     var ind = "";
     if(state.sortCol===c) ind = ' <span class="ind">'+(state.sortDir>0?"↑":"↓")+'</span>';
-    h += '<div style="flex:0 0 '+c.w+'px" data-i="'+i+'" role="button" tabindex="0" title="Sort by '+esc(c.t)+'">'+esc(c.t)+ind+'</div>';
+    var f = FKIND[c.k]
+      ? '<button class="fbtn'+(colFilterActive(c.k)?" on":"")+'" type="button" data-f="'+c.k+'" ' +
+        'aria-label="Filter by '+esc(c.t)+'" title="Filter by '+esc(c.t)+'">' +
+        (colFilterActive(c.k) ? "\u25BE\u25CF" : "\u25BE") + '</button>'
+      : "";
+    h += '<div style="flex:0 0 '+c.w+'px" data-i="'+i+'" role="button" tabindex="0" title="Sort by '+esc(c.t)+'">'+esc(c.t)+ind+f+'</div>';
   });
   document.getElementById("thead").innerHTML = h;
+  var active = Object.keys(state.col).filter(colFilterActive);
+  document.getElementById("activeFilters").textContent =
+    active.length ? active.length + " column filter" + (active.length===1?"":"s") + " active" : "";
 }
 
 function cellHtml(r,c){
@@ -1104,48 +1172,104 @@ document.getElementById("dClose").addEventListener("click", closeDrawer);
 document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeDrawer(); });
 
 // ---------- filters ----------
-function fillSelect(el, items, allLabel){
-  var h = '<option value="">'+allLabel+'</option>';
-  items.forEach(function(v){ h += '<option value="'+esc(v)+'">'+esc(v)+'</option>'; });
-  el.innerHTML = h;
+var pop = document.getElementById("pop"), popKey = null;
+
+function closePop(){ pop.hidden = true; popKey = null; }
+function popHtml(key){
+  var kind = FKIND[key], f = state.col[key] || {}, col = colOf(key);
+  var h = '<p class="ph">'+esc(col ? col.t : key)+'</p>';
+  if(kind === "cat"){
+    var vals = fValues(key), sel = f.set || {};
+    if(vals.length > 12) h += '<input type="text" id="popSearch" placeholder="Filter values...">';
+    h += '<div id="popList" style="margin-top:6px">';
+    vals.forEach(function(v){
+      h += '<label data-v="'+esc(v)+'"><input type="checkbox" value="'+esc(v)+'"' +
+           (sel[v] ? " checked" : "") + '>'+esc(v)+'</label>';
+    });
+    h += '</div>';
+  } else if(kind === "text"){
+    h += '<input type="text" id="popText" placeholder="contains..." value="'+esc(f.q || "")+'">';
+  } else {
+    h += '<div class="row2"><input type="number" id="popMin" placeholder="min" value="' +
+         (f.min===null||f.min===undefined?"":f.min) + '">' +
+         '<span>to</span><input type="number" id="popMax" placeholder="max" value="' +
+         (f.max===null||f.max===undefined?"":f.max) + '"></div>';
+  }
+  h += '<div class="acts"><button class="btn sm" type="button" id="popClear">Clear</button>' +
+       '<button class="btn sm" type="button" id="popApply">Apply</button></div>';
+  return h;
 }
-function buildChips(el, items, store, colorOf){
-  el.innerHTML = items.map(function(v){
-    var c = colorOf ? '<i class="sw" style="background:'+colorOf(v)+'"></i>' : "";
-    return '<button class="chip" type="button" aria-pressed="false" data-v="'+esc(v)+'">'+c+esc(v)+'</button>';
-  }).join("");
-  el.addEventListener("click", function(e){
-    var b = e.target.closest(".chip"); if(!b) return;
-    var v = b.dataset.v;
-    if(store[v]){ delete store[v]; b.setAttribute("aria-pressed","false"); }
-    else { store[v]=1; b.setAttribute("aria-pressed","true"); }
-    recompute();
-  });
+function openPop(key, anchor){
+  popKey = key;
+  pop.innerHTML = popHtml(key);
+  pop.hidden = false;
+  var r = anchor.getBoundingClientRect();
+  pop.style.left = Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - pop.offsetWidth - 12) + "px";
+  pop.style.top  = (window.scrollY + r.bottom + 4) + "px";
+  var srch = document.getElementById("popSearch");
+  if(srch){
+    srch.addEventListener("input", function(){
+      var q = this.value.toLowerCase();
+      Array.prototype.forEach.call(document.querySelectorAll("#popList label"), function(l){
+        l.style.display = l.dataset.v.toLowerCase().indexOf(q) >= 0 ? "" : "none";
+      });
+    });
+    srch.focus();
+  }
+  var txt = document.getElementById("popText"); if(txt) txt.focus();
 }
+function applyPop(){
+  if(!popKey) return;
+  var kind = FKIND[popKey], f = {};
+  if(kind === "cat"){
+    var set = {};
+    Array.prototype.forEach.call(pop.querySelectorAll('input[type=checkbox]'), function(cb){
+      if(cb.checked) set[cb.value] = 1;
+    });
+    f.set = set;
+  } else if(kind === "text"){
+    f.q = (document.getElementById("popText").value || "").trim().toLowerCase();
+  } else {
+    var mn = document.getElementById("popMin").value, mx = document.getElementById("popMax").value;
+    f.min = mn === "" ? null : parseFloat(mn);
+    f.max = mx === "" ? null : parseFloat(mx);
+  }
+  state.col[popKey] = f;
+  closePop(); recompute();
+}
+pop.addEventListener("click", function(e){
+  if(e.target.id === "popApply") applyPop();
+  else if(e.target.id === "popClear"){ delete state.col[popKey]; closePop(); recompute(); }
+});
+pop.addEventListener("keydown", function(e){ if(e.key === "Enter") applyPop(); });
+document.addEventListener("mousedown", function(e){
+  if(pop.hidden) return;
+  // The target is not always an Element (document, text nodes), so guard the
+  // Element-only helpers rather than assuming them.
+  var t = e.target;
+  var inside = t && t.nodeType === 1 && (pop.contains(t) || t.closest(".fbtn"));
+  if(!inside) closePop();
+});
+document.addEventListener("keydown", function(e){ if(e.key === "Escape") closePop(); });
 
 var q = document.getElementById("q"), tmr;
 q.addEventListener("input", function(){
   clearTimeout(tmr);
   tmr = setTimeout(function(){ state.q = q.value.trim(); recompute(); }, 130);
 });
-var sampleSel = document.getElementById("sampleSel"), geneSel = document.getElementById("geneSel");
-fillSelect(sampleSel, D.samples, "All samples");
-fillSelect(geneSel, D.genes.slice().sort(), "All genes");
-sampleSel.addEventListener("change", function(){ state.sample = this.value; recompute(); });
-geneSel.addEventListener("change", function(){ state.gene = this.value; recompute(); });
-buildChips(document.getElementById("typeChips"), D.types, state.types, function(v){return TYPE_COLOR[v]||"var(--s1)"});
-buildChips(document.getElementById("impChips"),
-           IMP_ORDER.filter(function(i){return D.impacts.indexOf(i)>=0}), state.imps,
-           function(v){return IMP_COLOR[v]||"var(--muted)"});
 
 document.getElementById("resetBtn").addEventListener("click", function(){
-  state.q=""; state.sample=""; state.gene=""; state.types={}; state.imps={}; state.sortCol=null; state.sortDir=1;
-  q.value=""; sampleSel.value=""; geneSel.value="";
-  Array.prototype.forEach.call(document.querySelectorAll(".chip"), function(c){ c.setAttribute("aria-pressed","false"); });
-  recompute();
+  state.q = ""; state.col = {}; state.sortCol = null; state.sortDir = 1;
+  q.value = ""; closePop(); recompute();
 });
 
 document.getElementById("thead").addEventListener("click", function(e){
+  var fb = e.target.closest(".fbtn");
+  if(fb){
+    e.stopPropagation();
+    if(popKey === fb.dataset.f) closePop(); else openPop(fb.dataset.f, fb);
+    return;
+  }
   var d = e.target.closest("[data-i]"); if(!d) return;
   var c = COLS[parseInt(d.dataset.i,10)];
   if(state.sortCol===c) state.sortDir = -state.sortDir; else { state.sortCol=c; state.sortDir=1; }

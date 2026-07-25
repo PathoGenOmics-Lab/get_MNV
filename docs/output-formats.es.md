@@ -275,9 +275,15 @@ El informe contiene:
   faseados localmente, ordenados por cuántas muestras llevan cada uno y con su
   soporte de fasing cuando se usó un BAM. El fasing de largo alcance entre sitios
   distantes no se infiere ni se muestra nunca.
-- **Una tabla ordenable y buscable** con todas las variantes, virtualizada para que
-  decenas de miles de filas sigan siendo fluidas. Filtra por muestra, gen, tipo de
-  variante e impacto, o busca por gen, posición, cambio de aminoácido y HGVS.
+- **Una tabla ordenable y filtrable** con todas las variantes, virtualizada para que
+  decenas de miles de filas sigan siendo fluidas. Cada columna tiene su propio
+  filtro: lista de casillas para muestra, contig, gen, tipo de variante,
+  consecuencia e impacto (varios valores a la vez, con buscador cuando la lista es
+  larga), coincidencia por texto para posición, cambio de bases y cambio de
+  aminoácido, y rango mínimo/máximo para Grantham y frecuencia. Los filtros de
+  columna se combinan entre sí y con el buscador libre, y gobiernan toda la página:
+  las cifras principales, los gráficos, la matriz y el panel de haplotipos siguen
+  la misma selección.
 - **Un panel de detalle** de la variante seleccionada con su localización,
   consecuencia, descriptores HGVS `g.`/`c.`/`p.`, distancia de Grantham, clase DBS,
   predicción de NMD, codones, componentes del evento y soporte de lecturas.
