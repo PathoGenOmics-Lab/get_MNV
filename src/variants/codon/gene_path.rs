@@ -38,6 +38,8 @@ pub(super) fn compute_annotations(
         consequence_shift: compute_consequence_shift(orig_c, mut_c, single_aas),
         // Set by the caller, which has the raw per-SNV alleles and positions.
         dbs_class: None,
+        // Set by the caller for premature stops in a multi-exon transcript.
+        nmd: None,
     }
 }
 

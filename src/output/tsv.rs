@@ -17,8 +17,9 @@ fn is_intergenic(variant: &VariantInfo) -> bool {
 
 /// Trailing annotation cells appended to every TSV row: SO consequence term,
 /// impact, Grantham distance (with category), MNV-vs-SNV consequence shift,
-/// COSMIC-style DBS class, and BAM-derived MNV phasing support.
-fn annotation_cells(variant: &VariantInfo) -> [String; 6] {
+/// COSMIC-style DBS class, BAM-derived MNV phasing support, and the 50-nt-rule
+/// NMD prediction.
+fn annotation_cells(variant: &VariantInfo) -> [String; 7] {
     let grantham = match variant.annotations.grantham {
         Some(d) => format!("{d} ({})", crate::utils::grantham_category(d)),
         None => "-".to_string(),
@@ -32,6 +33,11 @@ fn annotation_cells(variant: &VariantInfo) -> [String; 6] {
     let phasing = super::common::mnv_phasing_support(variant)
         .map(format_freq)
         .unwrap_or_else(|| "-".to_string());
+    let nmd = variant
+        .annotations
+        .nmd
+        .map(|prediction| prediction.to_string())
+        .unwrap_or_else(|| "-".to_string());
     [
         so_term.to_string(),
         impact.to_string(),
@@ -39,6 +45,7 @@ fn annotation_cells(variant: &VariantInfo) -> [String; 6] {
         variant.annotations.consequence_shift.to_string(),
         dbs,
         phasing,
+        nmd,
     ]
 }
 
@@ -464,6 +471,7 @@ impl TsvWriter {
                 "MNV Consequence Shift",
                 "DBS Class",
                 "MNV Phasing Support",
+                "NMD Prediction",
             ]
         } else {
             vec![
@@ -489,6 +497,7 @@ impl TsvWriter {
                 "MNV Consequence Shift",
                 "DBS Class",
                 "MNV Phasing Support",
+                "NMD Prediction",
             ]
         };
         writer.write_record(&header)?;

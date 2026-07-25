@@ -1424,3 +1424,65 @@ fn test_true_duplicate_position_still_dedup() {
     assert_eq!(variants.len(), 1, "True duplicate must be deduplicated");
     assert_eq!(variants[0].base_changes[0], "T");
 }
+
+// A nonsense SNV in the first exon of a two-exon transcript, far upstream of the
+// last exon-exon junction, must be flagged NMD-triggering end-to-end (through the
+// spliced-transcript codon path), not just by the unit-level classifier.
+#[test]
+fn test_nonsense_snv_far_upstream_of_last_junction_is_nmd_triggering() {
+    // exon1 = 120 nt (offsets 0..120), intron = 20 nt, exon2 = 60 nt.
+    // Spliced CDS = 180 nt, last exon-exon junction at CDS offset 120.
+    let mut exon1 = String::from("ATG"); // Met, codon 0
+    exon1.push_str(&"GCT".repeat(9)); // Ala x9 (offsets 3..30)
+    exon1.push_str("CAA"); // Gln, codon 10 at CDS offset 30
+    exon1.push_str(&"GCT".repeat(29)); // Ala x29 (offsets 33..120)
+    let intron = "T".repeat(20);
+    let mut exon2 = "GCT".repeat(19); // Ala x19
+    exon2.push_str("TAA"); // natural stop at the protein C-terminus
+    let seq = format!("{exon1}{intron}{exon2}");
+
+    let gene = Gene {
+        name: "tx".to_string(),
+        start: 1,
+        end: seq.len(),
+        strand: Strand::Plus,
+        phase: 0,
+        protein_offset: 0,
+        transcript_id: Some("tx".to_string()),
+        cds_segments: vec![
+            CdsSegment { start: 1, end: 120 },
+            CdsSegment {
+                start: 141,
+                end: 200,
+            },
+        ],
+    };
+    let reference = crate::io::Reference { sequence: &seq };
+
+    // Genomic 31 C>T turns codon CAA (CDS offset 30) into TAA: a premature stop
+    // 90 nt (> 50) upstream of the last junction.
+    let variants = crate::variants::get_mnv_variants_for_gene(
+        &gene,
+        &[crate::io::VcfPosition {
+            position: 31,
+            ref_allele: "C".to_string(),
+            alt_allele: "T".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }],
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+
+    let stop = variants
+        .iter()
+        .find(|v| v.change_type == ChangeType::StopGained)
+        .expect("nonsense SNV should be classified Stop gained");
+    assert_eq!(
+        stop.annotations.nmd,
+        Some(crate::variants::NmdPrediction::Triggering),
+        "a PTC 90 nt upstream of the last junction should trigger NMD"
+    );
+}

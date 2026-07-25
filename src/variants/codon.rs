@@ -9,6 +9,7 @@ mod config;
 mod gene_path;
 mod grouping;
 mod indel_effect;
+mod nmd;
 mod phased;
 mod protein;
 mod transcript_model;
@@ -163,6 +164,13 @@ fn get_mnv_variants_for_transcript(
                 apply_frameshift_labeling(&mut var_info, ptc_protein_pos);
             }
 
+            // A nonsense SNV/MNV (still classified Stop gained after any
+            // frameshift/overlap relabelling) begins its premature stop at this
+            // codon's CDS offset.
+            if var_info.change_type == ChangeType::StopGained {
+                var_info.annotations.nmd = nmd::snv_mnv_nmd_prediction(gene, codon_start);
+            }
+
             variants.push(var_info);
         }
     }
@@ -171,6 +179,7 @@ fn get_mnv_variants_for_transcript(
         let (change_type, aa_changes, aa_changes_local, ref_codon, alt_codon) =
             protein_effect_for_indel(gene, reference, &indel, genetic_code);
         let (event_class, event_components) = variant_event_metadata(&indel);
+        let nmd = nmd::indel_nmd_prediction(gene, reference, &indel, genetic_code);
 
         variants.push(VariantInfo {
             chrom: chrom.to_string(),
@@ -204,7 +213,10 @@ fn get_mnv_variants_for_transcript(
             original_info: indel.original_info.clone(),
             event_class: Some(event_class),
             event_components,
-            annotations: crate::variants::VariantAnnotations::default(),
+            annotations: crate::variants::VariantAnnotations {
+                nmd,
+                ..Default::default()
+            },
         });
     }
 

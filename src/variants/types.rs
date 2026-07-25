@@ -134,6 +134,32 @@ impl Display for ConsequenceShift {
     }
 }
 
+/// Nonsense-mediated decay (NMD) prediction for a premature termination codon,
+/// following the 50-nucleotide rule: a PTC located more than 50 nt upstream of
+/// the last exon-exon junction of a multi-exon transcript triggers NMD; a PTC in
+/// the last exon or within 50 nt of the last junction escapes it. Single-exon
+/// transcripts have no junction and are never annotated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NmdPrediction {
+    Triggering,
+    Escaping,
+}
+
+impl NmdPrediction {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            NmdPrediction::Triggering => "NMD-triggering",
+            NmdPrediction::Escaping => "NMD-escaping",
+        }
+    }
+}
+
+impl Display for NmdPrediction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Extra, biologist-facing annotations layered on top of the core variant call
 /// (Grantham distance, MNV-vs-SNV consequence shift). Grouped in one `Default`
 /// struct so it can be added to `VariantInfo` without touching every
@@ -151,6 +177,11 @@ pub struct VariantAnnotations {
     /// `None` for single SNVs, indels, and non-adjacent or >2-SNV MNVs.
     #[serde(default)]
     pub dbs_class: Option<String>,
+    /// 50-nt-rule nonsense-mediated decay prediction for a premature stop.
+    /// `None` unless the variant introduces a premature stop in a multi-exon
+    /// transcript.
+    #[serde(default)]
+    pub nmd: Option<NmdPrediction>,
 }
 
 impl VariantType {

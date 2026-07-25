@@ -40,6 +40,7 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "MNVSHIFT"
             | "DBS"
             | "MNVPS"
+            | "NMD"
     )
 }
 
@@ -268,6 +269,9 @@ pub(crate) fn build_info_string(
     }
     if let Some(phasing) = mnv_phasing_support(variant) {
         builder.push("MNVPS", format_freq(phasing));
+    }
+    if let Some(nmd) = variant.annotations.nmd {
+        builder.push_text("NMD", nmd.as_str());
     }
 
     if let Some((sr, srf, srr)) = snp_metrics {
@@ -634,6 +638,10 @@ pub(crate) fn write_info_header(
     writeln!(
         writer,
         "##INFO=<ID=MNVPS,Number=1,Type=Float,Description=\"MNV phasing support: fraction of the least-supported constituent SNV reads that also carry the full MNV haplotype\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=NMD,Number=1,Type=String,Description=\"Nonsense-mediated decay prediction for a premature stop under the 50-nt rule (NMD-triggering / NMD-escaping)\">"
     )?;
     writeln!(
         writer,
