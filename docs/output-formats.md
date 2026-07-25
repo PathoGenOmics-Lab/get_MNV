@@ -220,6 +220,12 @@ called variants. It embeds its data, loads no external scripts or fonts, and
 therefore opens offline by double-clicking and can be attached to an email or
 archived with the results.
 
+[**Open the example report**](assets/example-report.html){ target=_blank }: 941
+variants called from the single-sample dataset bundled in `example/`, so it is the
+real output of the command below rather than a mock-up. Regenerate it with
+`scripts/build_example_report.sh`. The cohort views (the matrix rows, haplotype
+recurrence) fill out with `--sample all` or `--report-from` across several samples.
+
 ```bash
 # Report for one run
 get_mnv --vcf sample.vcf --fasta ref.fasta --gff ref.gff --report sample.html

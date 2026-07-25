@@ -32,6 +32,8 @@ Escribe las variantes anotadas en TSV, VCF o ambos.
 - Usa las lecturas del BAM (cuando se aportan) para el soporte de SNP/MNV, el
   soporte exacto de eventos indel y el sesgo de hebra.
 - Admite 9 tablas de código genético del NCBI.
+- Escribe un informe HTML interactivo y autocontenido:
+  [ver un ejemplo](assets/example-report.html){ target=_blank }.
 - Incluye una GUI de escritorio para análisis con arrastrar y soltar.
 
 ## Instalación

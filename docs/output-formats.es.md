@@ -219,6 +219,13 @@ las variantes llamadas. Incrusta sus datos y no carga scripts ni fuentes externa
 así que se abre sin conexión con un doble clic y se puede adjuntar en un correo o
 archivar junto a los resultados.
 
+[**Abrir el informe de ejemplo**](assets/example-report.html){ target=_blank }: 941
+variantes llamadas sobre el conjunto de una muestra incluido en `example/`, o sea la
+salida real del comando de abajo y no una maqueta. Se regenera con
+`scripts/build_example_report.sh`. Las vistas de cohorte (las filas de la matriz, la
+recurrencia de haplotipos) se llenan con `--sample all` o `--report-from` sobre varias
+muestras.
+
 ```bash
 # Informe de un run
 get_mnv --vcf muestra.vcf --fasta ref.fasta --gff ref.gff --report muestra.html

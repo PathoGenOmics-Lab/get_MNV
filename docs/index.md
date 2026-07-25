@@ -32,6 +32,8 @@ It writes annotated variants as TSV, VCF, or both.
 - Uses BAM reads (when provided) for SNP/MNV support, exact indel event support,
   and strand bias.
 - Supports 9 NCBI genetic code tables.
+- Writes a self-contained interactive HTML report:
+  [see an example](assets/example-report.html){ target=_blank }.
 - Includes a desktop GUI for drag-and-drop analysis.
 
 ## Installation
