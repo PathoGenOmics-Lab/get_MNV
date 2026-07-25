@@ -59,13 +59,19 @@ h1{font-size:19px;margin:0 0 4px;letter-spacing:-.01em}
 }
 .btn:hover{background:var(--hover)}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
-.kpi{padding:13px 15px}
-.kpi .lab{color:var(--text-2);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
-.kpi .val{font-size:27px;line-height:1.15;margin-top:3px}
-.kpi .note{color:var(--muted);font-size:11.5px;margin-top:1px}
-.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
-@media (max-width:900px){.charts{grid-template-columns:1fr}}
+.summary{display:grid;grid-template-columns:minmax(190px,1fr) minmax(300px,1.5fr) minmax(280px,1.6fr);gap:14px;margin-bottom:14px;align-items:stretch}
+@media (max-width:1000px){.summary{grid-template-columns:1fr}}
+.hero{padding:15px 17px;display:flex;flex-direction:column;justify-content:center}
+.hero .lab{color:var(--text-2);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
+.heroval{font-size:52px;line-height:1.02;margin:4px 0 2px;letter-spacing:-.02em}
+.hero .note{color:var(--muted);font-size:12px;margin:0}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.kpi{padding:10px 13px;display:flex;flex-direction:column;justify-content:center}
+.kpi .lab{color:var(--text-2);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.kpi .val{font-size:21px;line-height:1.15;margin-top:2px}
+.kpi .note{color:var(--muted);font-size:11px;margin-top:0}
+.conseq{display:flex;flex-direction:column}
+.conseq #soChart{flex:1 1 auto;overflow-y:auto;max-height:150px}
 .panel{padding:14px 16px 12px}
 .panel h2{font-size:13px;margin:0 0 2px;font-weight:600}
 .panel .hint{color:var(--muted);font-size:11.5px;margin:0 0 10px}
@@ -93,9 +99,10 @@ h1{font-size:19px;margin:0 0 4px;letter-spacing:-.01em}
 .hap .who b{font-weight:600}
 .hap .comp{color:var(--text-2);font-size:11.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hap .ph{flex:0 0 128px;text-align:right;font-size:11.5px;color:var(--text-2)}
-.bar{height:5px;border-radius:3px;background:var(--s1);display:inline-block;vertical-align:middle;margin-left:6px}
 .bartrack{display:inline-block;width:54px;height:5px;border-radius:3px;background:var(--grid);vertical-align:middle;margin-left:6px;position:relative;overflow:hidden}
-.bartrack i{position:absolute;left:0;top:0;bottom:0;background:var(--s1);border-radius:3px}
+.bartrack i{position:absolute;left:0;top:0;bottom:0;background:var(--text-2);opacity:.55;border-radius:3px}
+.legend .grp{display:inline-flex;align-items:center;gap:9px;padding:2px 9px;border:1px solid var(--border);border-radius:999px}
+.legend .grp b{font-weight:600;color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:11px 12px;margin-bottom:12px}
 .filters input[type=search],.filters select{
   background:var(--page);color:var(--text);border:1px solid var(--border);
@@ -112,7 +119,7 @@ h1{font-size:19px;margin:0 0 4px;letter-spacing:-.01em}
 .chip .sw{width:8px;height:8px;border-radius:999px}
 .tablewrap{overflow:hidden}
 .tbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 13px;border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text-2)}
-.thead{display:flex;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:2}
+.thead{display:flex;border-bottom:1px solid var(--border);background:var(--surface)}
 .thead div{
   padding:8px 9px;font-size:11.5px;font-weight:600;color:var(--text-2);
   cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -139,7 +146,9 @@ h1{font-size:19px;margin:0 0 4px;letter-spacing:-.01em}
 }
 #pop .row2{display:flex;gap:6px;align-items:center}
 #pop .acts{display:flex;gap:6px;justify-content:space-between;margin-top:8px;padding-top:7px;border-top:1px solid var(--border)}
-#viewport{height:520px;overflow:auto;position:relative}
+#hscroll{overflow-x:auto;overflow-y:hidden}
+#tinner{min-width:100%}
+#viewport{height:520px;overflow-y:auto;overflow-x:hidden;position:relative}
 #spacer{position:relative;width:100%}
 .row{
   display:flex;position:absolute;left:0;right:0;height:32px;align-items:center;
@@ -191,26 +200,24 @@ footer{margin-top:22px;color:var(--muted);font-size:11.5px;text-align:center}
     </div>
   </header>
 
-  <div class="kpis" id="kpis"></div>
+  <div class="summary">
+    <div class="card hero">
+      <div class="lab">Variants shown</div>
+      <div class="heroval num" id="heroVal">0</div>
+      <div class="note" id="heroNote"></div>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="card panel conseq">
+      <h2>Consequence</h2>
+      <p class="hint">Most frequent Sequence Ontology terms.</p>
+      <div id="soChart"></div>
+    </div>
+  </div>
 
   <div class="card filters">
     <input type="search" id="q" placeholder="Search gene, position, AA change, HGVS..." aria-label="Search">
     <span id="activeFilters" class="hint" style="margin:0"></span>
     <button class="btn" id="resetBtn" type="button">Reset all</button>
-  </div>
-
-  <div class="charts">
-    <div class="card panel">
-      <h2>Variants per sample</h2>
-      <p class="hint" id="sampleHint">Stacked by variant type. Reflects the active filters.</p>
-      <div class="scrollY"><div id="sampleChart"></div></div>
-      <div class="legend" id="typeLegend"></div>
-    </div>
-    <div class="card panel">
-      <h2>Consequence</h2>
-      <p class="hint">Sequence Ontology terms, most frequent first.</p>
-      <div class="scrollY"><div id="soChart"></div></div>
-    </div>
   </div>
 
   <div class="card panel" id="matrixPanel">
@@ -261,8 +268,13 @@ footer{margin-top:22px;color:var(--muted);font-size:11.5px;text-align:center}
       <span id="count"></span>
       <span id="hintSort">Click a column to sort. Click a row for detail.</span>
     </div>
-    <div class="thead" id="thead"></div>
-    <div id="viewport"><div id="spacer"></div><div id="empty" class="empty" hidden>No variants match the current filters.</div></div>
+    <div id="hscroll">
+      <div id="tinner">
+        <div class="thead" id="thead"></div>
+        <div id="viewport"><div id="spacer"></div></div>
+      </div>
+    </div>
+    <div id="empty" class="empty" hidden>No variants match the current filters.</div>
   </div>
 
   <footer id="foot"></footer>
@@ -419,7 +431,7 @@ function stackedBars(el, groups, order, colorOf, totalLabel){
     order.forEach(function(k){
       var v = g.parts[k]||0; if(!v) return;
       var pct = (v/max)*100;
-      h += '<div title="'+esc(g.name+" · "+k+": "+v)+'" style="width:'+pct.toFixed(3)+'%;background:'+colorOf(k)+';border-radius:2px"></div>';
+      h += '<div title="'+esc(g.name+" · "+k+": "+v)+'" style="width:'+pct.toFixed(3)+'%;background:'+colorOf(k)+';opacity:.65;border-radius:2px"></div>';
     });
     h += '</div>';
     h += '<div class="num" style="flex:0 0 58px;text-align:right;font-size:11.5px;color:var(--text-2)">'+g.total.toLocaleString()+'</div>';
@@ -429,29 +441,13 @@ function stackedBars(el, groups, order, colorOf, totalLabel){
 }
 
 function drawCharts(){
-  // per sample, stacked by type
-  var bySample = {}, seenTypes = {};
-  view.forEach(function(idx){
-    var r = ROWS[idx], s = sampleOf(r), t = typeOf(r);
-    if(!bySample[s]) bySample[s] = {name:s, parts:{}, total:0};
-    bySample[s].parts[t] = (bySample[s].parts[t]||0)+1;
-    bySample[s].total++; seenTypes[t]=1;
-  });
-  var groups = Object.keys(bySample).map(function(k){return bySample[k]});
-  groups.sort(function(a,b){ return b.total-a.total || a.name.localeCompare(b.name); });
-  var order = D.types.filter(function(t){return seenTypes[t]});
-  stackedBars(document.getElementById("sampleChart"), groups, order,
-              function(k){ return TYPE_COLOR[k]||"var(--s1)"; });
-  document.getElementById("typeLegend").innerHTML = order.map(function(t){
-    return '<span><i class="sw" style="background:'+(TYPE_COLOR[t]||"var(--s1)")+'"></i>'+esc(t)+'</span>';
-  }).join("");
-
-  // consequence: single-hue magnitude bars
   var bySo = {};
-  view.forEach(function(idx){ var s = soOf(ROWS[idx]); bySo[s]=(bySo[s]||0)+1; });
-  var so = Object.keys(bySo).map(function(k){return {name:k,parts:{v:bySo[k]},total:bySo[k]}});
-  so.sort(function(a,b){return b.total-a.total || a.name.localeCompare(b.name)});
-  stackedBars(document.getElementById("soChart"), so.slice(0,14), ["v"], function(){return "var(--s1)"});
+  view.forEach(function(idx){ var t = soOf(ROWS[idx]); bySo[t]=(bySo[t]||0)+1; });
+  var so = Object.keys(bySo).map(function(k){ return {name:k, parts:{v:bySo[k]}, total:bySo[k]}; });
+  so.sort(function(a,b){ return b.total-a.total || a.name.localeCompare(b.name); });
+  // Magnitude is neutral: the nucleotide hues belong to the matrix cells alone.
+  stackedBars(document.getElementById("soChart"), so.slice(0,12), ["v"],
+              function(){ return "var(--text-2)"; });
 }
 
 // ---------- variant matrix (genomic browser over variable sites) ----------
@@ -460,7 +456,7 @@ function drawCharts(){
 // "not called". The TSV cannot distinguish reference from absent coverage, so a
 // blank cell is never claimed to be reference.
 var NT = ["A","C","G","T"];
-var MAX_SITES = 20000, LABEL_W = 96, CELL_H = 12;
+var MAX_SITES = 20000, LABEL_W = 150, CELL_H = 12, NAME_W = 104;
 var OVER_H = 16, RULER_H = 17, GENE_H = 13, GROUP_H = 5, PAD_TOP = 4, LANE_H = 21;
 
 // Density lanes. Each lane is its own single-series chart named by its own
@@ -470,12 +466,12 @@ var T_SNP = D.types.indexOf("SNP"), T_MNV = D.types.indexOf("MNV"),
     T_SNPMNV = D.types.indexOf("SNP/MNV"), T_INDEL = D.types.indexOf("INDEL"),
     I_HIGH = D.impacts.indexOf("HIGH");
 var LANES = [
-  {key:"all",     label:"all calls",   hue:"--s1",       hit:function(){ return true; }},
-  {key:"snp",     label:"SNP",         hue:"--s1",       hit:function(t){ return t===T_SNP; }},
-  {key:"mnv",     label:"MNV",         hue:"--s1",       hit:function(t){ return t===T_MNV || t===T_SNPMNV; }},
-  {key:"indel",   label:"indel",       hue:"--s1",       hit:function(t){ return t===T_INDEL; }},
+  {key:"all",     label:"all calls",   hue:"--text-2",   hit:function(){ return true; }},
+  {key:"snp",     label:"SNP",         hue:"--text-2",   hit:function(t){ return t===T_SNP; }},
+  {key:"mnv",     label:"MNV",         hue:"--text-2",   hit:function(t){ return t===T_MNV || t===T_SNPMNV; }},
+  {key:"indel",   label:"indel",       hue:"--text-2",   hit:function(t){ return t===T_INDEL; }},
   {key:"high",    label:"HIGH impact", hue:"--critical", hit:function(t,im){ return im===I_HIGH; }},
-  {key:"samples", label:"samples",     hue:"--s1",       distinct:true, hit:function(){ return true; }}
+  {key:"samples", label:"samples",     hue:"--text-2",   distinct:true, hit:function(){ return true; }}
 ];
 function activeLanes(){
   if(mtx.tracks === "off") return [];
@@ -756,8 +752,9 @@ function drawMatrix(){
     if(gs.hi < mtx.view[0] || gs.lo > mtx.view[1]) return;
     var gx1 = Math.max(LABEL_W, xOf(gs.lo)), gx2 = Math.min(LABEL_W+pw, xOf(gs.hi));
     var gwd = Math.max(2, gx2-gx1);
-    g.fillStyle = gi % 2 ? themeColor("--s1") : themeColor("--s3");
-    g.globalAlpha = .28; g.fillRect(gx1, geneY+1, gwd, GENE_H-4); g.globalAlpha = 1;
+    g.fillStyle = ink;
+    g.globalAlpha = gi % 2 ? .22 : .13;
+    g.fillRect(gx1, geneY+1, gwd, GENE_H-4); g.globalAlpha = 1;
     g.fillStyle = ink; g.font = "9px system-ui,-apple-system,sans-serif"; g.textAlign = "center";
     if(gwd > g.measureText(gs.gene).width + 8) g.fillText(gs.gene, gx1+gwd/2, geneY+1+(GENE_H-4)/2);
   });
@@ -798,21 +795,45 @@ function drawMatrix(){
   }
   g.restore();
 
-  // Sample labels.
-  g.fillStyle = ink; g.font = "10px system-ui,-apple-system,sans-serif";
-  g.textAlign = "left"; g.textBaseline = "middle";
+  // Sample labels, each with a bar of how many calls that sample has in view.
+  // This replaces the old separate per-sample chart: the counts belong beside
+  // the samples they describe.
+  var perSample = new Array(nS).fill(0), maxSample = 0;
+  for(var si2=0; si2<nS; si2++){
+    var t2 = 0;
+    for(var c2=0;c2<nC;c2++){
+      if(!mtx.grid[si2*nC+c2]) continue;
+      var pp = mtx.sites[c2].pos;
+      if(pp >= mtx.view[0] && pp <= mtx.view[1]) t2++;
+    }
+    perSample[si2] = t2; if(t2>maxSample) maxSample = t2;
+  }
+  g.font = "10px system-ui,-apple-system,sans-serif"; g.textBaseline = "middle";
   for(var vr=0; vr<nS; vr++){
-    var nm = mtx.samples[mtx.rowOrder[vr]];
-    g.fillText(nm.length>14 ? nm.slice(0,13)+"…" : nm, 4, top0 + vr*CELL_H + (CELL_H-1)/2);
+    var sIdx = mtx.rowOrder[vr], yy = top0 + vr*CELL_H + (CELL_H-1)/2;
+    var nm = mtx.samples[sIdx];
+    g.fillStyle = ink; g.textAlign = "left";
+    while(nm.length > 3 && g.measureText(nm).width > NAME_W - 6) nm = nm.slice(0, -1);
+    g.fillText(nm === mtx.samples[sIdx] ? nm : nm + "…", 4, yy);
+    if(maxSample > 0){
+      var bw = Math.round((perSample[sIdx]/maxSample) * (LABEL_W - NAME_W - 12));
+      g.fillStyle = ink; g.globalAlpha = .22;
+      g.fillRect(NAME_W, top0 + vr*CELL_H + 2, LABEL_W - NAME_W - 12, CELL_H-5);
+      g.globalAlpha = .55; g.fillRect(NAME_W, top0 + vr*CELL_H + 2, Math.max(1,bw), CELL_H-5);
+      g.globalAlpha = 1;
+    }
   }
 
   document.getElementById("matrixLegend").innerHTML =
-    NT.map(function(b){ return '<span><i class="sw" style="background:var(--nt-'+b+')"></i>'+b+'</span>'; }).join("") +
-    '<span><i class="sw" style="background:var(--nt-indel)"></i>indel</span>' +
-    '<span><i class="sw" style="background:var(--nt-none);border:1px solid var(--border)"></i>not called (reference or no coverage)</span>' +
-    '<span><i class="sw" style="background:var(--text-2);opacity:.6;height:3px"></i>called together on the same reads</span>' +
-    '<span>density lanes are labelled on the left, each with its own maximum</span>' +
-    '<span><i class="sw" style="background:var(--s1);opacity:.28"></i>gene (extent of called sites)</span>';
+    '<span class="grp"><b>base</b>' +
+      NT.map(function(b){ return '<span><i class="sw" style="background:var(--nt-'+b+')"></i>'+b+'</span>'; }).join("") +
+      '<span><i class="sw" style="background:var(--nt-indel)"></i>indel</span></span>' +
+    '<span class="grp"><b>cell</b>' +
+      '<span><i class="sw" style="background:var(--nt-none);border:1px solid var(--border)"></i>not called (reference or no coverage)</span>' +
+      '<span><i class="sw" style="background:var(--text-2);opacity:.6;height:3px"></i>called together</span></span>' +
+    '<span class="grp"><b>tracks</b>' +
+      '<span><i class="sw" style="background:var(--text-2);opacity:.2"></i>gene extent</span>' +
+      '<span>lanes are labelled left, each with its own maximum</span></span>';
 
   var notes = ["Scroll to zoom, drag to pan, drag across the top strip to select a range. Double-click resets."];
   if(mtx.dropped) notes.push("Showing the first " + MAX_SITES.toLocaleString() + " sites of this contig; " +
@@ -1044,11 +1065,14 @@ function drawKpis(){
     if(impOf(r)==="HIGH") high++;
     var t = typeOf(r); if(t==="MNV"||t==="SNP/MNV") mnv++;
   });
+  document.getElementById("heroVal").textContent = view.length.toLocaleString();
+  document.getElementById("heroNote").textContent =
+    view.length===ROWS.length ? "every row in the report"
+                              : "of " + ROWS.length.toLocaleString() + " total";
   var k = [
-    {lab:"Variants", val:view.length.toLocaleString(), note:(view.length===ROWS.length?"all rows":"of "+ROWS.length.toLocaleString()+" total")},
     {lab:"Samples", val:Object.keys(samples).length.toLocaleString(), note:D.samples.length+" in report"},
-    {lab:"Genes", val:Object.keys(genes).length.toLocaleString(), note:"with a called variant"},
-    {lab:"MNV rows", val:mnv.toLocaleString(), note:"codon-level multi-nucleotide"},
+    {lab:"Genes", val:Object.keys(genes).length.toLocaleString(), note:"with a call"},
+    {lab:"MNV rows", val:mnv.toLocaleString(), note:"codon-level"},
     {lab:"High impact", val:high.toLocaleString(), note:"HIGH consequence"}
   ];
   document.getElementById("kpis").innerHTML = k.map(function(x){
@@ -1073,6 +1097,8 @@ function buildHead(){
     h += '<div style="flex:0 0 '+c.w+'px" data-i="'+i+'" role="button" tabindex="0" title="Sort by '+esc(c.t)+'">'+esc(c.t)+ind+f+'</div>';
   });
   document.getElementById("thead").innerHTML = h;
+  var total = COLS.reduce(function(a,c){ return a + c.w; }, 0);
+  document.getElementById("tinner").style.width = total + "px";
   var active = Object.keys(state.col).filter(colFilterActive);
   document.getElementById("activeFilters").textContent =
     active.length ? active.length + " column filter" + (active.length===1?"":"s") + " active" : "";
@@ -1082,9 +1108,6 @@ function cellHtml(r,c){
   var v = c.get(r);
   if(c.k==="impact"){
     return '<span class="imp"><i style="background:'+(IMP_COLOR[v]||"var(--muted)")+'"></i>'+esc(v)+'</span>';
-  }
-  if(c.k==="type"){
-    return '<span class="imp"><i style="background:'+(TYPE_COLOR[v]||"var(--s1)")+'"></i>'+esc(v)+'</span>';
   }
   if(c.k==="change") return '<span class="mono">'+esc(v)+'</span>';
   return esc(v);

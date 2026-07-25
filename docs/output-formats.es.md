@@ -238,10 +238,9 @@ pasa a ser `TB-001`).
 
 El informe contiene:
 
-- **Cifras principales** para el filtro activo: variantes, muestras, genes, filas
-  MNV y variantes de alto impacto.
-- **Variantes por muestra**, apiladas por tipo de variante, y la **distribución de
-  consecuencias** por término de Sequence Ontology. Ambas siguen los filtros activos.
+- **Una cifra principal** de las variantes mostradas, con tarjetas de apoyo para
+  muestras, genes, filas MNV y variantes de alto impacto, y la **distribución de
+  consecuencias** por término de Sequence Ontology. Todo sigue los filtros activos.
 - **Una matriz de variantes**, dibujada como un pequeño navegador genómico: las
   muestras en el lateral, coordenadas genómicas reales arriba y color por la base
   alternativa. Rueda para hacer zoom alrededor del cursor, arrastrar para
@@ -260,7 +259,11 @@ El informe contiene:
   informe no lleva). Al
   acercarse lo suficiente aparece la letra de la base dentro de cada celda. Las
   muestras se pueden ordenar por perfil compartido (los patrones idénticos quedan
-  juntos), por número de variantes o por nombre. Las posiciones llamadas juntas en
+  juntos), por número de variantes o por nombre, y cada etiqueta de muestra lleva
+  una barra con cuántas llamadas tiene en la ventana visible, por eso no hay un
+  gráfico aparte por muestra. El color significa una sola cosa: los tonos de
+  nucleótido son de las celdas de la matriz, toda magnitud va en neutro, y el
+  color de estado reservado marca el impacto HIGH. Las posiciones llamadas juntas en
   las mismas lecturas (MNV de codón, indels complejos faseados) llevan una marca
   sobre sus columnas, y aparece un selector de contig con datos multi-contig, ya
   que un eje de coordenadas continuo no puede abarcar varios contigs.

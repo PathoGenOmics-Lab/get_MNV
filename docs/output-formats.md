@@ -238,10 +238,9 @@ file name with the `.MNV.tsv` suffix removed (`TB-001.MNV.tsv` becomes `TB-001`)
 
 The report contains:
 
-- **Headline counts** for the current filter: variants, samples, genes, MNV rows
-  and high-impact variants.
-- **Variants per sample**, stacked by variant type, and the **consequence
-  distribution** by Sequence Ontology term. Both follow the active filters.
+- **A headline count** of the variants currently shown, with supporting tiles for
+  samples, genes, MNV rows and high-impact variants, and the **consequence
+  distribution** by Sequence Ontology term. All follow the active filters.
 - **A variant matrix**, plotted as a small genome browser: samples down the side,
   real genomic coordinates across the top, coloured by the alternate base. Scroll
   to zoom around the cursor, drag to pan, drag on the whole-contig strip to jump,
@@ -257,7 +256,11 @@ The report contains:
   extent of each gene's called sites (which is where calls were made, not the
   annotated gene boundary, which the report does not carry). Zooming in far enough shows
   the base letter inside each cell. Samples can be ordered by shared profile
-  (identical patterns land together), by variant count or by name. Positions
+  (identical patterns land together), by variant count or by name, and each sample
+  label carries a bar of how many calls it has in the visible window, which is why
+  there is no separate per-sample chart. Colour means one thing only: the
+  nucleotide hues belong to the matrix cells, every magnitude is neutral, and the
+  reserved status colour marks HIGH impact. Positions
   called together on the same reads (codon MNVs, phased complex indels) are marked
   with a tick above their columns, and a contig selector appears for multi-contig
   data, since a continuous coordinate axis cannot span contigs.
