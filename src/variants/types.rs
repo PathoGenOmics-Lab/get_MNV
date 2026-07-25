@@ -146,6 +146,11 @@ pub struct VariantAnnotations {
     /// How the combined MNV consequence compares with its individual SNVs.
     #[serde(default)]
     pub consequence_shift: ConsequenceShift,
+    /// COSMIC-style doublet-base-substitution class for an MNV of two adjacent
+    /// single-base substitutions, e.g. `CC>TT` (reverse-complement collapsed).
+    /// `None` for single SNVs, indels, and non-adjacent or >2-SNV MNVs.
+    #[serde(default)]
+    pub dbs_class: Option<String>,
 }
 
 impl VariantType {

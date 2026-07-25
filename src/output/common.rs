@@ -38,6 +38,8 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "IMPACT"
             | "GD"
             | "MNVSHIFT"
+            | "DBS"
+            | "MNVPS"
     )
 }
 
@@ -156,6 +158,30 @@ pub(crate) fn allele_frequency(support_reads: usize, depth: usize) -> f64 {
     }
 }
 
+/// MNV phasing (linkage) support from BAM reads: the fraction of the reads
+/// carrying the least-supported constituent SNV that also carry the full MNV
+/// haplotype. `1.0` means every read with the rarer variant also carries the
+/// other (a genuine co-occurring haplotype); low values indicate the SNVs
+/// largely fall on different molecules (a same-codon coincidence rather than a
+/// real MNV), which matters most for intra-host data. `None` unless this is a
+/// multi-SNV MNV / SNP-MNV with per-SNV and MNV read counts available.
+pub(crate) fn mnv_phasing_support(variant: &VariantInfo) -> Option<f64> {
+    if variant.positions.len() < 2 {
+        return None;
+    }
+    if !matches!(variant.variant_type, VariantType::Mnv | VariantType::SnpMnv) {
+        return None;
+    }
+    let min_snp = variant.snp_reads.as_ref()?.iter().copied().min()?;
+    if min_snp == 0 {
+        return None;
+    }
+    let mnv_reads = variant.mnv_reads?;
+    // A read in the MNV count carries both variants, so it is also counted in
+    // every per-SNV count; the ratio is therefore in [0, 1]. Clamp defensively.
+    Some((mnv_reads as f64 / min_snp as f64).min(1.0))
+}
+
 fn original_dp_for_index(variant: &VariantInfo, index: usize) -> Option<usize> {
     variant.original_dp.as_ref()?.get(index).copied()
 }
@@ -236,6 +262,12 @@ pub(crate) fn build_info_string(
     }
     if variant.annotations.consequence_shift != crate::variants::ConsequenceShift::NotApplicable {
         builder.push_text("MNVSHIFT", variant.annotations.consequence_shift.as_str());
+    }
+    if let Some(dbs) = variant.annotations.dbs_class.as_deref() {
+        builder.push_text("DBS", dbs);
+    }
+    if let Some(phasing) = mnv_phasing_support(variant) {
+        builder.push("MNVPS", format_freq(phasing));
     }
 
     if let Some((sr, srf, srr)) = snp_metrics {
@@ -597,6 +629,14 @@ pub(crate) fn write_info_header(
     )?;
     writeln!(
         writer,
+        "##INFO=<ID=DBS,Number=1,Type=String,Description=\"COSMIC-style doublet base substitution class for adjacent 2-SNV MNVs (reverse-complement collapsed)\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=MNVPS,Number=1,Type=Float,Description=\"MNV phasing support: fraction of the least-supported constituent SNV reads that also carry the full MNV haplotype\">"
+    )?;
+    writeln!(
+        writer,
         "##INFO=<ID=EC,Number=1,Type=String,Description=\"Canonical allele event class derived from REF/ALT\">"
     )?;
     writeln!(
@@ -770,6 +810,27 @@ mod tests {
         // into spurious INFO keys via its ';' and '='.
         let gene_field = info.split(';').next().unwrap();
         assert_eq!(gene_field, "GENE=weird%3Bgene%3Dx%2Cy", "got: {info}");
+    }
+
+    // ---- mnv_phasing_support ----
+
+    #[test]
+    fn test_mnv_phasing_support_ratio_and_guards() {
+        let mut v = make_snp_variant();
+        v.variant_type = VariantType::SnpMnv;
+        v.positions = vec![100, 101];
+        v.ref_bases = vec!["A".to_string(), "C".to_string()];
+        v.base_changes = vec!["T".to_string(), "G".to_string()];
+        v.snp_reads = Some(vec![8, 10]); // limiting SNV has 8 reads
+        v.mnv_reads = Some(6); // 6 of those 8 carry the full haplotype
+        assert_eq!(mnv_phasing_support(&v), Some(0.75));
+
+        // Perfect linkage is clamped to 1.0.
+        v.mnv_reads = Some(8);
+        assert_eq!(mnv_phasing_support(&v), Some(1.0));
+
+        // A single SNP is not an MNV, so phasing is not applicable.
+        assert_eq!(mnv_phasing_support(&make_snp_variant()), None);
     }
 
     // ---- filter_value ----

@@ -174,6 +174,60 @@ pub fn grantham_category(distance: u16) -> &'static str {
     }
 }
 
+fn is_clean_dinucleotide(dinuc: &str) -> bool {
+    dinuc.len() == 2
+        && dinuc
+            .bytes()
+            .all(|b| matches!(b, b'A' | b'C' | b'G' | b'T'))
+}
+
+/// The ten reference doublets that COSMIC's DBS78 catalogue uses as the
+/// canonical orientation; every other doublet is represented by its
+/// reverse complement.
+fn is_canonical_dbs_reference(dinuc: &str) -> bool {
+    matches!(
+        dinuc,
+        "AC" | "AT" | "CC" | "CG" | "CT" | "GC" | "TA" | "TC" | "TG" | "TT"
+    )
+}
+
+/// Canonical doublet-base-substitution (DBS) class for a pair of adjacent
+/// single-base substitutions, e.g. `CC>TT`, following the COSMIC DBS78
+/// reverse-complement collapsing convention.
+///
+/// Both arguments are same-strand (reference genome) 2-base doublets. Returns
+/// `None` unless both are clean `ACGT` doublets and *both* positions are
+/// substituted (a single changed base is an SBS, not a DBS). Reverse-complement
+/// equivalent doublets collapse to one class; for the palindromic references
+/// (`AT`, `CG`, `GC`, `TA`) the tie is broken on the smaller alternate doublet.
+pub fn dbs_class(ref_dinuc: &str, alt_dinuc: &str) -> Option<String> {
+    let refd = ref_dinuc.to_ascii_uppercase();
+    let altd = alt_dinuc.to_ascii_uppercase();
+    if !is_clean_dinucleotide(&refd) || !is_clean_dinucleotide(&altd) {
+        return None;
+    }
+    let rb = refd.as_bytes();
+    let ab = altd.as_bytes();
+    // A doublet-base substitution requires *both* positions to change.
+    if rb[0] == ab[0] || rb[1] == ab[1] {
+        return None;
+    }
+    let rc_ref = reverse_complement(&refd);
+    let rc_alt = reverse_complement(&altd);
+    let (canon_ref, canon_alt) = if is_canonical_dbs_reference(&refd) {
+        // Palindromic reference (equal to its own reverse complement): both
+        // orientations share the reference, so pick the smaller alternate.
+        if rc_ref == refd && rc_alt < altd {
+            (rc_ref, rc_alt)
+        } else {
+            (refd, altd)
+        }
+    } else {
+        (rc_ref, rc_alt)
+    };
+    Some(format!("{canon_ref}>{canon_alt}"))
+}
+
 pub fn reverse_complement(seq: &str) -> String {
     seq.bytes()
         .rev()
@@ -236,6 +290,43 @@ mod tests {
         assert_eq!(grantham_category(5), "conservative");
         assert_eq!(grantham_category(110), "moderately radical");
         assert_eq!(grantham_category(215), "radical");
+    }
+
+    #[test]
+    fn test_dbs_class_canonical_collapsing() {
+        // Canonical reference is kept as-is.
+        assert_eq!(dbs_class("CC", "TT").as_deref(), Some("CC>TT"));
+        assert_eq!(dbs_class("TC", "AT").as_deref(), Some("TC>AT"));
+        // A reverse-complement-equivalent doublet collapses to the same class:
+        // GG>AA on the forward strand is CC>TT read on the reverse strand.
+        assert_eq!(dbs_class("GG", "AA").as_deref(), Some("CC>TT"));
+        assert_eq!(
+            dbs_class("GG", "AA").as_deref(),
+            dbs_class("CC", "TT").as_deref()
+        );
+        // Non-canonical reference is flipped to its reverse complement.
+        assert_eq!(dbs_class("GA", "TC").as_deref(), Some("TC>GA"));
+    }
+
+    #[test]
+    fn test_dbs_class_palindromic_reference_tiebreak() {
+        // AT is its own reverse complement; AT>CA and AT>TG are the same DBS
+        // and both collapse to the smaller alternate.
+        assert_eq!(dbs_class("AT", "CA").as_deref(), Some("AT>CA"));
+        assert_eq!(dbs_class("AT", "TG").as_deref(), Some("AT>CA"));
+    }
+
+    #[test]
+    fn test_dbs_class_rejects_non_doublets() {
+        // Only one position changed -> an SBS, not a DBS.
+        assert_eq!(dbs_class("CC", "CT"), None);
+        assert_eq!(dbs_class("CC", "TC"), None);
+        // No change at all.
+        assert_eq!(dbs_class("CC", "CC"), None);
+        // Ambiguous / non-ACGT bases.
+        assert_eq!(dbs_class("CN", "TT"), None);
+        // Wrong length.
+        assert_eq!(dbs_class("C", "T"), None);
     }
 
     #[test]

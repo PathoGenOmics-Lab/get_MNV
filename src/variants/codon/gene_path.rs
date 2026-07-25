@@ -36,7 +36,50 @@ pub(super) fn compute_annotations(
             None
         },
         consequence_shift: compute_consequence_shift(orig_c, mut_c, single_aas),
+        // Set by the caller, which has the raw per-SNV alleles and positions.
+        dbs_class: None,
     }
+}
+
+/// COSMIC-style doublet-base-substitution class for a codon MNV, when it is
+/// exactly two genomically-adjacent single-base substitutions. Bases are taken
+/// on the reference (genomic) strand; the DBS canonicalisation collapses the two
+/// strands, so no strand orientation is applied here. `None` otherwise.
+pub(super) fn dbs_class_for_codon(snvs: &[&Snp]) -> Option<String> {
+    if snvs.len() != 2 {
+        return None;
+    }
+    let mut pair: Vec<(usize, char, char)> = snvs
+        .iter()
+        .filter_map(|snv| {
+            Some((
+                snv.position,
+                single_base(&snv.ref_base)?,
+                single_base(&snv.base)?,
+            ))
+        })
+        .collect();
+    if pair.len() != 2 {
+        return None;
+    }
+    pair.sort_by_key(|(pos, _, _)| *pos);
+    let (p0, r0, a0) = pair[0];
+    let (p1, r1, a1) = pair[1];
+    if p1 != p0 + 1 {
+        return None;
+    }
+    crate::utils::dbs_class(&format!("{r0}{r1}"), &format!("{a0}{a1}"))
+}
+
+/// The single uppercase base of a one-character allele, or `None` for empty or
+/// multi-base alleles (which cannot form a doublet substitution).
+fn single_base(allele: &str) -> Option<char> {
+    let mut chars = allele.chars();
+    let base = chars.next()?;
+    if chars.next().is_some() {
+        return None;
+    }
+    Some(base.to_ascii_uppercase())
 }
 
 /// Compare the combined MNV consequence against its individual SNVs.
@@ -212,7 +255,8 @@ pub fn process_codon(
         .map(|aa| iupac_aa(&format!("{orig_aa}{local_aa_pos}{aa}")))
         .collect();
 
-    let annotations = compute_annotations(&orig_aa, &mut_aa, &single_aas, change_type);
+    let mut annotations = compute_annotations(&orig_aa, &mut_aa, &single_aas, change_type);
+    annotations.dbs_class = dbs_class_for_codon(&mnv_snps);
 
     VariantInfo {
         chrom: chrom.to_string(),
@@ -350,8 +394,41 @@ pub(super) fn codon_bounds_for_position(gene: &Gene, position: usize) -> Option<
 
 #[cfg(test)]
 mod annotation_tests {
-    use super::{aa_severity, compute_consequence_shift};
-    use crate::variants::ConsequenceShift;
+    use super::{aa_severity, compute_consequence_shift, dbs_class_for_codon};
+    use crate::variants::{ConsequenceShift, Snp};
+
+    fn snp(position: usize, ref_base: &str, base: &str) -> Snp {
+        Snp {
+            index: position,
+            position,
+            ref_base: ref_base.to_string(),
+            base: base.to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }
+    }
+
+    #[test]
+    fn test_dbs_class_for_adjacent_pair_is_order_independent() {
+        let a = snp(10, "C", "T");
+        let b = snp(11, "C", "T");
+        assert_eq!(dbs_class_for_codon(&[&a, &b]).as_deref(), Some("CC>TT"));
+        assert_eq!(dbs_class_for_codon(&[&b, &a]).as_deref(), Some("CC>TT"));
+    }
+
+    #[test]
+    fn test_dbs_class_none_for_non_adjacent_or_single() {
+        let a = snp(10, "C", "T");
+        let far = snp(12, "C", "T");
+        // Same codon, positions 1 and 3: not a genomic doublet.
+        assert_eq!(dbs_class_for_codon(&[&a, &far]), None);
+        // A single SNV is not a doublet.
+        assert_eq!(dbs_class_for_codon(&[&a]), None);
+        // Three SNVs are a triplet, not a DBS.
+        let b = snp(11, "C", "T");
+        assert_eq!(dbs_class_for_codon(&[&a, &b, &far]), None);
+    }
 
     #[test]
     fn test_aa_severity_retained_stop_is_synonymous() {

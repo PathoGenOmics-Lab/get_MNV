@@ -36,6 +36,8 @@ Main columns:
 | `Impact` | Predicted impact following SnpEff/VEP conventions: `HIGH`, `MODERATE`, `LOW` or `MODIFIER`. |
 | `Grantham` | Grantham distance and conservation category of a missense change (e.g. `177 (radical)`); `-` for synonymous, nonsense or non-coding changes. |
 | `MNV Consequence Shift` | How the combined MNV compares with its individual SNVs: `MNV-gained` (more severe than any single SNV — what per-SNV annotators miss), `MNV-masked` (a nonsense SNV rescued by its neighbour) or `Concordant`. `-` for single SNVs. |
+| `DBS Class` | COSMIC-style doublet base substitution class for an MNV of two adjacent single-base substitutions, e.g. `CC>TT` (reverse-complement collapsed, so `GG>AA` reports as `CC>TT`). `-` for single SNVs, indels, and non-adjacent or 3-SNV MNVs. |
+| `MNV Phasing Support` | BAM-derived phasing (linkage) support: the fraction of the least-supported constituent SNV reads that also carry the full MNV haplotype. `1.0000` = perfect co-occurrence (a genuine haplotype); low values suggest the SNVs fall on different molecules (a same-codon coincidence, not a real MNV). `-` without `--bam` or for single SNVs. |
 
 Extra columns when `--bam` is used:
 
@@ -133,6 +135,11 @@ Common INFO fields:
 | `EFREQ` | Exact event frequency for indel/complex alleles |
 | `SBP` | SNP strand-bias p-value |
 | `MSBP` | MNV strand-bias p-value |
+| `SO`, `IMPACT` | Sequence Ontology consequence term and predicted impact |
+| `GD` | Grantham distance of a missense change |
+| `MNVSHIFT` | Combined MNV consequence vs. its individual SNVs |
+| `DBS` | COSMIC-style doublet class for adjacent 2-SNV MNVs (e.g. `CC>TT`) |
+| `MNVPS` | MNV phasing support (fraction of the limiting SNV reads carrying the full haplotype) |
 
 The VCF header records the get_MNV version, command line, and thresholds used.
 When `--emit-filtered` is enabled, VCF records below read-support, frequency,

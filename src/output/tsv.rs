@@ -16,18 +16,29 @@ fn is_intergenic(variant: &VariantInfo) -> bool {
 }
 
 /// Trailing annotation cells appended to every TSV row: SO consequence term,
-/// impact, Grantham distance (with category), and MNV-vs-SNV consequence shift.
-fn annotation_cells(variant: &VariantInfo) -> [String; 4] {
+/// impact, Grantham distance (with category), MNV-vs-SNV consequence shift,
+/// COSMIC-style DBS class, and BAM-derived MNV phasing support.
+fn annotation_cells(variant: &VariantInfo) -> [String; 6] {
     let grantham = match variant.annotations.grantham {
         Some(d) => format!("{d} ({})", crate::utils::grantham_category(d)),
         None => "-".to_string(),
     };
     let (so_term, impact) = super::common::so_consequence(variant);
+    let dbs = variant
+        .annotations
+        .dbs_class
+        .clone()
+        .unwrap_or_else(|| "-".to_string());
+    let phasing = super::common::mnv_phasing_support(variant)
+        .map(format_freq)
+        .unwrap_or_else(|| "-".to_string());
     [
         so_term.to_string(),
         impact.to_string(),
         grantham,
         variant.annotations.consequence_shift.to_string(),
+        dbs,
+        phasing,
     ]
 }
 
@@ -451,6 +462,8 @@ impl TsvWriter {
                 "Impact",
                 "Grantham",
                 "MNV Consequence Shift",
+                "DBS Class",
+                "MNV Phasing Support",
             ]
         } else {
             vec![
@@ -474,6 +487,8 @@ impl TsvWriter {
                 "Impact",
                 "Grantham",
                 "MNV Consequence Shift",
+                "DBS Class",
+                "MNV Phasing Support",
             ]
         };
         writer.write_record(&header)?;

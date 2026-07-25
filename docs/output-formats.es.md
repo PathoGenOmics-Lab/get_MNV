@@ -36,6 +36,8 @@ Columnas principales:
 | `Impact` | Impacto previsto según convenciones SnpEff/VEP: `HIGH`, `MODERATE`, `LOW` o `MODIFIER`. |
 | `Grantham` | Distancia de Grantham y categoría de conservación de un cambio missense (p. ej. `177 (radical)`); `-` si es sinónimo, sin sentido o no codificante. |
 | `MNV Consequence Shift` | Cómo compara el MNV combinado con sus SNV individuales: `MNV-gained` (más severo que cualquier SNV solo — lo que se pierden los anotadores por-SNV), `MNV-masked` (un SNV sin sentido rescatado por su vecino) o `Concordant`. `-` para SNV individuales. |
+| `DBS Class` | Clase de sustitución de doblete (DBS) al estilo COSMIC para un MNV de dos sustituciones de una base adyacentes, p. ej. `CC>TT` (colapsado por complemento reverso, así que `GG>AA` se reporta como `CC>TT`). `-` para SNV individuales, indels y MNV no adyacentes o de 3 SNV. |
+| `MNV Phasing Support` | Soporte de fasing (ligamiento) derivado del BAM: fracción de las lecturas del SNV constituyente menos soportado que además llevan el haplotipo MNV completo. `1.0000` = co-ocurrencia perfecta (un haplotipo real); valores bajos sugieren que los SNV caen en moléculas distintas (una coincidencia en el mismo codón, no un MNV real). `-` sin `--bam` o para SNV individuales. |
 
 Columnas adicionales cuando se usa `--bam`:
 
@@ -133,6 +135,11 @@ Campos INFO comunes:
 | `EFREQ` | Frecuencia exacta del evento para alelos indel/complejos |
 | `SBP` | Valor p del sesgo de hebra de SNP |
 | `MSBP` | Valor p del sesgo de hebra de MNV |
+| `SO`, `IMPACT` | Término de consecuencia Sequence Ontology e impacto predicho |
+| `GD` | Distancia de Grantham de un cambio missense |
+| `MNVSHIFT` | Consecuencia del MNV combinado frente a sus SNV individuales |
+| `DBS` | Clase de doblete estilo COSMIC para MNV de 2 SNV adyacentes (p. ej. `CC>TT`) |
+| `MNVPS` | Soporte de fasing del MNV (fracción de las lecturas del SNV limitante que llevan el haplotipo completo) |
 
 La cabecera del VCF registra la versión de get_MNV, la línea de comandos y los umbrales usados.
 Cuando `--emit-filtered` está habilitado, los registros VCF que quedan por debajo de los umbrales de

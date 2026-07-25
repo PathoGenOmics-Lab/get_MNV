@@ -82,8 +82,10 @@ pub(super) fn process_transcript_codon(
         .iter()
         .map(|aa| iupac_aa(&format!("{orig_aa}{aa_pos}{aa}")))
         .collect::<Vec<_>>();
-    let annotations =
+    let mut annotations =
         super::gene_path::compute_annotations(&orig_aa, &mut_aa, &single_aas, change_type);
+    let snp_refs: Vec<&Snp> = codon_snps.iter().map(|ts| &ts.snp).collect();
+    annotations.dbs_class = super::gene_path::dbs_class_for_codon(&snp_refs);
 
     let raw_snps = codon_snps
         .iter()
