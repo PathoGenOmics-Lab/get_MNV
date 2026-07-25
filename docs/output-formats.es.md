@@ -250,8 +250,12 @@ El informe contiene:
   selecciona un rango; un clic simple sobre ella recentra. La caja de región acepta
   `inicio-fin`, `contig:inicio-fin`, una coordenada suelta o un nombre de gen, y lo
   encuadra. Sobre la regla, una pista de densidad muestra las llamadas por bin
-  genómico apiladas por tipo de variante, así los cúmulos de MNV o indels destacan
-  a cualquier zoom, y una pista de genes marca la extensión de los sitios llamados
+  genómico en carriles independientes: uno por cada métrica (todas las llamadas,
+  SNP, MNV, indel, impacto HIGH y número de muestras distintas con llamada). Cada
+  carril tiene su propia escala y su propio máximo, así una clase rara se lee al
+  lado de una común en vez de quedar aplastada en la base de un apilado, y el
+  control `Tracks` alterna entre todos los carriles, un conjunto compacto y
+  ninguno. Una pista de genes marca la extensión de los sitios llamados
   de cada gen (que es donde hubo llamadas, no el límite anotado del gen, que el
   informe no lleva). Al
   acercarse lo suficiente aparece la letra de la base dentro de cada celda. Las

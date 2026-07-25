@@ -248,8 +248,12 @@ The report contains:
   and double-click to reset. Dragging across the whole-contig strip selects a
   range; a plain click on it recentres. The region box takes `start-end`,
   `contig:start-end`, a single coordinate, or a gene name, and frames it. Above
-  the ruler a density track shows calls per genomic bin stacked by variant type,
-  so clusters of MNVs or indels stand out at any zoom, and a gene track marks the
+  the ruler sit density lanes: one small chart each for all calls, SNP, MNV,
+  indel, HIGH impact and the number of distinct samples with a call, binned by
+  genomic position. Each lane carries its own scale and its own maximum, so a
+  rare class is readable next to a common one instead of being flattened at the
+  base of a stack, and the `Tracks` control switches between all lanes, a compact
+  set and none. A gene track marks the
   extent of each gene's called sites (which is where calls were made, not the
   annotated gene boundary, which the report does not carry). Zooming in far enough shows
   the base letter inside each cell. Samples can be ordered by shared profile
