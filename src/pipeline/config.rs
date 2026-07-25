@@ -424,6 +424,8 @@ mod tests {
             summary_json: None,
             error_json: None,
             run_manifest: None,
+            report: None,
+            report_from: Vec::new(),
             convert: false,
             both: false,
             translation_table: 11,

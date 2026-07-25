@@ -65,6 +65,8 @@ fn base_args() -> Args {
         summary_json: None,
         error_json: None,
         run_manifest: None,
+        report: None,
+        report_from: Vec::new(),
         convert: false,
         both: false,
         output_dir: None,
@@ -1402,6 +1404,8 @@ chr1\t300\t.\tG\tA\t.\tPASS\t.\tGT:DP\t1/1:25\t1/1:30
         summary_json: None,
         error_json: None,
         run_manifest: None,
+        report: None,
+        report_from: Vec::new(),
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -1486,6 +1490,8 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT:DP\t1/1:20\t0/0:15
         summary_json: None,
         error_json: None,
         run_manifest: None,
+        report: None,
+        report_from: Vec::new(),
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -1561,6 +1567,8 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT\t1/1
         summary_json: None,
         error_json: None,
         run_manifest: None,
+        report: None,
+        report_from: Vec::new(),
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -1640,6 +1648,8 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.
         summary_json: None,
         error_json: None,
         run_manifest: None,
+        report: None,
+        report_from: Vec::new(),
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -1907,6 +1917,8 @@ fn test_invalid_translation_table_fails() {
         summary_json: None,
         error_json: None,
         run_manifest: None,
+        report: None,
+        report_from: Vec::new(),
         convert: false,
         both: false,
         translation_table: 99, // invalid
@@ -1968,6 +1980,8 @@ fn test_translation_table_1_standard() {
         summary_json: None,
         error_json: None,
         run_manifest: None,
+        report: None,
+        report_from: Vec::new(),
         convert: false,
         both: false,
         translation_table: 1, // Standard
@@ -2044,6 +2058,8 @@ fn test_empty_vcf_no_records() {
         summary_json: None,
         error_json: None,
         run_manifest: None,
+        report: None,
+        report_from: Vec::new(),
         convert: false,
         both: false,
         translation_table: 11,
@@ -2125,6 +2141,8 @@ fn test_truncated_vcf_record() {
         summary_json: None,
         error_json: None,
         run_manifest: None,
+        report: None,
+        report_from: Vec::new(),
         convert: false,
         both: false,
         translation_table: 11,
@@ -2207,6 +2225,8 @@ fn test_vcf_no_header() {
         summary_json: None,
         error_json: None,
         run_manifest: None,
+        report: None,
+        report_from: Vec::new(),
         convert: false,
         both: false,
         translation_table: 11,
@@ -2285,6 +2305,8 @@ fn test_error_json_written_on_failure() {
         summary_json: None,
         error_json: Some(error_json_path.to_string_lossy().to_string()),
         run_manifest: None,
+        report: None,
+        report_from: Vec::new(),
         convert: false,
         both: false,
         translation_table: 11,
@@ -2314,4 +2336,68 @@ fn test_error_json_written_on_failure() {
         "Error JSON should have 'schema_version'"
     );
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+// The HTML report must be produced from a real run, embed its data, and stay
+// self-contained (no external requests) so it opens offline.
+#[test]
+fn test_e2e_html_report_is_self_contained() {
+    let tmp = temp_dir("e2e_report");
+    let mut args = base_args();
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("rep".to_string());
+    let report_path = tmp.join("report.html");
+    args.report = Some(report_path.to_string_lossy().into());
+
+    pipeline::run(&args).expect("pipeline with --report should succeed");
+
+    let html = fs::read_to_string(&report_path).expect("report should exist");
+    assert!(
+        !html.contains("__GET_MNV_REPORT_DATA__"),
+        "the data placeholder should have been replaced"
+    );
+    assert!(html.contains("get_MNV variant report"), "missing title");
+    assert!(
+        html.contains("\"rows\":["),
+        "the embedded payload should carry variant rows"
+    );
+    // Self-contained: no external scripts, styles, fonts or images.
+    for pattern in ["src=\"http", "href=\"http", "@import", "cdn."] {
+        assert!(
+            !html.contains(pattern),
+            "report must not reference external resources, found {pattern}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+// --report-from aggregates TSVs from separate runs into one multi-sample report
+// without running the pipeline again.
+#[test]
+fn test_e2e_report_from_aggregates_existing_tsvs() {
+    let tmp = temp_dir("e2e_report_from");
+    let mut args = base_args();
+    args.output_dir = Some(tmp.to_string_lossy().into());
+
+    // Two per-sample TSVs, as a one-sample-per-run pipeline would leave behind.
+    let mut tsvs = Vec::new();
+    for sample in ["CASE-01", "CASE-02"] {
+        args.output_prefix = Some(sample.to_string());
+        let summary = pipeline::run(&args).expect("pipeline should succeed");
+        tsvs.push(summary.output_tsv.expect("TSV output path"));
+    }
+
+    let report_path = tmp.join("cohort.html");
+    let mut report_args = base_args();
+    report_args.report_from = tsvs;
+    report_args.report = Some(report_path.to_string_lossy().into());
+    pipeline::run(&report_args).expect("--report-from should succeed");
+
+    let html = fs::read_to_string(&report_path).expect("cohort report should exist");
+    assert!(
+        html.contains("CASE-01") && html.contains("CASE-02"),
+        "both samples should be labelled in the report"
+    );
+    assert!(!html.contains("__GET_MNV_REPORT_DATA__"));
+    let _ = std::fs::remove_dir_all(&tmp);
 }

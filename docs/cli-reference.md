@@ -79,6 +79,15 @@ These apply only when `--bam` is provided.
 | `--keep-original-info` | Preserve original VCF INFO fields in the output (requires `--convert`/`--both`). |
 | `--emit-filtered` | Emit records that fail thresholds with `FILTER` tags instead of skipping them. |
 
+## Interactive HTML report
+
+| Option | Description |
+|---|---|
+| `--report <HTML_FILE>` | Write a self-contained interactive HTML report of the called variants. Needs the TSV output (the default; with `--convert` add `--both`). With `--sample all` the report covers every sample. |
+| `--report-from <TSV>...` | Build the report from existing get_MNV TSV files instead of running the pipeline, for cohorts processed one sample per run. Each file becomes one sample, labelled by its file name. Requires `--report` for the output path. |
+
+See [Output formats](output-formats.md#interactive-html-report) for what the report contains.
+
 ## Validation and metadata
 
 | Option | Description |

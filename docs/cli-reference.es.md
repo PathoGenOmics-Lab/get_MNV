@@ -79,6 +79,15 @@ Estas solo aplican cuando se proporciona `--bam`.
 | `--keep-original-info` | Conserva los campos INFO originales del VCF en la salida (requiere `--convert`/`--both`). |
 | `--emit-filtered` | Emite los registros que no superan los umbrales con etiquetas `FILTER` en lugar de omitirlos. |
 
+## Informe HTML interactivo
+
+| Opción | Descripción |
+|---|---|
+| `--report <HTML_FILE>` | Escribe un informe HTML interactivo y autocontenido de las variantes llamadas. Necesita la salida TSV (la de por defecto; con `--convert` añade `--both`). Con `--sample all` el informe cubre todas las muestras. |
+| `--report-from <TSV>...` | Construye el informe a partir de TSV de get_MNV ya existentes, sin ejecutar el pipeline, para cohortes procesadas muestra a muestra. Cada fichero es una muestra, etiquetada con su nombre de archivo. Requiere `--report` para la ruta de salida. |
+
+Consulta [Formatos de salida](output-formats.es.md#informe-html-interactivo) para saber qué contiene el informe.
+
 ## Validación y metadatos
 
 | Opción | Descripción |

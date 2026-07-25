@@ -212,6 +212,54 @@ Escribe los errores como JSON con:
 
 Esto resulta útil en pipelines automatizados.
 
+## Informe HTML interactivo
+
+`--report <FICHERO.html>` escribe un único fichero HTML autocontenido para explorar
+las variantes llamadas. Incrusta sus datos y no carga scripts ni fuentes externas,
+así que se abre sin conexión con un doble clic y se puede adjuntar en un correo o
+archivar junto a los resultados.
+
+```bash
+# Informe de un run
+get_mnv --vcf muestra.vcf --fasta ref.fasta --gff ref.gff --report muestra.html
+
+# Un informe que cubre todas las muestras de un VCF multi-muestra
+get_mnv --vcf cohorte.vcf --fasta ref.fasta --gff ref.gff --sample all --report cohorte.html
+
+# Cohorte procesada muestra a muestra: agrega los TSV al final
+get_mnv --report-from resultados/*.MNV.tsv --report cohorte.html
+```
+
+Con `--report-from` no se ejecuta el pipeline: el informe se construye a partir de
+TSV de get_MNV ya existentes, que es la forma habitual en un flujo de Nextflow o
+Snakemake que llama a get_MNV una vez por muestra. Cada fichero es una muestra,
+etiquetada con su nombre de archivo sin el sufijo `.MNV.tsv` (`TB-001.MNV.tsv`
+pasa a ser `TB-001`).
+
+El informe contiene:
+
+- **Cifras principales** para el filtro activo: variantes, muestras, genes, filas
+  MNV y variantes de alto impacto.
+- **Variantes por muestra**, apiladas por tipo de variante, y la **distribución de
+  consecuencias** por término de Sequence Ontology. Ambas siguen los filtros activos.
+- **Una tabla ordenable y buscable** con todas las variantes, virtualizada para que
+  decenas de miles de filas sigan siendo fluidas. Filtra por muestra, gen, tipo de
+  variante e impacto, o busca por gen, posición, cambio de aminoácido y HGVS.
+- **Un panel de detalle** de la variante seleccionada con su localización,
+  consecuencia, descriptores HGVS `g.`/`c.`/`p.`, distancia de Grantham, clase DBS,
+  predicción de NMD, codones, componentes del evento y soporte de lecturas.
+- **Exportar TSV filtrado**, que descarga exactamente las filas mostradas.
+
+El informe sigue el tema claro u oscuro del sistema operativo y tiene su propio
+selector. Como se construye desde el TSV, `--report` necesita salida TSV: funciona
+con el modo de salida por defecto y con `--both`, pero no con `--convert` a solas
+ni con `--dry-run`. Las columnas de soporte de lecturas (frecuencia, profundidad)
+solo se rellenan si el run usó `--bam`.
+
+El tamaño escala con el número de variantes. Los campos repetidos se codifican con
+diccionario, así que una cohorte de decenas de miles de variantes se queda en pocos
+megabytes.
+
 ## Notas
 
 - Para los registros MNV, la profundidad y la frecuencia se calculan a partir de las lecturas que

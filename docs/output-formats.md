@@ -213,6 +213,52 @@ Write errors as JSON with:
 
 This is useful in automated pipelines.
 
+## Interactive HTML report
+
+`--report <FILE.html>` writes a single self-contained HTML file for exploring the
+called variants. It embeds its data, loads no external scripts or fonts, and
+therefore opens offline by double-clicking and can be attached to an email or
+archived with the results.
+
+```bash
+# Report for one run
+get_mnv --vcf sample.vcf --fasta ref.fasta --gff ref.gff --report sample.html
+
+# One report covering every sample of a multi-sample VCF
+get_mnv --vcf cohort.vcf --fasta ref.fasta --gff ref.gff --sample all --report cohort.html
+
+# Cohort processed one sample per run: aggregate the TSVs afterwards
+get_mnv --report-from results/*.MNV.tsv --report cohort.html
+```
+
+With `--report-from` no pipeline runs: the report is built from get_MNV TSV files
+that already exist, which is the usual shape in a Nextflow or Snakemake workflow
+that calls get_MNV once per sample. Each file becomes one sample, labelled by its
+file name with the `.MNV.tsv` suffix removed (`TB-001.MNV.tsv` becomes `TB-001`).
+
+The report contains:
+
+- **Headline counts** for the current filter: variants, samples, genes, MNV rows
+  and high-impact variants.
+- **Variants per sample**, stacked by variant type, and the **consequence
+  distribution** by Sequence Ontology term. Both follow the active filters.
+- **A sortable, searchable table** of every variant, virtualised so tens of
+  thousands of rows stay responsive. Filter by sample, gene, variant type and
+  impact, or search across gene, position, amino-acid change and HGVS.
+- **A detail panel** for the selected variant with its location, consequence,
+  HGVS `g.`/`c.`/`p.` descriptors, Grantham distance, DBS class, NMD prediction,
+  codons, event components and read support.
+- **Export filtered TSV**, which downloads exactly the rows currently shown.
+
+The report follows the operating-system light or dark theme and has its own
+toggle. Because it is built from the TSV, `--report` needs TSV output: it works
+with the default output mode and with `--both`, but not with `--convert` alone or
+with `--dry-run`. Read-support columns (frequency, depth) are populated only when
+the run used `--bam`.
+
+Size scales with the number of variants. Repeated fields are dictionary-encoded,
+so a cohort of tens of thousands of variants stays in the low megabytes.
+
 ## Notes
 
 - For MNV records, depth and frequency are calculated from reads spanning all

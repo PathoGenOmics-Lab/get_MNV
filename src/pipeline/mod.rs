@@ -262,6 +262,26 @@ fn run_single(
             write_json_value(run_manifest_path, &manifest)?;
             info!("Run manifest written to {run_manifest_path}");
         }
+        // Single-sample report. In `--sample all` mode `write_reports` is false
+        // for each sample and one combined report is written by the caller.
+        if let Some(report_path) = args.report.as_deref() {
+            let sample_label = summary.sample.clone().unwrap_or_else(|| {
+                std::path::Path::new(&parsed.base_name)
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "sample".to_string())
+            });
+            let tsv_path = summary.output_tsv.as_deref().ok_or_else(|| {
+                AppError::config("--report needs the TSV output; drop --convert or add --both")
+            })?;
+            let mut builder = output::ReportBuilder::new();
+            builder.add_tsv(tsv_path, Some(&sample_label))?;
+            builder.write(report_path, &parsed.command_line, &report_timestamp())?;
+            info!(
+                "HTML report written to {report_path} ({} variants)",
+                builder.len()
+            );
+        }
     }
 
     if args.dry_run {
@@ -271,6 +291,68 @@ fn run_single(
     }
 
     Ok(summary)
+}
+
+/// Civil date from a count of days since the Unix epoch (Howard Hinnant's
+/// `civil_from_days`). Avoids pulling in a date dependency for the one
+/// human-readable timestamp the report header shows.
+fn civil_from_days(days: i64) -> (i64, u32, u32) {
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let year = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    (if month <= 2 { year + 1 } else { year }, month, day)
+}
+
+/// Current UTC time as `YYYY-MM-DD HH:MM UTC`, for the report header.
+fn report_timestamp() -> String {
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    let (year, month, day) = civil_from_days(days);
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02} UTC",
+        rem / 3600,
+        (rem % 3600) / 60
+    )
+}
+
+/// Build the HTML report from existing get_MNV TSV files, without running the
+/// pipeline. Each input file becomes one sample in the report.
+fn run_report_from_tsvs(args: &Args) -> AppResult<RunSummary> {
+    let report_path = args.report.as_deref().ok_or_else(|| {
+        AppError::config("--report-from requires --report to name the output HTML file")
+    })?;
+
+    let mut builder = output::ReportBuilder::new();
+    for tsv_path in &args.report_from {
+        builder.add_tsv(tsv_path, None)?;
+        info!("Report input: {tsv_path}");
+    }
+    if builder.is_empty() {
+        return Err(AppError::validation(
+            "The provided TSV files contain no variant rows, so there is nothing to report",
+        ));
+    }
+    builder.write(report_path, &sanitized_command_line(), &report_timestamp())?;
+    info!(
+        "HTML report written to {report_path} ({} variants from {} file(s))",
+        builder.len(),
+        args.report_from.len()
+    );
+
+    Ok(RunSummary {
+        schema_version: "1.0.0".to_string(),
+        ..RunSummary::default()
+    })
 }
 
 /// Run the pipeline (CLI entry point, no progress reporting).
@@ -283,6 +365,27 @@ pub fn run_with_progress(
     args: &Args,
     on_progress: &dyn Fn(ProgressEvent),
 ) -> AppResult<RunSummary> {
+    // Standalone report mode: aggregate existing TSVs, no pipeline run.
+    if !args.report_from.is_empty() {
+        return run_report_from_tsvs(args);
+    }
+    // Enforced here rather than by the clap ArgGroup, which cannot express
+    // "unless --report-from" (that mode needs no variant input).
+    if args.vcf_file.is_none() && args.tsv_file.is_none() {
+        return Err(AppError::config(
+            "one of --vcf or --tsv is required (or use --report-from to build a report from existing TSV files)",
+        ));
+    }
+    if args.report.is_some() {
+        if args.dry_run {
+            return Err(AppError::config("--report cannot be used with --dry-run"));
+        }
+        if args.convert && !args.both {
+            return Err(AppError::config(
+                "--report needs the TSV output; drop --convert or add --both",
+            ));
+        }
+    }
     if args.vcf_gz && !(args.convert || args.both) {
         return Err(AppError::config("--vcf-gz requires --convert or --both"));
     }
@@ -402,6 +505,23 @@ pub fn run_with_progress(
         aggregate.timings.process_ms += sample_summary.timings.process_ms;
         aggregate.timings.emit_ms += sample_summary.timings.emit_ms;
         aggregate.timings.total_ms += sample_summary.timings.total_ms;
+    }
+
+    // One combined report covering every sample of the multi-sample VCF.
+    if let Some(report_path) = args.report.as_deref() {
+        let mut builder = output::ReportBuilder::new();
+        for (sample, sample_summary) in sample_names.iter().zip(sample_summaries.iter()) {
+            let tsv_path = sample_summary.output_tsv.as_deref().ok_or_else(|| {
+                AppError::config("--report needs the TSV output; drop --convert or add --both")
+            })?;
+            builder.add_tsv(tsv_path, Some(sample))?;
+        }
+        builder.write(report_path, &sanitized_command_line(), &report_timestamp())?;
+        info!(
+            "HTML report written to {report_path} ({} variants across {} samples)",
+            builder.len(),
+            sample_names.len()
+        );
     }
 
     if let Some(summary_json_path) = args.summary_json.as_deref() {

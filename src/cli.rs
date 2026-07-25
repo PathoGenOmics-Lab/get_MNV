@@ -21,8 +21,11 @@ pub enum VariantInputFormat {
 )]
 #[command(
     group(
+        // Not `required(true)`: `--report-from` builds a report from existing
+        // TSVs without running the pipeline, so it needs no variant input. The
+        // "one of --vcf/--tsv is required" check then lives in `validate`.
         ArgGroup::new("variant_input")
-            .required(true)
+            .required(false)
             .args(["vcf_file", "tsv_file"])
     )
 )]
@@ -49,20 +52,25 @@ pub struct Args {
     pub bam_file: Option<String>,
 
     /// Reference FASTA file
-    #[arg(short = 'f', long = "fasta")]
+    #[arg(
+        short = 'f',
+        long = "fasta",
+        required_unless_present = "report_from",
+        default_value = ""
+    )]
     pub fasta_file: String,
 
     /// Gene annotation file in TSV format (gene,start,end,strand)
     #[arg(
         short = 'g',
         long = "genes",
-        required_unless_present = "gff_file",
+        required_unless_present_any = ["gff_file", "report_from"],
         conflicts_with = "gff_file"
     )]
     pub genes_file_tsv: Option<String>,
 
     /// Gene annotation file in GFF/GFF3 format
-    #[arg(long = "gff", required_unless_present = "genes_file_tsv")]
+    #[arg(long = "gff", required_unless_present_any = ["genes_file_tsv", "report_from"])]
     pub gff_file: Option<String>,
 
     /// Comma-separated GFF feature types to analyze (default: gene,pseudogene)
@@ -195,6 +203,23 @@ pub struct Args {
     /// Write a reproducibility manifest (inputs, outputs, checksums, runtime metadata)
     #[arg(long = "run-manifest")]
     pub run_manifest: Option<String>,
+
+    /// Write a self-contained interactive HTML report of the called variants.
+    /// Requires TSV output (the default; not available with --convert unless
+    /// --both is also given). With --sample all the report covers every sample.
+    #[arg(long = "report", value_name = "HTML_FILE")]
+    pub report: Option<String>,
+
+    /// Build the HTML report from existing get_MNV TSV files instead of running
+    /// the pipeline, for cohorts processed one sample per run. Each file becomes
+    /// one sample, labelled by its file name. Requires --report for the output.
+    #[arg(
+        long = "report-from",
+        value_name = "TSV",
+        num_args = 1..,
+        requires = "report"
+    )]
+    pub report_from: Vec<String>,
 
     /// NCBI translation table number for codon-to-amino-acid mapping
     /// (default: 11 = Bacterial/Archaeal/Plant Plastid).

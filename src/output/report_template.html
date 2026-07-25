@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>get_MNV report</title>
+<style>
+:root{
+  color-scheme: light;
+  --page:#f9f9f7; --surface:#fcfcfb;
+  --text:#0b0b0b; --text-2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --critical:#d03b3b; --serious:#ec835a; --warning:#fab219; --good:#0ca30c;
+  --hover:rgba(11,11,11,.04); --sel:rgba(42,120,214,.10);
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19;
+    --text:#fff; --text-2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --hover:rgba(255,255,255,.06); --sel:rgba(57,135,229,.16);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --page:#0d0d0d; --surface:#1a1a19;
+  --text:#fff; --text-2:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --hover:rgba(255,255,255,.06); --sel:rgba(57,135,229,.16);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--page); color:var(--text);
+  font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1400px;margin:0 auto;padding:24px 20px 64px}
+header.top{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;justify-content:space-between;margin-bottom:20px}
+h1{font-size:19px;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--text-2);font-size:12.5px}
+.sub code{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:11.5px;word-break:break-all}
+.btn{
+  background:var(--surface);color:var(--text);border:1px solid var(--border);
+  border-radius:7px;padding:6px 11px;font:inherit;font-size:12.5px;cursor:pointer;
+}
+.btn:hover{background:var(--hover)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.kpi{padding:13px 15px}
+.kpi .lab{color:var(--text-2);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
+.kpi .val{font-size:27px;line-height:1.15;margin-top:3px}
+.kpi .note{color:var(--muted);font-size:11.5px;margin-top:1px}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+@media (max-width:900px){.charts{grid-template-columns:1fr}}
+.panel{padding:14px 16px 12px}
+.panel h2{font-size:13px;margin:0 0 2px;font-weight:600}
+.panel .hint{color:var(--muted);font-size:11.5px;margin:0 0 10px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:9px;font-size:11.5px;color:var(--text-2)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.sw{width:9px;height:9px;border-radius:2px;display:inline-block}
+.scrollY{max-height:220px;overflow-y:auto}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:11px 12px;margin-bottom:12px}
+.filters input[type=search],.filters select{
+  background:var(--page);color:var(--text);border:1px solid var(--border);
+  border-radius:7px;padding:6px 9px;font:inherit;font-size:12.5px;
+}
+.filters input[type=search]{min-width:220px;flex:1 1 220px}
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chip{
+  border:1px solid var(--border);background:var(--page);color:var(--text-2);
+  border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:5px;
+}
+.chip[aria-pressed=true]{background:var(--sel);border-color:transparent;color:var(--text)}
+.chip .sw{width:8px;height:8px;border-radius:999px}
+.tablewrap{overflow:hidden}
+.tbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 13px;border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text-2)}
+.thead{display:flex;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:2}
+.thead div{
+  padding:8px 9px;font-size:11.5px;font-weight:600;color:var(--text-2);
+  cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.thead div:hover{color:var(--text)}
+.thead div .ind{color:var(--muted);font-weight:400}
+#viewport{height:520px;overflow:auto;position:relative}
+#spacer{position:relative;width:100%}
+.row{
+  display:flex;position:absolute;left:0;right:0;height:32px;align-items:center;
+  border-bottom:1px solid var(--border);cursor:pointer;
+}
+.row:hover{background:var(--hover)}
+.row.on{background:var(--sel)}
+.row>div,.thead>div{flex:0 0 auto;padding:0 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row>div{font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+.imp{display:inline-flex;align-items:center;gap:5px;font-size:11.5px}
+.imp i{width:7px;height:7px;border-radius:2px;flex:none}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px}
+.empty{padding:40px 12px;text-align:center;color:var(--muted);font-size:13px}
+#drawer{
+  position:fixed;top:0;right:0;bottom:0;width:min(430px,92vw);background:var(--surface);
+  border-left:1px solid var(--border);box-shadow:-8px 0 28px rgba(0,0,0,.10);
+  transform:translateX(100%);transition:transform .16s ease;overflow-y:auto;z-index:20;
+}
+#drawer.open{transform:none}
+.dhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:15px 16px 10px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface)}
+.dhead h3{margin:0;font-size:15px}
+.dl{padding:6px 16px 24px}
+.dl section{padding:11px 0;border-bottom:1px solid var(--border)}
+.dl section:last-child{border-bottom:0}
+.dl h4{margin:0 0 7px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+.dl .kv{display:grid;grid-template-columns:118px 1fr;gap:3px 10px;font-size:12.5px}
+.dl .kv dt{color:var(--text-2)}
+.dl .kv dd{margin:0;word-break:break-word}
+footer{margin-top:22px;color:var(--muted);font-size:11.5px;text-align:center}
+:focus-visible{outline:2px solid var(--s1);outline-offset:1px;border-radius:4px}
+@media print{
+  #viewport{height:auto;overflow:visible}
+  .filters,.btn,#drawer{display:none}
+  body{background:#fff}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>get_MNV variant report</h1>
+      <div class="sub" id="meta"></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="themeBtn" type="button">Theme</button>
+      <button class="btn" id="exportBtn" type="button">Export filtered TSV</button>
+    </div>
+  </header>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="charts">
+    <div class="card panel">
+      <h2>Variants per sample</h2>
+      <p class="hint" id="sampleHint">Stacked by variant type. Reflects the active filters.</p>
+      <div class="scrollY"><div id="sampleChart"></div></div>
+      <div class="legend" id="typeLegend"></div>
+    </div>
+    <div class="card panel">
+      <h2>Consequence</h2>
+      <p class="hint">Sequence Ontology terms, most frequent first.</p>
+      <div class="scrollY"><div id="soChart"></div></div>
+    </div>
+  </div>
+
+  <div class="card filters">
+    <input type="search" id="q" placeholder="Search gene, position, AA change, HGVS..." aria-label="Search">
+    <select id="sampleSel" aria-label="Sample"></select>
+    <select id="geneSel" aria-label="Gene"></select>
+    <div class="chips" id="typeChips" role="group" aria-label="Variant type"></div>
+    <div class="chips" id="impChips" role="group" aria-label="Impact"></div>
+    <button class="btn" id="resetBtn" type="button">Reset</button>
+  </div>
+
+  <div class="card tablewrap">
+    <div class="tbar">
+      <span id="count"></span>
+      <span id="hintSort">Click a column to sort. Click a row for detail.</span>
+    </div>
+    <div class="thead" id="thead"></div>
+    <div id="viewport"><div id="spacer"></div><div id="empty" class="empty" hidden>No variants match the current filters.</div></div>
+  </div>
+
+  <footer id="foot"></footer>
+</div>
+
+<aside id="drawer" aria-hidden="true" aria-label="Variant detail">
+  <div class="dhead">
+    <h3 id="dTitle">Variant</h3>
+    <button class="btn" id="dClose" type="button">Close</button>
+  </div>
+  <div class="dl" id="dBody"></div>
+</aside>
+
+<script id="report-data" type="application/json">__GET_MNV_REPORT_DATA__</script>
+<script>
+(function(){
+"use strict";
+var DATA = JSON.parse(document.getElementById("report-data").textContent);
+var D = DATA.dict, ROWS = DATA.rows, META = DATA.meta;
+
+// Row schema (kept in sync with the Rust writer).
+var C = {sample:0,chrom:1,gene:2,pos:3,ref:4,alt:5,aa:6,type:7,change:8,so:9,impact:10,
+         grantham:11,shift:12,dbs:13,nmd:14,hgvsg:15,hgvsc:16,freq:17,depth:18,
+         refCodon:19,altCodon:20,evClass:21,evComp:22,reads:23};
+
+var TYPE_COLOR = {"SNP":"var(--s1)","MNV":"var(--s2)","SNP/MNV":"var(--s3)","INDEL":"var(--s4)"};
+var IMP_COLOR  = {"HIGH":"var(--critical)","MODERATE":"var(--serious)","LOW":"var(--warning)","MODIFIER":"var(--muted)"};
+var IMP_ORDER  = ["HIGH","MODERATE","LOW","MODIFIER"];
+
+function txt(row,key){
+  var v = row[C[key]];
+  if(v===null||v===undefined||v==="") return "-";
+  return v;
+}
+function dictVal(row,key,arr){
+  var i = row[C[key]];
+  return (i===null||i===undefined) ? "-" : (arr[i]===undefined?"-":arr[i]);
+}
+function sampleOf(r){ return dictVal(r,"sample",D.samples); }
+function geneOf(r){ return dictVal(r,"gene",D.genes); }
+function typeOf(r){ return dictVal(r,"type",D.types); }
+function changeOf(r){ return dictVal(r,"change",D.changes); }
+function soOf(r){ return dictVal(r,"so",D.so); }
+function impOf(r){ return dictVal(r,"impact",D.impacts); }
+function chromOf(r){ return dictVal(r,"chrom",D.chroms); }
+
+// ---------- state ----------
+var state = {q:"",sample:"",gene:"",types:{},imps:{},sortCol:null,sortDir:1,sel:-1};
+var view = [];
+
+function passes(r){
+  if(state.sample && sampleOf(r)!==state.sample) return false;
+  if(state.gene && geneOf(r)!==state.gene) return false;
+  var tk = Object.keys(state.types); if(tk.length && !state.types[typeOf(r)]) return false;
+  var ik = Object.keys(state.imps);  if(ik.length && !state.imps[impOf(r)]) return false;
+  if(state.q){
+    var q = state.q.toLowerCase();
+    var hay = [geneOf(r),chromOf(r),txt(r,"pos"),txt(r,"aa"),txt(r,"hgvsg"),txt(r,"hgvsc"),
+               soOf(r),changeOf(r),txt(r,"dbs"),sampleOf(r)].join(" ").toLowerCase();
+    if(hay.indexOf(q)===-1) return false;
+  }
+  return true;
+}
+
+var COLS = [
+  {k:"sample", t:"Sample", w:110, get:sampleOf},
+  {k:"chrom",  t:"Contig", w:90,  get:chromOf},
+  {k:"gene",   t:"Gene",   w:110, get:geneOf},
+  {k:"pos",    t:"Position", w:110, num:true, get:function(r){return txt(r,"pos")}},
+  {k:"change", t:"Change",  w:120, get:function(r){return txt(r,"ref")+">"+txt(r,"alt")}},
+  {k:"aa",     t:"AA change", w:130, get:function(r){return txt(r,"aa")}},
+  {k:"type",   t:"Type",   w:88,  get:typeOf},
+  {k:"so",     t:"Consequence", w:190, get:soOf},
+  {k:"impact", t:"Impact", w:104, get:impOf},
+  {k:"grantham", t:"Grantham", w:88, num:true, get:function(r){var v=r[C.grantham];return v===null||v===undefined?"-":v}},
+  {k:"freq",   t:"Freq", w:78, num:true, get:function(r){var v=r[C.freq];return v===null||v===undefined?"-":v.toFixed(4)}}
+];
+
+function sortKey(r,col){
+  if(col.k==="pos"){ var m=String(txt(r,"pos")).match(/\d+/); return m?parseInt(m[0],10):0; }
+  if(col.k==="grantham"||col.k==="freq"){ var v=r[C[col.k]]; return (v===null||v===undefined)?-1:v; }
+  if(col.k==="impact"){ var i=IMP_ORDER.indexOf(impOf(r)); return i<0?99:i; }
+  return String(col.get(r)).toLowerCase();
+}
+
+function recompute(){
+  view = [];
+  for(var i=0;i<ROWS.length;i++) if(passes(ROWS[i])) view.push(i);
+  if(state.sortCol){
+    var col = state.sortCol, dir = state.sortDir;
+    view.sort(function(a,b){
+      var ka=sortKey(ROWS[a],col), kb=sortKey(ROWS[b],col);
+      if(ka<kb) return -1*dir; if(ka>kb) return 1*dir; return a-b;
+    });
+  }
+  render();
+}
+
+// ---------- charts ----------
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+function stackedBars(el, groups, order, colorOf, totalLabel){
+  // groups: [{name, parts:{key:count}, total}] already sorted
+  var max = 0; groups.forEach(function(g){ if(g.total>max) max=g.total; });
+  if(!groups.length || max===0){ el.innerHTML = '<p class="hint">Nothing to show.</p>'; return; }
+  var h = "";
+  groups.forEach(function(g){
+    h += '<div style="display:flex;align-items:center;gap:9px;margin:0 0 7px">';
+    h += '<div style="flex:0 0 108px;font-size:11.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(g.name)+'">'+esc(g.name)+'</div>';
+    h += '<div style="flex:1 1 auto;display:flex;gap:2px;height:15px;align-items:stretch">';
+    order.forEach(function(k){
+      var v = g.parts[k]||0; if(!v) return;
+      var pct = (v/max)*100;
+      h += '<div title="'+esc(g.name+" · "+k+": "+v)+'" style="width:'+pct.toFixed(3)+'%;background:'+colorOf(k)+';border-radius:2px"></div>';
+    });
+    h += '</div>';
+    h += '<div class="num" style="flex:0 0 58px;text-align:right;font-size:11.5px;color:var(--text-2)">'+g.total.toLocaleString()+'</div>';
+    h += '</div>';
+  });
+  el.innerHTML = h;
+}
+
+function drawCharts(){
+  // per sample, stacked by type
+  var bySample = {}, seenTypes = {};
+  view.forEach(function(idx){
+    var r = ROWS[idx], s = sampleOf(r), t = typeOf(r);
+    if(!bySample[s]) bySample[s] = {name:s, parts:{}, total:0};
+    bySample[s].parts[t] = (bySample[s].parts[t]||0)+1;
+    bySample[s].total++; seenTypes[t]=1;
+  });
+  var groups = Object.keys(bySample).map(function(k){return bySample[k]});
+  groups.sort(function(a,b){ return b.total-a.total || a.name.localeCompare(b.name); });
+  var order = D.types.filter(function(t){return seenTypes[t]});
+  stackedBars(document.getElementById("sampleChart"), groups, order,
+              function(k){ return TYPE_COLOR[k]||"var(--s1)"; });
+  document.getElementById("typeLegend").innerHTML = order.map(function(t){
+    return '<span><i class="sw" style="background:'+(TYPE_COLOR[t]||"var(--s1)")+'"></i>'+esc(t)+'</span>';
+  }).join("");
+
+  // consequence: single-hue magnitude bars
+  var bySo = {};
+  view.forEach(function(idx){ var s = soOf(ROWS[idx]); bySo[s]=(bySo[s]||0)+1; });
+  var so = Object.keys(bySo).map(function(k){return {name:k,parts:{v:bySo[k]},total:bySo[k]}});
+  so.sort(function(a,b){return b.total-a.total || a.name.localeCompare(b.name)});
+  stackedBars(document.getElementById("soChart"), so.slice(0,14), ["v"], function(){return "var(--s1)"});
+}
+
+// ---------- KPIs ----------
+function drawKpis(){
+  var genes = {}, samples = {}, high = 0, mnv = 0;
+  view.forEach(function(i){
+    var r = ROWS[i];
+    genes[geneOf(r)] = 1; samples[sampleOf(r)] = 1;
+    if(impOf(r)==="HIGH") high++;
+    var t = typeOf(r); if(t==="MNV"||t==="SNP/MNV") mnv++;
+  });
+  var k = [
+    {lab:"Variants", val:view.length.toLocaleString(), note:(view.length===ROWS.length?"all rows":"of "+ROWS.length.toLocaleString()+" total")},
+    {lab:"Samples", val:Object.keys(samples).length.toLocaleString(), note:D.samples.length+" in report"},
+    {lab:"Genes", val:Object.keys(genes).length.toLocaleString(), note:"with a called variant"},
+    {lab:"MNV rows", val:mnv.toLocaleString(), note:"codon-level multi-nucleotide"},
+    {lab:"High impact", val:high.toLocaleString(), note:"HIGH consequence"}
+  ];
+  document.getElementById("kpis").innerHTML = k.map(function(x){
+    return '<div class="card kpi"><div class="lab">'+esc(x.lab)+'</div><div class="val num">'+esc(x.val)+'</div><div class="note">'+esc(x.note)+'</div></div>';
+  }).join("");
+}
+
+// ---------- table ----------
+var ROWH = 32, viewport = document.getElementById("viewport"), spacer = document.getElementById("spacer");
+var pool = [];
+
+function buildHead(){
+  var h = "";
+  COLS.forEach(function(c,i){
+    var ind = "";
+    if(state.sortCol===c) ind = ' <span class="ind">'+(state.sortDir>0?"↑":"↓")+'</span>';
+    h += '<div style="flex:0 0 '+c.w+'px" data-i="'+i+'" role="button" tabindex="0" title="Sort by '+esc(c.t)+'">'+esc(c.t)+ind+'</div>';
+  });
+  document.getElementById("thead").innerHTML = h;
+}
+
+function cellHtml(r,c){
+  var v = c.get(r);
+  if(c.k==="impact"){
+    return '<span class="imp"><i style="background:'+(IMP_COLOR[v]||"var(--muted)")+'"></i>'+esc(v)+'</span>';
+  }
+  if(c.k==="type"){
+    return '<span class="imp"><i style="background:'+(TYPE_COLOR[v]||"var(--s1)")+'"></i>'+esc(v)+'</span>';
+  }
+  if(c.k==="change") return '<span class="mono">'+esc(v)+'</span>';
+  return esc(v);
+}
+
+function paint(){
+  var top = viewport.scrollTop, first = Math.max(0,Math.floor(top/ROWH)-4);
+  var visible = Math.ceil(viewport.clientHeight/ROWH)+8;
+  var need = Math.min(visible, view.length-first);
+  while(pool.length < need){
+    var d = document.createElement("div");
+    d.className = "row";
+    d.addEventListener("click", function(){ openDrawer(parseInt(this.dataset.ri,10)); });
+    spacer.appendChild(d); pool.push(d);
+  }
+  for(var p=0;p<pool.length;p++){
+    var el = pool[p];
+    if(p>=need){ el.style.display="none"; continue; }
+    var ri = view[first+p], r = ROWS[ri];
+    el.style.display=""; el.style.top = ((first+p)*ROWH)+"px";
+    el.dataset.ri = ri;
+    el.className = "row" + (state.sel===ri?" on":"");
+    var h = "";
+    for(var ci=0;ci<COLS.length;ci++){
+      var c = COLS[ci];
+      h += '<div style="flex:0 0 '+c.w+'px" class="'+(c.num?"num":"")+'">'+cellHtml(r,c)+'</div>';
+    }
+    el.innerHTML = h;
+  }
+}
+
+function render(){
+  spacer.style.height = (view.length*ROWH)+"px";
+  document.getElementById("count").textContent =
+    view.length.toLocaleString()+" variant"+(view.length===1?"":"s")+" shown";
+  document.getElementById("empty").hidden = view.length!==0;
+  buildHead(); drawKpis(); drawCharts(); paint();
+}
+viewport.addEventListener("scroll", paint, {passive:true});
+
+// ---------- drawer ----------
+function row(dt,dd){ return dd===undefined||dd===null||dd===""||dd==="-" ? "" : "<dt>"+esc(dt)+"</dt><dd>"+esc(dd)+"</dd>"; }
+function openDrawer(ri){
+  var r = ROWS[ri]; state.sel = ri;
+  document.getElementById("dTitle").textContent = geneOf(r)+" "+txt(r,"pos");
+  var b = "";
+  b += '<section><h4>Location</h4><dl class="kv">'
+     + row("Sample",sampleOf(r)) + row("Contig",chromOf(r)) + row("Gene",geneOf(r))
+     + row("Position",txt(r,"pos")) + row("REF",txt(r,"ref")) + row("ALT",txt(r,"alt"))
+     + '</dl></section>';
+  b += '<section><h4>Consequence</h4><dl class="kv">'
+     + row("Variant type",typeOf(r)) + row("Change type",changeOf(r))
+     + row("SO term",soOf(r)) + row("Impact",impOf(r))
+     + row("AA change",txt(r,"aa"))
+     + row("Grantham", r[C.grantham]===null||r[C.grantham]===undefined?"":r[C.grantham])
+     + row("MNV shift",txt(r,"shift")) + row("DBS class",txt(r,"dbs")) + row("NMD",txt(r,"nmd"))
+     + '</dl></section>';
+  b += '<section><h4>HGVS</h4><dl class="kv">'
+     + row("Genomic",txt(r,"hgvsg")) + row("Coding",txt(r,"hgvsc")) + row("Protein",txt(r,"aa"))
+     + '</dl></section>';
+  b += '<section><h4>Codons</h4><dl class="kv">'
+     + row("Reference",txt(r,"refCodon")) + row("Variant",txt(r,"altCodon"))
+     + '</dl></section>';
+  b += '<section><h4>Event &amp; support</h4><dl class="kv">'
+     + row("Event class",txt(r,"evClass")) + row("Components",txt(r,"evComp"))
+     + row("Reads",txt(r,"reads"))
+     + row("Frequency", r[C.freq]===null||r[C.freq]===undefined?"":r[C.freq].toFixed(4))
+     + row("Depth", r[C.depth]===null||r[C.depth]===undefined?"":r[C.depth])
+     + '</dl></section>';
+  document.getElementById("dBody").innerHTML = b;
+  var dr = document.getElementById("drawer");
+  dr.classList.add("open"); dr.setAttribute("aria-hidden","false");
+  paint();
+}
+function closeDrawer(){
+  var dr = document.getElementById("drawer");
+  dr.classList.remove("open"); dr.setAttribute("aria-hidden","true");
+  state.sel = -1; paint();
+}
+document.getElementById("dClose").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeDrawer(); });
+
+// ---------- filters ----------
+function fillSelect(el, items, allLabel){
+  var h = '<option value="">'+allLabel+'</option>';
+  items.forEach(function(v){ h += '<option value="'+esc(v)+'">'+esc(v)+'</option>'; });
+  el.innerHTML = h;
+}
+function buildChips(el, items, store, colorOf){
+  el.innerHTML = items.map(function(v){
+    var c = colorOf ? '<i class="sw" style="background:'+colorOf(v)+'"></i>' : "";
+    return '<button class="chip" type="button" aria-pressed="false" data-v="'+esc(v)+'">'+c+esc(v)+'</button>';
+  }).join("");
+  el.addEventListener("click", function(e){
+    var b = e.target.closest(".chip"); if(!b) return;
+    var v = b.dataset.v;
+    if(store[v]){ delete store[v]; b.setAttribute("aria-pressed","false"); }
+    else { store[v]=1; b.setAttribute("aria-pressed","true"); }
+    recompute();
+  });
+}
+
+var q = document.getElementById("q"), tmr;
+q.addEventListener("input", function(){
+  clearTimeout(tmr);
+  tmr = setTimeout(function(){ state.q = q.value.trim(); recompute(); }, 130);
+});
+var sampleSel = document.getElementById("sampleSel"), geneSel = document.getElementById("geneSel");
+fillSelect(sampleSel, D.samples, "All samples");
+fillSelect(geneSel, D.genes.slice().sort(), "All genes");
+sampleSel.addEventListener("change", function(){ state.sample = this.value; recompute(); });
+geneSel.addEventListener("change", function(){ state.gene = this.value; recompute(); });
+buildChips(document.getElementById("typeChips"), D.types, state.types, function(v){return TYPE_COLOR[v]||"var(--s1)"});
+buildChips(document.getElementById("impChips"),
+           IMP_ORDER.filter(function(i){return D.impacts.indexOf(i)>=0}), state.imps,
+           function(v){return IMP_COLOR[v]||"var(--muted)"});
+
+document.getElementById("resetBtn").addEventListener("click", function(){
+  state.q=""; state.sample=""; state.gene=""; state.types={}; state.imps={}; state.sortCol=null; state.sortDir=1;
+  q.value=""; sampleSel.value=""; geneSel.value="";
+  Array.prototype.forEach.call(document.querySelectorAll(".chip"), function(c){ c.setAttribute("aria-pressed","false"); });
+  recompute();
+});
+
+document.getElementById("thead").addEventListener("click", function(e){
+  var d = e.target.closest("[data-i]"); if(!d) return;
+  var c = COLS[parseInt(d.dataset.i,10)];
+  if(state.sortCol===c) state.sortDir = -state.sortDir; else { state.sortCol=c; state.sortDir=1; }
+  recompute();
+});
+
+// ---------- export ----------
+document.getElementById("exportBtn").addEventListener("click", function(){
+  var head = ["Sample","Contig","Gene","Positions","Reference Bases","Base Changes","AA Changes",
+              "Variant Type","Change Type","SO Term","Impact","Grantham","MNV Consequence Shift",
+              "DBS Class","NMD Prediction","HGVS g.","HGVS c.","Frequency","Depth"];
+  var lines = [head.join("\t")];
+  view.forEach(function(i){
+    var r = ROWS[i];
+    lines.push([sampleOf(r),chromOf(r),geneOf(r),txt(r,"pos"),txt(r,"ref"),txt(r,"alt"),txt(r,"aa"),
+                typeOf(r),changeOf(r),soOf(r),impOf(r),
+                r[C.grantham]===null||r[C.grantham]===undefined?"-":r[C.grantham],
+                txt(r,"shift"),txt(r,"dbs"),txt(r,"nmd"),txt(r,"hgvsg"),txt(r,"hgvsc"),
+                r[C.freq]===null||r[C.freq]===undefined?"-":r[C.freq].toFixed(4),
+                r[C.depth]===null||r[C.depth]===undefined?"-":r[C.depth]].join("\t"));
+  });
+  var blob = new Blob([lines.join("\n")+"\n"], {type:"text/tab-separated-values"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "get_mnv_filtered.tsv";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+});
+
+// ---------- theme ----------
+document.getElementById("themeBtn").addEventListener("click", function(){
+  var cur = document.documentElement.getAttribute("data-theme");
+  var dark = cur ? cur==="dark"
+                 : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.setAttribute("data-theme", dark?"light":"dark");
+});
+
+// ---------- boot ----------
+document.getElementById("meta").innerHTML =
+  "get_MNV " + esc(META.version) + " &middot; " + esc(META.generated) +
+  " &middot; " + ROWS.length.toLocaleString() + " variants &middot; " +
+  D.samples.length + " sample" + (D.samples.length===1?"":"s") +
+  (META.command ? "<br><code>"+esc(META.command)+"</code>" : "");
+document.getElementById("foot").textContent =
+  "Generated by get_MNV " + META.version + ". Self-contained report: no network access required.";
+recompute();
+})();
+</script>
+</body>
+</html>
