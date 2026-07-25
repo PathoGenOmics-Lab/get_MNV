@@ -287,6 +287,9 @@ The report contains:
   HGVS `g.`/`c.`/`p.` descriptors, Grantham distance, DBS class, NMD prediction,
   codons, event components and read support.
 - **Export filtered TSV**, which downloads exactly the rows currently shown.
+- **Links to the source repository and the documentation** in the masthead. They are
+  ordinary hyperlinks: nothing is fetched when the report is opened, so it stays
+  self-contained offline.
 
 The report follows the operating-system light or dark theme and has its own
 toggle. Because it is built from the TSV, `--report` needs TSV output: it works

@@ -2371,13 +2371,34 @@ fn test_e2e_html_report_is_self_contained() {
         html.contains("\"rows\":["),
         "the embedded payload should carry variant rows"
     );
-    // Self-contained: no external scripts, styles, fonts or images.
-    for pattern in ["src=\"http", "href=\"http", "@import", "cdn."] {
+    // Self-contained: nothing is fetched when the file is opened. Hyperlinks are
+    // exempt on purpose, since an <a href> loads nothing until it is clicked;
+    // what must not appear is anything the browser resolves on load.
+    for pattern in ["src=\"http", "@import", "cdn.", "url(http", "<link "] {
         assert!(
             !html.contains(pattern),
-            "report must not reference external resources, found {pattern}"
+            "report must not load external resources, found {pattern}"
         );
     }
+    // Outbound links are allowed, but only as links, and they must not hand the
+    // opener over to the target page.
+    for (href, label) in [
+        ("https://github.com/PathoGenOmics-Lab/get_MNV", "GitHub"),
+        (
+            "https://pathogenomics-lab.github.io/get_MNV/",
+            "documentation",
+        ),
+    ] {
+        assert!(
+            html.contains(&format!("href=\"{href}\"")),
+            "missing the {label} link"
+        );
+    }
+    assert_eq!(
+        html.matches("target=\"_blank\"").count(),
+        html.matches("rel=\"noopener noreferrer\"").count(),
+        "every new-tab link must carry rel=noopener noreferrer"
+    );
     let _ = std::fs::remove_dir_all(&tmp);
 }
 

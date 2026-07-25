@@ -291,6 +291,9 @@ El informe contiene:
   consecuencia, descriptores HGVS `g.`/`c.`/`p.`, distancia de Grantham, clase DBS,
   predicción de NMD, codones, componentes del evento y soporte de lecturas.
 - **Exportar TSV filtrado**, que descarga exactamente las filas mostradas.
+- **Enlaces al repositorio y a la documentación** en la cabecera. Son hiperenlaces
+  normales: no se descarga nada al abrir el informe, así que sigue siendo
+  autocontenido sin conexión.
 
 El informe sigue el tema claro u oscuro del sistema operativo y tiene su propio
 selector. Como se construye desde el TSV, `--report` necesita salida TSV: funciona
