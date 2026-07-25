@@ -41,6 +41,8 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "DBS"
             | "MNVPS"
             | "NMD"
+            | "HGVSG"
+            | "HGVSC"
     )
 }
 
@@ -272,6 +274,12 @@ pub(crate) fn build_info_string(
     }
     if let Some(nmd) = variant.annotations.nmd {
         builder.push_text("NMD", nmd.as_str());
+    }
+    if let Some(hgvs_g) = crate::variants::hgvs::genomic(variant) {
+        builder.push_text("HGVSG", &hgvs_g);
+    }
+    if let Some(hgvs_c) = variant.annotations.hgvs_c.as_deref() {
+        builder.push_text("HGVSC", hgvs_c);
     }
 
     if let Some((sr, srf, srr)) = snp_metrics {
@@ -642,6 +650,14 @@ pub(crate) fn write_info_header(
     writeln!(
         writer,
         "##INFO=<ID=NMD,Number=1,Type=String,Description=\"Nonsense-mediated decay prediction for a premature stop under the 50-nt rule (NMD-triggering / NMD-escaping)\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=HGVSG,Number=1,Type=String,Description=\"HGVS genomic descriptor; MNVs use the allele-bracket form (';' percent-encoded per the VCF spec)\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=HGVSC,Number=1,Type=String,Description=\"HGVS coding descriptor for a coding substitution (SNV/MNV); ';' percent-encoded per the VCF spec\">"
     )?;
     writeln!(
         writer,

@@ -1486,3 +1486,82 @@ fn test_nonsense_snv_far_upstream_of_last_junction_is_nmd_triggering() {
         "a PTC 90 nt upstream of the last junction should trigger NMD"
     );
 }
+
+// The HGVS coding descriptor must number from the CDS start and use coding-strand
+// bases, so a minus-strand variant reads opposite to its genomic base. Verifies
+// the wiring end-to-end for both strands (unit tests cover the string formatting).
+#[test]
+fn test_hgvs_coding_descriptor_plus_and_minus_strand() {
+    let gc = crate::genetic_code::GeneticCode::default();
+
+    // Plus strand, single-feature gene 1..9. An MNV at genomic 1 and 2 (C>T)
+    // maps directly to CDS positions 1 and 2.
+    let plus = Gene {
+        name: "gp".to_string(),
+        start: 1,
+        end: 9,
+        strand: Strand::Plus,
+        phase: 0,
+        protein_offset: 0,
+        transcript_id: None,
+        cds_segments: Vec::new(),
+    };
+    let plus_ref = crate::io::Reference {
+        sequence: "CCATTTGGG",
+    };
+    let mnv = [
+        crate::io::VcfPosition {
+            position: 1,
+            ref_allele: "C".to_string(),
+            alt_allele: "T".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        },
+        crate::io::VcfPosition {
+            position: 2,
+            ref_allele: "C".to_string(),
+            alt_allele: "T".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        },
+    ];
+    let plus_variants =
+        crate::variants::get_mnv_variants_for_gene(&plus, &mnv, &plus_ref, "chr1", gc);
+    assert_eq!(
+        plus_variants[0].annotations.hgvs_c.as_deref(),
+        Some("c.[1C>T;2C>T]")
+    );
+
+    // Minus strand, gene 1..9 whose CDS is the reverse complement (ATGTTTAAA).
+    // Genomic position 9 is CDS position 1; a genomic T>A there is a coding A>T.
+    let minus = Gene {
+        name: "gm".to_string(),
+        start: 1,
+        end: 9,
+        strand: Strand::Minus,
+        phase: 0,
+        protein_offset: 0,
+        transcript_id: None,
+        cds_segments: Vec::new(),
+    };
+    let minus_ref = crate::io::Reference {
+        sequence: "TTTAAACAT",
+    };
+    let snv = [crate::io::VcfPosition {
+        position: 9,
+        ref_allele: "T".to_string(),
+        alt_allele: "A".to_string(),
+        original_dp: None,
+        original_freq: None,
+        original_info: None,
+    }];
+    let minus_variants =
+        crate::variants::get_mnv_variants_for_gene(&minus, &snv, &minus_ref, "chr1", gc);
+    assert_eq!(
+        minus_variants[0].annotations.hgvs_c.as_deref(),
+        Some("c.1A>T"),
+        "minus-strand coding descriptor should use CDS numbering and coding-strand bases"
+    );
+}

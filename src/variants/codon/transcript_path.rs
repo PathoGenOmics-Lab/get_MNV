@@ -86,6 +86,14 @@ pub(super) fn process_transcript_codon(
         super::gene_path::compute_annotations(&orig_aa, &mut_aa, &single_aas, change_type);
     let snp_refs: Vec<&Snp> = codon_snps.iter().map(|ts| &ts.snp).collect();
     annotations.dbs_class = super::gene_path::dbs_class_for_codon(&snp_refs);
+    let hgvs_entries: Vec<(usize, char, char)> = codon_snps
+        .iter()
+        .filter_map(|ts| {
+            let cref = transcript_oriented_base(&ts.snp.ref_base, gene.strand)?;
+            Some((ts.transcript_offset + 1, cref, ts.transcript_alt_base))
+        })
+        .collect();
+    annotations.hgvs_c = crate::variants::hgvs::coding_substitution(&hgvs_entries);
 
     let raw_snps = codon_snps
         .iter()

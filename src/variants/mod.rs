@@ -3,6 +3,7 @@
 
 mod codon;
 mod event;
+pub mod hgvs;
 mod types;
 
 // Re-export all public types and functions

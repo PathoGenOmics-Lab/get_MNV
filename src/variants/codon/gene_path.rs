@@ -40,6 +40,8 @@ pub(super) fn compute_annotations(
         dbs_class: None,
         // Set by the caller for premature stops in a multi-exon transcript.
         nmd: None,
+        // Set by the caller, which has the strand and CDS offsets.
+        hgvs_c: None,
     }
 }
 
@@ -71,6 +73,31 @@ pub(super) fn dbs_class_for_codon(snvs: &[&Snp]) -> Option<String> {
         return None;
     }
     crate::utils::dbs_class(&format!("{r0}{r1}"), &format!("{a0}{a1}"))
+}
+
+/// HGVS coding (`c.`) descriptor for a genomic-coordinate codon's substitutions.
+/// The CDS position is measured from the (phase-adjusted) feature start on the
+/// plus strand and from the feature end on the minus strand, plus the feature's
+/// protein offset; bases are taken in the coding-strand orientation.
+pub(super) fn coding_substitution_for_codon(
+    codon_info: &CodonInfo,
+    strand: Strand,
+) -> Option<String> {
+    let entries: Vec<(usize, char, char)> = codon_info
+        .codon_list
+        .iter()
+        .filter_map(|snp| {
+            let local_nt = match strand {
+                Strand::Plus => snp.position.checked_sub(codon_info.gene_start)?,
+                Strand::Minus => codon_info.gene_end.checked_sub(snp.position)?,
+            };
+            let cds_pos = codon_info.protein_offset * 3 + local_nt + 1;
+            let cref = super::transcript_path::transcript_oriented_base(&snp.ref_base, strand)?;
+            let calt = super::transcript_path::transcript_oriented_base(&snp.base, strand)?;
+            Some((cds_pos, cref, calt))
+        })
+        .collect();
+    crate::variants::hgvs::coding_substitution(&entries)
 }
 
 /// The single uppercase base of a one-character allele, or `None` for empty or
@@ -259,6 +286,7 @@ pub fn process_codon(
 
     let mut annotations = compute_annotations(&orig_aa, &mut_aa, &single_aas, change_type);
     annotations.dbs_class = dbs_class_for_codon(&mnv_snps);
+    annotations.hgvs_c = coding_substitution_for_codon(&codon_info, strand);
 
     VariantInfo {
         chrom: chrom.to_string(),

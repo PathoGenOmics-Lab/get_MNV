@@ -39,6 +39,8 @@ Columnas principales:
 | `DBS Class` | Clase de sustitución de doblete (DBS) al estilo COSMIC para un MNV de dos sustituciones de una base adyacentes, p. ej. `CC>TT` (colapsado por complemento reverso, así que `GG>AA` se reporta como `CC>TT`). `-` para SNV individuales, indels y MNV no adyacentes o de 3 SNV. |
 | `MNV Phasing Support` | Soporte de fasing (ligamiento) derivado del BAM: fracción de las lecturas del SNV constituyente menos soportado que además llevan el haplotipo MNV completo. `1.0000` = co-ocurrencia perfecta (un haplotipo real); valores bajos sugieren que los SNV caen en moléculas distintas (una coincidencia en el mismo codón, no un MNV real). `-` sin `--bam` o para SNV individuales. |
 | `NMD Prediction` | Predicción de decaimiento mediado por sin sentido (NMD) para un stop prematuro según la regla de los 50 nt: `NMD-triggering` cuando el PTC está a más de 50 nt aguas arriba de la última unión exón-exón, `NMD-escaping` cuando está en el último exón o a menos de 50 nt de esa unión. `-` para variantes sin stop prematuro y para transcritos de un solo exón (sin unión). Requiere un modelo de CDS multi-exón (transcrito GFF/GTF). |
+| `HGVS g.` | Descriptor HGVS genómico: `g.100A>G` para un SNV, el bracket de alelo `g.[28G>T;30T>A]` para un MNV, y `g.101_102del` / `g.100_101insTG` / `g.101delinsC` para indels. No hace 3'-shifting (usa la posición del alelo de entrada) y no lleva prefijo de accesión de referencia. |
+| `HGVS c.` | Descriptor HGVS codificante para una sustitución codificante, numerado desde el inicio del CDS con bases de la hebra codificante: `c.30A>G` (SNV) o el bracket de alelo `c.[28G>A;30T>C]` (MNV). `-` para indels y variantes no codificantes; el cambio proteico (`p.`) en las columnas AA da la consecuencia de los indels. |
 
 Columnas adicionales cuando se usa `--bam`:
 
@@ -142,6 +144,8 @@ Campos INFO comunes:
 | `DBS` | Clase de doblete estilo COSMIC para MNV de 2 SNV adyacentes (p. ej. `CC>TT`) |
 | `MNVPS` | Soporte de fasing del MNV (fracción de las lecturas del SNV limitante que llevan el haplotipo completo) |
 | `NMD` | Predicción de NMD para un stop prematuro (regla de los 50 nt) |
+| `HGVSG` | Descriptor HGVS genómico (bracket de MNV con `;` percent-encoded) |
+| `HGVSC` | Descriptor HGVS codificante para una sustitución (`;` percent-encoded) |
 
 La cabecera del VCF registra la versión de get_MNV, la línea de comandos y los umbrales usados.
 Cuando `--emit-filtered` está habilitado, los registros VCF que quedan por debajo de los umbrales de

@@ -182,6 +182,11 @@ pub struct VariantAnnotations {
     /// transcript.
     #[serde(default)]
     pub nmd: Option<NmdPrediction>,
+    /// HGVS coding (`c.`) descriptor for a coding substitution (SNV or MNV),
+    /// e.g. `c.30A>G` or `c.[28G>A;30T>C]`. `None` for indels and non-coding
+    /// variants; the genomic (`g.`) descriptor is derived at output time.
+    #[serde(default)]
+    pub hgvs_c: Option<String>,
 }
 
 impl VariantType {

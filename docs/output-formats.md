@@ -39,6 +39,8 @@ Main columns:
 | `DBS Class` | COSMIC-style doublet base substitution class for an MNV of two adjacent single-base substitutions, e.g. `CC>TT` (reverse-complement collapsed, so `GG>AA` reports as `CC>TT`). `-` for single SNVs, indels, and non-adjacent or 3-SNV MNVs. |
 | `MNV Phasing Support` | BAM-derived phasing (linkage) support: the fraction of the least-supported constituent SNV reads that also carry the full MNV haplotype. `1.0000` = perfect co-occurrence (a genuine haplotype); low values suggest the SNVs fall on different molecules (a same-codon coincidence, not a real MNV). `-` without `--bam` or for single SNVs. |
 | `NMD Prediction` | Nonsense-mediated decay prediction for a premature stop under the 50-nt rule: `NMD-triggering` when the PTC is more than 50 nt upstream of the last exon-exon junction, `NMD-escaping` when it is in the last exon or within 50 nt of that junction. `-` for variants without a premature stop and for single-exon transcripts (no junction). Requires a multi-exon (GFF/GTF transcript) CDS model. |
+| `HGVS g.` | HGVS genomic descriptor: `g.100A>G` for an SNV, the allele-bracket `g.[28G>T;30T>A]` for an MNV, and `g.101_102del` / `g.100_101insTG` / `g.101delinsC` for indels. Not 3'-shifted (uses the input allele placement) and carries no reference-accession prefix. |
+| `HGVS c.` | HGVS coding descriptor for a coding substitution, numbered from the CDS start with coding-strand bases: `c.30A>G` (SNV) or the allele bracket `c.[28G>A;30T>C]` (MNV). `-` for indels and non-coding variants; the protein change (`p.`) in the AA columns conveys indel consequences. |
 
 Extra columns when `--bam` is used:
 
@@ -142,6 +144,8 @@ Common INFO fields:
 | `DBS` | COSMIC-style doublet class for adjacent 2-SNV MNVs (e.g. `CC>TT`) |
 | `MNVPS` | MNV phasing support (fraction of the limiting SNV reads carrying the full haplotype) |
 | `NMD` | Nonsense-mediated decay prediction for a premature stop (50-nt rule) |
+| `HGVSG` | HGVS genomic descriptor (MNV allele-bracket `;` percent-encoded) |
+| `HGVSC` | HGVS coding descriptor for a coding substitution (`;` percent-encoded) |
 
 The VCF header records the get_MNV version, command line, and thresholds used.
 When `--emit-filtered` is enabled, VCF records below read-support, frequency,
