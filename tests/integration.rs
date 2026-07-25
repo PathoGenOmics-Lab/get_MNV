@@ -2356,7 +2356,17 @@ fn test_e2e_html_report_is_self_contained() {
         !html.contains("__GET_MNV_REPORT_DATA__"),
         "the data placeholder should have been replaced"
     );
-    assert!(html.contains("get_MNV variant report"), "missing title");
+    // Assert on the document title, which is stable, rather than on the exact
+    // masthead markup, which carries styling spans.
+    assert!(
+        html.contains("<title>get_MNV report</title>"),
+        "missing document title"
+    );
+    assert!(
+        html.to_lowercase().contains("variant report"),
+        "missing masthead heading"
+    );
+    assert!(html.contains("alt=\"get_MNV\""), "missing the project logo");
     assert!(
         html.contains("\"rows\":["),
         "the embedded payload should carry variant rows"
