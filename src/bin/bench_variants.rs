@@ -146,6 +146,7 @@ fn run_synthetic(
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: get_mnv::variants::Biotype::ProteinCoding,
     };
     let snp_positions: Vec<VcfPosition> = (10..=(gene_end - 10))
         .step_by(10)

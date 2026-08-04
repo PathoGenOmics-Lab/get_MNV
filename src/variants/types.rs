@@ -234,12 +234,124 @@ pub struct VariantAnnotations {
     /// `missense_variant&splice_region_variant`), an intronic site stands alone.
     #[serde(default)]
     pub splice: Option<SpliceConsequence>,
-    /// Set when the variant lies inside a real intron of the named gene but
-    /// outside its splice sites, which makes it an `intron_variant`. Splice-site
+    /// Why a variant that lies inside a gene has no codon annotation. Splice-site
     /// positions are intronic too, but they carry the more specific `splice`
     /// annotation instead, so the two are mutually exclusive by construction.
     #[serde(default)]
-    pub intronic: bool,
+    pub non_coding: Option<NonCodingReason>,
+}
+
+/// Why a variant inside an annotated gene carries no amino-acid change. Both
+/// cases are `MODIFIER`: the variant is in the transcript but not in a codon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NonCodingReason {
+    /// Inside a real intron, away from the splice sites.
+    Intron,
+    /// Inside a transcript that is not translated at all (a non-coding RNA gene
+    /// or a pseudogene).
+    NonCodingTranscript,
+}
+
+impl NonCodingReason {
+    /// Sequence Ontology term.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            NonCodingReason::Intron => "intron_variant",
+            NonCodingReason::NonCodingTranscript => "non_coding_transcript_exon_variant",
+        }
+    }
+}
+
+/// Whether an annotated feature is translated.
+///
+/// The GFF path selects CDS features and is therefore coding by construction.
+/// The TSV format carries this in its optional sixth column: without it a
+/// non-coding RNA gene is translated as though it were a protein, which invents
+/// amino-acid changes for something that is never translated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Biotype {
+    #[default]
+    ProteinCoding,
+    NonCoding,
+}
+
+impl Biotype {
+    pub fn is_coding(self) -> bool {
+        matches!(self, Biotype::ProteinCoding)
+    }
+
+    /// Parse a biotype from the TSV annotation. The vocabulary is closed on
+    /// purpose: an unrecognised value is an error rather than a silent guess,
+    /// because guessing wrong either invents a protein or hides a real one.
+    pub fn parse(value: &str) -> Result<Self, String> {
+        const CODING: [&str; 4] = ["protein_coding", "coding", "CDS", "mRNA"];
+        const NON_CODING: [&str; 13] = [
+            "ncRNA",
+            "rRNA",
+            "tRNA",
+            "tmRNA",
+            "miRNA",
+            "snRNA",
+            "snoRNA",
+            "misc_RNA",
+            "antisense_RNA",
+            "SRP_RNA",
+            "RNase_P_RNA",
+            "non_coding",
+            "pseudogene",
+        ];
+        let trimmed = value.trim();
+        if CODING.iter().any(|c| c.eq_ignore_ascii_case(trimmed)) {
+            return Ok(Biotype::ProteinCoding);
+        }
+        if NON_CODING.iter().any(|c| c.eq_ignore_ascii_case(trimmed)) {
+            return Ok(Biotype::NonCoding);
+        }
+        Err(format!(
+            "unknown biotype '{trimmed}'. Coding: {}. Non-coding: {}",
+            CODING.join(", "),
+            NON_CODING.join(", ")
+        ))
+    }
+}
+
+#[cfg(test)]
+mod biotype_tests {
+    use super::Biotype;
+
+    #[test]
+    fn coding_and_non_coding_vocabularies_are_recognised() {
+        assert_eq!(Biotype::parse("protein_coding"), Ok(Biotype::ProteinCoding));
+        assert_eq!(Biotype::parse("CDS"), Ok(Biotype::ProteinCoding));
+        assert_eq!(Biotype::parse("ncRNA"), Ok(Biotype::NonCoding));
+        assert_eq!(Biotype::parse("tRNA"), Ok(Biotype::NonCoding));
+        assert_eq!(Biotype::parse("pseudogene"), Ok(Biotype::NonCoding));
+        // Case and surrounding whitespace are not meaningful.
+        assert_eq!(Biotype::parse("  rRNA  "), Ok(Biotype::NonCoding));
+        assert_eq!(Biotype::parse("Protein_Coding"), Ok(Biotype::ProteinCoding));
+    }
+
+    #[test]
+    fn an_unknown_biotype_is_an_error_rather_than_a_guess() {
+        // A typo must not silently decide whether a feature gets translated: it
+        // would either invent a protein or hide a real one.
+        let err =
+            Biotype::parse("protein-coding").expect_err("hyphen is not the accepted spelling");
+        assert!(err.contains("unknown biotype"), "{err}");
+        assert!(
+            err.contains("protein_coding"),
+            "the message lists what is accepted: {err}"
+        );
+        assert!(Biotype::parse("").is_err());
+    }
+
+    #[test]
+    fn the_default_is_coding_so_existing_annotations_are_unchanged() {
+        // Four-column TSV files predate this column and must keep translating.
+        assert_eq!(Biotype::default(), Biotype::ProteinCoding);
+        assert!(Biotype::default().is_coding());
+        assert!(!Biotype::NonCoding.is_coding());
+    }
 }
 
 impl VariantType {
@@ -335,6 +447,10 @@ pub struct Gene {
     /// Empty for legacy per-feature annotations. When present, codon grouping
     /// and indel protein effects are computed on the spliced CDS sequence.
     pub cds_segments: Vec<CdsSegment>,
+    /// Whether this feature is translated. Always coding on the GFF path, which
+    /// selects CDS features; set from the TSV annotation's optional sixth
+    /// column otherwise.
+    pub biotype: Biotype,
 }
 
 impl Gene {

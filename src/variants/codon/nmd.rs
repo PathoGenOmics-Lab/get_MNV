@@ -120,7 +120,7 @@ pub(super) fn indel_nmd_prediction(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::variants::{CdsSegment, Strand};
+    use crate::variants::{Biotype, CdsSegment, Strand};
 
     /// Length of the intron separating the two exons of the test transcript.
     /// The exons must be genuinely separated, otherwise the transcript is an
@@ -150,6 +150,7 @@ mod tests {
                     end: exon2_start + exon2_len - 1,
                 },
             ],
+            biotype: Biotype::ProteinCoding,
         }
     }
 

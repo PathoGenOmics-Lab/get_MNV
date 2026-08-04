@@ -152,6 +152,32 @@ GeneName	GeneStart	GeneEnd	Strand	Phase
 Phase can be `0`, `1`, `2`, or `.`. If the phase column is omitted, it defaults
 to `0`.
 
+Optional six-column format with biotype:
+
+```text
+GeneName	GeneStart	GeneEnd	Strand	Phase	Biotype
+```
+
+```text
+Rv0007_Rv0007	9914	10828	+	0	protein_coding
+mcr11_RVnc0013	1413094	1413224	-	0	ncRNA
+```
+
+Accepted values are `protein_coding`, `coding`, `CDS` and `mRNA` for translated
+features, and `ncRNA`, `rRNA`, `tRNA`, `tmRNA`, `miRNA`, `snRNA`, `snoRNA`,
+`misc_RNA`, `antisense_RNA`, `SRP_RNA`, `RNase_P_RNA`, `non_coding` and
+`pseudogene` for features that are not. Anything else is rejected with an error
+rather than guessed, because guessing wrong either invents a protein or hides a
+real one.
+
+A non-coding feature is reported against its gene as
+`non_coding_transcript_exon_variant` (`MODIFIER`) with no amino-acid change.
+**When the biotype column is omitted every feature is assumed to be
+protein-coding**, which is what four- and five-column files have always done: an
+RNA gene is then translated as though it were a protein. Declare the biotype
+when your annotation contains non-coding features. GFF/GTF input is unaffected,
+because it selects `CDS` features.
+
 Limitations of TSV annotation:
 
 - It has no contig column.

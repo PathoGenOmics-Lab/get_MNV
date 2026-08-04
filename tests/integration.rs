@@ -2432,3 +2432,91 @@ fn test_e2e_report_from_aggregates_existing_tsvs() {
     assert!(!html.contains("__GET_MNV_REPORT_DATA__"));
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ---------------------------------------------------------------------------
+// Non-coding features declared in the TSV annotation are not translated
+// ---------------------------------------------------------------------------
+
+/// A gene table entry marked as a non-coding RNA must not be translated. Without
+/// the biotype column get_MNV assumed every feature was protein-coding and
+/// invented an amino-acid change for a gene that is never translated.
+#[test]
+fn test_e2e_tsv_biotype_keeps_non_coding_rna_untranslated() {
+    let tmp = temp_dir("e2e_biotype");
+    let ref_path = tmp.join("ref.fasta");
+    // Two features over the same 12 bases so the only difference between the two
+    // runs below is the declared biotype.
+    fs::write(&ref_path, ">chr1\nATGAAATTTCCC\n").unwrap();
+    let vcf_path = tmp.join("in.vcf");
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr1\t5\t.\tA\tG\t.\tPASS\t.\n",
+    )
+    .unwrap();
+
+    let run = |genes: &str, stem: &str| -> Vec<HashMap<String, String>> {
+        let genes_path = tmp.join(format!("{stem}.txt"));
+        fs::write(&genes_path, genes).unwrap();
+        let mut args = base_args();
+        args.vcf_file = Some(vcf_path.to_string_lossy().into());
+        args.fasta_file = ref_path.to_string_lossy().into();
+        args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+        args.output_prefix = Some(tmp.join(stem).to_string_lossy().into());
+        pipeline::run(&args).expect("pipeline should succeed");
+        read_tsv_rows(&tmp.join(format!("{stem}.MNV.tsv")))
+    };
+
+    // Four columns: the historical format, still translated.
+    let coding = run("ncR\t1\t12\t+\n", "legacy");
+    assert_eq!(coding.len(), 1);
+    assert_eq!(coding[0]["SO Term"], "missense_variant");
+    assert_eq!(coding[0]["Impact"], "MODERATE");
+    assert_ne!(coding[0]["AA Changes"], "-");
+
+    // Same feature declared as a non-coding RNA: reported against its gene, with
+    // no amino-acid change invented for it.
+    let non_coding = run("ncR\t1\t12\t+\t0\tncRNA\n", "ncrna");
+    assert_eq!(non_coding.len(), 1);
+    assert_eq!(non_coding[0]["Gene"], "ncR");
+    assert_eq!(
+        non_coding[0]["SO Term"],
+        "non_coding_transcript_exon_variant"
+    );
+    assert_eq!(non_coding[0]["Impact"], "MODIFIER");
+    assert_eq!(non_coding[0]["AA Changes"], "-");
+
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// An unrecognised biotype must fail loudly: silently choosing either way would
+/// invent a protein or hide a real one.
+#[test]
+fn test_e2e_tsv_unknown_biotype_is_rejected() {
+    let tmp = temp_dir("e2e_biotype_bad");
+    let ref_path = tmp.join("ref.fasta");
+    fs::write(&ref_path, ">chr1\nATGAAATTTCCC\n").unwrap();
+    let vcf_path = tmp.join("in.vcf");
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr1\t5\t.\tA\tG\t.\tPASS\t.\n",
+    )
+    .unwrap();
+    let genes_path = tmp.join("genes.txt");
+    fs::write(&genes_path, "g1\t1\t12\t+\t0\tprotein-coding\n").unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.output_prefix = Some(tmp.join("out").to_string_lossy().into());
+
+    let err = pipeline::run(&args).expect_err("an unknown biotype must be rejected");
+    let message = err.to_string();
+    assert!(message.contains("unknown biotype"), "{message}");
+    assert!(
+        message.contains("protein_coding"),
+        "the error should list what is accepted: {message}"
+    );
+
+    let _ = fs::remove_dir_all(&tmp);
+}

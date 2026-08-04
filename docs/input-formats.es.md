@@ -159,6 +159,31 @@ GeneName	GeneStart	GeneEnd	Strand	Phase
 La fase puede ser `0`, `1`, `2` o `.`. Si se omite la columna de fase, toma el
 valor `0` por defecto.
 
+Formato opcional de seis columnas con biotipo:
+
+```text
+GeneName	GeneStart	GeneEnd	Strand	Phase	Biotype
+```
+
+```text
+Rv0007_Rv0007	9914	10828	+	0	protein_coding
+mcr11_RVnc0013	1413094	1413224	-	0	ncRNA
+```
+
+Los valores aceptados son `protein_coding`, `coding`, `CDS` y `mRNA` para
+features que se traducen, y `ncRNA`, `rRNA`, `tRNA`, `tmRNA`, `miRNA`, `snRNA`,
+`snoRNA`, `misc_RNA`, `antisense_RNA`, `SRP_RNA`, `RNase_P_RNA`, `non_coding` y
+`pseudogene` para las que no. Cualquier otro valor se rechaza con un error en
+vez de adivinarse, porque adivinar mal inventa una proteína o esconde una real.
+
+Una feature no codificante se reporta contra su gen como
+`non_coding_transcript_exon_variant` (`MODIFIER`), sin cambio de aminoácido.
+**Si se omite la columna de biotipo se asume que toda feature es codificante**,
+que es lo que han hecho siempre los ficheros de cuatro y cinco columnas: un gen
+de RNA se traduce entonces como si fuera una proteína. Declara el biotipo cuando
+tu anotación contenga features no codificantes. La entrada GFF/GTF no se ve
+afectada, porque selecciona features `CDS`.
+
 Limitaciones de la anotación TSV:
 
 - No tiene columna de contig.

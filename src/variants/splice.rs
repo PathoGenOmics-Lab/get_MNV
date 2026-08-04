@@ -112,7 +112,7 @@ pub fn is_intronic_position(gene: &Gene, position: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::variants::CdsSegment;
+    use crate::variants::{Biotype, CdsSegment};
 
     fn gene(strand: Strand, segments: &[(usize, usize)]) -> Gene {
         Gene {
@@ -127,6 +127,7 @@ mod tests {
                 .iter()
                 .map(|&(start, end)| CdsSegment { start, end })
                 .collect(),
+            biotype: Biotype::ProteinCoding,
         }
     }
 

@@ -51,6 +51,15 @@ pub(super) fn load_genes_from_tsv(
         } else {
             0
         };
+        // Optional 6th column: biotype. Without it every feature is assumed to be
+        // translated, which turns a non-coding RNA gene into an invented protein.
+        let biotype = if fields.len() >= 6 {
+            crate::variants::Biotype::parse(fields[5]).map_err(|err| {
+                format!("Invalid genes entry at line {line_number}: {err}. Content: '{entry}'")
+            })?
+        } else {
+            crate::variants::Biotype::default()
+        };
 
         if has_snp_in_interval(snp_list, start, end) {
             genes_with_snps += 1;
@@ -63,6 +72,7 @@ pub(super) fn load_genes_from_tsv(
                 protein_offset: 0,
                 transcript_id: None,
                 cds_segments: Vec::new(),
+                biotype,
             });
         } else {
             genes_without_snps += 1;

@@ -1,6 +1,6 @@
 use super::{build_phased_indel_haplotype_variants, codon_bounds_for_position, process_codon};
 use crate::utils::reverse_complement;
-use crate::variants::{CdsSegment, ChangeType, CodonInfo, Gene, Snp, Strand, VariantType};
+use crate::variants::{Biotype, CdsSegment, ChangeType, CodonInfo, Gene, Snp, Strand, VariantType};
 
 fn next_u64(seed: &mut u64) -> u64 {
     *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
@@ -40,6 +40,7 @@ fn test_property_codon_bounds_plus_strand_cover_position() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     for pos in gene.start..=gene.end {
         let bounds = codon_bounds_for_position(&gene, pos).expect("expected codon bounds");
@@ -60,6 +61,7 @@ fn test_property_codon_bounds_minus_strand_cover_position() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     for pos in gene.start..=gene.end {
         let bounds = codon_bounds_for_position(&gene, pos).expect("expected codon bounds");
@@ -132,6 +134,7 @@ fn test_vcf_mnv_record_is_decomposed_into_codon_haplotype() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGAAATTT",
@@ -174,6 +177,7 @@ fn test_transcript_model_groups_mnv_across_exon_junction() {
             CdsSegment { start: 1, end: 4 },
             CdsSegment { start: 10, end: 14 },
         ],
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGACCCCCAATTT",
@@ -230,6 +234,7 @@ fn test_transcript_synonymous_snp_is_synonymous() {
         protein_offset: 0,
         transcript_id: Some("tx1".to_string()),
         cds_segments: vec![CdsSegment { start: 1, end: 9 }],
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGAAATTT", // Met-Lys-Phe
@@ -266,6 +271,7 @@ fn test_transcript_start_lost_snp_is_start_lost() {
         protein_offset: 0,
         transcript_id: Some("tx1".to_string()),
         cds_segments: vec![CdsSegment { start: 1, end: 9 }],
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGAAATTT",
@@ -303,6 +309,7 @@ fn test_transcript_model_restored_frame_does_not_mark_downstream_snp_frameshift(
             CdsSegment { start: 1, end: 6 },
             CdsSegment { start: 20, end: 25 },
         ],
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGAAAGGGGGGGGGGGGGTTTCCC",
@@ -366,6 +373,7 @@ fn test_indel_reports_event_components_and_frameshift_protein_effect() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGAAATTT",
@@ -407,6 +415,7 @@ fn test_minus_strand_inframe_insertion_is_inframe() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "AAATTTCAT",
@@ -450,6 +459,7 @@ fn test_minus_strand_legacy_deletion_reports_consistent_codons() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "CCCAAATTTCAT",
@@ -495,6 +505,7 @@ fn test_plus_strand_insertion_at_internal_exon_junction_is_coding() {
             CdsSegment { start: 1, end: 3 },
             CdsSegment { start: 10, end: 15 },
         ],
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGCCCCCCAAATTT",
@@ -539,6 +550,7 @@ fn test_minus_strand_insertion_at_internal_exon_junction_is_coding() {
             CdsSegment { start: 10, end: 15 },
             CdsSegment { start: 1, end: 3 },
         ],
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "AAACCCCCCTTTCAT",
@@ -578,6 +590,7 @@ fn test_inframe_insertion_creating_stop_is_stop_gained() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGAAATTT",
@@ -616,6 +629,7 @@ fn test_frameshift_frequency_gate_skips_low_freq_upstream_indel() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGAAATTTGGG",
@@ -716,6 +730,7 @@ fn test_deletion_anchored_before_cds_keeps_protein_effect() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "CATGAAATTT",
@@ -755,6 +770,7 @@ fn test_insertion_after_cds_end_is_not_coding() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGAAATTTC",
@@ -788,6 +804,7 @@ fn test_insertion_after_codon_end_does_not_mask_that_codon_snp() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGAAATTTCCC",
@@ -836,6 +853,7 @@ fn test_build_phased_indel_haplotype_combines_nearby_snv() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGAAATTT",
@@ -890,6 +908,7 @@ fn test_build_phased_indel_haplotype_preserves_deletion_component_coordinate() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGAAATTT",
@@ -943,6 +962,7 @@ fn test_build_phased_indel_haplotype_combines_two_indels() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGAAATTT",
@@ -996,6 +1016,7 @@ fn test_build_phased_indel_haplotype_ignores_distant_snv() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference {
         sequence: "ATGAAATTTCCC",
@@ -1044,6 +1065,7 @@ fn test_codon_bounds_phase_skipped_position_returns_none() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     assert!(codon_bounds_for_position(&gene, 100).is_none());
     assert!(codon_bounds_for_position(&gene, 101).is_none());
@@ -1063,6 +1085,7 @@ fn test_codon_bounds_phase_skipped_position_returns_none() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     assert!(codon_bounds_for_position(&minus, 120).is_none());
     assert!(codon_bounds_for_position(&minus, 119).is_none());
@@ -1081,6 +1104,7 @@ fn test_codon_bounds_plus_strand_with_phase_1() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     // Position 100 is in the skipped region, no codon
     assert!(codon_bounds_for_position(&gene, 100).is_none());
@@ -1105,6 +1129,7 @@ fn test_codon_bounds_minus_strand_phase_1_gnaq_regression() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let b516 = codon_bounds_for_position(&gene, 77_794_516).expect("bounds for 516");
     let b517 = codon_bounds_for_position(&gene, 77_794_517).expect("bounds for 517");
@@ -1127,6 +1152,7 @@ fn test_codon_bounds_outside_gene_returns_none() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     assert!(codon_bounds_for_position(&gene, 50).is_none());
     assert!(codon_bounds_for_position(&gene, 300).is_none());
@@ -1146,6 +1172,7 @@ fn test_get_mnv_variants_for_gene_mixed_snps_and_indels() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let reference = Reference {
         sequence: "ATGATGATG",
@@ -1360,6 +1387,7 @@ fn test_multiallelic_position_emits_one_row_per_alt() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     // Two VCF records at position 101 with different ALTs (T and G)
     let snps = vec![
@@ -1415,6 +1443,7 @@ fn test_true_duplicate_position_still_dedup() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let snps = vec![
         VcfPosition {
@@ -1478,6 +1507,7 @@ fn test_nonsense_snv_far_upstream_of_last_junction_is_nmd_triggering() {
                 end: 200,
             },
         ],
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference { sequence: &seq };
 
@@ -1527,6 +1557,7 @@ fn test_hgvs_coding_descriptor_plus_and_minus_strand() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let plus_ref = crate::io::Reference {
         sequence: "CCATTTGGG",
@@ -1567,6 +1598,7 @@ fn test_hgvs_coding_descriptor_plus_and_minus_strand() {
         protein_offset: 0,
         transcript_id: None,
         cds_segments: Vec::new(),
+        biotype: Biotype::ProteinCoding,
     };
     let minus_ref = crate::io::Reference {
         sequence: "TTTAAACAT",
@@ -1614,6 +1646,7 @@ fn test_exonic_variant_near_junction_is_splice_region() {
                 end: 200,
             },
         ],
+        biotype: Biotype::ProteinCoding,
     };
     let reference = crate::io::Reference { sequence: &seq };
     // Genomic 120 is exon1's last base: exonic, at the donor boundary.

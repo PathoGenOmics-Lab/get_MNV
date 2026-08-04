@@ -100,6 +100,23 @@ fn annotate_variants_for_gene(
     indel_config: &variants::IndelAnnotationConfig,
     phasing: &variants::FrameshiftPhasing,
 ) -> Vec<VariantInfo> {
+    // A non-coding transcript has no reading frame, so translating it would
+    // invent amino-acid changes for something that is never translated. Report
+    // its variants against the gene as non_coding_transcript_exon_variant.
+    if !gene.biotype.is_coding() {
+        return snp_list
+            .iter()
+            .filter(|snp| io::gene_overlaps_variant(gene, snp))
+            .map(|snp| {
+                variants::build_non_coding_variant(
+                    contig,
+                    snp,
+                    &gene.name,
+                    variants::NonCodingReason::NonCodingTranscript,
+                )
+            })
+            .collect();
+    }
     variants::get_mnv_variants_for_gene_with_config(
         gene,
         snp_list,

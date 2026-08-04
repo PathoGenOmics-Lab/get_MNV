@@ -1,5 +1,5 @@
 use super::*;
-use crate::variants::CdsSegment;
+use crate::variants::{Biotype, CdsSegment};
 
 // ---- decode_percent_encoded ----
 
@@ -217,6 +217,7 @@ fn record(
             protein_offset: 0,
             transcript_id: tid.map(|s| s.to_string()),
             cds_segments: Vec::new(),
+            biotype: Biotype::ProteinCoding,
         },
         feature_type: ft.to_string(),
         transcript_id: tid.map(|s| s.to_string()),
@@ -488,6 +489,7 @@ fn test_filter_genes_with_snps() {
             protein_offset: 0,
             transcript_id: None,
             cds_segments: Vec::new(),
+            biotype: Biotype::ProteinCoding,
         },
         Gene {
             name: "gene2".into(),
@@ -498,6 +500,7 @@ fn test_filter_genes_with_snps() {
             protein_offset: 0,
             transcript_id: None,
             cds_segments: Vec::new(),
+            biotype: Biotype::ProteinCoding,
         },
     ];
     let snps = vec![VcfPosition {
@@ -531,6 +534,7 @@ fn test_transcript_gene_filter_keeps_intronic_variants() {
                 end: 200,
             },
         ],
+        biotype: Biotype::ProteinCoding,
     }];
     let snp = |position: usize| VcfPosition {
         position,

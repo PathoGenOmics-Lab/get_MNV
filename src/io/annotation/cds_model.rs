@@ -80,6 +80,8 @@ pub(crate) fn parse_gff_gene_records(
                 protein_offset: 0,
                 transcript_id: transcript_id.clone(),
                 cds_segments: Vec::new(),
+                // The GFF path selects CDS features, so it is coding by construction.
+                biotype: crate::variants::Biotype::ProteinCoding,
             },
             feature_type,
             transcript_id,

@@ -486,9 +486,26 @@ pub fn build_intron_variant(
     vcf_pos: &crate::io::VcfPosition,
     gene_name: &str,
 ) -> VariantInfo {
+    build_non_coding_variant(
+        chrom,
+        vcf_pos,
+        gene_name,
+        crate::variants::NonCodingReason::Intron,
+    )
+}
+
+/// Build a `VariantInfo` for a variant inside a gene that carries no codon: an
+/// intron, or a transcript that is never translated. It keeps the gene name and
+/// the reason, and has no amino-acid annotation because there is none to make.
+pub fn build_non_coding_variant(
+    chrom: &str,
+    vcf_pos: &crate::io::VcfPosition,
+    gene_name: &str,
+    reason: crate::variants::NonCodingReason,
+) -> VariantInfo {
     let mut variant = build_intergenic_variant(chrom, vcf_pos);
     variant.gene = gene_name.to_string();
-    variant.annotations.intronic = true;
+    variant.annotations.non_coding = Some(reason);
     variant
 }
 
