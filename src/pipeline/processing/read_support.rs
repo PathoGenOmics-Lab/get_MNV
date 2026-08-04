@@ -6,7 +6,7 @@ use crate::cli::Args;
 use crate::error::{AppError, AppResult};
 use crate::io::VcfPosition;
 use crate::read_count::{self, ReadCountSummary};
-use crate::variants::{self, Gene, VariantInfo, VariantType};
+use crate::variants::{self, AlleleComponentKind, Gene, VariantInfo, VariantType};
 use std::collections::HashMap;
 
 /// Maximum genomic distance between an indel and a SNV for read-based phasing to
@@ -414,10 +414,21 @@ fn observe_component_haplotypes(
         .unwrap_or(0);
     let component_variants = component
         .iter()
-        .map(|variant| read_count::LocalVariant {
-            start: variant.position,
-            ref_len: variant.ref_allele.len(),
-            components: variant.event().components,
+        .map(|variant| {
+            let components = variant.event().components;
+            // An insertion lives between two reference bases, so a read that
+            // stops on the anchor has covered the anchor and still seen nothing
+            // of the junction. Requiring the following base too keeps such a
+            // read from being recorded as evidence that the insertion is
+            // absent, which would mint a subset haplotype no molecule showed.
+            let inserts = components
+                .iter()
+                .any(|component| component.kind == AlleleComponentKind::Insertion);
+            read_count::LocalVariant {
+                start: variant.position,
+                ref_len: variant.ref_allele.len() + usize::from(inserts),
+                components,
+            }
         })
         .collect::<Vec<_>>();
 

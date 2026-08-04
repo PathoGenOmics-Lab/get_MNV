@@ -46,6 +46,10 @@ genotipos.
   observa, porque una molécula con A, B y C no es evidencia de una molécula con
   solo A y B. Dos combinaciones que conviven de verdad salen las dos, cada una
   con su recuento. No hay tope al número de variantes que una ventana admite.
+  Cada candidata se juzga sobre su propio tramo de referencia, y en el caso de
+  una inserción ese tramo llega una base más allá del ancla, porque una
+  inserción vive entre dos bases de referencia y una lectura que termina en el
+  ancla no ha visto nada de la unión.
 
 ## Reglas de límites
 

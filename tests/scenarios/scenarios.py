@@ -1761,7 +1761,7 @@ scenario_declared_phase_contradicted = Scenario(
         ExpectedRow(
             positions="28, 30",
             variant_type="SNP/MNV",
-            declared_phase="cis:42;contradicted-by-reads",
+            declared_phase="cis:42|contradicted-by-reads",
             mnv_phasing_support="0.0000",
         ),
     ],
@@ -1938,6 +1938,124 @@ scenario_mates_disagree = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 48. Mates que se contradicen sobre un indel
+# ---------------------------------------------------------------------------
+# Los dos mates cubren la pos 30. Uno lleva la insercion y el otro lee la
+# referencia alli. Uno de los dos se equivoca y no hay forma de saber cual, asi
+# que la molecula no puede respaldar la llamada. El solape de mates es
+# justamente donde aparecen los artefactos de realineamiento de indels, y sin
+# esta regla un solo mate con un artefacto bastaba para acreditar la molecula
+# entera: el resultado era identico al de 20 moleculas de acuerdo.
+scenario_indel_mates_disagree = Scenario(
+    name="48_indel_mates_disagree",
+    description="Mates que discrepan sobre la insercion en pos 30: la molecula no respalda la llamada",
+    variants=[VcfRecord(pos=30, ref="T", alt="TGCT")],
+    reads=[
+        ReadGroup(
+            name_prefix="r_conflict",
+            start=1,
+            length=100,
+            ops=[Op(kind="ins", pos=30, seq="GCT")],
+            count=20,
+            mate_start=1,
+            mate_length=100,
+            mate_ops=[],
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="30",
+            variant_type="INDEL",
+            event_class="insertion",
+            event_reads="0",
+            event_frequency="0.0000",
+        ),
+    ],
+)
+
+
+# 49. El mismo dato con los dos mates de acuerdo: si respalda
+scenario_indel_mates_agree = Scenario(
+    name="49_indel_mates_agree",
+    description="Mismos fragmentos con la insercion en los dos mates: 20 moleculas la respaldan",
+    variants=[VcfRecord(pos=30, ref="T", alt="TGCT")],
+    reads=[
+        ReadGroup(
+            name_prefix="r_agree",
+            start=1,
+            length=100,
+            ops=[Op(kind="ins", pos=30, seq="GCT")],
+            count=20,
+            mate_start=1,
+            mate_length=100,
+            mate_ops=[Op(kind="ins", pos=30, seq="GCT")],
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="30",
+            variant_type="INDEL",
+            event_class="insertion",
+            event_reads="20",
+            event_frequency="1.0000",
+        ),
+    ],
+)
+
+
+# ---------------------------------------------------------------------------
+# 50. Una lectura que termina en la base ancla de una insercion no la niega
+# ---------------------------------------------------------------------------
+# Ventana: delecion en 28, SNV en 30, insercion anclada en 31.
+#   20 moleculas llevan las tres.
+#   10 lecturas terminan justo en la base 31: ensenan la delecion y la SNV, y no
+#      pueden ver si la insercion viene detras.
+# Esas 10 son igual de compatibles con llevar la insercion. Tratarlas como si
+# la negaran acuñaba una fila delecion+SNV que ninguna molecula demostro, en
+# contra de la regla que la propia herramienta documenta: un subconjunto solo se
+# emite si hay lecturas que lo ensenan.
+scenario_read_ending_on_insertion_anchor = Scenario(
+    name="50_read_ending_on_insertion_anchor",
+    description="Lecturas que acaban en la base ancla de una insercion no cuentan como evidencia de que falta",
+    variants=[
+        VcfRecord(pos=28, ref="GC", alt="G"),
+        VcfRecord(pos=30, ref="T", alt="A"),
+        VcfRecord(pos=31, ref="G", alt="GGCT"),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_full",
+            start=1,
+            length=100,
+            ops=[
+                Op(kind="del", pos=29, length=1),
+                Op(kind="snv", pos=30, seq="A"),
+                Op(kind="ins", pos=31, seq="GCT"),
+            ],
+            count=20,
+        ),
+        ReadGroup(
+            name_prefix="r_stops",
+            start=1,
+            length=31,
+            ops=[Op(kind="del", pos=29, length=1), Op(kind="snv", pos=30, seq="A")],
+            count=10,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            event_class="complex_indel",
+            event_components="DEL:29:C | SNV:30:T>A | INS:31:+GCT",
+            event_reads="20",
+        ),
+    ],
+    # Las tres filas del VCF mas el unico haplotipo que las lecturas ensenan.
+    # Sin la regla salia una quinta: DEL:29:C | SNV:30:T>A.
+    expected_row_count=4,
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -1997,6 +2115,9 @@ ALL_SCENARIOS = [
     scenario_mates_separately_cannot_answer,
     scenario_overlapping_mates_counted_once,
     scenario_mates_disagree,
+    scenario_indel_mates_disagree,
+    scenario_indel_mates_agree,
+    scenario_read_ending_on_insertion_anchor,
 ]
 
 

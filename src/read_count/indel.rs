@@ -49,6 +49,14 @@ pub fn count_indel_reads(
     let mut unique_alt: HashSet<Rc<MoleculeKey>> = HashSet::new();
     let mut unique_alt_forward: HashSet<Rc<MoleculeKey>> = HashSet::new();
     let mut unique_alt_reverse: HashSet<Rc<MoleculeKey>> = HashSet::new();
+    // Molecules where one mate spans the locus and reads a different allele
+    // from the one that supported the ALT. One of the two is wrong and there is
+    // no telling which, so the molecule does not get to support the call; the
+    // substitution counting takes the same view of a contradicted overlap.
+    // Without this, a single mate carrying an alignment artefact was enough to
+    // claim the whole molecule, and mate overlap is exactly where indel
+    // realignment artefacts appear.
+    let mut contradicted: HashSet<Rc<MoleculeKey>> = HashSet::new();
 
     let mut record = bam::Record::default();
     while query
@@ -107,18 +115,27 @@ pub fn count_indel_reads(
         }
 
         if let Some(observed) = observed.as_ref() {
-            if observed.min_quality >= min_phred_quality
-                && observed.allele.eq_ignore_ascii_case(alt_allele)
-                && observed_supports_components(observed, required_components)
-            {
-                unique_alt.insert(key.clone());
-                if is_reverse {
-                    unique_alt_reverse.insert(key);
+            if observed.min_quality >= min_phred_quality {
+                if observed.allele.eq_ignore_ascii_case(alt_allele)
+                    && observed_supports_components(observed, required_components)
+                {
+                    unique_alt.insert(key.clone());
+                    if is_reverse {
+                        unique_alt_reverse.insert(key);
+                    } else {
+                        unique_alt_forward.insert(key);
+                    }
                 } else {
-                    unique_alt_forward.insert(key);
+                    contradicted.insert(key);
                 }
             }
         }
+    }
+
+    for key in &contradicted {
+        unique_alt.remove(key);
+        unique_alt_forward.remove(key);
+        unique_alt_reverse.remove(key);
     }
 
     let alt_count = unique_alt.len();

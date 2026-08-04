@@ -267,14 +267,19 @@ pub struct DeclaredPhaseCall {
 
 impl std::fmt::Display for DeclaredPhaseCall {
     /// `cis:12345`, or just `cis` when the caller phased without a phase set,
-    /// with `;contradicted-by-reads` appended when the BAM refutes it.
+    /// with `|contradicted-by-reads` appended when the BAM refutes it.
+    ///
+    /// The separator is `|` rather than `;` because `;` ends an INFO field: a
+    /// semicolon here has to be percent-encoded, leaving the reader with
+    /// `cis:42%3Bcontradicted-by-reads` in the one field whose purpose is to
+    /// catch a human's eye. `|` passes through intact, as it does for `COMP`.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.phase_set {
             Some(phase_set) => write!(f, "{}:{}", self.verdict.as_str(), phase_set)?,
             None => write!(f, "{}", self.verdict.as_str())?,
         }
         if self.contradicted_by_reads {
-            write!(f, ";contradicted-by-reads")?;
+            write!(f, "|contradicted-by-reads")?;
         }
         Ok(())
     }

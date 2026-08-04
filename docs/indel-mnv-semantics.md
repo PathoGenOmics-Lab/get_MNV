@@ -40,7 +40,11 @@ genotype likelihood modelling.
   including one that is a subset of a combination reads do carry, since a
   molecule with A, B and C is not evidence for a molecule with only A and B.
   Two combinations that genuinely coexist are both reported, with their own
-  counts. There is no cap on how many variants a window may hold.
+  counts. There is no cap on how many variants a window may hold. Each
+  candidate is judged on its own reference span, and for an insertion that span
+  reaches one base past the anchor, since an insertion lives between two
+  reference bases and a read ending on the anchor has seen nothing of the
+  junction.
 
 ## Boundary Rules
 
