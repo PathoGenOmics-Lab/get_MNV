@@ -36,16 +36,7 @@ fn cds_total(gene: &Gene) -> usize {
 /// Only segment pairs separated by a real intron count, so a slippage join that
 /// follows a genuine intron does not move the junction downstream of it.
 fn last_exon_junction_offset(gene: &Gene) -> Option<usize> {
-    let mut offset = 0usize;
-    let mut last_junction = None;
-    for (idx, segment) in gene.cds_segments.iter().enumerate() {
-        // `offset` is the transcript coordinate at which this segment starts.
-        if idx > 0 && gene.intron_separates(&gene.cds_segments[idx - 1], segment) {
-            last_junction = Some(offset);
-        }
-        offset += segment.end.saturating_sub(segment.start) + 1;
-    }
-    last_junction
+    gene.introns().last().map(|intron| intron.junction_offset)
 }
 
 /// Classify a PTC by its distance upstream of the last exon-exon junction.

@@ -216,12 +216,45 @@ pub(crate) fn build_transcript_cds_records(records: Vec<GffGeneRecord>) -> Vec<G
         out.push(rec);
     }
 
+    let mut spliced_transcripts = 0usize;
+    let mut joined_transcripts = 0usize;
+
     for ((contig, transcript_id), mut group) in groups {
         let strand = group[0].gene.strand;
+
+        // Segments that do not share an orientation are not one transcript. The
+        // sort below, and everything downstream that reads `cds_segments` in
+        // transcript order, would otherwise be built on the first row's strand
+        // and silently produce a nonsense reading frame.
+        if group.iter().any(|rec| rec.gene.strand != strand) {
+            log::warn!(
+                "CDS transcript '{transcript_id}' on contig '{contig}' has rows on both \
+                 strands; keeping per-feature annotation because a spliced CDS cannot be \
+                 built from segments that disagree about orientation."
+            );
+            out.extend(group);
+            continue;
+        }
+
         group.sort_by(|a, b| match strand {
             crate::variants::Strand::Plus => a.gene.start.cmp(&b.gene.start),
             crate::variants::Strand::Minus => b.gene.start.cmp(&a.gene.start),
         });
+
+        // A CDS row listed twice (concatenated annotation files, or a GFF that
+        // repeats a segment) would count those bases twice in the spliced CDS
+        // and shift every downstream codon. Sorting puts identical rows next to
+        // each other, so dropping the repeats here is enough.
+        let before_dedup = group.len();
+        group.dedup_by(|a, b| a.gene.start == b.gene.start && a.gene.end == b.gene.end);
+        if group.len() != before_dedup {
+            log::warn!(
+                "CDS transcript '{transcript_id}' on contig '{contig}' lists {} duplicate \
+                 CDS row(s); ignoring the repeats, which would otherwise be counted twice \
+                 in the spliced coding sequence.",
+                before_dedup - group.len()
+            );
+        }
 
         if group.len() == 1 && group[0].gene.phase != 0 {
             log::warn!(
@@ -269,12 +302,33 @@ pub(crate) fn build_transcript_cds_records(records: Vec<GffGeneRecord>) -> Vec<G
             })
             .collect();
 
+        // Record what the model actually came out as, so the summary below can
+        // tell the user which transcripts get_MNV read as spliced and which as
+        // one continuous reading frame. The two are annotated very differently.
+        if gene.cds_segments.len() > 1 {
+            let intron_count = gene.introns().count();
+            if intron_count == 0 {
+                joined_transcripts += 1;
+            } else {
+                spliced_transcripts += 1;
+            }
+        }
+
         out.push(GffGeneRecord {
             contig,
             gene,
             feature_type: "CDS".to_string(),
             transcript_id: Some(transcript_id),
         });
+    }
+
+    if spliced_transcripts > 0 || joined_transcripts > 0 {
+        log::info!(
+            "Built {spliced_transcripts} spliced CDS model(s) and {joined_transcripts} \
+             multi-segment model(s) whose segments abut or overlap. The latter are one \
+             continuous reading frame (a ribosomal-slippage join such as SARS-CoV-2 \
+             ORF1ab), so they carry no splice sites and no exon-exon junction."
+        );
     }
 
     out

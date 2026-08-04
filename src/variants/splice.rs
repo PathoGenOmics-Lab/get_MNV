@@ -49,29 +49,23 @@ pub fn splice_consequence_for_position(gene: &Gene, position: usize) -> Option<S
         return None;
     }
     let mut best: Option<SpliceConsequence> = None;
-    for pair in gene.cds_segments.windows(2) {
-        let (earlier, later) = (&pair[0], &pair[1]);
-        // Consecutive segments are only a splice junction when a real intron
-        // separates them. Abutting or overlapping segments are a continuous
-        // reading frame (a ribosomal-slippage join such as SARS-CoV-2 ORF1ab),
-        // and flagging their neighbouring coding bases as donor/acceptor sites
-        // would invent HIGH-impact consequences for an unspliced transcript.
-        if !gene.intron_separates(earlier, later) {
-            continue;
-        }
-        // `cds_segments` is in transcript order, so `earlier` is the 5' exon of
-        // the junction. On the plus strand its 3' end is the higher genomic base
-        // and the intron lies above it; on the minus strand it is the lower base
-        // and the intron lies below.
-        let (donor_boundary, donor_dir, acceptor_boundary, acceptor_dir) = match gene.strand {
-            Strand::Plus => (earlier.end, 1, later.start, -1),
-            Strand::Minus => (earlier.start, -1, later.end, 1),
+    // Only real introns have splice sites, and `Gene::introns` is the single
+    // place that decides where they are: abutting or overlapping segments are a
+    // continuous reading frame (a ribosomal-slippage join such as SARS-CoV-2
+    // ORF1ab) and yield no intron at all.
+    for intron in gene.introns() {
+        // The donor is at the 5' end of the intron in transcript orientation and
+        // the acceptor at its 3' end, which on the minus strand means the higher
+        // and lower genomic coordinates respectively.
+        let (donor_dir, acceptor_dir) = match gene.strand {
+            Strand::Plus => (1, -1),
+            Strand::Minus => (-1, 1),
         };
         let candidates = [
-            classify_boundary(position, donor_boundary, donor_dir, HalfKind::Donor),
+            classify_boundary(position, intron.exon_before_end, donor_dir, HalfKind::Donor),
             classify_boundary(
                 position,
-                acceptor_boundary,
+                intron.exon_after_start,
                 acceptor_dir,
                 HalfKind::Acceptor,
             ),
@@ -94,19 +88,8 @@ pub fn splice_consequence_for_position(gene: &Gene, position: usize) -> Option<S
 /// classified by [`splice_consequence_for_position`], which is more specific;
 /// this answers the wider question of "inside the transcript but not coding".
 pub fn is_intronic_position(gene: &Gene, position: usize) -> bool {
-    gene.cds_segments.windows(2).any(|pair| {
-        let (earlier, later) = (&pair[0], &pair[1]);
-        if !gene.intron_separates(earlier, later) {
-            return false;
-        }
-        // `cds_segments` is in transcript order, so on the minus strand the
-        // intron sits below the earlier exon rather than above it.
-        let (low, high) = match gene.strand {
-            Strand::Plus => (earlier.end + 1, later.start - 1),
-            Strand::Minus => (later.end + 1, earlier.start - 1),
-        };
-        position >= low && position <= high
-    })
+    gene.introns()
+        .any(|intron| position >= intron.start && position <= intron.end)
 }
 
 #[cfg(test)]

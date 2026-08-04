@@ -453,6 +453,29 @@ pub struct Gene {
     pub biotype: Biotype,
 }
 
+/// A real intron of a spliced transcript: the genomic gap between two CDS
+/// segments, together with where that exon-exon junction falls in the spliced
+/// CDS and which exon bases flank it.
+///
+/// Derived once by [`Gene::introns`] so that splice-site classification,
+/// intronic-position tests and the NMD junction all read the same geometry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Intron {
+    /// Lowest genomic base of the intron.
+    pub start: usize,
+    /// Highest genomic base of the intron.
+    pub end: usize,
+    /// Spliced-CDS offset at which the exon after this intron begins, i.e. the
+    /// exon-exon junction in transcript coordinates.
+    pub junction_offset: usize,
+    /// Terminal base of the exon before the intron, in transcript order: the
+    /// donor boundary.
+    pub exon_before_end: usize,
+    /// First base of the exon after the intron, in transcript order: the
+    /// acceptor boundary.
+    pub exon_after_start: usize,
+}
+
 impl Gene {
     /// Whether a real intron separates two consecutive CDS segments given in
     /// transcript order.
@@ -469,6 +492,53 @@ impl Gene {
             Strand::Plus => later.start > earlier.end + 1,
             Strand::Minus => earlier.start > later.end + 1,
         }
+    }
+
+    /// The transcript's real introns, in transcript order.
+    ///
+    /// Splice sites, intronic positions and the NMD junction are all questions
+    /// about the same geometry, and each used to re-derive it from
+    /// `cds_segments` on its own. Deriving it once means the three answers
+    /// cannot disagree about where an intron is, or about whether a pair of
+    /// segments has one at all.
+    ///
+    /// Yields nothing for an unspliced transcript: a single CDS segment, or
+    /// segments that abut or overlap in a ribosomal-slippage join.
+    pub(crate) fn introns(&self) -> impl Iterator<Item = Intron> + '_ {
+        self.cds_segments
+            .windows(2)
+            .scan(0usize, |offset_after, pair| {
+                // `offset_after` accumulates the spliced length up to and
+                // including `earlier`, which is where the next exon begins in
+                // transcript coordinates.
+                let (earlier, later) = (&pair[0], &pair[1]);
+                *offset_after += earlier.end.saturating_sub(earlier.start) + 1;
+                Some((*offset_after, earlier, later))
+            })
+            .filter_map(|(junction_offset, earlier, later)| {
+                if !self.intron_separates(earlier, later) {
+                    return None;
+                }
+                // `cds_segments` is in transcript order, so on the minus strand
+                // the intron lies below the earlier exon rather than above it.
+                let (start, end) = match self.strand {
+                    Strand::Plus => (earlier.end + 1, later.start - 1),
+                    Strand::Minus => (later.end + 1, earlier.start - 1),
+                };
+                Some(Intron {
+                    start,
+                    end,
+                    junction_offset,
+                    exon_before_end: match self.strand {
+                        Strand::Plus => earlier.end,
+                        Strand::Minus => earlier.start,
+                    },
+                    exon_after_start: match self.strand {
+                        Strand::Plus => later.start,
+                        Strand::Minus => later.end,
+                    },
+                })
+            })
     }
 
     /// Whether an insertion anchored at genomic `position` lands at an internal
@@ -686,5 +756,67 @@ mod tests {
     #[test]
     fn test_variant_type_ord() {
         assert!(VariantType::Snp < VariantType::Mnv);
+    }
+}
+
+#[cfg(test)]
+mod intron_tests {
+    use crate::test_support::{joined_gene, spliced_gene, transcript_gene};
+    use crate::variants::Strand;
+
+    #[test]
+    fn a_spliced_transcript_yields_its_introns_in_transcript_order() {
+        // exon1 801-900 (100 nt), intron 901-1000, exon2 1001-1200.
+        let gene = spliced_gene("t", Strand::Plus, &[(801, 900), (1001, 1200)]);
+        let introns: Vec<_> = gene.introns().collect();
+        assert_eq!(introns.len(), 1);
+        assert_eq!((introns[0].start, introns[0].end), (901, 1000));
+        // The exon after the intron begins at spliced-CDS offset 100.
+        assert_eq!(introns[0].junction_offset, 100);
+        assert_eq!(introns[0].exon_before_end, 900);
+        assert_eq!(introns[0].exon_after_start, 1001);
+    }
+
+    #[test]
+    fn minus_strand_introns_keep_transcript_orientation() {
+        // Transcript order is descending genomic: exon 1001-1200 then 801-900,
+        // so the donor sits at the low end of the intron and the acceptor high.
+        let gene = spliced_gene("t", Strand::Minus, &[(1001, 1200), (801, 900)]);
+        let introns: Vec<_> = gene.introns().collect();
+        assert_eq!(introns.len(), 1);
+        assert_eq!((introns[0].start, introns[0].end), (901, 1000));
+        assert_eq!(introns[0].junction_offset, 200);
+        assert_eq!(introns[0].exon_before_end, 1001);
+        assert_eq!(introns[0].exon_after_start, 900);
+    }
+
+    #[test]
+    fn an_unspliced_transcript_has_no_introns() {
+        let single = transcript_gene("t", Strand::Plus, &[(801, 900)]);
+        assert_eq!(single.introns().count(), 0);
+        let abutting = joined_gene("t", Strand::Plus, &[(801, 900), (901, 1200)]);
+        assert_eq!(abutting.introns().count(), 0);
+        // SARS-CoV-2 ORF1ab: join(266..13468, 13468..21555).
+        let slippage = joined_gene("orf1ab", Strand::Plus, &[(266, 13468), (13468, 21555)]);
+        assert_eq!(slippage.introns().count(), 0);
+    }
+
+    #[test]
+    fn junction_offsets_accumulate_across_several_exons() {
+        // 30 nt, intron, 60 nt, intron, 90 nt: junctions at offsets 30 and 90.
+        let gene = spliced_gene("t", Strand::Plus, &[(1, 30), (101, 160), (301, 390)]);
+        let offsets: Vec<_> = gene.introns().map(|i| i.junction_offset).collect();
+        assert_eq!(offsets, vec![30, 90]);
+    }
+
+    #[test]
+    fn a_slippage_join_after_a_real_intron_does_not_move_the_junction() {
+        // exon 1-120, intron, exon 201-260, then a joined segment 261-320. The
+        // only junction is the one after the real intron, at offset 120.
+        let gene = transcript_gene("t", Strand::Plus, &[(1, 120), (201, 260), (261, 320)]);
+        let introns: Vec<_> = gene.introns().collect();
+        assert_eq!(introns.len(), 1);
+        assert_eq!(introns[0].junction_offset, 120);
+        assert_eq!((introns[0].start, introns[0].end), (121, 200));
     }
 }

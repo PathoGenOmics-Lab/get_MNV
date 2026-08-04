@@ -534,3 +534,67 @@ fn test_transcript_gene_filter_keeps_intronic_variants() {
     let outside = vec![snp(500)];
     assert!(filter_genes_with_snps(&genes, &outside).is_empty());
 }
+
+// ---- CDS model validation ----
+
+/// A transcript whose CDS rows disagree about the strand cannot be assembled:
+/// the segment order, and therefore every codon downstream, depends on it. The
+/// rows are kept as per-feature annotations instead of being silently merged
+/// using whichever strand happened to come first.
+#[test]
+fn test_mixed_strand_transcript_is_not_aggregated() {
+    use crate::variants::Strand;
+    let records = vec![
+        record("chr1", 100, 199, Strand::Plus, 0, "CDS", Some("tx1")),
+        record("chr1", 300, 399, Strand::Minus, 0, "CDS", Some("tx1")),
+    ];
+    let out = build_transcript_cds_records(records);
+    assert_eq!(out.len(), 2, "both rows survive as per-feature annotations");
+    assert!(
+        out.iter().all(|rec| rec.gene.cds_segments.is_empty()),
+        "no spliced model is built from segments that disagree about orientation"
+    );
+}
+
+/// A CDS row listed twice would contribute its bases twice to the spliced CDS
+/// and shift every codon after it.
+#[test]
+fn test_duplicate_cds_rows_are_counted_once() {
+    use crate::variants::Strand;
+    let records = vec![
+        record("chr1", 100, 199, Strand::Plus, 0, "CDS", Some("tx1")),
+        record("chr1", 100, 199, Strand::Plus, 0, "CDS", Some("tx1")),
+        record("chr1", 300, 399, Strand::Plus, 0, "CDS", Some("tx1")),
+    ];
+    let out = build_transcript_cds_records(records);
+    assert_eq!(out.len(), 1);
+    assert_eq!(
+        out[0].gene.cds_segments.len(),
+        2,
+        "the repeated row is dropped, leaving the two distinct segments"
+    );
+    let coding_length: usize = out[0]
+        .gene
+        .cds_segments
+        .iter()
+        .map(|segment| segment.end - segment.start + 1)
+        .sum();
+    assert_eq!(coding_length, 200, "200 nt, not 300");
+}
+
+/// The ordinary case still aggregates, so the checks above are not rejecting
+/// valid annotation.
+#[test]
+fn test_single_strand_transcript_still_aggregates() {
+    use crate::variants::Strand;
+    let records = vec![
+        record("chr1", 300, 399, Strand::Plus, 0, "CDS", Some("tx1")),
+        record("chr1", 100, 199, Strand::Plus, 0, "CDS", Some("tx1")),
+    ];
+    let out = build_transcript_cds_records(records);
+    assert_eq!(out.len(), 1);
+    // Sorted into transcript order regardless of the order in the file.
+    let segments = &out[0].gene.cds_segments;
+    assert_eq!((segments[0].start, segments[1].start), (100, 300));
+    assert_eq!(out[0].gene.introns().count(), 1);
+}
