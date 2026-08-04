@@ -1,0 +1,6 @@
+##gff-version 3
+##sequence-region v1 1 902
+v1	fixture	gene	101	702	.	+	.	ID=gene:orf1ab;biotype=protein_coding;Name=orf1ab
+v1	fixture	mRNA	101	702	.	+	.	ID=transcript:orf1ab;Parent=gene:orf1ab;biotype=protein_coding
+v1	fixture	CDS	101	400	.	+	0	ID=cds:orf1ab;Parent=transcript:orf1ab;gene=orf1ab
+v1	fixture	CDS	400	702	.	+	0	ID=cds:orf1ab;Parent=transcript:orf1ab;gene=orf1ab

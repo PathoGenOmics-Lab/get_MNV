@@ -1,0 +1,9 @@
+##fileformat=VCFv4.2
+##contig=<ID=v1,length=900>
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
+v1	396	.	A	C	.	PASS	.
+v1	399	.	C	A	.	PASS	.
+v1	401	.	T	A	.	PASS	.
+v1	402	.	A	C	.	PASS	.
+v1	405	.	G	A	.	PASS	.
+v1	450	.	T	A	.	PASS	.
