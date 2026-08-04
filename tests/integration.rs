@@ -2520,3 +2520,68 @@ fn test_e2e_tsv_unknown_biotype_is_rejected() {
 
     let _ = fs::remove_dir_all(&tmp);
 }
+
+/// A read that skips an intron (CIGAR `N`) must not be counted as carrying a
+/// deletion of those bases. Both operations advance the reference without
+/// consuming query bases, so reconstructing the observed allele from the CIGAR
+/// alone makes an intron skip look exactly like the deletion allele.
+#[test]
+fn test_intron_skip_is_not_counted_as_deletion_support() {
+    let tmp = temp_dir("e2e_skip_vs_del");
+    let ref_path = tmp.join("ref.fasta");
+    // 60 bases: a 3 bp deletion is called at 10 (REF=ATG ALT=A deletes 11-12).
+    // Positions 1-9 = C, 10-12 = ATG, 13-60 = C.
+    let sequence: &'static str = "CCCCCCCCCATGCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+    fs::write(&ref_path, format!(">chr1\n{sequence}\n")).unwrap();
+    let genes_path = tmp.join("genes.txt");
+    fs::write(&genes_path, "gene1\t1\t60\t+\n").unwrap();
+    let vcf_path = tmp.join("in.vcf");
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+         chr1\t10\t.\tATG\tA\t.\tPASS\t.\n",
+    )
+    .unwrap();
+
+    // The read spans position 10 and then SKIPS 11-12 as an intron. It does not
+    // carry the deletion.
+    // 10 aligned bases (1-10), the intron 11-12 skipped, then 18 more (13-30).
+    let spliced: &'static str = "CCCCCCCCCACCCCCCCCCCCCCCCCCC";
+    let reads = vec![SyntheticRead {
+        name: "skip1",
+        start: 1,
+        cigar: "10M2N18M",
+        sequence: spliced,
+    }];
+
+    let bam_path = tmp.join("reads.bam");
+    write_synthetic_bam(&bam_path, sequence.len(), &reads);
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.bam_file = Some(bam_path.to_string_lossy().into());
+    args.output_prefix = Some(tmp.join("out").to_string_lossy().into());
+    pipeline::run(&args).expect("pipeline should succeed");
+
+    let rows = read_tsv_rows(&tmp.join("out.MNV.tsv"));
+    let deletion = rows
+        .iter()
+        .find(|row| row.get("Event Class").map(String::as_str) == Some("deletion"))
+        .expect("the deletion must be reported");
+    assert_eq!(
+        deletion.get("Event Reads").map(String::as_str),
+        Some("0"),
+        "an intron skip is not a deletion: no read carries this allele. Row: {deletion:?}"
+    );
+    // The user-visible number: this deletion used to be reported at frequency
+    // 1.0000 on the strength of a read that does not carry it.
+    assert_eq!(
+        deletion.get("Event Frequency").map(String::as_str),
+        Some("0.0000"),
+        "frequency must not be inflated by a spliced read. Row: {deletion:?}"
+    );
+
+    let _ = fs::remove_dir_all(&tmp);
+}

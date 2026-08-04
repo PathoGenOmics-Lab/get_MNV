@@ -195,7 +195,7 @@ pub(super) fn observed_allele_for_ref_span(
             Kind::SoftClip => {
                 query_pos += len;
             }
-            Kind::Deletion | Kind::Skip => {
+            Kind::Deletion => {
                 for offset in 0..len {
                     let current_ref = ref_pos + offset as i64;
                     if current_ref >= target_start && current_ref < target_end {
@@ -203,6 +203,16 @@ pub(super) fn observed_allele_for_ref_span(
                         deleted[idx] = true;
                     }
                 }
+                ref_pos += len as i64;
+            }
+            // A skip is an intron, not a deletion. Both advance the reference
+            // without consuming query bases, so treating them alike made a
+            // spliced read look exactly like one carrying the deletion allele:
+            // an RNA-seq read skipping an intron was counted as exact support
+            // for a deletion of those bases. A skipped position is simply not
+            // observed by this read, which the final pass reports as no
+            // observation at all rather than as an allele.
+            Kind::Skip => {
                 ref_pos += len as i64;
             }
             Kind::HardClip | Kind::Pad => {}
