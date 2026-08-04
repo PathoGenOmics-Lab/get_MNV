@@ -7,8 +7,11 @@
 use crate::error::{AppError, AppResult};
 use noodles::bam;
 use noodles::sam::Header;
+use std::collections::HashMap;
 
-use super::observation::{build_region, get_query_pos, observed_allele_for_ref_span};
+use super::observation::{
+    build_molecule_key, build_region, get_query_pos, observed_allele_for_ref_span, MoleculeKey,
+};
 
 /// Minimum number of SNV-carrying reads that also span the indel before a pair
 /// can be judged; below this there is too little evidence and the pair is left
@@ -77,6 +80,7 @@ pub fn indel_snv_linkage(
     snv_alt: char,
     min_phred_quality: u8,
     min_mapq: u8,
+    pair_aware: bool,
 ) -> AppResult<IndelSnvLinkage> {
     let indel_end = indel_position + indel_ref.len().saturating_sub(1);
     let start = indel_position.min(snv_position);
@@ -86,8 +90,17 @@ pub fn indel_snv_linkage(
         AppError::validation(format!("BAM query failed for {chrom}:{start}-{end}: {e}"))
     })?;
 
-    let mut snv_reads_spanning_indel = 0usize;
-    let mut cis_reads = 0usize;
+    // Gathered per molecule, not per record: with paired-end reads the mate
+    // carrying the SNV is often not the mate that reaches the indel, and those
+    // two are the same molecule. Counting records would throw that pairing away
+    // and call the question unanswerable.
+    #[derive(Default)]
+    struct MoleculeEvidence {
+        carries_snv: bool,
+        spans_indel: bool,
+        carries_indel: bool,
+    }
+    let mut evidence: HashMap<MoleculeKey, MoleculeEvidence> = HashMap::new();
     let mut record = bam::Record::default();
     while query
         .read_record(&mut record)
@@ -106,28 +119,41 @@ pub fn indel_snv_linkage(
             continue;
         }
 
-        // Restrict to reads on the SNV's molecule (carrying the SNV alt).
-        match observed_base_at(&record, snv_position, min_phred_quality) {
-            Some(base) if base.eq_ignore_ascii_case(&snv_alt) => {}
-            _ => continue,
+        let carries_snv = matches!(
+            observed_base_at(&record, snv_position, min_phred_quality),
+            Some(base) if base.eq_ignore_ascii_case(&snv_alt)
+        );
+        let observed_indel_allele =
+            observed_allele_for_ref_span(&record, indel_position, indel_ref.len())
+                .filter(|observed| observed.min_quality >= min_phred_quality);
+        if !carries_snv && observed_indel_allele.is_none() {
+            continue;
         }
 
-        // The read must also span the indel locus to be informative about phasing.
-        let Some(observed) = observed_allele_for_ref_span(&record, indel_position, indel_ref.len())
-        else {
-            continue;
-        };
-        if observed.min_quality < min_phred_quality {
-            continue;
+        let molecule = evidence
+            .entry(build_molecule_key(&record, pair_aware))
+            .or_default();
+        molecule.carries_snv |= carries_snv;
+        if let Some(observed) = observed_indel_allele {
+            molecule.spans_indel = true;
+            molecule.carries_indel |= observed.allele.eq_ignore_ascii_case(indel_alt);
         }
-        snv_reads_spanning_indel += 1;
-        if observed.allele.eq_ignore_ascii_case(indel_alt) {
+    }
+
+    let informative = evidence
+        .values()
+        .filter(|molecule| molecule.carries_snv && molecule.spans_indel);
+    let mut informative_reads = 0usize;
+    let mut cis_reads = 0usize;
+    for molecule in informative {
+        informative_reads += 1;
+        if molecule.carries_indel {
             cis_reads += 1;
         }
     }
 
     Ok(IndelSnvLinkage {
-        informative_reads: snv_reads_spanning_indel,
+        informative_reads,
         cis_reads,
     })
 }

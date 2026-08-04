@@ -7,8 +7,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use super::observation::{
-    anchor_base_quality, build_read_key, build_region, observed_allele_for_ref_span,
-    observed_supports_components, ReadKey,
+    anchor_base_quality, build_molecule_key, build_region, observed_allele_for_ref_span,
+    observed_supports_components, MoleculeKey,
 };
 use super::{IndelReadCountRequest, ReadCountSummary};
 
@@ -26,6 +26,7 @@ pub fn count_indel_reads(
         min_phred_quality,
         min_mapq,
         anchor_depth,
+        pair_aware,
     } = request;
 
     if position == 0 || ref_allele.is_empty() {
@@ -42,12 +43,12 @@ pub fn count_indel_reads(
         ))
     })?;
 
-    let mut unique_total: HashSet<Rc<ReadKey>> = HashSet::new();
-    let mut unique_total_forward: HashSet<Rc<ReadKey>> = HashSet::new();
-    let mut unique_total_reverse: HashSet<Rc<ReadKey>> = HashSet::new();
-    let mut unique_alt: HashSet<Rc<ReadKey>> = HashSet::new();
-    let mut unique_alt_forward: HashSet<Rc<ReadKey>> = HashSet::new();
-    let mut unique_alt_reverse: HashSet<Rc<ReadKey>> = HashSet::new();
+    let mut unique_total: HashSet<Rc<MoleculeKey>> = HashSet::new();
+    let mut unique_total_forward: HashSet<Rc<MoleculeKey>> = HashSet::new();
+    let mut unique_total_reverse: HashSet<Rc<MoleculeKey>> = HashSet::new();
+    let mut unique_alt: HashSet<Rc<MoleculeKey>> = HashSet::new();
+    let mut unique_alt_forward: HashSet<Rc<MoleculeKey>> = HashSet::new();
+    let mut unique_alt_reverse: HashSet<Rc<MoleculeKey>> = HashSet::new();
 
     let mut record = bam::Record::default();
     while query
@@ -94,7 +95,7 @@ pub fn count_indel_reads(
             }
         }
 
-        let key = Rc::new(build_read_key(&record));
+        let key = Rc::new(build_molecule_key(&record, pair_aware));
         let is_reverse = flags.is_reverse_complemented();
         if counts_for_depth {
             unique_total.insert(key.clone());

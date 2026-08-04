@@ -62,6 +62,7 @@ These apply only when `--bam` is provided.
 | `--frameshift-min-freq <F>` | `0.0` | Minimum frequency an upstream indel must reach to mark downstream SNV/MNV codons as frameshifted. Raise it on intra-host data to avoid relabelling high-frequency substitutions because of a low-frequency upstream indel on a different molecule. |
 | `--indel-anchor-depth` | off | Count indel-locus depth (the `EFREQ` denominator) from reads observing the anchor base, not only reads spanning the full REF allele. Reduces depth under-counting for multi-base deletions. |
 | `--phased-indel-min-reads <N>` | `2` | Minimum BAM-supporting reads to emit a phased indel/complex haplotype row. One read is not evidence of a haplotype. |
+| `--count-mates-separately` | off | Count the two mates of a paired-end fragment as two observations instead of one molecule. |
 | `--phased-indel-min-freq <F>` | `0.0` | Minimum BAM-derived frequency to emit a phased indel/complex haplotype row. |
 | `--normalize-alleles` | off | Trim shared REF/ALT prefix/suffix before processing. |
 | `--split-multiallelic` | off | Split multiallelic VCF records into independent ALT alleles instead of failing. |

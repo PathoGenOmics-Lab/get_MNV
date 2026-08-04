@@ -1795,6 +1795,143 @@ scenario_unphased_declares_nothing = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 44. Un codon que cruza el intron, resuelto por el par de mates
+# ---------------------------------------------------------------------------
+# El codon 34 de geneC son las pos 900 (exon 1) y 1002 (exon 2), 102 pb aparte.
+# Ninguna lectura de 40 pb alcanza las dos, pero un par si: mate 1 cubre la
+# 900 y mate 2 la 1002. Son la misma molecula, asi que la pregunta de fase si
+# tiene respuesta, y sale 1.0000 sobre 20 moleculas. Contando los mates por
+# separado la respuesta seria '-' (nadie pudo mirar).
+scenario_mate_pair_spans_junction = Scenario(
+    name="44_mate_pair_resolves_junction_codon",
+    description="Codon 34 partido por el intron: ninguna lectura sola lo cruza pero el par de mates si, y la fase se resuelve",
+    variants=[
+        VcfRecord(pos=900, ref="G", alt="A"),
+        VcfRecord(pos=1002, ref="T", alt="C"),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_pair",
+            start=861,
+            length=40,
+            ops=[Op(kind="snv", pos=900, seq="A")],
+            count=20,
+            mate_start=1001,
+            mate_length=40,
+            mate_ops=[Op(kind="snv", pos=1002, seq="C")],
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="900, 1002",
+            gene="geneC",
+            variant_type="SNP/MNV",
+            aa_changes="Ala34Thr",
+            mnv_phasing_support="1.0000",
+            mnv_phasing_reads="20",
+        ),
+    ],
+    gff_content=GFF_CDS_MULTIEXON,
+    gff_features="CDS",
+)
+
+
+# 45. Los mismos datos contando los mates por separado: nadie pudo mirar
+scenario_mates_separately_cannot_answer = Scenario(
+    name="45_mates_separately_cannot_answer",
+    description="Mismos datos que 44 con --count-mates-separately: ninguna lectura cruza el codon, asi que la fase es desconocida",
+    variants=scenario_mate_pair_spans_junction.variants,
+    reads=scenario_mate_pair_spans_junction.reads,
+    expected=[
+        ExpectedRow(
+            positions="900, 1002",
+            gene="geneC",
+            variant_type="SNP/MNV",
+            mnv_phasing_support="-",
+            mnv_phasing_reads="-",
+        ),
+    ],
+    gff_content=GFF_CDS_MULTIEXON,
+    gff_features="CDS",
+    extra_cli_args=["--count-mates-separately"],
+)
+
+
+# ---------------------------------------------------------------------------
+# 46. Mates solapados: una molecula, no dos observaciones
+# ---------------------------------------------------------------------------
+# Los dos mates cubren el codon entero, asi que cada molecula se ve dos veces.
+# La profundidad son 20 moleculas, no 40 observaciones: contar las dos mitades
+# del mismo fragmento infla la cobertura y hace que la frecuencia parezca
+# sostenida por el doble de material del que hay.
+scenario_overlapping_mates_counted_once = Scenario(
+    name="46_overlapping_mates_counted_once",
+    description="Mates que solapan el codon: 20 moleculas de profundidad, no 40 observaciones",
+    variants=[
+        VcfRecord(pos=28, ref="G", alt="T"),
+        VcfRecord(pos=30, ref="T", alt="A"),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_overlap",
+            start=1,
+            length=100,
+            ops=[Op(kind="snv", pos=28, seq="T"), Op(kind="snv", pos=30, seq="A")],
+            count=20,
+            mate_start=1,
+            mate_length=100,
+            mate_ops=[Op(kind="snv", pos=28, seq="T"), Op(kind="snv", pos=30, seq="A")],
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="28, 30",
+            variant_type="SNP/MNV",
+            mnv_reads="20",
+            total_reads="20",
+            mnv_frequencies="1.0000",
+        ),
+    ],
+)
+
+
+# 47. Mates que se contradicen en el solape
+# Un mate ve la ALT en pos 28 y el otro ve la referencia. Uno de los dos se
+# equivoca y no hay forma de saber cual, asi que la molecula no ha observado
+# esa posicion. El codon queda sin lecturas que puedan responder por el.
+scenario_mates_disagree = Scenario(
+    name="47_mates_disagree_in_overlap",
+    description="Los mates discrepan en pos 28: la molecula no observa esa posicion y la fase queda sin responder",
+    variants=[
+        VcfRecord(pos=28, ref="G", alt="T"),
+        VcfRecord(pos=30, ref="T", alt="A"),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_conflict",
+            start=1,
+            length=100,
+            ops=[Op(kind="snv", pos=28, seq="T"), Op(kind="snv", pos=30, seq="A")],
+            count=20,
+            mate_start=1,
+            mate_length=100,
+            # Sin la edicion en pos 28: este mate ve la referencia alli.
+            mate_ops=[Op(kind="snv", pos=30, seq="A")],
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="28, 30",
+            variant_type="SNP/MNV",
+            mnv_reads="0",
+            total_reads="0",
+            mnv_phasing_support="-",
+        ),
+    ],
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -1849,6 +1986,11 @@ ALL_SCENARIOS = [
     scenario_declared_phase_trans,
     scenario_declared_phase_contradicted,
     scenario_unphased_declares_nothing,
+    # fase a nivel de fragmento:
+    scenario_mate_pair_spans_junction,
+    scenario_mates_separately_cannot_answer,
+    scenario_overlapping_mates_counted_once,
+    scenario_mates_disagree,
 ]
 
 

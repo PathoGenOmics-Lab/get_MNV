@@ -136,6 +136,18 @@ pipelines existentes no se ven afectados salvo que se establezca un flag.
   alelo REF. Reduce el subconteo de profundidad y el sesgo de `EFREQ` en las
   deleciones de varias bases, donde de otro modo las lecturas con solapamiento
   parcial quedan excluidas del denominador.
+- `--count-mates-separately` (desactivado por defecto): cuenta los dos mates de
+  un fragmento como dos observaciones en vez de una molécula. Por defecto son
+  una. Un fragmento es una sola molécula de ADN secuenciada por los dos
+  extremos, así que contar los mates por separado cuenta dos veces el solape, y
+  trata una variante en cada mate como si no tuvieran relación cuando de hecho
+  es la prueba de que van juntas: un codón partido por un intrón puede quedar
+  sin respuesta lectura a lectura y resolverse con el par. Donde los mates
+  solapan y discrepan sobre una base, uno de los dos se equivoca y no hay forma
+  de saber cuál, así que se considera que la molécula no observó esa posición.
+  Los datos single-end no se ven afectados. El descubrimiento de haplotipos
+  locales sigue funcionando lectura a lectura, porque reconstruir un alelo
+  compuesto necesita un tramo observado contiguo.
 - `--phased-indel-min-reads <N>` (por defecto `2`) y
   `--phased-indel-min-freq <0.0-1.0>` (por defecto `0.0`): soporte mínimo del BAM
   que una fila de haplotipo indel/complejo con fase debe reunir para ser emitida.

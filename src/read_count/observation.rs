@@ -16,6 +16,31 @@ pub(super) struct ReadKey {
     start_pos: i64,
 }
 
+/// What counts as one thing when reads are tallied.
+///
+/// A paired-end fragment is a single molecule sequenced from both ends, so its
+/// two mates are one observation of one molecule, not two: counting them
+/// separately double-counts the overlap and, worse, hides the fact that a
+/// variant on each mate is proof the two are on the same molecule. Reads
+/// without a name cannot be paired up and stay on their own.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub(super) enum MoleculeKey {
+    Fragment(Vec<u8>),
+    Record(ReadKey),
+}
+
+pub(super) fn build_molecule_key(rec: &bam::Record, pair_aware: bool) -> MoleculeKey {
+    if pair_aware {
+        if let Some(name) = rec.name() {
+            let qname = <_ as AsRef<[u8]>>::as_ref(&name).to_vec();
+            if !qname.is_empty() {
+                return MoleculeKey::Fragment(qname);
+            }
+        }
+    }
+    MoleculeKey::Record(build_read_key(rec))
+}
+
 pub(super) fn build_read_key(rec: &bam::Record) -> ReadKey {
     let qname = rec
         .name()

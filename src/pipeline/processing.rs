@@ -235,6 +235,7 @@ fn count_intergenic_variant_reads(
                 &variants[i].positions,
                 &variants[i].base_changes,
                 args.min_quality,
+                !args.count_mates_separately,
             )
             .map_err(|e| {
                 AppError::validation(format!(

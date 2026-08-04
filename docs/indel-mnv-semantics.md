@@ -118,6 +118,17 @@ behaviour, so existing pipelines are unaffected unless a flag is set.
   that fully span the REF allele. Reduces depth under-counting and `EFREQ` bias
   for multi-base deletions, where partially-overlapping reads are otherwise
   dropped from the denominator.
+- `--count-mates-separately` (default off): count the two mates of a paired-end
+  fragment as two observations instead of one molecule. By default they are one.
+  A fragment is a single DNA molecule sequenced from both ends, so counting the
+  mates separately double-counts wherever they overlap, and treats a variant on
+  each mate as unrelated when it is in fact proof the two travel together: a
+  codon split by an intron can be unanswerable read by read and settled by the
+  pair. Where the mates overlap and disagree about a base, one of them is wrong
+  and there is no way to tell which, so the molecule is treated as not having
+  observed that position. Single-end data is unaffected either way. Local
+  haplotype discovery still works record by record, because reconstructing a
+  compound allele needs one contiguous observed span.
 - `--phased-indel-min-reads <N>` (default `2`) and
   `--phased-indel-min-freq <0.0-1.0>` (default `0.0`): minimum BAM support a
   phased indel/complex haplotype row must have to be emitted. A dense window in

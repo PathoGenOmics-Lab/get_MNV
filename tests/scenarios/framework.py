@@ -178,6 +178,11 @@ class ReadGroup:
     count: int = 20
     strand: str = "+"   # "+" -> FLAG 0, "-" -> FLAG 16
     chrom: str = CONTIG  # contig al que se alinea (chr_test por defecto)
+    # Si se define, el grupo se emite como pares: cada lectura lleva el mismo
+    # QNAME que su mate, de modo que ambas son una sola molecula.
+    mate_start: int | None = None
+    mate_length: int = 0
+    mate_ops: list[Op] = field(default_factory=list)
 
 
 @dataclass
@@ -387,28 +392,43 @@ def write_bam(path: Path, work_dir: Path, reads: list[ReadGroup]) -> None:
             chrom = getattr(grp, "chrom", CONTIG)
             seq, cigar = _build_read_seq_cigar(grp.start, grp.length, grp.ops, chrom)
             qual = "I" * len(seq)  # Q40
-            flag = 0 if grp.strand == "+" else 16
+            paired = getattr(grp, "mate_start", None) is not None
+            if paired:
+                mate_seq, mate_cigar = _build_read_seq_cigar(
+                    grp.mate_start, grp.mate_length, grp.mate_ops, chrom
+                )
+                mate_qual = "I" * len(mate_seq)
+                # 1 paired, 2 proper pair, 32 mate reverse, 64 first, 128 last.
+                segments = [
+                    (1 + 2 + 32 + 64, grp.start, cigar, seq, qual, grp.mate_start),
+                    (1 + 2 + 16 + 128, grp.mate_start, mate_cigar, mate_seq, mate_qual, grp.start),
+                ]
+            else:
+                segments = [
+                    (0 if grp.strand == "+" else 16, grp.start, cigar, seq, qual, None)
+                ]
             for i in range(grp.count):
                 name = f"{grp.name_prefix}_{i:03d}"
-                fh.write(
-                    "\t".join(
-                        [
-                            name,
-                            str(flag),
-                            chrom,
-                            str(grp.start),
-                            "60",
-                            cigar,
-                            "*",
-                            "0",
-                            "0",
-                            seq,
-                            qual,
-                            "RG:Z:test",
-                        ]
+                for flag, start, cig, sq, ql, mate_pos in segments:
+                    fh.write(
+                        "\t".join(
+                            [
+                                name,
+                                str(flag),
+                                chrom,
+                                str(start),
+                                "60",
+                                cig,
+                                "=" if mate_pos is not None else "*",
+                                str(mate_pos) if mate_pos is not None else "0",
+                                "0",
+                                sq,
+                                ql,
+                                "RG:Z:test",
+                            ]
+                        )
+                        + "\n"
                     )
-                    + "\n"
-                )
     subprocess.run(
         [SAMTOOLS, "sort", "-O", "bam", "-o", str(path), str(sam_path)],
         check=True,

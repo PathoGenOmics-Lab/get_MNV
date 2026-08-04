@@ -8,7 +8,8 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use super::observation::{
-    build_read_key, build_region, get_query_pos, increment_directional_count, ReadKey,
+    build_molecule_key, build_read_key, build_region, get_query_pos, increment_directional_count,
+    MoleculeKey, ReadKey,
 };
 use super::ReadCountSummary;
 
@@ -21,8 +22,78 @@ pub struct RegionObservationCache {
 #[derive(Debug, Clone)]
 struct CachedReadObservation {
     key: Rc<ReadKey>,
+    /// The molecule this record belongs to when mates are treated as one. Kept
+    /// alongside the per-record key so the cache serves both counting modes.
+    fragment: Rc<MoleculeKey>,
     is_reverse: bool,
     observations: Vec<Option<(char, u8)>>,
+}
+
+/// One molecule's view of the requested positions: a single record, or a
+/// paired-end fragment's two mates merged.
+struct MoleculeObservation {
+    identity: Rc<MoleculeKey>,
+    has_forward: bool,
+    has_reverse: bool,
+    observations: Vec<Option<(char, u8)>>,
+}
+
+/// Merge what two mates saw at one position.
+///
+/// Where only one mate reaches the position, it speaks alone. Where both do and
+/// agree, the better base quality stands. Where both do and disagree, one of
+/// them is wrong and there is no way to tell which, so the molecule is treated
+/// as not having observed that position at all.
+fn merge_observation(left: Option<(char, u8)>, right: Option<(char, u8)>) -> Option<(char, u8)> {
+    match (left, right) {
+        (None, other) | (other, None) => other,
+        (Some((left_base, left_quality)), Some((right_base, right_quality))) => {
+            if left_base.eq_ignore_ascii_case(&right_base) {
+                Some((left_base, left_quality.max(right_quality)))
+            } else {
+                None
+            }
+        }
+    }
+}
+
+/// Collapse cached records into one entry per molecule, preserving the order
+/// molecules were first seen so counting stays deterministic.
+fn molecules(reads: &[CachedReadObservation], pair_aware: bool) -> Vec<MoleculeObservation> {
+    let mut order: Vec<Rc<MoleculeKey>> = Vec::new();
+    let mut by_identity: HashMap<Rc<MoleculeKey>, usize> = HashMap::new();
+    let mut merged: Vec<MoleculeObservation> = Vec::new();
+
+    for read in reads {
+        let identity = if pair_aware {
+            read.fragment.clone()
+        } else {
+            Rc::new(MoleculeKey::Record((*read.key).clone()))
+        };
+        match by_identity.get(&identity) {
+            Some(&index) => {
+                let molecule: &mut MoleculeObservation = &mut merged[index];
+                molecule.has_forward |= !read.is_reverse;
+                molecule.has_reverse |= read.is_reverse;
+                for (slot, observation) in molecule.observations.iter_mut().zip(&read.observations)
+                {
+                    *slot = merge_observation(*slot, *observation);
+                }
+            }
+            None => {
+                by_identity.insert(identity.clone(), merged.len());
+                order.push(identity.clone());
+                merged.push(MoleculeObservation {
+                    identity,
+                    has_forward: !read.is_reverse,
+                    has_reverse: read.is_reverse,
+                    observations: read.observations.clone(),
+                });
+            }
+        }
+    }
+    debug_assert_eq!(order.len(), merged.len());
+    merged
 }
 
 #[derive(Debug, Clone)]
@@ -159,6 +230,7 @@ pub fn build_region_observation_cache(
 
         reads.push(CachedReadObservation {
             key: Rc::new(build_read_key(&record)),
+            fragment: Rc::new(build_molecule_key(&record, true)),
             is_reverse: flags.is_reverse_complemented(),
             observations,
         });
@@ -190,6 +262,7 @@ pub fn count_reads_from_cache(
     positions: &[usize],
     alt_bases: &[String],
     min_phred_quality: u8,
+    pair_aware: bool,
 ) -> AppResult<ReadCountSummary> {
     if positions.is_empty() {
         return Err(AppError::validation(
@@ -228,39 +301,43 @@ pub fn count_reads_from_cache(
     let mut mnv_count = 0usize;
     let mut mnv_forward_count = 0usize;
     let mut mnv_reverse_count = 0usize;
-    let mut unique_mnv_total: HashSet<Rc<ReadKey>> = HashSet::new();
-    let mut unique_mnv_total_forward: HashSet<Rc<ReadKey>> = HashSet::new();
-    let mut unique_mnv_total_reverse: HashSet<Rc<ReadKey>> = HashSet::new();
+    let mut unique_mnv_total: HashSet<Rc<MoleculeKey>> = HashSet::new();
+    let mut unique_mnv_total_forward: HashSet<Rc<MoleculeKey>> = HashSet::new();
+    let mut unique_mnv_total_reverse: HashSet<Rc<MoleculeKey>> = HashSet::new();
 
-    let mut unique_snp: Vec<HashSet<Rc<ReadKey>>> =
+    let mut unique_snp: Vec<HashSet<Rc<MoleculeKey>>> =
         (0..positions.len()).map(|_| HashSet::new()).collect();
-    let mut unique_total: Vec<HashSet<Rc<ReadKey>>> =
+    let mut unique_total: Vec<HashSet<Rc<MoleculeKey>>> =
         (0..positions.len()).map(|_| HashSet::new()).collect();
-    let mut unique_total_forward: Vec<HashSet<Rc<ReadKey>>> =
+    let mut unique_total_forward: Vec<HashSet<Rc<MoleculeKey>>> =
         (0..positions.len()).map(|_| HashSet::new()).collect();
-    let mut unique_total_reverse: Vec<HashSet<Rc<ReadKey>>> =
+    let mut unique_total_reverse: Vec<HashSet<Rc<MoleculeKey>>> =
         (0..positions.len()).map(|_| HashSet::new()).collect();
-    let mut per_read_multi_support: HashMap<Rc<ReadKey>, MultiReadSupport> = HashMap::new();
+    let mut per_read_multi_support: HashMap<Rc<MoleculeKey>, MultiReadSupport> = HashMap::new();
 
-    for cached_read in &cache.reads {
+    for molecule in &molecules(&cache.reads, pair_aware) {
         let observations = requested_indices
             .iter()
-            .map(|idx| cached_read.observations[*idx])
+            .map(|idx| molecule.observations[*idx])
             .collect::<Vec<_>>();
 
         for (idx, observation) in observations.iter().enumerate() {
             if let Some((_, qual)) = observation {
-                if *qual >= min_phred_quality && unique_total[idx].insert(cached_read.key.clone()) {
+                if *qual < min_phred_quality {
+                    continue;
+                }
+                if unique_total[idx].insert(molecule.identity.clone()) {
                     total_reads[idx] += 1;
                 }
-                if *qual >= min_phred_quality {
-                    if cached_read.is_reverse {
-                        if unique_total_reverse[idx].insert(cached_read.key.clone()) {
-                            total_reverse_reads[idx] += 1;
-                        }
-                    } else if unique_total_forward[idx].insert(cached_read.key.clone()) {
-                        total_forward_reads[idx] += 1;
-                    }
+                if molecule.has_forward
+                    && unique_total_forward[idx].insert(molecule.identity.clone())
+                {
+                    total_forward_reads[idx] += 1;
+                }
+                if molecule.has_reverse
+                    && unique_total_reverse[idx].insert(molecule.identity.clone())
+                {
+                    total_reverse_reads[idx] += 1;
                 }
             }
         }
@@ -271,14 +348,15 @@ pub fn count_reads_from_cache(
                     qual >= min_phred_quality && base.eq_ignore_ascii_case(&alt_chars[0])
                 })
                 .unwrap_or(false)
-                && unique_snp[0].insert(cached_read.key.clone())
+                && unique_snp[0].insert(molecule.identity.clone())
             {
                 snp_counts[0] += 1;
-                if cached_read.is_reverse {
-                    snp_reverse_counts[0] += 1;
-                } else {
-                    snp_forward_counts[0] += 1;
-                }
+                increment_directional_count(
+                    molecule.has_forward,
+                    molecule.has_reverse,
+                    &mut snp_forward_counts[0],
+                    &mut snp_reverse_counts[0],
+                );
             }
             continue;
         }
@@ -287,16 +365,17 @@ pub fn count_reads_from_cache(
             .iter()
             .all(|value| matches!(value, Some((_, qual)) if *qual >= min_phred_quality));
         if covers_all_positions {
-            unique_mnv_total.insert(cached_read.key.clone());
-            if cached_read.is_reverse {
-                unique_mnv_total_reverse.insert(cached_read.key.clone());
-            } else {
-                unique_mnv_total_forward.insert(cached_read.key.clone());
+            unique_mnv_total.insert(molecule.identity.clone());
+            if molecule.has_forward {
+                unique_mnv_total_forward.insert(molecule.identity.clone());
+            }
+            if molecule.has_reverse {
+                unique_mnv_total_reverse.insert(molecule.identity.clone());
             }
         }
 
         let support = per_read_multi_support
-            .entry(cached_read.key.clone())
+            .entry(molecule.identity.clone())
             .or_insert_with(|| MultiReadSupport::new(positions.len()));
         support.spans_all |= covers_all_positions;
         for (idx, observation) in observations.iter().enumerate() {
@@ -307,11 +386,8 @@ pub fn count_reads_from_cache(
                 .unwrap_or(false)
             {
                 support.snp_support[idx] = true;
-                if cached_read.is_reverse {
-                    support.snp_reverse[idx] = true;
-                } else {
-                    support.snp_forward[idx] = true;
-                }
+                support.snp_forward[idx] |= molecule.has_forward;
+                support.snp_reverse[idx] |= molecule.has_reverse;
             }
         }
     }

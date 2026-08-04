@@ -413,6 +413,7 @@ mod tests {
             indel_anchor_depth: false,
             phased_indel_min_reads: 1,
             phased_indel_min_freq: 0.0,
+            count_mates_separately: false,
             dry_run: false,
             strict: false,
             split_multiallelic: false,

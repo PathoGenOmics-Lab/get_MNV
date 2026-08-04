@@ -82,6 +82,7 @@ pub(super) fn compute_frameshift_phasing(
                 snv_alt,
                 args.min_quality,
                 args.min_mapq,
+                !args.count_mates_separately,
             )?;
             // The cis/trans thresholds belong to the read counting that applies
             // them; the judged answer travels on from here.
@@ -251,6 +252,7 @@ pub(super) fn count_exact_indel_variant_reads(
         min_phred_quality: args.min_quality,
         min_mapq: args.min_mapq,
         anchor_depth: args.indel_anchor_depth,
+        pair_aware: !args.count_mates_separately,
     };
     let summary = read_count::count_indel_reads(bam, bam_header, request).map_err(|e| {
         AppError::validation(format!(
@@ -374,6 +376,7 @@ pub(super) fn count_gene_variant_reads(
             &variant.positions,
             &variant.base_changes,
             args.min_quality,
+            !args.count_mates_separately,
         )
         .map_err(|e| {
             AppError::validation(format!(

@@ -159,6 +159,15 @@ pub struct Args {
     #[arg(long = "phased-indel-min-freq", default_value_t = 0.0)]
     pub phased_indel_min_freq: f64,
 
+    /// Count the two mates of a paired-end fragment as two observations
+    /// instead of one molecule. By default they are one: a fragment is a
+    /// single DNA molecule sequenced from both ends, so counting the mates
+    /// separately double-counts wherever they overlap, and treats a variant on
+    /// each mate as unrelated when it is in fact proof that the two are on the
+    /// same molecule. Single-end data is unaffected either way.
+    #[arg(long = "count-mates-separately")]
+    pub count_mates_separately: bool,
+
     /// Parse and validate inputs, print per-contig summary, and skip writing TSV/VCF outputs
     #[arg(long = "dry-run")]
     pub dry_run: bool,

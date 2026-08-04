@@ -58,8 +58,12 @@ pub struct IndelReadCountRequest<'a> {
     /// that fully span the REF allele. Reduces depth under-counting / EFREQ bias
     /// for multi-base deletions. Defaults to false (historical behaviour).
     pub anchor_depth: bool,
+    /// When true, the two mates of a paired-end fragment count as one molecule
+    /// rather than two observations.
+    pub pair_aware: bool,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn count_reads_per_position(
     bam_reader: &mut bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>,
     header: &Header,
@@ -68,6 +72,7 @@ pub fn count_reads_per_position(
     alt_bases: &[String],
     min_phred_quality: u8,
     min_mapq: u8,
+    pair_aware: bool,
 ) -> AppResult<ReadCountSummary> {
     let min_pos = positions
         .iter()
@@ -83,5 +88,5 @@ pub fn count_reads_per_position(
     let cache = build_region_observation_cache(
         bam_reader, header, chrom, min_pos, max_pos, positions, min_mapq,
     )?;
-    count_reads_from_cache(&cache, positions, alt_bases, min_phred_quality)
+    count_reads_from_cache(&cache, positions, alt_bases, min_phred_quality, pair_aware)
 }
