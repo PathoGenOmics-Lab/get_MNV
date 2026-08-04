@@ -231,6 +231,10 @@ class ExpectedRow:
     mnv_codon: str | None = None
     snp_reads: str | None = None
     mnv_reads: str | None = None
+    snp_forward_reads: str | None = None
+    snp_reverse_reads: str | None = None
+    mnv_forward_reads: str | None = None
+    mnv_reverse_reads: str | None = None
     total_reads: str | None = None
     snp_frequencies: str | None = None
     mnv_frequencies: str | None = None
@@ -512,6 +516,10 @@ _FIELD_BY_ATTR = {
     "mnv_codon": "MNV Codon",
     "snp_reads": "SNP Reads",
     "mnv_reads": "MNV Reads",
+    "snp_forward_reads": "SNP Forward Reads",
+    "snp_reverse_reads": "SNP Reverse Reads",
+    "mnv_forward_reads": "MNV Forward Reads",
+    "mnv_reverse_reads": "MNV Reverse Reads",
     "total_reads": "Total Reads",
     "snp_frequencies": "SNP Frequencies",
     "mnv_frequencies": "MNV Frequencies",

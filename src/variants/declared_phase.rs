@@ -19,15 +19,17 @@ use super::types::{DeclaredPhaseCall, LinkageVerdict};
 /// one molecule carries every one of its alleles, and that pair says otherwise.
 pub fn declared_phase_for_row(
     positions: &[usize],
+    alternates: &[String],
     snp_list: &[VcfPosition],
 ) -> Option<DeclaredPhaseCall> {
-    if positions.len() < 2 {
+    if positions.len() < 2 || positions.len() != alternates.len() {
         return None;
     }
 
     let phases = positions
         .iter()
-        .map(|position| declared_phase_at(*position, snp_list))
+        .zip(alternates.iter())
+        .map(|(position, alternate)| declared_phase_at(*position, alternate, snp_list))
         .collect::<Vec<_>>();
 
     let mut phase_set = None;
@@ -60,14 +62,29 @@ pub fn declared_phase_for_row(
     })
 }
 
-/// The declared phase of whichever input record covers this position. A record
-/// may be an MNP that was decomposed into several row positions, so the match
-/// is by overlap rather than by an exact start.
-fn declared_phase_at(position: usize, snp_list: &[VcfPosition]) -> Option<&DeclaredPhase> {
+/// The declared phase of the input record that carries *this* allele at this
+/// position.
+///
+/// Matching on position alone is not enough. A multiallelic site splits into one
+/// record per ALT, and a genotype like `2|0` places the second ALT on a
+/// haplotype and the first on none at all; a position-only lookup hands the
+/// second ALT's claim to the first, inventing a claim the caller never made.
+/// The record is matched by an allele component that agrees on both the
+/// coordinate and the base, which also covers an MNP decomposed across several
+/// row positions.
+fn declared_phase_at<'a>(
+    position: usize,
+    alternate: &str,
+    snp_list: &'a [VcfPosition],
+) -> Option<&'a DeclaredPhase> {
     snp_list
         .iter()
         .find(|variant| {
-            variant.declared_phase.is_some() && variant.overlaps_interval(position, position)
+            variant.declared_phase.is_some()
+                && variant.event().components.iter().any(|component| {
+                    component.position == position
+                        && component.alt_allele.eq_ignore_ascii_case(alternate)
+                })
         })
         .and_then(|variant| variant.declared_phase.as_ref())
 }
@@ -97,6 +114,10 @@ pub fn reads_contradict_declared_phase(
 mod tests {
     use super::*;
 
+    fn alts() -> Vec<String> {
+        vec!["C".to_string(), "G".to_string()]
+    }
+
     fn phased(position: usize, alt: &str, genotype: &str, phase_set: Option<&str>) -> VcfPosition {
         VcfPosition {
             position,
@@ -115,7 +136,7 @@ mod tests {
             phased(10, "C", "1|0", Some("7")),
             phased(12, "G", "1|0", Some("7")),
         ];
-        let call = declared_phase_for_row(&[10, 12], &snps).expect("comparable");
+        let call = declared_phase_for_row(&[10, 12], &alts(), &snps).expect("comparable");
         assert_eq!(call.verdict, LinkageVerdict::Cis);
         assert_eq!(call.phase_set, Some(7));
     }
@@ -126,7 +147,7 @@ mod tests {
             phased(10, "C", "1|0", Some("7")),
             phased(12, "G", "0|1", Some("7")),
         ];
-        let call = declared_phase_for_row(&[10, 12], &snps).expect("comparable");
+        let call = declared_phase_for_row(&[10, 12], &alts(), &snps).expect("comparable");
         assert_eq!(call.verdict, LinkageVerdict::Trans);
     }
 
@@ -136,7 +157,7 @@ mod tests {
             phased(10, "C", "1|0", Some("7")),
             phased(12, "G", "1|0", Some("9")),
         ];
-        assert!(declared_phase_for_row(&[10, 12], &snps).is_none());
+        assert!(declared_phase_for_row(&[10, 12], &alts(), &snps).is_none());
     }
 
     #[test]
@@ -147,13 +168,39 @@ mod tests {
             phased(10, "C", "1/0", Some("7")),
             phased(12, "G", "1/0", Some("7")),
         ];
-        assert!(declared_phase_for_row(&[10, 12], &snps).is_none());
+        assert!(declared_phase_for_row(&[10, 12], &alts(), &snps).is_none());
     }
 
     #[test]
     fn phased_without_a_phase_set_is_not_comparable_across_records() {
         let snps = vec![phased(10, "C", "1|0", None), phased(12, "G", "0|1", None)];
-        assert!(declared_phase_for_row(&[10, 12], &snps).is_none());
+        assert!(declared_phase_for_row(&[10, 12], &alts(), &snps).is_none());
+    }
+
+    #[test]
+    fn a_split_multiallelic_site_does_not_lend_its_claim_to_the_other_allele() {
+        // The site is G>T,C and the genotype is `2|0`: the second ALT (the C)
+        // sits on haplotype 0 and the first (the T) on no haplotype at all.
+        // Splitting produces two records at position 10, and matching on the
+        // coordinate alone would hand the C's claim to the T, inventing a
+        // linkage the caller never declared.
+        let mut carries_c = phased(10, "C", "1|0", Some("7"));
+        carries_c.ref_allele = "G".to_string();
+        let mut carries_t = phased(10, "T", "1|0", Some("7"));
+        carries_t.ref_allele = "G".to_string();
+        carries_t.declared_phase = None; // allele 1 appears nowhere in `2|0`
+        let partner = phased(12, "G", "1|0", Some("7"));
+
+        let snps = vec![carries_t, carries_c, partner];
+        assert_eq!(
+            declared_phase_for_row(&[10, 12], &["C".to_string(), "G".to_string()], &snps)
+                .map(|call| call.verdict),
+            Some(LinkageVerdict::Cis)
+        );
+        assert!(
+            declared_phase_for_row(&[10, 12], &["T".to_string(), "G".to_string()], &snps).is_none(),
+            "the T carries no declared phase, so its row must claim none"
+        );
     }
 
     #[test]

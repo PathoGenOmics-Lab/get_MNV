@@ -145,9 +145,16 @@ pipelines existentes no se ven afectados salvo que se establezca un flag.
   sin respuesta lectura a lectura y resolverse con el par. Donde los mates
   solapan y discrepan sobre una base, uno de los dos se equivoca y no hay forma
   de saber cuál, así que se considera que la molécula no observó esa posición.
-  Los datos single-end no se ven afectados. El descubrimiento de haplotipos
-  locales sigue funcionando lectura a lectura, porque reconstruir un alelo
-  compuesto necesita un tramo observado contiguo.
+  Los datos single-end no se ven afectados.
+
+  El *descubrimiento* de haplotipos locales también es a nivel de molécula:
+  cada variante candidata se juzga sobre su propio tramo de referencia, así que
+  un fragmento puede responder por una variante que cubre su primer mate y por
+  otra que cubre el segundo. El *conteo* exacto del evento no lo es: una lectura
+  tiene que reconstruir el alelo compuesto entero en una observación contigua, y
+  eso no lo puede hacer ningún mate por separado. Un haplotipo local cuyas
+  variantes caen en mates distintos se encuentra pero no se puede respaldar, y
+  el umbral de soporte lo descarta en vez de reportarlo sin evidencia.
 - `--phased-indel-min-reads <N>` (por defecto `2`) y
   `--phased-indel-min-freq <0.0-1.0>` (por defecto `0.0`): soporte mínimo del BAM
   que una fila de haplotipo indel/complejo con fase debe reunir para ser emitida.

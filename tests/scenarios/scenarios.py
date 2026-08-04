@@ -1891,6 +1891,12 @@ scenario_overlapping_mates_counted_once = Scenario(
             mnv_reads="20",
             total_reads="20",
             mnv_frequencies="1.0000",
+            # Cada molecula se leyo por las dos hebras, asi que cuenta en las
+            # dos. Acreditarla solo a forward dejaria el brazo reverse a cero en
+            # todo dato paired-end, que se lee como sesgo de hebra total y hace
+            # saltar --min-mnv-strand sobre datos perfectamente equilibrados.
+            mnv_forward_reads="20",
+            mnv_reverse_reads="20",
         ),
     ],
 )

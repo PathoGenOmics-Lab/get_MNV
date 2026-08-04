@@ -15,26 +15,35 @@ use crate::error::{AppError, AppResult};
 use crate::variants::AlleleComponent;
 use noodles::bam;
 use noodles::sam::Header;
-use std::collections::{BTreeMap, HashSet};
-use std::rc::Rc;
+use std::collections::{BTreeMap, HashMap};
 
 use super::observation::{
-    build_read_key, build_region, observed_allele_for_ref_span, observed_supports_components,
-    ReadKey,
+    build_molecule_key, build_region, observed_allele_for_ref_span, observed_supports_components,
+    MoleculeKey,
 };
+
+/// One candidate variant of the window, and the reference span a read has to
+/// cover before it can say anything about it.
+pub struct LocalVariant {
+    pub start: usize,
+    pub ref_len: usize,
+    pub components: Vec<AlleleComponent>,
+}
 
 pub struct LocalHaplotypeRequest<'a> {
     pub chrom: &'a str,
-    /// First and last reference position a read must cover to be assigned a
-    /// haplotype. A read that stops inside the window witnessed only part of
-    /// the molecule and is counted separately rather than guessed at.
+    /// The window to query, spanning every candidate variant.
     pub start: usize,
     pub end: usize,
-    /// The components of each candidate variant, in the caller's order. The
-    /// `carried` vector of every returned haplotype uses that same order.
-    pub variants: &'a [Vec<AlleleComponent>],
+    /// The candidate variants, in the caller's order. The `carried` vector of
+    /// every returned haplotype uses that same order.
+    pub variants: &'a [LocalVariant],
     pub min_phred_quality: u8,
     pub min_mapq: u8,
+    /// Whether the two mates of a fragment are one molecule. Must match how the
+    /// resulting haplotypes are then counted, or discovery and counting
+    /// disagree about what a molecule is.
+    pub pair_aware: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -49,10 +58,13 @@ pub struct LocalHaplotypeObservations {
     /// One entry per distinct combination seen, including the all-reference
     /// one, ordered deterministically.
     pub haplotypes: Vec<ObservedHaplotype>,
-    /// Reads that covered the whole window and were assigned a combination.
+    /// Molecules that observed every candidate variant and were assigned a
+    /// combination.
     pub spanning_reads: usize,
-    /// Reads that overlapped the window but stopped inside it, or fell below
-    /// the base-quality floor. They witnessed no complete molecule here.
+    /// Molecules that reached the window but left at least one candidate
+    /// unobserved, or fell below the base-quality floor there. A molecule seen
+    /// in part is not a haplotype: it carries what it carries, but placing it
+    /// in a combination would assert it lacks the variants nobody looked at.
     pub partial_reads: usize,
 }
 
@@ -68,6 +80,7 @@ pub fn observe_local_haplotypes(
         variants,
         min_phred_quality,
         min_mapq,
+        pair_aware,
     } = request;
 
     if start == 0 || end < start {
@@ -84,9 +97,16 @@ pub fn observe_local_haplotypes(
         AppError::validation(format!("BAM query failed for {chrom}:{start}-{end}: {e}"))
     })?;
 
-    let span = end - start + 1;
-    let mut by_combination: BTreeMap<Vec<bool>, HashSet<Rc<ReadKey>>> = BTreeMap::new();
-    let mut partial: HashSet<Rc<ReadKey>> = HashSet::new();
+    // Each variant is judged on its own reference span, so a molecule read from
+    // both ends can answer for a variant its first mate covers and another its
+    // second does. Demanding one contiguous observation across the whole window
+    // would throw that away, and would leave discovery disagreeing with the
+    // pair-aware counting that follows about what a molecule is.
+    struct MoleculeView {
+        observed: Vec<bool>,
+        carried: Vec<bool>,
+    }
+    let mut views: HashMap<MoleculeKey, MoleculeView> = HashMap::new();
     let mut record = bam::Record::default();
     while query
         .read_record(&mut record)
@@ -105,35 +125,51 @@ pub fn observe_local_haplotypes(
             continue;
         }
 
-        let key = Rc::new(build_read_key(&record));
-        let Some(observed) = observed_allele_for_ref_span(&record, start, span) else {
-            partial.insert(key);
-            continue;
-        };
-        if observed.min_quality < min_phred_quality {
-            partial.insert(key);
+        let per_variant = variants
+            .iter()
+            .map(|variant| {
+                observed_allele_for_ref_span(&record, variant.start, variant.ref_len)
+                    .filter(|observed| observed.min_quality >= min_phred_quality)
+                    .map(|observed| observed_supports_components(&observed, &variant.components))
+            })
+            .collect::<Vec<_>>();
+        if per_variant.iter().all(Option::is_none) {
             continue;
         }
 
-        let carried = variants
-            .iter()
-            .map(|components| observed_supports_components(&observed, components))
-            .collect::<Vec<_>>();
-        by_combination.entry(carried).or_default().insert(key);
+        let view = views
+            .entry(build_molecule_key(&record, pair_aware))
+            .or_insert_with(|| MoleculeView {
+                observed: vec![false; variants.len()],
+                carried: vec![false; variants.len()],
+            });
+        for (index, support) in per_variant.into_iter().enumerate() {
+            if let Some(carries) = support {
+                view.observed[index] = true;
+                view.carried[index] |= carries;
+            }
+        }
     }
 
-    let spanning_reads = by_combination.values().map(HashSet::len).sum();
+    let mut by_combination: BTreeMap<Vec<bool>, usize> = BTreeMap::new();
+    let mut partial_reads = 0usize;
+    for view in views.into_values() {
+        if view.observed.iter().all(|seen| *seen) {
+            *by_combination.entry(view.carried).or_default() += 1;
+        } else {
+            partial_reads += 1;
+        }
+    }
+
+    let spanning_reads = by_combination.values().sum();
     let haplotypes = by_combination
         .into_iter()
-        .map(|(carried, reads)| ObservedHaplotype {
-            carried,
-            reads: reads.len(),
-        })
+        .map(|(carried, reads)| ObservedHaplotype { carried, reads })
         .collect();
 
     Ok(LocalHaplotypeObservations {
         haplotypes,
         spanning_reads,
-        partial_reads: partial.len(),
+        partial_reads,
     })
 }

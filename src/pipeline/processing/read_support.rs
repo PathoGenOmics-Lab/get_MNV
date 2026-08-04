@@ -112,9 +112,11 @@ pub(super) fn compute_frameshift_phasing(
 /// sides of that comparison are available.
 pub(super) fn annotate_declared_phase(variants: &mut [VariantInfo], snp_list: &[VcfPosition]) {
     for variant in variants.iter_mut() {
-        let Some(mut call) =
-            variants::declared_phase::declared_phase_for_row(&variant.positions, snp_list)
-        else {
+        let Some(mut call) = variants::declared_phase::declared_phase_for_row(
+            &variant.positions,
+            &variant.base_changes,
+            snp_list,
+        ) else {
             continue;
         };
         if let (Some(haplotype_reads), Some(informative_reads)) =
@@ -412,7 +414,11 @@ fn observe_component_haplotypes(
         .unwrap_or(0);
     let component_variants = component
         .iter()
-        .map(|variant| variant.event().components)
+        .map(|variant| read_count::LocalVariant {
+            start: variant.position,
+            ref_len: variant.ref_allele.len(),
+            components: variant.event().components,
+        })
         .collect::<Vec<_>>();
 
     let bam = state
@@ -434,6 +440,7 @@ fn observe_component_haplotypes(
             variants: &component_variants,
             min_phred_quality: args.min_quality,
             min_mapq: args.min_mapq,
+            pair_aware: !args.count_mates_separately,
         },
     )?;
 

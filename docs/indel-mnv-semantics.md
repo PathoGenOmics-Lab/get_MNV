@@ -126,9 +126,16 @@ behaviour, so existing pipelines are unaffected unless a flag is set.
   codon split by an intron can be unanswerable read by read and settled by the
   pair. Where the mates overlap and disagree about a base, one of them is wrong
   and there is no way to tell which, so the molecule is treated as not having
-  observed that position. Single-end data is unaffected either way. Local
-  haplotype discovery still works record by record, because reconstructing a
-  compound allele needs one contiguous observed span.
+  observed that position. Single-end data is unaffected either way.
+
+  Local haplotype *discovery* is molecule-level too: each candidate variant is
+  judged on its own reference span, so a fragment can answer for a variant its
+  first mate covers and another its second does. Exact event *counting* is not:
+  a read must reconstruct the whole compound allele in one contiguous
+  observation, which no single mate of a split haplotype can do. A local
+  haplotype whose variants fall on different mates is therefore found but
+  cannot be supported, and is dropped by the support threshold rather than
+  reported with no evidence.
 - `--phased-indel-min-reads <N>` (default `2`) and
   `--phased-indel-min-freq <0.0-1.0>` (default `0.0`): minimum BAM support a
   phased indel/complex haplotype row must have to be emitted. A dense window in

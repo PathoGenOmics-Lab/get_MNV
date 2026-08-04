@@ -18,7 +18,8 @@ mod phasing;
 
 pub use cache::{build_region_observation_cache, count_reads_from_cache, RegionObservationCache};
 pub use haplotype::{
-    observe_local_haplotypes, LocalHaplotypeObservations, LocalHaplotypeRequest, ObservedHaplotype,
+    observe_local_haplotypes, LocalHaplotypeObservations, LocalHaplotypeRequest, LocalVariant,
+    ObservedHaplotype,
 };
 pub use indel::count_indel_reads;
 pub use phasing::{indel_snv_linkage, IndelSnvLinkage};

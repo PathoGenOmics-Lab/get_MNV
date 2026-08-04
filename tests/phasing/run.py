@@ -67,6 +67,11 @@ class Codon:
     # Geometry of a read that reaches every position.
     span_start: int
     span_length: int
+    # When set, a spanning molecule is sequenced as a mate pair instead of one
+    # read: the first mate covers the leading positions and the second the rest,
+    # so neither alone reaches across the codon. Value is the read length used
+    # for each mate.
+    paired_mate_length: int | None = None
     intron: tuple[int, int] | None = None  # (start, length) of a CIGAR N block
     gff_content: str | None = None
     gff_features: str | None = None
@@ -124,6 +129,22 @@ TRIPLE = Codon(
 )
 
 
+# The same plus-strand codon, sequenced as mate pairs. Each mate reaches one
+# end of the codon and not the other, so the answer exists only at the level of
+# the molecule. The linkage arithmetic must come out identical to PLUS: a
+# fragment is one molecule however it was read.
+PAIRED = Codon(
+    label="paired_plus_strand",
+    gene="geneA",
+    positions=(28, 30),
+    refs=("G", "T"),
+    alts=("A", "A"),
+    span_start=11,
+    span_length=40,
+    paired_mate_length=20,
+)
+
+
 def read_groups(codon: Codon, molecules: list[Molecule]) -> list[ReadGroup]:
     """Turn molecule classes into alignments.
 
@@ -140,6 +161,26 @@ def read_groups(codon: Codon, molecules: list[Molecule]) -> list[ReadGroup]:
             for position, alt, carried in zip(codon.positions, codon.alts, molecule.carries)
             if carried
         ]
+        if molecule.spans and codon.paired_mate_length is not None:
+            # One molecule, two mates. The first ends before the last position
+            # of the codon and the second starts after the first, so no single
+            # read sees the pair and only the fragment can answer.
+            first, last = codon.positions[0], codon.positions[-1]
+            mate_length = codon.paired_mate_length
+            groups.append(
+                ReadGroup(
+                    name_prefix=f"m{index}",
+                    start=first - mate_length + 1,
+                    length=mate_length,
+                    ops=[op for op in edits if op.pos <= first],
+                    count=molecule.count,
+                    mate_start=last,
+                    mate_length=mate_length,
+                    mate_ops=[op for op in edits if op.pos >= last],
+                )
+            )
+            continue
+
         if molecule.spans:
             ops = list(edits)
             if codon.intron is not None:
@@ -197,7 +238,13 @@ def expected_phasing(molecules: list[Molecule], width: int) -> tuple[str, str]:
     return f"{full_haplotype / least_supported:.4f}", str(least_supported)
 
 
-def run_case(codon: Codon, molecules: list[Molecule], name: str, work: Path) -> list[str]:
+def run_case(
+    codon: Codon,
+    molecules: list[Molecule],
+    name: str,
+    work: Path,
+    extra_args: list[str] | None = None,
+) -> list[str]:
     scenario = Scenario(
         name=name,
         description=f"{codon.label}: molecule-level phase chosen by construction",
@@ -209,6 +256,7 @@ def run_case(codon: Codon, molecules: list[Molecule], name: str, work: Path) -> 
         expected=[],
         gff_content=codon.gff_content,
         gff_features=codon.gff_features,
+        extra_cli_args=extra_args,
     )
     _, _, out = run_scenario(scenario, work)
     _, rows = parse_tsv(out)
@@ -218,7 +266,13 @@ def run_case(codon: Codon, molecules: list[Molecule], name: str, work: Path) -> 
     if row is None:
         return [f"{name}: no row for positions {wanted}"]
 
-    want_support, want_reads = expected_phasing(molecules, len(codon.positions))
+    if extra_args and "--count-mates-separately" in extra_args:
+        # Neither mate reaches across the codon, so read by read nobody can
+        # answer. This is what the pair-aware sweep would degrade to, and it is
+        # why those cases have teeth.
+        want_support, want_reads = MISSING, MISSING
+    else:
+        want_support, want_reads = expected_phasing(molecules, len(codon.positions))
     problems = []
     got_support = row.get("MNV Phasing Support", "<absent>")
     got_reads = row.get("MNV Phasing Reads", "<absent>")
@@ -252,7 +306,7 @@ def linkage_sweep(codon: Codon) -> list[tuple[str, list[Molecule]]]:
 def all_cases() -> list[tuple[Codon, str, list[Molecule]]]:
     cases: list[tuple[Codon, str, list[Molecule]]] = []
 
-    for codon in (PLUS, MINUS, SPLICED, TRIPLE):
+    for codon in (PLUS, MINUS, SPLICED, TRIPLE, PAIRED):
         for name, molecules in linkage_sweep(codon):
             cases.append((codon, name, molecules))
 
@@ -313,10 +367,27 @@ def main() -> int:
     for codon, name, molecules in cases:
         problems.extend(run_case(codon, molecules, name, work))
 
-    print(f"{len(cases)} phased mixtures built, {len(cases)} rows compared")
+    # The contrast that gives the paired sweep its teeth: read by read, no mate
+    # reaches across the codon, so the same alignments answer nothing.
+    contrast = [
+        Molecule(carries=(True, True), count=10),
+        Molecule(carries=(True, False), count=10),
+        Molecule(carries=(False, True), count=10),
+    ]
+    problems.extend(
+        run_case(
+            PAIRED,
+            contrast,
+            "paired_plus_strand_without_pairing",
+            work,
+            extra_args=["--count-mates-separately"],
+        )
+    )
+
+    print(f"{len(cases) + 1} phased mixtures built, {len(cases) + 1} rows compared")
     print("  codons: " + ", ".join(
         f"{c.label}({c.gene}, {len(c.positions)} SNV(s))"
-        for c in (PLUS, MINUS, SPLICED, TRIPLE)
+        for c in (PLUS, MINUS, SPLICED, TRIPLE, PAIRED)
     ))
     print()
 

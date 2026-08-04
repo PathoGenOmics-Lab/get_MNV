@@ -60,7 +60,6 @@ fn merge_observation(left: Option<(char, u8)>, right: Option<(char, u8)>) -> Opt
 /// Collapse cached records into one entry per molecule, preserving the order
 /// molecules were first seen so counting stays deterministic.
 fn molecules(reads: &[CachedReadObservation], pair_aware: bool) -> Vec<MoleculeObservation> {
-    let mut order: Vec<Rc<MoleculeKey>> = Vec::new();
     let mut by_identity: HashMap<Rc<MoleculeKey>, usize> = HashMap::new();
     let mut merged: Vec<MoleculeObservation> = Vec::new();
 
@@ -82,7 +81,6 @@ fn molecules(reads: &[CachedReadObservation], pair_aware: bool) -> Vec<MoleculeO
             }
             None => {
                 by_identity.insert(identity.clone(), merged.len());
-                order.push(identity.clone());
                 merged.push(MoleculeObservation {
                     identity,
                     has_forward: !read.is_reverse,
@@ -92,7 +90,6 @@ fn molecules(reads: &[CachedReadObservation], pair_aware: bool) -> Vec<MoleculeO
             }
         }
     }
-    debug_assert_eq!(order.len(), merged.len());
     merged
 }
 

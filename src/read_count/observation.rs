@@ -323,17 +323,25 @@ pub(super) fn observed_supports_components(
         })
 }
 
+/// Tally one molecule under each strand it was observed on.
+///
+/// A paired-end fragment is read from both ends, so it is genuinely evidence on
+/// both strands and belongs in both arms; the depth counters treat it the same
+/// way, which keeps each arm's support-over-depth ratio meaningful. Counting it
+/// once, arbitrarily as forward, would leave the reverse arm at zero for every
+/// mate pair, which reads as total strand bias and trips `--min-snp-strand` /
+/// `--min-mnv-strand` on data that is perfectly balanced.
 pub(super) fn increment_directional_count(
     forward_supported: bool,
     reverse_supported: bool,
     forward_count: &mut usize,
     reverse_count: &mut usize,
 ) {
-    match (forward_supported, reverse_supported) {
-        (true, false) => *forward_count += 1,
-        (false, true) => *reverse_count += 1,
-        (true, true) => *forward_count += 1,
-        (false, false) => {}
+    if forward_supported {
+        *forward_count += 1;
+    }
+    if reverse_supported {
+        *reverse_count += 1;
     }
 }
 
@@ -372,11 +380,14 @@ mod tests {
     }
 
     #[test]
-    fn test_increment_directional_count_ambiguous_defaults_to_forward() {
+    fn test_a_molecule_seen_on_both_strands_counts_on_both() {
+        // A mate pair is read from both ends, so it really is evidence on both
+        // strands. Crediting it to forward alone would leave every mate pair's
+        // reverse arm empty, which reads as total strand bias on balanced data.
         let mut forward = 0usize;
         let mut reverse = 0usize;
         increment_directional_count(true, true, &mut forward, &mut reverse);
         assert_eq!(forward, 1);
-        assert_eq!(reverse, 0);
+        assert_eq!(reverse, 1);
     }
 }
