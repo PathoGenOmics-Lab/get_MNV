@@ -62,6 +62,7 @@ fn annotation_cells(variant: &VariantInfo, bam_provided: bool) -> Vec<String> {
                 .map(|reads| reads.to_string())
                 .unwrap_or_else(|| "-".to_string()),
         );
+        cells.push(super::common::frameshift_linkage_field(variant));
     }
     cells.extend([nmd, hgvs_g, hgvs_c]);
     cells
@@ -490,6 +491,7 @@ impl TsvWriter {
                 "DBS Class",
                 "MNV Phasing Support",
                 "MNV Phasing Reads",
+                "Frameshift Phasing",
                 "NMD Prediction",
                 "HGVS g.",
                 "HGVS c.",

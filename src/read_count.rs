@@ -21,7 +21,7 @@ pub use haplotype::{
     observe_local_haplotypes, LocalHaplotypeObservations, LocalHaplotypeRequest, ObservedHaplotype,
 };
 pub use indel::count_indel_reads;
-pub use phasing::indel_snv_in_trans;
+pub use phasing::{indel_snv_linkage, IndelSnvLinkage};
 
 #[derive(Debug, Clone)]
 pub struct ReadCountSummary {

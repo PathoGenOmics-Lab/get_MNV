@@ -41,6 +41,7 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "DBS"
             | "MNVPS"
             | "MNVPR"
+            | "FSPH"
             | "NMD"
             | "HGVSG"
             | "HGVSC"
@@ -262,6 +263,23 @@ pub(crate) fn mnv_phasing_read_count(variant: &VariantInfo) -> Option<usize> {
     }
 }
 
+/// What the reads said about each upstream indel sharing molecules with this
+/// codon, as `trans:1234:0/18 | cis:1250:17/18`: the verdict, the indel's
+/// position, and the reads behind it. `-` when the reads were never consulted,
+/// which is not a finding of no linkage.
+pub(crate) fn frameshift_linkage_field(variant: &VariantInfo) -> String {
+    if variant.annotations.frameshift_linkage.is_empty() {
+        return "-".to_string();
+    }
+    variant
+        .annotations
+        .frameshift_linkage
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
+
 fn original_dp_for_index(variant: &VariantInfo, index: usize) -> Option<usize> {
     variant.original_dp.as_ref()?.get(index).copied()
 }
@@ -351,6 +369,9 @@ pub(crate) fn build_info_string(
     }
     if let Some(reads) = mnv_phasing_read_count(variant) {
         builder.push("MNVPR", reads);
+    }
+    if !variant.annotations.frameshift_linkage.is_empty() {
+        builder.push_text("FSPH", &frameshift_linkage_field(variant));
     }
     if let Some(nmd) = variant.annotations.nmd {
         builder.push_text("NMD", nmd.as_str());
@@ -730,6 +751,10 @@ pub(crate) fn write_info_header(
     writeln!(
         writer,
         "##INFO=<ID=MNVPR,Number=1,Type=Integer,Description=\"Reads the MNVPS ratio was computed from: reads spanning every position of the codon that carry the least-supported constituent SNV\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=FSPH,Number=1,Type=String,Description=\"Read-level phasing between this codon and each upstream indel, as verdict:indel_position:cis_reads/informative_reads. Absent when the reads were not consulted\">"
     )?;
     writeln!(
         writer,

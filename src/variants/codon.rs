@@ -18,7 +18,7 @@ mod transcript_path;
 #[cfg(test)]
 mod tests;
 
-pub use config::{FrameshiftPhasing, IndelAnnotationConfig};
+pub use config::{FrameshiftPhasing, IndelAnnotationConfig, PairLinkage};
 pub use gene_path::process_codon;
 pub use phased::{local_haplotype_components, phased_haplotype_variant};
 
@@ -130,6 +130,7 @@ fn get_mnv_variants_for_transcript(
                 codon_snps.iter().map(|snp| snp.snp.position).collect();
             let mut upstream_shift: isize = 0;
             let mut has_symbolic_sv = false;
+            let mut frameshift_linkage = Vec::new();
             for indel in &indels {
                 let Some(first_offset) = first_touched_transcript_offset(gene, indel) else {
                     continue;
@@ -142,6 +143,11 @@ fn get_mnv_variants_for_transcript(
                     }
                     // Suppress propagation when the BAM shows this indel is in trans
                     // with the codon's SNV: the codon's molecule does not carry it.
+                    // Record what the reads said either way, so the label the row
+                    // ends up with can be traced back to the evidence for it.
+                    if let Some(linkage) = phasing.linkage_for(indel.position, &codon_positions) {
+                        frameshift_linkage.push(linkage);
+                    }
                     if phasing.indel_in_trans_with(indel.position, &codon_positions) {
                         continue;
                     }
@@ -183,6 +189,7 @@ fn get_mnv_variants_for_transcript(
             if var_info.change_type == ChangeType::StopGained {
                 var_info.annotations.nmd = nmd::snv_mnv_nmd_prediction(gene, codon_start);
             }
+            var_info.annotations.frameshift_linkage = frameshift_linkage;
 
             variants.push(var_info);
         }
@@ -358,6 +365,7 @@ pub fn get_mnv_variants_for_gene_with_config(
             let codon_positions: Vec<usize> = codon_snps.iter().map(|s| s.position).collect();
             let mut upstream_shift: isize = 0;
             let mut has_symbolic_sv = false;
+            let mut frameshift_linkage = Vec::new();
 
             for indel in &indels {
                 let is_upstream = match gene.strand {
@@ -373,6 +381,11 @@ pub fn get_mnv_variants_for_gene_with_config(
                     }
                     // Suppress propagation when the BAM shows this indel is in trans
                     // with the codon's SNV: the codon's molecule does not carry it.
+                    // Record what the reads said either way, so the label the row
+                    // ends up with can be traced back to the evidence for it.
+                    if let Some(linkage) = phasing.linkage_for(indel.position, &codon_positions) {
+                        frameshift_linkage.push(linkage);
+                    }
                     if phasing.indel_in_trans_with(indel.position, &codon_positions) {
                         continue;
                     }
@@ -418,6 +431,7 @@ pub fn get_mnv_variants_for_gene_with_config(
             } else if is_frameshifted {
                 apply_frameshift_labeling(&mut var_info, ptc_protein_pos);
             }
+            var_info.annotations.frameshift_linkage = frameshift_linkage;
 
             variants.push(var_info);
         }

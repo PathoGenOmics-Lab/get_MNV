@@ -1555,6 +1555,113 @@ scenario_two_real_haplotypes = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 37. Trans probado por las lecturas: se publica la evidencia
+# ---------------------------------------------------------------------------
+# Delecion frameshift de 1 bp en pos 4 (codon 2) y SNV en pos 28 (codon 10), en
+# MOLECULAS DISTINTAS: 10 lecturas llevan solo la delecion y 10 solo la SNV.
+# El frameshift no debe propagarse al codon 10, porque su molecula no lleva la
+# delecion. Sin AF en el VCF el gate de frecuencia deja pasar la delecion, asi
+# que la unica razon para no propagarlo son las lecturas, y la columna
+# Frameshift Phasing lo dice: trans, indel en pos 3, 0 de 10 lecturas en cis.
+scenario_trans_evidence_reported = Scenario(
+    name="37_frameshift_trans_evidence",
+    description="Del frameshift pos 4 y SNV pos 28 en moleculas distintas: no se propaga el frameshift y la columna publica trans:3:0/10",
+    variants=[
+        VcfRecord(pos=3, ref="GG", alt="G"),
+        VcfRecord(pos=28, ref="G", alt="A"),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_del_only",
+            start=1,
+            length=100,
+            ops=[Op(kind="del", pos=4, length=1)],
+            count=10,
+        ),
+        ReadGroup(
+            name_prefix="r_snv_only",
+            start=1,
+            length=100,
+            ops=[Op(kind="snv", pos=28, seq="A")],
+            count=10,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="28",
+            gene="geneA",
+            variant_type="SNP",
+            aa_changes="Ala10Thr",
+            change_type="Non-synonymous",
+            frameshift_phasing="trans:3:0/10",
+        ),
+    ],
+)
+
+
+# ---------------------------------------------------------------------------
+# 38. Un haplotipo de una sola lectura no se emite por defecto
+# ---------------------------------------------------------------------------
+# 19 lecturas llevan solo la insercion y 1 lleva insercion + SNV. Esa unica
+# lectura es indistinguible de un error de secuenciacion, y desde que los
+# haplotipos se leen de las moleculas cada error acuñaria su propia fila. Con
+# el default (--phased-indel-min-reads 2) el complex_indel no sale; bajandolo
+# a 1 si sale, con su unica lectura.
+scenario_singleton_haplotype = Scenario(
+    name="38_singleton_haplotype_suppressed",
+    description="Haplotipo ins+SNV visto en 1 sola lectura: suprimido con el default de 2 lecturas",
+    variants=[
+        VcfRecord(pos=30, ref="T", alt="TGCT"),
+        VcfRecord(pos=31, ref="G", alt="A"),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_ins_only",
+            start=1,
+            length=147,
+            ops=[Op(kind="ins", pos=30, seq="GCT")],
+            count=19,
+        ),
+        ReadGroup(
+            name_prefix="r_ins_snv",
+            start=1,
+            length=147,
+            ops=[Op(kind="ins", pos=30, seq="GCT"), Op(kind="snv", pos=31, seq="A")],
+            count=1,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="30",
+            variant_type="INDEL",
+            event_class="insertion",
+            event_components="INS:30:+GCT",
+        ),
+    ],
+    expected_row_count=2,
+)
+
+
+# El mismo dato con el umbral bajado a 1: el haplotipo de una lectura si sale.
+scenario_singleton_haplotype_opt_in = Scenario(
+    name="39_singleton_haplotype_opt_in",
+    description="Mismos datos que 38 con --phased-indel-min-reads 1: el haplotipo de 1 lectura si se emite",
+    variants=scenario_singleton_haplotype.variants,
+    reads=scenario_singleton_haplotype.reads,
+    expected=[
+        ExpectedRow(
+            event_class="complex_indel",
+            event_components="INS:30:+GCT | SNV:31:G>A",
+            variant_type="INDEL",
+            event_reads="1",
+        ),
+    ],
+    expected_row_count=3,
+    extra_cli_args=["--phased-indel-min-reads", "1"],
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -1600,6 +1707,10 @@ ALL_SCENARIOS = [
     scenario_frameshift_past_stop,
     # haplotipos locales leidos de las moleculas:
     scenario_two_real_haplotypes,
+    # evidencia de fase publicada y umbral de haplotipo:
+    scenario_trans_evidence_reported,
+    scenario_singleton_haplotype,
+    scenario_singleton_haplotype_opt_in,
 ]
 
 

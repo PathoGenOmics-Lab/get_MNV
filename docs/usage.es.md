@@ -131,7 +131,7 @@ biológico.
 |---|---:|---|
 | `--frameshift-min-freq <F>` | `0.0` | Frecuencia alélica mínima que debe alcanzar un indel *aguas arriba* para marcar como frameshift los codones SNV/MNV aguas abajo. Con `0.0` la marca se propaga desde cualquier indel; súbela (p. ej. a `0.5`) para no reetiquetar sustituciones aguas abajo de alta frecuencia por culpa de un indel aguas arriba de baja frecuencia (datos intrahospedador). |
 | `--indel-anchor-depth` | desactivado | Cuenta la profundidad del locus del indel (el denominador de EDP/EFREQ) a partir de las lecturas que observan la base de anclaje, en lugar de solo las que abarcan por completo el alelo REF. Reduce el subconteo de profundidad en deleciones multibase. Requiere `--bam`. |
-| `--phased-indel-min-reads <N>` | `1` | Mínimo de lecturas del BAM necesarias para emitir una fila de haplotipo de indel en fase o complejo (indel+SNV). Requiere `--bam`. |
+| `--phased-indel-min-reads <N>` | `2` | Mínimo de lecturas del BAM necesarias para emitir una fila de haplotipo de indel en fase o complejo (indel+SNV). Una sola lectura no es evidencia de un haplotipo; pon `1` para emitir toda combinación que alguna lectura muestre. Requiere `--bam`. |
 | `--phased-indel-min-freq <F>` | `0.0` | Frecuencia mínima derivada del BAM necesaria para emitir una fila de haplotipo de indel en fase o complejo. Requiere `--bam`. |
 
 ## Argumentos de salida

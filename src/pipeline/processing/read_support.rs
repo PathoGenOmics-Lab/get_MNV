@@ -7,7 +7,7 @@ use crate::error::{AppError, AppResult};
 use crate::io::VcfPosition;
 use crate::read_count::{self, ReadCountSummary};
 use crate::variants::{self, Gene, VariantInfo, VariantType};
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 /// Maximum genomic distance between an indel and a SNV for read-based phasing to
 /// be attempted. Beyond a single read's reach no record spans both loci, so the
@@ -64,14 +64,14 @@ pub(super) fn compute_frameshift_phasing(
         .as_ref()
         .ok_or_else(|| AppError::validation("BAM header unavailable in worker thread"))?;
 
-    let mut trans_pairs: HashSet<(usize, usize)> = HashSet::new();
+    let mut pairs: HashMap<(usize, usize), variants::PairLinkage> = HashMap::new();
     for indel in &indels {
         for &(snv_position, snv_alt) in &snvs {
             let span = indel.position.abs_diff(snv_position);
             if span > MAX_PHASING_SPAN {
                 continue;
             }
-            if read_count::indel_snv_in_trans(
+            let linkage = read_count::indel_snv_linkage(
                 bam,
                 header,
                 contig,
@@ -82,13 +82,28 @@ pub(super) fn compute_frameshift_phasing(
                 snv_alt,
                 args.min_quality,
                 args.min_mapq,
-            )? {
-                trans_pairs.insert((indel.position, snv_position));
-            }
+            )?;
+            // The cis/trans thresholds belong to the read counting that applies
+            // them; the judged answer travels on from here.
+            let verdict = if !linkage.is_informative() {
+                variants::LinkageVerdict::Unknown
+            } else if linkage.is_trans() {
+                variants::LinkageVerdict::Trans
+            } else {
+                variants::LinkageVerdict::Cis
+            };
+            pairs.insert(
+                (indel.position, snv_position),
+                variants::PairLinkage {
+                    verdict,
+                    cis_reads: linkage.cis_reads,
+                    informative_reads: linkage.informative_reads,
+                },
+            );
         }
     }
 
-    Ok(variants::FrameshiftPhasing::from_trans_pairs(trans_pairs))
+    Ok(variants::FrameshiftPhasing::from_pairs(pairs))
 }
 
 pub(super) fn apply_read_summary(variant: &mut VariantInfo, summary: ReadCountSummary) {

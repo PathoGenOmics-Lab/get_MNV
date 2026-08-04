@@ -239,6 +239,66 @@ pub struct VariantAnnotations {
     /// annotation instead, so the two are mutually exclusive by construction.
     #[serde(default)]
     pub non_coding: Option<NonCodingReason>,
+    /// What the reads said about each upstream indel sharing molecules with
+    /// this codon. Empty when no BAM was given or no upstream indel was in
+    /// range. Without it a codon that is not labelled frameshifted looks the
+    /// same whether the reads proved the indel is on other molecules or nobody
+    /// ever asked.
+    #[serde(default)]
+    pub frameshift_linkage: Vec<FrameshiftLinkage>,
+}
+
+/// What the reads say about two variants sharing molecules.
+///
+/// The thresholds behind these live with the read counting that applies them
+/// (`read_count::IndelSnvLinkage`); this is the judged answer, not a rule to be
+/// re-derived. Ordered by how much the answer constrains interpretation, which
+/// is the order used to pick the pair worth reporting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum LinkageVerdict {
+    /// Reads settle it: the two are on different molecules.
+    Trans,
+    /// Reads settle it: the two travel together.
+    Cis,
+    /// Too few reads span both loci to say either way.
+    Unknown,
+}
+
+impl LinkageVerdict {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            LinkageVerdict::Trans => "trans",
+            LinkageVerdict::Cis => "cis",
+            LinkageVerdict::Unknown => "unknown",
+        }
+    }
+}
+
+/// Read-level evidence about one upstream indel and this codon.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FrameshiftLinkage {
+    pub indel_position: usize,
+    /// Reads carrying this codon's substitution that also span the indel locus.
+    /// Only these can answer the question.
+    pub informative_reads: usize,
+    /// Of those, how many also carry the indel.
+    pub cis_reads: usize,
+    pub verdict: LinkageVerdict,
+}
+
+impl std::fmt::Display for FrameshiftLinkage {
+    /// `trans:1234:0/18`: the verdict, the indel's position, and the reads
+    /// behind it.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}:{}:{}/{}",
+            self.verdict.as_str(),
+            self.indel_position,
+            self.cis_reads,
+            self.informative_reads
+        )
+    }
 }
 
 /// Why a variant inside an annotated gene carries no amino-acid change. Both

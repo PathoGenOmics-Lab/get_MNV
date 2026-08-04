@@ -61,7 +61,7 @@ Estas solo aplican cuando se proporciona `--bam`.
 |---|---|---|
 | `--frameshift-min-freq <F>` | `0.0` | Frecuencia mínima que debe alcanzar un indel aguas arriba para marcar con frameshift los codones de SNV/MNV aguas abajo. Súbela en datos intrahospedador para evitar reetiquetar sustituciones de alta frecuencia debido a un indel de baja frecuencia aguas arriba en una molécula distinta. |
 | `--indel-anchor-depth` | off | Cuenta la profundidad del locus del indel (el denominador de `EFREQ`) a partir de las lecturas que observan la base de anclaje, no solo de las lecturas que abarcan el alelo REF completo. Reduce el subconteo de profundidad en deleciones multibase. |
-| `--phased-indel-min-reads <N>` | `1` | Lecturas mínimas que soportan en el BAM para emitir una fila de haplotipo indel/complejo en fase. |
+| `--phased-indel-min-reads <N>` | `2` | Lecturas mínimas que soportan en el BAM para emitir una fila de haplotipo indel/complejo en fase. Una sola lectura no es evidencia de un haplotipo. |
 | `--phased-indel-min-freq <F>` | `0.0` | Frecuencia mínima derivada del BAM para emitir una fila de haplotipo indel/complejo en fase. |
 | `--normalize-alleles` | off | Recorta el prefijo/sufijo compartido de REF/ALT antes del procesamiento. |
 | `--split-multiallelic` | off | Divide los registros VCF multialélicos en alelos ALT independientes en lugar de fallar. |

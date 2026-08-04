@@ -36,13 +36,37 @@ fn observed_base_at(rec: &bam::Record, position: usize, min_phred_quality: u8) -
     (quality >= min_phred_quality).then_some(base)
 }
 
-/// Whether the BAM shows the indel and the downstream SNV in trans: among the
-/// reads that carry the SNV alt *and* span the indel locus, (almost) none also
-/// carry the indel. Returns `false` when there is too little spanning evidence
-/// (the pair is then treated as unknown by the caller). Purely a suppression
-/// signal that never asserts cis.
+/// What the BAM says about an indel and a downstream SNV sharing molecules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct IndelSnvLinkage {
+    /// Reads carrying the SNV alt that also span the indel locus. Only these
+    /// can answer the question.
+    pub informative_reads: usize,
+    /// Of those, how many also carry the indel.
+    pub cis_reads: usize,
+}
+
+impl IndelSnvLinkage {
+    /// Whether the reads settle the pair as being on different molecules.
+    /// Below [`MIN_INFORMATIVE_READS`] there is too little evidence and the
+    /// answer is no, which the caller reads as unknown rather than as cis.
+    pub fn is_trans(&self) -> bool {
+        self.informative_reads >= MIN_INFORMATIVE_READS
+            && (self.cis_reads as f64) <= MAX_CIS_FRACTION * (self.informative_reads as f64)
+    }
+
+    /// Whether the reads say anything at all.
+    pub fn is_informative(&self) -> bool {
+        self.informative_reads >= MIN_INFORMATIVE_READS
+    }
+}
+
+/// How the BAM sees the indel and the downstream SNV: among the reads that
+/// carry the SNV alt *and* span the indel locus, how many also carry the indel.
+/// Purely an observation; the suppression decision is
+/// [`IndelSnvLinkage::is_trans`], which never asserts cis.
 #[allow(clippy::too_many_arguments)]
-pub fn indel_snv_in_trans(
+pub fn indel_snv_linkage(
     bam_reader: &mut bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>,
     header: &Header,
     chrom: &str,
@@ -53,7 +77,7 @@ pub fn indel_snv_in_trans(
     snv_alt: char,
     min_phred_quality: u8,
     min_mapq: u8,
-) -> AppResult<bool> {
+) -> AppResult<IndelSnvLinkage> {
     let indel_end = indel_position + indel_ref.len().saturating_sub(1);
     let start = indel_position.min(snv_position);
     let end = indel_end.max(snv_position);
@@ -102,6 +126,8 @@ pub fn indel_snv_in_trans(
         }
     }
 
-    Ok(snv_reads_spanning_indel >= MIN_INFORMATIVE_READS
-        && (cis_reads as f64) <= MAX_CIS_FRACTION * (snv_reads_spanning_indel as f64))
+    Ok(IndelSnvLinkage {
+        informative_reads: snv_reads_spanning_indel,
+        cis_reads,
+    })
 }

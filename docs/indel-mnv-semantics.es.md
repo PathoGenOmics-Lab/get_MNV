@@ -136,7 +136,7 @@ pipelines existentes no se ven afectados salvo que se establezca un flag.
   alelo REF. Reduce el subconteo de profundidad y el sesgo de `EFREQ` en las
   deleciones de varias bases, donde de otro modo las lecturas con solapamiento
   parcial quedan excluidas del denominador.
-- `--phased-indel-min-reads <N>` (por defecto `1`) y
+- `--phased-indel-min-reads <N>` (por defecto `2`) y
   `--phased-indel-min-freq <0.0-1.0>` (por defecto `0.0`): soporte mínimo del BAM
   que una fila de haplotipo indel/complejo con fase debe reunir para ser emitida.
   Una ventana densa en datos intra-host puede albergar varias combinaciones

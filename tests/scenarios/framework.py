@@ -228,6 +228,9 @@ class ExpectedRow:
     mnv_frequencies: str | None = None
     event_reads: str | None = None
     event_frequency: str | None = None
+    mnv_phasing_support: str | None = None
+    mnv_phasing_reads: str | None = None
+    frameshift_phasing: str | None = None
 
 
 @dataclass
@@ -485,6 +488,9 @@ _FIELD_BY_ATTR = {
     "mnv_frequencies": "MNV Frequencies",
     "event_reads": "Event Reads",
     "event_frequency": "Event Frequency",
+    "mnv_phasing_support": "MNV Phasing Support",
+    "mnv_phasing_reads": "MNV Phasing Reads",
+    "frameshift_phasing": "Frameshift Phasing",
 }
 
 

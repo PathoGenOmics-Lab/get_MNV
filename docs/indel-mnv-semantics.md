@@ -118,7 +118,7 @@ behaviour, so existing pipelines are unaffected unless a flag is set.
   that fully span the REF allele. Reduces depth under-counting and `EFREQ` bias
   for multi-base deletions, where partially-overlapping reads are otherwise
   dropped from the denominator.
-- `--phased-indel-min-reads <N>` (default `1`) and
+- `--phased-indel-min-reads <N>` (default `2`) and
   `--phased-indel-min-freq <0.0-1.0>` (default `0.0`): minimum BAM support a
   phased indel/complex haplotype row must have to be emitted. A dense window in
   intra-host data can hold several genuine combinations at low frequency;

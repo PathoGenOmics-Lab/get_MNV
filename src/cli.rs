@@ -147,8 +147,11 @@ pub struct Args {
     pub indel_anchor_depth: bool,
 
     /// Minimum BAM-supporting reads required to emit a phased indel/complex
-    /// haplotype row (default: 1).
-    #[arg(long = "phased-indel-min-reads", default_value_t = 1)]
+    /// haplotype row. Default 2: haplotypes are read off the molecules, so a
+    /// single read carrying a sequencing error at a called position mints a
+    /// combination of its own, and one read is not evidence of a haplotype.
+    /// Set 1 to emit every combination any read shows.
+    #[arg(long = "phased-indel-min-reads", default_value_t = 2)]
     pub phased_indel_min_reads: usize,
 
     /// Minimum BAM-derived frequency (0.0-1.0) required to emit a phased

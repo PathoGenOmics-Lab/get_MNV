@@ -1,25 +1,37 @@
 //! Indel-aware annotation configuration.
 
 use crate::io::VcfPosition;
-use std::collections::HashSet;
+use crate::variants::types::{FrameshiftLinkage, LinkageVerdict};
+use std::collections::HashMap;
 
-/// BAM-derived phasing evidence for frameshift propagation: the set of
-/// `(indel_position, snv_position)` pairs that reads show are in **trans** (on
-/// different molecules). An upstream indel's frame shift is not propagated to a
-/// downstream codon when the indel is in trans with that codon's SNV, since the
-/// codon's molecule does not carry the indel. Empty (the default, and whenever
-/// no BAM is available) means no evidence, so every pair keeps the
-/// frequency-based behaviour. This is a suppression-only signal that never adds
-/// propagation the frequency gate would not.
+/// BAM-derived phasing evidence for frameshift propagation, keyed by
+/// `(indel_position, snv_position)`. An upstream indel's frame shift is not
+/// propagated to a downstream codon when the reads show the indel is in
+/// **trans** with that codon's SNV, since the codon's molecule does not carry
+/// it. Empty (the default, and whenever no BAM is available) means nobody was
+/// asked, so every pair keeps the frequency-based behaviour. This is a
+/// suppression-only signal that never adds propagation the frequency gate
+/// would not.
+/// The reads' answer for one pair, already judged. The cis/trans thresholds
+/// live with the read counting that applies them, so nothing here re-derives
+/// the rule from the counts.
+#[derive(Debug, Clone, Copy)]
+pub struct PairLinkage {
+    pub verdict: LinkageVerdict,
+    pub cis_reads: usize,
+    pub informative_reads: usize,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct FrameshiftPhasing {
-    trans_pairs: HashSet<(usize, usize)>,
+    pairs: HashMap<(usize, usize), PairLinkage>,
 }
 
 impl FrameshiftPhasing {
-    /// Build from the set of `(indel_position, snv_position)` trans pairs.
-    pub fn from_trans_pairs(trans_pairs: HashSet<(usize, usize)>) -> Self {
-        Self { trans_pairs }
+    /// Build from `(indel_position, snv_position)` to the reads' answer, for
+    /// every pair they were consulted about.
+    pub fn from_pairs(pairs: HashMap<(usize, usize), PairLinkage>) -> Self {
+        Self { pairs }
     }
 
     /// Whether the indel at `indel_position` is confirmed in trans with any of a
@@ -29,10 +41,33 @@ impl FrameshiftPhasing {
         indel_position: usize,
         snv_positions: &[usize],
     ) -> bool {
-        !self.trans_pairs.is_empty()
-            && snv_positions
-                .iter()
-                .any(|snv| self.trans_pairs.contains(&(indel_position, *snv)))
+        snv_positions.iter().any(|snv| {
+            self.pairs
+                .get(&(indel_position, *snv))
+                .is_some_and(|linkage| linkage.verdict == LinkageVerdict::Trans)
+        })
+    }
+
+    /// What the reads said about this indel and this codon, for the output. The
+    /// SNV whose answer drove the decision is the one reported, so the column
+    /// explains the label the row carries. `None` when the reads were never
+    /// consulted about this pair, which is not the same as their having found
+    /// nothing.
+    pub(super) fn linkage_for(
+        &self,
+        indel_position: usize,
+        snv_positions: &[usize],
+    ) -> Option<FrameshiftLinkage> {
+        snv_positions
+            .iter()
+            .filter_map(|snv| self.pairs.get(&(indel_position, *snv)).copied())
+            .min_by_key(|linkage| (linkage.verdict, linkage.cis_reads))
+            .map(|linkage| FrameshiftLinkage {
+                indel_position,
+                cis_reads: linkage.cis_reads,
+                informative_reads: linkage.informative_reads,
+                verdict: linkage.verdict,
+            })
     }
 }
 

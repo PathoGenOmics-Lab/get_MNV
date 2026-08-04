@@ -552,9 +552,15 @@ fn test_frameshift_frequency_gate_skips_low_freq_upstream_indel() {
 
     // Phasing evidence that the indel (pos 3) and the downstream SNV (pos 11) are
     // in trans suppresses propagation even with the default (0.0) frequency gate.
-    let trans = crate::variants::FrameshiftPhasing::from_trans_pairs(
-        std::collections::HashSet::from([(3usize, 11usize)]),
-    );
+    let trans =
+        crate::variants::FrameshiftPhasing::from_pairs(std::collections::HashMap::from([(
+            (3usize, 11usize),
+            crate::variants::PairLinkage {
+                verdict: crate::variants::LinkageVerdict::Trans,
+                cis_reads: 0,
+                informative_reads: 18,
+            },
+        )]));
     let phased_variants = crate::variants::get_mnv_variants_for_gene_with_config(
         &gene,
         &variants_in,
@@ -569,6 +575,16 @@ fn test_frameshift_frequency_gate_skips_low_freq_upstream_indel() {
         !phased_snp.aa_changes[0].contains("fs"),
         "an indel in trans with the downstream SNV should not frameshift it, got {:?}",
         phased_snp.aa_changes
+    );
+    // The evidence behind that suppression is reported, not just acted on.
+    assert_eq!(
+        phased_snp
+            .annotations
+            .frameshift_linkage
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect::<Vec<_>>(),
+        vec!["trans:3:0/18".to_string()]
     );
 }
 

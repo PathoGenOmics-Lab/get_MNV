@@ -47,6 +47,8 @@ pub(super) fn compute_annotations(
         splice: None,
         // This path only builds coding annotations, which by definition have a codon.
         non_coding: None,
+        // Filled in by the caller, which knows the upstream indels for this codon.
+        frameshift_linkage: Vec::new(),
     }
 }
 
