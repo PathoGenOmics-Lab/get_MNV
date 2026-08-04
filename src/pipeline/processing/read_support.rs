@@ -14,6 +14,11 @@ use std::collections::HashSet;
 /// query would be wasted; those pairs stay frequency-gated.
 const MAX_PHASING_SPAN: usize = 600;
 
+/// How many distinct read-observed combinations one window may report. Real
+/// mixtures rarely approach this; the bound is there so a noisy pile-up cannot
+/// turn one window into thousands of rows.
+const MAX_LOCAL_HAPLOTYPES_PER_WINDOW: usize = 64;
+
 /// BAM-derived phasing for frameshift propagation: the set of `(indel, SNV)`
 /// pairs the reads show are in trans. Computed before annotation so it can be
 /// threaded into the frameshift gate. Empty without a BAM (or in dry-run), which
@@ -333,6 +338,71 @@ pub(super) fn count_gene_variant_reads(
     Ok((cache_hits, cache_misses))
 }
 
+/// Ask the reads which combinations of a locally-linked group actually travel
+/// together. One BAM query per window, whatever the group size: the answer is
+/// read off the molecules rather than proposed and checked combination by
+/// combination.
+fn observe_component_haplotypes(
+    state: &mut WorkerState,
+    args: &Args,
+    contig: &str,
+    component: &[&VcfPosition],
+) -> AppResult<read_count::LocalHaplotypeObservations> {
+    let start = component
+        .iter()
+        .map(|variant| variant.position)
+        .min()
+        .unwrap_or(0);
+    let end = component
+        .iter()
+        .map(|variant| variant.position + variant.ref_allele.len().saturating_sub(1))
+        .max()
+        .unwrap_or(0);
+    let component_variants = component
+        .iter()
+        .map(|variant| variant.event().components)
+        .collect::<Vec<_>>();
+
+    let bam = state
+        .bam
+        .as_mut()
+        .ok_or_else(|| AppError::validation("BAM reader unavailable in worker thread"))?;
+    let header = state
+        .bam_header
+        .as_ref()
+        .ok_or_else(|| AppError::validation("BAM header unavailable in worker thread"))?;
+
+    let observations = read_count::observe_local_haplotypes(
+        bam,
+        header,
+        read_count::LocalHaplotypeRequest {
+            chrom: contig,
+            start,
+            end,
+            variants: &component_variants,
+            min_phred_quality: args.min_quality,
+            min_mapq: args.min_mapq,
+        },
+    )?;
+
+    // A read that stops inside the window witnessed part of a molecule, not a
+    // haplotype. Say so when that is where most of the coverage went, since it
+    // means the window is wider than the library's fragments.
+    if observations.partial_reads > observations.spanning_reads {
+        log::debug!(
+            "Local haplotype window {}:{}-{} is spanned by {} read(s) but only partly covered by \
+             {}; combinations are called from the spanning reads alone.",
+            contig,
+            start,
+            end,
+            observations.spanning_reads,
+            observations.partial_reads
+        );
+    }
+
+    Ok(observations)
+}
+
 pub(super) fn append_supported_phased_indel_haplotypes(
     state: &mut WorkerState,
     args: &Args,
@@ -343,31 +413,66 @@ pub(super) fn append_supported_phased_indel_haplotypes(
         return Ok(());
     }
 
-    let candidates = variants::build_phased_indel_haplotype_variants(
-        inputs.gene,
-        inputs.snp_list,
-        inputs.reference,
-        inputs.contig,
-        inputs.genetic_code,
-    );
-
-    for mut candidate in candidates {
-        if has_variant_allele(variants, &candidate) {
-            continue;
+    for component in variants::local_haplotype_components(inputs.gene, inputs.snp_list) {
+        let observed = observe_component_haplotypes(state, args, inputs.contig, &component)?;
+        let mut haplotypes = observed.haplotypes;
+        // Reading the molecules imposes no combinatorial limit, but sequencing
+        // error at a called position can still mint a combination of its own.
+        // Keep the best-supported ones and say what was set aside rather than
+        // quietly truncating.
+        haplotypes.sort_by_key(|haplotype| std::cmp::Reverse(haplotype.reads));
+        if haplotypes.len() > MAX_LOCAL_HAPLOTYPES_PER_WINDOW {
+            let dropped = haplotypes.len() - MAX_LOCAL_HAPLOTYPES_PER_WINDOW;
+            let weakest = haplotypes[MAX_LOCAL_HAPLOTYPES_PER_WINDOW].reads;
+            log::warn!(
+                "Local haplotype window in gene '{}' shows {} distinct combinations on the reads; \
+                 reporting the {} best supported and dropping {} at {} read(s) or fewer.",
+                inputs.gene.name,
+                haplotypes.len(),
+                MAX_LOCAL_HAPLOTYPES_PER_WINDOW,
+                dropped,
+                weakest
+            );
+            haplotypes.truncate(MAX_LOCAL_HAPLOTYPES_PER_WINDOW);
         }
-        count_exact_indel_variant_reads(state, args, inputs.contig, inputs.gene, &mut candidate)?;
-        let reads = candidate.mnv_reads.unwrap_or(0);
-        let depth = candidate.mnv_total_reads.unwrap_or(0);
-        let freq = if depth > 0 {
-            reads as f64 / depth as f64
-        } else {
-            0.0
-        };
-        // Defaults (min_reads = 1, min_freq = 0.0) reproduce the historical
-        // "emit if any read supports it" rule; raising either suppresses
-        // low-confidence phased haplotypes from dense local windows.
-        if reads >= args.phased_indel_min_reads && freq >= args.phased_indel_min_freq {
-            variants.push(candidate);
+        for haplotype in haplotypes {
+            let group = component
+                .iter()
+                .zip(haplotype.carried.iter())
+                .filter_map(|(variant, carried)| carried.then_some(*variant))
+                .collect::<Vec<_>>();
+            let Some(mut candidate) = variants::phased_haplotype_variant(
+                inputs.gene,
+                inputs.reference,
+                inputs.contig,
+                &group,
+                inputs.genetic_code,
+            ) else {
+                continue;
+            };
+            if has_variant_allele(variants, &candidate) {
+                continue;
+            }
+            count_exact_indel_variant_reads(
+                state,
+                args,
+                inputs.contig,
+                inputs.gene,
+                &mut candidate,
+            )?;
+            let reads = candidate.mnv_reads.unwrap_or(0);
+            let depth = candidate.mnv_total_reads.unwrap_or(0);
+            let freq = if depth > 0 {
+                reads as f64 / depth as f64
+            } else {
+                0.0
+            };
+            // Defaults (min_reads = 1, min_freq = 0.0) reproduce the historical
+            // "emit if any read supports it" rule; raising either suppresses
+            // low-confidence phased haplotypes from dense local windows.
+            if reads >= args.phased_indel_min_reads && freq >= args.phased_indel_min_freq {
+                variants.push(candidate);
+            }
         }
     }
 

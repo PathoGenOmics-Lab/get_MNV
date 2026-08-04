@@ -11,11 +11,15 @@ use noodles::bam;
 use noodles::sam::Header;
 
 mod cache;
+mod haplotype;
 mod indel;
 mod observation;
 mod phasing;
 
 pub use cache::{build_region_observation_cache, count_reads_from_cache, RegionObservationCache};
+pub use haplotype::{
+    observe_local_haplotypes, LocalHaplotypeObservations, LocalHaplotypeRequest, ObservedHaplotype,
+};
 pub use indel::count_indel_reads;
 pub use phasing::indel_snv_in_trans;
 

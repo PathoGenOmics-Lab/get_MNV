@@ -379,16 +379,15 @@ scenario_fs_plus_downstream_snv = Scenario(
 # ---------------------------------------------------------------------------
 # Insertar GCT despues de pos 29 (entre pos 29=C y pos 30=T): cae DENTRO
 # del codon 10. Mas dos SNV pos 28 G>T y pos 30 T>A en mismo codon.
-# Las 20 lecturas llevan todo en cis. Distancias 1-2 bp -> ventana local.
-# Get_mnv explora subconjuntos del haplotipo local y emite 5 filas:
-#   1) complex_indel SNV:28 + INS:29              -> Ala10delinsSerLeu
-#   2) complex_indel SNV:28 + INS:29 + SNV:30     -> Ala10delinsSerLeu (todo)
-#   3) SNP/MNV pos28+pos30 marcado Indel overlap  -> AA Unknown
-#   4) insertion INS:29 sola                       -> Ala10_Ala11insLeu
-#   5) complex_indel INS:29 + SNV:30              -> Ala10_Ala11insLeu
+# Las 20 lecturas llevan todo en cis: en la muestra hay UNA sola especie
+# molecular. Get_mnv lee los haplotipos de las moleculas, asi que emite el
+# haplotipo completo y no sus subconjuntos, que serian moleculas inexistentes:
+#   1) complex_indel SNV:28 + INS:29 + SNV:30     -> Ala10delinsSerLeu
+#   2) SNP/MNV pos28+pos30 marcado Indel overlap  -> AA Unknown
+#   3) insertion INS:29 sola (el registro del VCF) -> Ala10_Ala11insLeu
 scenario_inframe_ins_with_mnv = Scenario(
     name="08_inframe_ins_inside_codon_with_mnv",
-    description="Ins in-frame DENTRO de codon 10 + MNV pos28+pos30 todo en cis: 5 filas (2 complex_indel, MNV-overlap, ins solo, complex_indel ins+SNV)",
+    description="Ins in-frame DENTRO de codon 10 + MNV pos28+pos30 todo en cis: 3 filas (el haplotipo completo, MNV-overlap, ins sola); los subconjuntos no son moleculas reales",
     variants=[
         VcfRecord(pos=28, ref="G", alt="T"),
         VcfRecord(pos=29, ref="C", alt="CGCT"),
@@ -408,22 +407,13 @@ scenario_inframe_ins_with_mnv = Scenario(
         ),
     ],
     expected=[
-        # complex_indel SNV:28 + INS:29
-        ExpectedRow(
-            event_class="complex_indel",
-            event_components="SNV:28:G>T | INS:29:+GCT",
-            variant_type="INDEL",
-            change_type="In-frame Indel",
-            aa_changes="Ala10delinsSerLeu",
-            event_reads="20",
-            event_frequency="1.0000",
-        ),
-        # complex_indel completo SNV:28 + INS:29 + SNV:30
+        # El haplotipo completo, que es lo que llevan las 20 moleculas
         ExpectedRow(
             event_class="complex_indel",
             event_components="SNV:28:G>T | INS:29:+GCT | SNV:30:T>A",
             variant_type="INDEL",
             change_type="In-frame Indel",
+            aa_changes="Ala10delinsSerLeu",
             event_reads="20",
             event_frequency="1.0000",
         ),
@@ -437,7 +427,7 @@ scenario_inframe_ins_with_mnv = Scenario(
             mnv_reads="20",
             mnv_frequencies="1.0000",
         ),
-        # insertion sola
+        # insertion sola: el registro del VCF anotado por su cuenta
         ExpectedRow(
             positions="29",
             variant_type="INDEL",
@@ -448,17 +438,8 @@ scenario_inframe_ins_with_mnv = Scenario(
             event_reads="20",
             event_frequency="1.0000",
         ),
-        # complex_indel INS:29 + SNV:30 (sin pos28)
-        ExpectedRow(
-            event_class="complex_indel",
-            event_components="INS:29:+GCT | SNV:30:T>A",
-            variant_type="INDEL",
-            change_type="In-frame Indel",
-            event_reads="20",
-            event_frequency="1.0000",
-        ),
     ],
-    expected_row_count=5,
+    expected_row_count=3,
 )
 
 
@@ -1514,6 +1495,66 @@ scenario_frameshift_past_stop = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 36. Dos haplotipos locales reales conviviendo (control positivo)
+# ---------------------------------------------------------------------------
+# Mismos tres variantes que el escenario 08, pero repartidos en DOS especies
+# moleculares distintas y ninguna molecula lleva las tres:
+#   12 lecturas: SNV:28 + INS:29        (referencia en pos 30)
+#    8 lecturas: INS:29 + SNV:30        (referencia en pos 28)
+# Los dos haplotipos existen y deben salir los dos, con sus recuentos propios
+# (12/20 y 8/20). El triple NO debe salir: ninguna molecula lo lleva. Es el
+# caso que la enumeracion de subconjuntos no podia distinguir del escenario 08,
+# porque alli emitia los mismos dos subconjuntos a partir de una sola especie.
+scenario_two_real_haplotypes = Scenario(
+    name="36_two_coexisting_local_haplotypes",
+    description="Dos haplotipos locales reales (SNV:28+INS:29 en 12 lecturas, INS:29+SNV:30 en 8): salen ambos con sus frecuencias y el triple no sale",
+    variants=[
+        VcfRecord(pos=28, ref="G", alt="T"),
+        VcfRecord(pos=29, ref="C", alt="CGCT"),
+        VcfRecord(pos=30, ref="T", alt="A"),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_hap_left",
+            start=1,
+            length=147,
+            ops=[
+                Op(kind="snv", pos=28, seq="T"),
+                Op(kind="ins", pos=29, seq="GCT"),
+            ],
+            count=12,
+        ),
+        ReadGroup(
+            name_prefix="r_hap_right",
+            start=1,
+            length=147,
+            ops=[
+                Op(kind="ins", pos=29, seq="GCT"),
+                Op(kind="snv", pos=30, seq="A"),
+            ],
+            count=8,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            event_class="complex_indel",
+            event_components="SNV:28:G>T | INS:29:+GCT",
+            variant_type="INDEL",
+            event_reads="12",
+            event_frequency="0.6000",
+        ),
+        ExpectedRow(
+            event_class="complex_indel",
+            event_components="INS:29:+GCT | SNV:30:T>A",
+            variant_type="INDEL",
+            event_reads="8",
+            event_frequency="0.4000",
+        ),
+    ],
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -1557,6 +1598,8 @@ ALL_SCENARIOS = [
     scenario_eukaryote_autocds,
     # frameshift mas alla del stop prematuro:
     scenario_frameshift_past_stop,
+    # haplotipos locales leidos de las moleculas:
+    scenario_two_real_haplotypes,
 ]
 
 

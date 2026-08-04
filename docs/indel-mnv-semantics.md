@@ -33,8 +33,14 @@ genotype likelihood modelling.
   complex-indel events.
 - Extra `complex_indel` rows only when the full combined indel/SNV/MNV haplotype
   is observed in BAM reads.
-- Bounded local haplotype windows that can combine multiple nearby events, such
-  as insertion-plus-deletion haplotypes, when exact read support exists.
+- Local haplotypes read off the molecules. Nearby events are grouped into a
+  window by proximity, but proximity only proposes: the reads spanning that
+  window decide which combinations are reported, and each is reported with the
+  count of molecules carrying it. A combination no read carries is not emitted,
+  including one that is a subset of a combination reads do carry, since a
+  molecule with A, B and C is not evidence for a molecule with only A and B.
+  Two combinations that genuinely coexist are both reported, with their own
+  counts. There is no cap on how many variants a window may hold.
 
 ## Boundary Rules
 
@@ -114,9 +120,9 @@ behaviour, so existing pipelines are unaffected unless a flag is set.
   dropped from the denominator.
 - `--phased-indel-min-reads <N>` (default `1`) and
   `--phased-indel-min-freq <0.0-1.0>` (default `0.0`): minimum BAM support a
-  phased indel/complex haplotype row must have to be emitted. Local windows can
-  enumerate many overlapping sub-haplotypes; raising these suppresses
-  low-confidence rows from dense variant clusters.
+  phased indel/complex haplotype row must have to be emitted. A dense window in
+  intra-host data can hold several genuine combinations at low frequency;
+  raising these keeps only the well-supported ones.
 
 When an indel that has read coverage produces zero exact-CIGAR support, get_MNV
 emits a warning: this usually means the input indel is not left-aligned the same

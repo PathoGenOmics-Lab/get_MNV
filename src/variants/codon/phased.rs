@@ -10,7 +10,7 @@ use super::indel_effect::protein_effect_for_indel;
 use super::transcript_model::{has_transcript_cds_model, transcript_offset_for_position};
 
 const LOCAL_HAPLOTYPE_JOIN_DISTANCE: usize = 3;
-const MAX_LOCAL_HAPLOTYPE_VARIANTS: usize = 8;
+
 pub(super) fn phased_indel_window(gene: &Gene, variant: &VcfPosition) -> Option<(usize, usize)> {
     let event = variant.event();
     let (eff_start, eff_end) = effective_bounds(gene);
@@ -76,30 +76,22 @@ pub(super) fn group_component_flags(group: &[&VcfPosition]) -> (bool, bool, usiz
     (has_indel, has_substitution, indel_components)
 }
 
-pub(super) fn add_phased_candidate(
-    out: &mut Vec<VariantInfo>,
-    seen: &mut BTreeSet<(usize, String, String)>,
+/// The haplotype a set of variants describes when one molecule carries all of
+/// them. `None` unless the set is a genuine local haplotype: at least two
+/// variants, at least one of them an indel (pure substitutions in a codon are
+/// already reported as MNVs), and an allele the reference can express.
+pub fn phased_haplotype_variant(
     gene: &Gene,
     reference: &crate::io::Reference<'_>,
     chrom: &str,
-    genetic_code: crate::genetic_code::GeneticCode,
     group: &[&VcfPosition],
-) {
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> Option<VariantInfo> {
     let (has_indel, _, _) = group_component_flags(group);
     if !has_indel || group.len() < 2 {
-        return;
+        return None;
     }
-    if let Some(candidate) = phased_variant_from_group(gene, reference, chrom, group, genetic_code)
-    {
-        let key = (
-            candidate.positions[0],
-            candidate.ref_bases[0].clone(),
-            candidate.base_changes[0].clone(),
-        );
-        if seen.insert(key) {
-            out.push(candidate);
-        }
-    }
+    phased_variant_from_group(gene, reference, chrom, group, genetic_code)
 }
 
 pub(super) fn compound_allele_from_variants(
@@ -298,13 +290,17 @@ pub(super) fn phased_variant_from_group(
     })
 }
 
-pub fn build_phased_indel_haplotype_variants(
+/// Variants close enough to have been on the same molecule, grouped into the
+/// windows a read must span to tell their combinations apart.
+///
+/// Proximity only proposes; it never asserts linkage. The caller asks the reads
+/// which of these variants actually travel together, so a group here is a
+/// question, not an answer. A group is returned only when it could describe a
+/// phased haplotype at all: two or more variants, at least one an indel.
+pub fn local_haplotype_components<'a>(
     gene: &Gene,
-    snp_list: &[VcfPosition],
-    reference: &crate::io::Reference<'_>,
-    chrom: &str,
-    genetic_code: crate::genetic_code::GeneticCode,
-) -> Vec<VariantInfo> {
+    snp_list: &'a [VcfPosition],
+) -> Vec<Vec<&'a VcfPosition>> {
     let local_variants = snp_list
         .iter()
         .filter(|variant| variant.overlaps_interval(gene.start, gene.end))
@@ -329,8 +325,7 @@ pub fn build_phased_indel_haplotype_variants(
         return Vec::new();
     }
 
-    let mut out = Vec::new();
-    let mut seen = BTreeSet::new();
+    let mut components = Vec::new();
     let mut visited = vec![false; local_variants.len()];
 
     for start_idx in 0..local_variants.len() {
@@ -367,73 +362,14 @@ pub fn build_phased_indel_haplotype_variants(
             continue;
         }
 
-        if component.len() > MAX_LOCAL_HAPLOTYPE_VARIANTS {
-            log::warn!(
-                "Local haplotype window in gene '{}' has {} linked variants (> {} limit): \
-                 enumerating only pairwise and full-set combinations, so some intermediate \
-                 phased haplotypes may not be reported.",
-                gene.name,
-                component.len(),
-                MAX_LOCAL_HAPLOTYPE_VARIANTS
-            );
-        }
-
-        if component.len() <= MAX_LOCAL_HAPLOTYPE_VARIANTS {
-            let subset_count = 1usize << component.len();
-            for mask in 1usize..subset_count {
-                if mask.count_ones() < 2 {
-                    continue;
-                }
-                let group = component
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(bit, idx)| {
-                        (mask & (1usize << bit) != 0).then_some(local_variants[*idx].0)
-                    })
-                    .collect::<Vec<_>>();
-                add_phased_candidate(
-                    &mut out,
-                    &mut seen,
-                    gene,
-                    reference,
-                    chrom,
-                    genetic_code,
-                    &group,
-                );
-            }
-        } else {
-            for i in 0..component.len() {
-                for j in (i + 1)..component.len() {
-                    let group = [
-                        local_variants[component[i]].0,
-                        local_variants[component[j]].0,
-                    ];
-                    add_phased_candidate(
-                        &mut out,
-                        &mut seen,
-                        gene,
-                        reference,
-                        chrom,
-                        genetic_code,
-                        &group,
-                    );
-                }
-            }
-            let group = component
-                .iter()
-                .map(|idx| local_variants[*idx].0)
-                .collect::<Vec<_>>();
-            add_phased_candidate(
-                &mut out,
-                &mut seen,
-                gene,
-                reference,
-                chrom,
-                genetic_code,
-                &group,
-            );
-        }
+        component.sort_by_key(|idx| local_variants[*idx].0.position);
+        components.push(
+            component
+                .into_iter()
+                .map(|idx| local_variants[idx].0)
+                .collect::<Vec<_>>(),
+        );
     }
 
-    out
+    components
 }

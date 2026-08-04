@@ -20,7 +20,7 @@ mod tests;
 
 pub use config::{FrameshiftPhasing, IndelAnnotationConfig};
 pub use gene_path::process_codon;
-pub use phased::build_phased_indel_haplotype_variants;
+pub use phased::{local_haplotype_components, phased_haplotype_variant};
 
 use crate::variants::types::*;
 use std::collections::BTreeMap;

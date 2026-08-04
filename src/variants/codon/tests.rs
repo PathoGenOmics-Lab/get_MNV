@@ -1,4 +1,6 @@
-use super::{build_phased_indel_haplotype_variants, codon_bounds_for_position, process_codon};
+use super::{
+    codon_bounds_for_position, local_haplotype_components, phased_haplotype_variant, process_codon,
+};
 use crate::test_support::{
     single_exon_gene, single_exon_gene_with_phase, spliced_gene, transcript_gene,
 };
@@ -688,13 +690,19 @@ fn test_build_phased_indel_haplotype_combines_nearby_snv() {
         },
     ];
 
-    let phased = build_phased_indel_haplotype_variants(
-        &gene,
-        &variants,
-        &reference,
-        "chr1",
-        crate::genetic_code::GeneticCode::default(),
-    );
+    let components = local_haplotype_components(&gene, &variants);
+    let phased = components
+        .iter()
+        .filter_map(|component| {
+            phased_haplotype_variant(
+                &gene,
+                &reference,
+                "chr1",
+                component,
+                crate::genetic_code::GeneticCode::default(),
+            )
+        })
+        .collect::<Vec<_>>();
 
     assert_eq!(phased.len(), 1);
     assert_eq!(phased[0].variant_type, VariantType::Indel);
@@ -733,13 +741,19 @@ fn test_build_phased_indel_haplotype_preserves_deletion_component_coordinate() {
         },
     ];
 
-    let phased = build_phased_indel_haplotype_variants(
-        &gene,
-        &variants,
-        &reference,
-        "chr1",
-        crate::genetic_code::GeneticCode::default(),
-    );
+    let components = local_haplotype_components(&gene, &variants);
+    let phased = components
+        .iter()
+        .filter_map(|component| {
+            phased_haplotype_variant(
+                &gene,
+                &reference,
+                "chr1",
+                component,
+                crate::genetic_code::GeneticCode::default(),
+            )
+        })
+        .collect::<Vec<_>>();
 
     assert_eq!(phased.len(), 1);
     assert_eq!(phased[0].event_class.as_deref(), Some("complex_indel"));
@@ -777,13 +791,19 @@ fn test_build_phased_indel_haplotype_combines_two_indels() {
         },
     ];
 
-    let phased = build_phased_indel_haplotype_variants(
-        &gene,
-        &variants,
-        &reference,
-        "chr1",
-        crate::genetic_code::GeneticCode::default(),
-    );
+    let components = local_haplotype_components(&gene, &variants);
+    let phased = components
+        .iter()
+        .filter_map(|component| {
+            phased_haplotype_variant(
+                &gene,
+                &reference,
+                "chr1",
+                component,
+                crate::genetic_code::GeneticCode::default(),
+            )
+        })
+        .collect::<Vec<_>>();
 
     assert_eq!(phased.len(), 1);
     assert_eq!(phased[0].event_class.as_deref(), Some("complex_indel"));
@@ -793,6 +813,52 @@ fn test_build_phased_indel_haplotype_combines_two_indels() {
     assert_eq!(
         phased[0].event_components,
         vec!["INS:4:+G".to_string(), "DEL:6:A".to_string()]
+    );
+}
+
+#[test]
+fn test_local_haplotype_components_group_without_enumerating_subsets() {
+    // Three linked variants are one window, not seven candidate combinations.
+    // Which of those combinations exist is a question for the reads, and the
+    // grouping must not pre-empt it: a molecule carrying all three is not
+    // evidence for a molecule carrying only the first two.
+    let gene = single_exon_gene("cds", 1, 9, Strand::Plus);
+    let variants = vec![
+        crate::io::VcfPosition {
+            position: 4,
+            ref_allele: "A".to_string(),
+            alt_allele: "C".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        },
+        crate::io::VcfPosition {
+            position: 5,
+            ref_allele: "A".to_string(),
+            alt_allele: "AT".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        },
+        crate::io::VcfPosition {
+            position: 6,
+            ref_allele: "A".to_string(),
+            alt_allele: "G".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        },
+    ];
+
+    let components = local_haplotype_components(&gene, &variants);
+    assert_eq!(components.len(), 1);
+    assert_eq!(
+        components[0]
+            .iter()
+            .map(|variant| variant.position)
+            .collect::<Vec<_>>(),
+        vec![4, 5, 6],
+        "the window is returned whole and in genomic order"
     );
 }
 
@@ -821,13 +887,19 @@ fn test_build_phased_indel_haplotype_ignores_distant_snv() {
         },
     ];
 
-    let phased = build_phased_indel_haplotype_variants(
-        &gene,
-        &variants,
-        &reference,
-        "chr1",
-        crate::genetic_code::GeneticCode::default(),
-    );
+    let components = local_haplotype_components(&gene, &variants);
+    let phased = components
+        .iter()
+        .filter_map(|component| {
+            phased_haplotype_variant(
+                &gene,
+                &reference,
+                "chr1",
+                component,
+                crate::genetic_code::GeneticCode::default(),
+            )
+        })
+        .collect::<Vec<_>>();
 
     assert!(phased.is_empty());
 }

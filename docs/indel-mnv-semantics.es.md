@@ -38,9 +38,14 @@ genotipos.
   eventos exactos de indel o indel complejo.
 - Filas `complex_indel` adicionales solo cuando el haplotipo combinado completo
   de indel/SNV/MNV se observa en las lecturas del BAM.
-- Ventanas de haplotipo local acotadas, capaces de combinar varios eventos
-  cercanos —como haplotipos de inserción más deleción— cuando existe soporte
-  exacto de lecturas.
+- Haplotipos locales leídos de las moléculas. Los eventos cercanos se agrupan en
+  una ventana por proximidad, pero la proximidad solo propone: son las lecturas
+  que cruzan esa ventana las que deciden qué combinaciones se reportan, y cada
+  una sale con el número de moléculas que la llevan. Una combinación que ninguna
+  lectura lleva no se emite, incluida la que es subconjunto de otra que sí se
+  observa, porque una molécula con A, B y C no es evidencia de una molécula con
+  solo A y B. Dos combinaciones que conviven de verdad salen las dos, cada una
+  con su recuento. No hay tope al número de variantes que una ventana admite.
 
 ## Reglas de límites
 
@@ -134,9 +139,9 @@ pipelines existentes no se ven afectados salvo que se establezca un flag.
 - `--phased-indel-min-reads <N>` (por defecto `1`) y
   `--phased-indel-min-freq <0.0-1.0>` (por defecto `0.0`): soporte mínimo del BAM
   que una fila de haplotipo indel/complejo con fase debe reunir para ser emitida.
-  Las ventanas locales pueden enumerar muchos sub-haplotipos solapados; elevar
-  estos valores suprime las filas de baja confianza procedentes de agrupaciones
-  densas de variantes.
+  Una ventana densa en datos intra-host puede albergar varias combinaciones
+  genuinas a baja frecuencia; elevar estos valores deja solo las bien
+  soportadas.
 
 Cuando un indel con cobertura de lecturas no produce ningún soporte de
 CIGAR exacto, get_MNV emite una advertencia: por lo general, esto significa que
