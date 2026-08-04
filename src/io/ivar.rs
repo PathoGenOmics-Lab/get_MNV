@@ -319,6 +319,8 @@ pub fn load_ivar_tsv(
                 original_dp,
                 original_freq,
                 original_info: None,
+                // iVar TSV carries no genotype, so it declares no phase.
+                declared_phase: None,
             });
         kept += 1;
     }

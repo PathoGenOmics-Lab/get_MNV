@@ -25,8 +25,8 @@ mod read_support;
 
 pub(crate) use inputs::{parse_inputs, resolve_variant_input_format};
 use read_support::{
-    append_supported_phased_indel_haplotypes, apply_read_summary, compute_frameshift_phasing,
-    count_gene_variant_reads,
+    annotate_declared_phase, append_supported_phased_indel_haplotypes, apply_read_summary,
+    compute_frameshift_phasing, count_gene_variant_reads,
 };
 
 #[derive(Debug)]
@@ -362,6 +362,7 @@ pub(crate) fn process_contig(
                     },
                     &mut variants,
                 )?;
+                annotate_declared_phase(&mut variants, snp_list);
                 Ok(WorkerResult {
                     variants,
                     region_cache_hits: cache_hits,

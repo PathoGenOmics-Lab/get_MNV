@@ -246,6 +246,38 @@ pub struct VariantAnnotations {
     /// ever asked.
     #[serde(default)]
     pub frameshift_linkage: Vec<FrameshiftLinkage>,
+    /// What the input VCF's own phasing said about this row's alleles, when it
+    /// said anything. A claim by the caller, kept separate from the read
+    /// evidence rather than merged into it.
+    #[serde(default)]
+    pub declared_phase: Option<DeclaredPhaseCall>,
+}
+
+/// The input caller's phase claim for one row, and whether the reads refute it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeclaredPhaseCall {
+    pub verdict: LinkageVerdict,
+    /// The `PS` phase set the claim came from.
+    pub phase_set: Option<usize>,
+    /// Set when the reads leave the claim no room: a declared cis that no read
+    /// carries whole, or a declared trans that every informative read carries.
+    #[serde(default)]
+    pub contradicted_by_reads: bool,
+}
+
+impl std::fmt::Display for DeclaredPhaseCall {
+    /// `cis:12345`, or just `cis` when the caller phased without a phase set,
+    /// with `;contradicted-by-reads` appended when the BAM refutes it.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.phase_set {
+            Some(phase_set) => write!(f, "{}:{}", self.verdict.as_str(), phase_set)?,
+            None => write!(f, "{}", self.verdict.as_str())?,
+        }
+        if self.contradicted_by_reads {
+            write!(f, ";contradicted-by-reads")?;
+        }
+        Ok(())
+    }
 }
 
 /// What the reads say about two variants sharing molecules.

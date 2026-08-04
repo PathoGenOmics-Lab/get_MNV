@@ -157,6 +157,7 @@ fn run_synthetic(
             original_dp: Some(30),
             original_freq: Some(0.5),
             original_info: None,
+            declared_phase: None,
         })
         .collect();
 

@@ -187,6 +187,9 @@ class VcfRecord:
     alt: str
     chrom: str = CONTIG   # por defecto chr_test; usar CONTIG2 para multi-contig
     af: float | None = None  # si se define, se emite AF= en INFO (rellena original_freq)
+    # Genotipo emitido en FORMAT. Con '|' declara fase; el default '1/1' no.
+    genotype: str = "1/1"
+    phase_set: int | None = None  # si se define, se emite PS en FORMAT
 
 
 @dataclass
@@ -231,6 +234,7 @@ class ExpectedRow:
     mnv_phasing_support: str | None = None
     mnv_phasing_reads: str | None = None
     frameshift_phasing: str | None = None
+    declared_phase: str | None = None
 
 
 @dataclass
@@ -285,6 +289,7 @@ def write_vcf(path: Path, records: Iterable[VcfRecord]) -> None:
         '##INFO=<ID=DP,Number=1,Type=Integer,Description="depth">\n'
         '##INFO=<ID=AF,Number=A,Type=Float,Description="allele frequency">\n'
         '##FORMAT=<ID=GT,Number=1,Type=String,Description="genotype">\n'
+        '##FORMAT=<ID=PS,Number=1,Type=Integer,Description="phase set">\n'
         "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n"
     )
     with path.open("w") as fh:
@@ -293,8 +298,12 @@ def write_vcf(path: Path, records: Iterable[VcfRecord]) -> None:
             info = "DP=30"
             if v.af is not None:
                 info += f";AF={v.af:.4f}"
+            if v.phase_set is None:
+                fmt, sample = "GT", v.genotype
+            else:
+                fmt, sample = "GT:PS", f"{v.genotype}:{v.phase_set}"
             fh.write(
-                f"{v.chrom}\t{v.pos}\t.\t{v.ref}\t{v.alt}\t100\tPASS\t{info}\tGT\t1/1\n"
+                f"{v.chrom}\t{v.pos}\t.\t{v.ref}\t{v.alt}\t100\tPASS\t{info}\t{fmt}\t{sample}\n"
             )
 
 
@@ -491,6 +500,7 @@ _FIELD_BY_ATTR = {
     "mnv_phasing_support": "MNV Phasing Support",
     "mnv_phasing_reads": "MNV Phasing Reads",
     "frameshift_phasing": "Frameshift Phasing",
+    "declared_phase": "Declared Phase",
 }
 
 

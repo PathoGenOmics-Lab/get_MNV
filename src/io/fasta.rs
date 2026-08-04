@@ -314,6 +314,7 @@ mod tests {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }];
         assert!(validate_vcf_reference_alleles("c", &snps, &r).is_ok());
     }
@@ -329,6 +330,7 @@ mod tests {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }];
         assert!(validate_vcf_reference_alleles("c", &snps, &r).is_err());
     }
@@ -344,6 +346,7 @@ mod tests {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }];
         assert!(validate_vcf_reference_alleles("c", &snps, &r).is_err());
     }

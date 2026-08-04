@@ -356,6 +356,7 @@ mod tests {
                 original_dp: None,
                 original_freq: Some(0.5),
                 original_info: None,
+                declared_phase: None,
             }],
         )]
         .into_iter()
@@ -377,6 +378,7 @@ mod tests {
                 original_dp: None,
                 original_freq: None,
                 original_info: None,
+                declared_phase: None,
             }],
         )]
         .into_iter()

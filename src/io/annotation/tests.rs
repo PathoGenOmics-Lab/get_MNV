@@ -95,6 +95,7 @@ fn test_has_snp_in_interval_found() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
         VcfPosition {
             position: 200,
@@ -103,6 +104,7 @@ fn test_has_snp_in_interval_found() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
     ];
     assert!(has_snp_in_interval(&snps, 50, 150));
@@ -119,6 +121,7 @@ fn test_has_snp_in_interval_not_found() {
         original_dp: None,
         original_freq: None,
         original_info: None,
+        declared_phase: None,
     }];
     assert!(!has_snp_in_interval(&snps, 200, 300));
     assert!(!has_snp_in_interval(&snps, 50, 99));
@@ -493,6 +496,7 @@ fn test_filter_genes_with_snps() {
         original_dp: None,
         original_freq: None,
         original_info: None,
+        declared_phase: None,
     }];
     let filtered = filter_genes_with_snps(&genes, &snps);
     assert_eq!(filtered.len(), 1);
@@ -514,6 +518,7 @@ fn test_transcript_gene_filter_keeps_intronic_variants() {
         original_dp: None,
         original_freq: None,
         original_info: None,
+        declared_phase: None,
     };
 
     // A deep intronic variant (>8 nt from either junction) keeps the gene so it

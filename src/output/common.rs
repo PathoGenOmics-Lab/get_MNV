@@ -42,6 +42,7 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "MNVPS"
             | "MNVPR"
             | "FSPH"
+            | "DPHASE"
             | "NMD"
             | "HGVSG"
             | "HGVSC"
@@ -263,6 +264,20 @@ pub(crate) fn mnv_phasing_read_count(variant: &VariantInfo) -> Option<usize> {
     }
 }
 
+/// The phase the input VCF declared for this row's alleles, as `cis:12345`
+/// (the verdict and the `PS` phase set), with `;contradicted-by-reads`
+/// appended when the BAM leaves the claim no room. `-` when the input did not
+/// phase these alleles together, which is the usual case for haploid pathogen
+/// callers. This is the caller's claim; the read evidence is the neighbouring
+/// phasing columns.
+pub(crate) fn declared_phase_field(variant: &VariantInfo) -> String {
+    variant
+        .annotations
+        .declared_phase
+        .map(|call| call.to_string())
+        .unwrap_or_else(|| "-".to_string())
+}
+
 /// What the reads said about each upstream indel sharing molecules with this
 /// codon, as `trans:1234:0/18 | cis:1250:17/18`: the verdict, the indel's
 /// position, and the reads behind it. `-` when the reads were never consulted,
@@ -369,6 +384,9 @@ pub(crate) fn build_info_string(
     }
     if let Some(reads) = mnv_phasing_read_count(variant) {
         builder.push("MNVPR", reads);
+    }
+    if let Some(call) = variant.annotations.declared_phase {
+        builder.push_text("DPHASE", &call.to_string());
     }
     if !variant.annotations.frameshift_linkage.is_empty() {
         builder.push_text("FSPH", &frameshift_linkage_field(variant));
@@ -751,6 +769,10 @@ pub(crate) fn write_info_header(
     writeln!(
         writer,
         "##INFO=<ID=MNVPR,Number=1,Type=Integer,Description=\"Reads the MNVPS ratio was computed from: reads spanning every position of the codon that carry the least-supported constituent SNV\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=DPHASE,Number=1,Type=String,Description=\"Phase the input VCF declared for this row's alleles, as verdict:phase_set, with ;contradicted-by-reads when the BAM refutes it. The caller's claim, not an observation\">"
     )?;
     writeln!(
         writer,

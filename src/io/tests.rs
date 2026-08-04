@@ -63,6 +63,7 @@ chrB\tsrc\tgene\t10\t30\t.\t+\t.\tID=gene-two;gene=two;locus_tag=L2
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
         VcfPosition {
             position: 20,
@@ -71,6 +72,7 @@ chrB\tsrc\tgene\t10\t30\t.\t+\t.\tID=gene-two;gene=two;locus_tag=L2
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
     ];
 
@@ -124,6 +126,7 @@ fn test_validate_vcf_reference_alleles_detects_mismatch() {
         original_dp: None,
         original_freq: None,
         original_info: None,
+        declared_phase: None,
     }];
     let error = validate_vcf_reference_alleles("chr1", &snp_list, &reference)
         .expect_err("expected mismatch");

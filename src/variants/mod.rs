@@ -3,6 +3,7 @@
 
 mod codon;
 pub mod consequence;
+pub mod declared_phase;
 mod event;
 pub mod hgvs;
 #[cfg(test)]

@@ -192,6 +192,9 @@ pub(super) fn compound_allele_from_variants(
         original_dp: None,
         original_freq: None,
         original_info: None,
+        // A synthesised compound allele; its phase came from the reads, not
+        // from anything the input declared.
+        declared_phase: None,
     })
 }
 

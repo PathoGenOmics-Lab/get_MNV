@@ -1662,6 +1662,139 @@ scenario_singleton_haplotype_opt_in = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 40. Fase declarada en el VCF (estilo WhatsHap/HiPhase/Clair3)
+# ---------------------------------------------------------------------------
+# Dos SNV del codon 10 con GT faseado y el mismo PS: el llamador ya dijo que
+# van en la misma molecula. get_mnv no vuelve a fasear, pero lo publica en la
+# columna Declared Phase, y las lecturas (que llevan ambas) no lo contradicen.
+scenario_declared_phase_cis = Scenario(
+    name="40_declared_phase_cis",
+    description="VCF faseado con GT 1|0 y PS=42 en ambas SNV del codon: Declared Phase = cis:42",
+    variants=[
+        VcfRecord(pos=28, ref="G", alt="T", genotype="1|0", phase_set=42),
+        VcfRecord(pos=30, ref="T", alt="A", genotype="1|0", phase_set=42),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_cis",
+            start=1,
+            length=150,
+            ops=[Op(kind="snv", pos=28, seq="T"), Op(kind="snv", pos=30, seq="A")],
+            count=20,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="28, 30",
+            variant_type="SNP/MNV",
+            declared_phase="cis:42",
+            mnv_phasing_support="1.0000",
+        ),
+    ],
+)
+
+
+# 41. Fase declarada en haplotipos opuestos: el llamador dice trans
+scenario_declared_phase_trans = Scenario(
+    name="41_declared_phase_trans",
+    description="VCF faseado con 1|0 y 0|1 en el mismo PS: Declared Phase = trans:42",
+    variants=[
+        VcfRecord(pos=28, ref="G", alt="T", genotype="1|0", phase_set=42),
+        VcfRecord(pos=30, ref="T", alt="A", genotype="0|1", phase_set=42),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_left",
+            start=1,
+            length=150,
+            ops=[Op(kind="snv", pos=28, seq="T")],
+            count=10,
+        ),
+        ReadGroup(
+            name_prefix="r_right",
+            start=1,
+            length=150,
+            ops=[Op(kind="snv", pos=30, seq="A")],
+            count=10,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="28, 30",
+            variant_type="SNP/MNV",
+            declared_phase="trans:42",
+            mnv_phasing_support="0.0000",
+        ),
+    ],
+)
+
+
+# 42. El VCF declara cis y las lecturas lo desmienten
+# Ninguna de las 20 lecturas que cruzan el codon lleva las dos variantes, asi
+# que la afirmacion del llamador no se sostiene. No es cuestion de grado: es
+# cero. La columna lo marca en vez de repetir la afirmacion sin mas.
+scenario_declared_phase_contradicted = Scenario(
+    name="42_declared_phase_contradicted",
+    description="El VCF declara cis pero ninguna lectura lleva ambas: Declared Phase lo marca como contradicho",
+    variants=[
+        VcfRecord(pos=28, ref="G", alt="T", genotype="1|0", phase_set=42),
+        VcfRecord(pos=30, ref="T", alt="A", genotype="1|0", phase_set=42),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_left",
+            start=1,
+            length=150,
+            ops=[Op(kind="snv", pos=28, seq="T")],
+            count=10,
+        ),
+        ReadGroup(
+            name_prefix="r_right",
+            start=1,
+            length=150,
+            ops=[Op(kind="snv", pos=30, seq="A")],
+            count=10,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="28, 30",
+            variant_type="SNP/MNV",
+            declared_phase="cis:42;contradicted-by-reads",
+            mnv_phasing_support="0.0000",
+        ),
+    ],
+)
+
+
+# 43. GT sin fasear: el llamador no afirma nada y get_mnv tampoco
+scenario_unphased_declares_nothing = Scenario(
+    name="43_unphased_genotype_declares_nothing",
+    description="GT 1/1 (sin fasear) con PS presente: Declared Phase = '-', porque '/' no es una afirmacion de fase",
+    variants=[
+        VcfRecord(pos=28, ref="G", alt="T", genotype="1/1", phase_set=42),
+        VcfRecord(pos=30, ref="T", alt="A", genotype="1/1", phase_set=42),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_cis",
+            start=1,
+            length=150,
+            ops=[Op(kind="snv", pos=28, seq="T"), Op(kind="snv", pos=30, seq="A")],
+            count=20,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="28, 30",
+            variant_type="SNP/MNV",
+            declared_phase="-",
+        ),
+    ],
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -1711,6 +1844,11 @@ ALL_SCENARIOS = [
     scenario_trans_evidence_reported,
     scenario_singleton_haplotype,
     scenario_singleton_haplotype_opt_in,
+    # fase declarada por el llamador de entrada:
+    scenario_declared_phase_cis,
+    scenario_declared_phase_trans,
+    scenario_declared_phase_contradicted,
+    scenario_unphased_declares_nothing,
 ]
 
 

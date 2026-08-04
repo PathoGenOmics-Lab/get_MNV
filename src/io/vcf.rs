@@ -14,7 +14,7 @@ use std::io::{BufRead, BufReader};
 const GET_MNV_INFO_TAGS: &[&str] = &[
     "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
     "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ", "SO", "IMPACT", "GD",
-    "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "NMD", "HGVSG", "HGVSC",
+    "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "DPHASE", "NMD", "HGVSG", "HGVSC",
 ];
 
 #[derive(Debug, Clone)]
@@ -25,6 +25,72 @@ pub struct VcfPosition {
     pub original_dp: Option<usize>,
     pub original_freq: Option<f64>,
     pub original_info: Option<String>,
+    /// Phase the input caller declared for this allele, from a `|`-separated
+    /// `GT` and the `PS` phase set. `None` when the record is unphased, which
+    /// is the usual case for haploid pathogen callers. get_MNV never phases on
+    /// its own, so this is the caller's claim, not an observation.
+    pub declared_phase: Option<DeclaredPhase>,
+}
+
+/// What the input VCF says about which haplotype carries this allele.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclaredPhase {
+    /// The `PS` value: only alleles sharing it were phased with each other.
+    /// `None` when the genotype is phased but no phase set was given, in which
+    /// case nothing here can be compared across records.
+    pub phase_set: Option<usize>,
+    /// Which haplotype slots of a `|`-separated `GT` carry this record's ALT.
+    /// `1|0` gives `[0]`, `0|1` gives `[1]`, `1|1` gives `[0, 1]`.
+    pub alt_haplotypes: Vec<u8>,
+}
+
+impl DeclaredPhase {
+    /// Whether the caller placed both alleles on at least one shared
+    /// haplotype. Comparable only within a phase set: two records phased in
+    /// different sets say nothing about each other, and neither does an
+    /// unphased one.
+    pub fn shares_haplotype_with(&self, other: &DeclaredPhase) -> Option<bool> {
+        if self.phase_set != other.phase_set {
+            return None;
+        }
+        // Phased with no phase set names no group, so two such records make no
+        // claim about each other.
+        self.phase_set?;
+        Some(
+            self.alt_haplotypes
+                .iter()
+                .any(|slot| other.alt_haplotypes.contains(slot)),
+        )
+    }
+}
+
+/// Read `GT` and `PS` for one sample into a [`DeclaredPhase`].
+///
+/// Only a `|`-separated genotype counts: `/` means the caller did not phase,
+/// and treating it as phase would invent linkage the input never claimed. The
+/// ALT of interest is allele index `alt_index + 1`, since index 0 is REF.
+pub fn parse_declared_phase(
+    genotype: Option<&str>,
+    phase_set: Option<&str>,
+    alt_index: usize,
+) -> Option<DeclaredPhase> {
+    let genotype = genotype?;
+    if !genotype.contains('|') {
+        return None;
+    }
+    let wanted = (alt_index + 1).to_string();
+    let alt_haplotypes = genotype
+        .split('|')
+        .enumerate()
+        .filter_map(|(slot, allele)| (allele == wanted).then_some(slot as u8))
+        .collect::<Vec<_>>();
+    if alt_haplotypes.is_empty() {
+        return None;
+    }
+    Some(DeclaredPhase {
+        phase_set: phase_set.and_then(|value| value.parse::<usize>().ok()),
+        alt_haplotypes,
+    })
 }
 
 impl VcfPosition {
@@ -581,6 +647,9 @@ pub fn load_vcf_positions_by_contig(
             Vec::new()
         };
         let sample_field = sample_index.and_then(|idx| fields.get(9 + idx).copied());
+        let genotype = sample_field.and_then(|sample| get_format_value(&format_keys, sample, "GT"));
+        let phase_set =
+            sample_field.and_then(|sample| get_format_value(&format_keys, sample, "PS"));
 
         for (alt_idx, alt_allele) in alts.iter().enumerate() {
             if alt_allele.is_empty() || *alt_allele == "." {
@@ -621,6 +690,7 @@ pub fn load_vcf_positions_by_contig(
                     original_dp,
                     original_freq,
                     original_info,
+                    declared_phase: parse_declared_phase(genotype, phase_set, alt_idx),
                 });
         }
         if alts.len() > 1 {
@@ -658,6 +728,7 @@ mod tests {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }
     }
 

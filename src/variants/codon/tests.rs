@@ -123,6 +123,7 @@ fn test_vcf_mnv_record_is_decomposed_into_codon_haplotype() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -154,6 +155,7 @@ fn test_transcript_model_groups_mnv_across_exon_junction() {
                 original_dp: None,
                 original_freq: None,
                 original_info: None,
+                declared_phase: None,
             },
             crate::io::VcfPosition {
                 position: 10,
@@ -162,6 +164,7 @@ fn test_transcript_model_groups_mnv_across_exon_junction() {
                 original_dp: None,
                 original_freq: None,
                 original_info: None,
+                declared_phase: None,
             },
         ],
         &reference,
@@ -200,6 +203,7 @@ fn test_transcript_synonymous_snp_is_synonymous() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -227,6 +231,7 @@ fn test_transcript_start_lost_snp_is_start_lost() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -253,6 +258,7 @@ fn test_transcript_model_restored_frame_does_not_mark_downstream_snp_frameshift(
                 original_dp: None,
                 original_freq: None,
                 original_info: None,
+                declared_phase: None,
             },
             crate::io::VcfPosition {
                 position: 20,
@@ -261,6 +267,7 @@ fn test_transcript_model_restored_frame_does_not_mark_downstream_snp_frameshift(
                 original_dp: None,
                 original_freq: None,
                 original_info: None,
+                declared_phase: None,
             },
             crate::io::VcfPosition {
                 position: 23,
@@ -269,6 +276,7 @@ fn test_transcript_model_restored_frame_does_not_mark_downstream_snp_frameshift(
                 original_dp: None,
                 original_freq: None,
                 original_info: None,
+                declared_phase: None,
             },
         ],
         &reference,
@@ -306,6 +314,7 @@ fn test_indel_reports_event_components_and_frameshift_protein_effect() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -338,6 +347,7 @@ fn test_minus_strand_inframe_insertion_is_inframe() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -372,6 +382,7 @@ fn test_minus_strand_legacy_deletion_reports_consistent_codons() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -405,6 +416,7 @@ fn test_plus_strand_insertion_at_internal_exon_junction_is_coding() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -437,6 +449,7 @@ fn test_minus_strand_insertion_at_internal_exon_junction_is_coding() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -467,6 +480,7 @@ fn test_inframe_insertion_creating_stop_is_stop_gained() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -497,6 +511,7 @@ fn test_frameshift_frequency_gate_skips_low_freq_upstream_indel() {
             original_dp: None,
             original_freq: Some(0.05),
             original_info: None,
+            declared_phase: None,
         },
         crate::io::VcfPosition {
             position: 11,
@@ -505,6 +520,7 @@ fn test_frameshift_frequency_gate_skips_low_freq_upstream_indel() {
             original_dp: None,
             original_freq: Some(0.95),
             original_info: None,
+            declared_phase: None,
         },
     ];
 
@@ -603,6 +619,7 @@ fn test_deletion_anchored_before_cds_keeps_protein_effect() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -633,6 +650,7 @@ fn test_insertion_after_cds_end_is_not_coding() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -658,6 +676,7 @@ fn test_insertion_after_codon_end_does_not_mask_that_codon_snp() {
                 original_dp: None,
                 original_freq: None,
                 original_info: None,
+                declared_phase: None,
             },
             crate::io::VcfPosition {
                 position: 9,
@@ -666,6 +685,7 @@ fn test_insertion_after_codon_end_does_not_mask_that_codon_snp() {
                 original_dp: None,
                 original_freq: None,
                 original_info: None,
+                declared_phase: None,
             },
         ],
         &reference,
@@ -695,6 +715,7 @@ fn test_build_phased_indel_haplotype_combines_nearby_snv() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
         crate::io::VcfPosition {
             position: 6,
@@ -703,6 +724,7 @@ fn test_build_phased_indel_haplotype_combines_nearby_snv() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
     ];
 
@@ -746,6 +768,7 @@ fn test_build_phased_indel_haplotype_preserves_deletion_component_coordinate() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
         crate::io::VcfPosition {
             position: 5,
@@ -754,6 +777,7 @@ fn test_build_phased_indel_haplotype_preserves_deletion_component_coordinate() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
     ];
 
@@ -796,6 +820,7 @@ fn test_build_phased_indel_haplotype_combines_two_indels() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
         crate::io::VcfPosition {
             position: 5,
@@ -804,6 +829,7 @@ fn test_build_phased_indel_haplotype_combines_two_indels() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
     ];
 
@@ -847,6 +873,7 @@ fn test_local_haplotype_components_group_without_enumerating_subsets() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
         crate::io::VcfPosition {
             position: 5,
@@ -855,6 +882,7 @@ fn test_local_haplotype_components_group_without_enumerating_subsets() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
         crate::io::VcfPosition {
             position: 6,
@@ -863,6 +891,7 @@ fn test_local_haplotype_components_group_without_enumerating_subsets() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
     ];
 
@@ -892,6 +921,7 @@ fn test_build_phased_indel_haplotype_ignores_distant_snv() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
         crate::io::VcfPosition {
             position: 6,
@@ -900,6 +930,7 @@ fn test_build_phased_indel_haplotype_ignores_distant_snv() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
     ];
 
@@ -995,6 +1026,7 @@ fn test_get_mnv_variants_for_gene_mixed_snps_and_indels() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
         VcfPosition {
             position: 5,
@@ -1003,6 +1035,7 @@ fn test_get_mnv_variants_for_gene_mixed_snps_and_indels() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
     ];
 
@@ -1038,6 +1071,7 @@ fn test_build_intergenic_variant_snp() {
         original_dp: Some(30),
         original_freq: Some(0.8),
         original_info: None,
+        declared_phase: None,
     };
     let v = build_intergenic_variant("chrX", &pos);
     assert_eq!(v.gene, "intergenic");
@@ -1058,6 +1092,7 @@ fn test_build_intergenic_variant_indel() {
         original_dp: None,
         original_freq: None,
         original_info: None,
+        declared_phase: None,
     };
     let v = build_intergenic_variant("chr1", &pos);
     assert_eq!(v.variant_type, VariantType::Indel);
@@ -1197,6 +1232,7 @@ fn test_multiallelic_position_emits_one_row_per_alt() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
         VcfPosition {
             position: 101,
@@ -1205,6 +1241,7 @@ fn test_multiallelic_position_emits_one_row_per_alt() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
     ];
     let seq = "N".repeat(99) + "ATGATGATGATG";
@@ -1242,6 +1279,7 @@ fn test_true_duplicate_position_still_dedup() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
         VcfPosition {
             position: 101,
@@ -1250,6 +1288,7 @@ fn test_true_duplicate_position_still_dedup() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
     ];
     let seq = "N".repeat(99) + "ATGATGATGATG";
@@ -1295,6 +1334,7 @@ fn test_nonsense_snv_far_upstream_of_last_junction_is_nmd_triggering() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -1333,6 +1373,7 @@ fn test_hgvs_coding_descriptor_plus_and_minus_strand() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
         crate::io::VcfPosition {
             position: 2,
@@ -1341,6 +1382,7 @@ fn test_hgvs_coding_descriptor_plus_and_minus_strand() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
     ];
     let plus_variants =
@@ -1363,6 +1405,7 @@ fn test_hgvs_coding_descriptor_plus_and_minus_strand() {
         original_dp: None,
         original_freq: None,
         original_info: None,
+        declared_phase: None,
     }];
     let minus_variants =
         crate::variants::get_mnv_variants_for_gene(&minus, &snv, &minus_ref, "chr1", gc);
@@ -1396,6 +1439,7 @@ fn test_exonic_variant_near_junction_is_splice_region() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -1417,6 +1461,7 @@ fn test_exonic_variant_near_junction_is_splice_region() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -1454,6 +1499,7 @@ fn indel(position: usize, reference: &str, alternate: &str) -> crate::io::VcfPos
         original_dp: None,
         original_freq: Some(1.0),
         original_info: None,
+        declared_phase: None,
     }
 }
 
@@ -1610,6 +1656,7 @@ fn test_both_codon_paths_describe_a_minus_strand_mnv_identically() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
         crate::io::VcfPosition {
             position: 6,
@@ -1618,6 +1665,7 @@ fn test_both_codon_paths_describe_a_minus_strand_mnv_identically() {
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
     ];
 
@@ -1688,6 +1736,7 @@ fn test_minus_strand_insertion_is_complemented_and_placed_between_the_right_resi
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }],
         &reference,
         "chr1",
@@ -1727,6 +1776,7 @@ fn test_insertion_above_the_gene_is_not_coding_on_either_strand() {
                 original_dp: None,
                 original_freq: None,
                 original_info: None,
+                declared_phase: None,
             }],
             &reference,
             "chr1",

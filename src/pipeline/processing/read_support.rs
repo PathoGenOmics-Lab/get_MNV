@@ -106,6 +106,40 @@ pub(super) fn compute_frameshift_phasing(
     Ok(variants::FrameshiftPhasing::from_pairs(pairs))
 }
 
+/// Carry the input caller's own phase claim onto the multi-position rows, and
+/// note where the reads flatly refute it. Run after read counting so both
+/// sides of that comparison are available.
+pub(super) fn annotate_declared_phase(variants: &mut [VariantInfo], snp_list: &[VcfPosition]) {
+    for variant in variants.iter_mut() {
+        let Some(mut call) =
+            variants::declared_phase::declared_phase_for_row(&variant.positions, snp_list)
+        else {
+            continue;
+        };
+        if let (Some(haplotype_reads), Some(informative_reads)) =
+            (variant.mnv_reads, variant.mnv_phasing_reads)
+        {
+            call.contradicted_by_reads = variants::declared_phase::reads_contradict_declared_phase(
+                &call,
+                haplotype_reads,
+                informative_reads,
+            );
+            if call.contradicted_by_reads {
+                log::warn!(
+                    "{}:{:?} was declared {} by the input VCF, but {} of {} reads spanning the \
+                     site carry the whole haplotype.",
+                    variant.chrom,
+                    variant.positions,
+                    call.verdict.as_str(),
+                    haplotype_reads,
+                    informative_reads
+                );
+            }
+        }
+        variant.annotations.declared_phase = Some(call);
+    }
+}
+
 pub(super) fn apply_read_summary(variant: &mut VariantInfo, summary: ReadCountSummary) {
     variant.snp_reads = Some(summary.snp_counts);
     variant.snp_forward_reads = Some(summary.snp_forward_counts);

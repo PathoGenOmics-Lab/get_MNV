@@ -29,6 +29,7 @@ fn snp(position: usize, reference: char, alternate: char) -> VcfPosition {
         original_dp: None,
         original_freq: None,
         original_info: None,
+        declared_phase: None,
     }
 }
 

@@ -49,6 +49,8 @@ pub(super) fn compute_annotations(
         non_coding: None,
         // Filled in by the caller, which knows the upstream indels for this codon.
         frameshift_linkage: Vec::new(),
+        // Filled in by the pipeline, which still has the input records.
+        declared_phase: None,
     }
 }
 

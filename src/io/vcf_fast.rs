@@ -43,7 +43,7 @@ pub fn load_vcf_text(
     let get_mnv_tags: &[&str] = &[
         "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
         "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ", "SO", "IMPACT",
-        "GD", "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "NMD", "HGVSG", "HGVSC",
+        "GD", "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "DPHASE", "NMD", "HGVSG", "HGVSC",
     ];
 
     // Per-allele (Number=A/R/G) INFO fields, so they can be subset to a single
@@ -133,6 +133,10 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
         let ad_idx = format_keys.iter().position(|k| *k == "AD");
         let ao_idx = format_keys.iter().position(|k| *k == "AO");
         let ro_idx = format_keys.iter().position(|k| *k == "RO");
+        let gt_idx = format_keys.iter().position(|k| *k == "GT");
+        let ps_idx = format_keys.iter().position(|k| *k == "PS");
+        let genotype = gt_idx.and_then(|idx| sample_values.get(idx).copied());
+        let phase_set = ps_idx.and_then(|idx| sample_values.get(idx).copied());
 
         for (alt_idx, alt_allele) in alt_alleles.iter().enumerate() {
             if alt_allele.is_empty() || *alt_allele == "." {
@@ -177,6 +181,9 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                     original_dp,
                     original_freq,
                     original_info,
+                    declared_phase: crate::io::vcf::parse_declared_phase(
+                        genotype, phase_set, alt_idx,
+                    ),
                 });
         }
         if alt_alleles.len() > 1 {
@@ -462,7 +469,7 @@ pub fn extract_text_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
     let get_mnv_tags: &[&str] = &[
         "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
         "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ", "SO", "IMPACT",
-        "GD", "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "NMD", "HGVSG", "HGVSC",
+        "GD", "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "DPHASE", "NMD", "HGVSG", "HGVSC",
     ];
     let file = std::fs::File::open(vcf_file)
         .map_err(|e| format!("Cannot open VCF file '{}': {}", vcf_file, e))?;

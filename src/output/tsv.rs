@@ -54,6 +54,7 @@ fn annotation_cells(variant: &VariantInfo, bam_provided: bool) -> Vec<String> {
         grantham,
         variant.annotations.consequence_shift.to_string(),
         dbs,
+        super::common::declared_phase_field(variant),
         phasing,
     ];
     if bam_provided {
@@ -489,6 +490,7 @@ impl TsvWriter {
                 "Grantham",
                 "MNV Consequence Shift",
                 "DBS Class",
+                "Declared Phase",
                 "MNV Phasing Support",
                 "MNV Phasing Reads",
                 "Frameshift Phasing",
@@ -519,6 +521,7 @@ impl TsvWriter {
                 "Grantham",
                 "MNV Consequence Shift",
                 "DBS Class",
+                "Declared Phase",
                 "MNV Phasing Support",
                 "NMD Prediction",
                 "HGVS g.",

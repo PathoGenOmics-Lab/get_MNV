@@ -18,7 +18,8 @@ pub use fasta::{
 };
 pub use validation::get_base_name;
 pub use vcf::{
-    extract_original_info_headers, list_vcf_samples, load_vcf_positions_by_contig, VcfPosition,
+    extract_original_info_headers, list_vcf_samples, load_vcf_positions_by_contig,
+    parse_declared_phase, DeclaredPhase, VcfPosition,
 };
 
 #[cfg(test)]
