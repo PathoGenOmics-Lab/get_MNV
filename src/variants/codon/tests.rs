@@ -1336,3 +1336,167 @@ fn test_exonic_variant_near_junction_is_splice_region() {
     );
     assert_eq!(deep[0].annotations.splice, None);
 }
+
+// ---------------------------------------------------------------------------
+// Indel handling on the SPLICED transcript path
+//
+// The scenario suite exercises frameshift propagation on single-feature
+// (prokaryotic) genes, which take the genomic-coordinate path. The spliced path
+// has its own copy of that logic, and mutation testing showed almost none of its
+// conditionals were distinguished by any test: an indel could have been treated
+// as overlapping every codon, or as propagating in either direction, without a
+// single failure.
+// ---------------------------------------------------------------------------
+
+/// exon 1 = genomic 1-30, intron 31-50, exon 2 = 51-80. Spliced CDS is 60 nt
+/// (20 codons): `ATG` followed by 19 sense codons, no premature stop.
+fn spliced_indel_fixture() -> (crate::variants::Gene, String) {
+    let exon1 = format!("ATG{}", "GCT".repeat(9)); // 30 nt, codons 1-10
+    let intron = "T".repeat(20); // 31-50
+    let exon2 = "GCT".repeat(10); // 30 nt, codons 11-20
+    let gene = spliced_gene("tx", Strand::Plus, &[(1, 30), (51, 80)]);
+    (gene, format!("{exon1}{intron}{exon2}"))
+}
+
+fn indel(position: usize, reference: &str, alternate: &str) -> crate::io::VcfPosition {
+    crate::io::VcfPosition {
+        position,
+        ref_allele: reference.to_string(),
+        alt_allele: alternate.to_string(),
+        original_dp: None,
+        original_freq: Some(1.0),
+        original_info: None,
+    }
+}
+
+fn snv(position: usize, reference: &str, alternate: &str) -> crate::io::VcfPosition {
+    indel(position, reference, alternate)
+}
+
+fn annotate(
+    gene: &crate::variants::Gene,
+    sequence: &str,
+    variants: &[crate::io::VcfPosition],
+) -> Vec<crate::variants::VariantInfo> {
+    crate::variants::get_mnv_variants_for_gene(
+        gene,
+        variants,
+        &crate::io::Reference { sequence },
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    )
+}
+
+#[test]
+fn test_spliced_upstream_frameshift_indel_propagates_to_a_downstream_codon() {
+    let (gene, sequence) = spliced_indel_fixture();
+    // 1 bp deletion at genomic 5 (exon 1, CDS offset 4) plus an SNV in exon 2.
+    let variants = annotate(&gene, &sequence, &[indel(5, "GC", "G"), snv(60, "T", "A")]);
+    let snv_row = variants
+        .iter()
+        .find(|v| v.positions == vec![60])
+        .expect("the downstream SNV must be annotated");
+    assert!(
+        snv_row.aa_changes[0].contains("(fs)"),
+        "an upstream frameshift must reach a codon in the next exon, got {:?}",
+        snv_row.aa_changes
+    );
+}
+
+#[test]
+fn test_spliced_in_frame_upstream_indel_does_not_frameshift_downstream() {
+    let (gene, sequence) = spliced_indel_fixture();
+    // 3 bp deletion: the reading frame downstream is unchanged.
+    let variants = annotate(
+        &gene,
+        &sequence,
+        &[indel(5, "GCTG", "G"), snv(60, "T", "A")],
+    );
+    let snv_row = variants
+        .iter()
+        .find(|v| v.positions == vec![60])
+        .expect("the downstream SNV must be annotated");
+    assert!(
+        !snv_row.aa_changes[0].contains("(fs)"),
+        "an in-frame upstream indel must not frameshift downstream codons, got {:?}",
+        snv_row.aa_changes
+    );
+}
+
+#[test]
+fn test_spliced_downstream_indel_does_not_reach_an_upstream_codon() {
+    let (gene, sequence) = spliced_indel_fixture();
+    // The indel is in exon 2, the SNV back in exon 1: propagation is 5' to 3'
+    // only, so the SNV's codon keeps its ordinary annotation.
+    let variants = annotate(&gene, &sequence, &[snv(5, "G", "A"), indel(60, "TG", "T")]);
+    let snv_row = variants
+        .iter()
+        .find(|v| v.positions == vec![5])
+        .expect("the upstream SNV must be annotated");
+    assert!(
+        !snv_row.aa_changes[0].contains("(fs)"),
+        "a downstream indel must not reach back to an earlier codon, got {:?}",
+        snv_row.aa_changes
+    );
+    assert_ne!(snv_row.change_type, ChangeType::IndelOverlap);
+}
+
+#[test]
+fn test_spliced_indel_marks_only_the_codon_it_overlaps() {
+    let (gene, sequence) = spliced_indel_fixture();
+    // An indel inside codon 2 (CDS offsets 3-5) plus SNVs in codon 2 and in a
+    // codon of the other exon. Only the overlapping codon loses its AA call.
+    let variants = annotate(
+        &gene,
+        &sequence,
+        &[indel(5, "GC", "G"), snv(4, "G", "A"), snv(60, "T", "A")],
+    );
+    let overlapping = variants
+        .iter()
+        .find(|v| v.positions == vec![4])
+        .expect("the SNV sharing the indel's codon must be annotated");
+    assert_eq!(
+        overlapping.change_type,
+        ChangeType::IndelOverlap,
+        "the codon the indel lands in cannot be translated"
+    );
+    let distant = variants
+        .iter()
+        .find(|v| v.positions == vec![60])
+        .expect("the SNV in the other exon must be annotated");
+    assert_ne!(
+        distant.change_type,
+        ChangeType::IndelOverlap,
+        "an indel must not mark codons it does not overlap"
+    );
+}
+
+#[test]
+fn test_spliced_frameshift_gate_suppresses_a_low_frequency_indel() {
+    let (gene, sequence) = spliced_indel_fixture();
+    let mut low_frequency = indel(5, "GC", "G");
+    low_frequency.original_freq = Some(0.10);
+    let config = crate::variants::IndelAnnotationConfig {
+        frameshift_min_freq: 0.5,
+    };
+    let variants = crate::variants::get_mnv_variants_for_gene_with_config(
+        &gene,
+        &[low_frequency, snv(60, "T", "A")],
+        &crate::io::Reference {
+            sequence: &sequence,
+        },
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+        &config,
+        &crate::variants::FrameshiftPhasing::default(),
+    );
+    let snv_row = variants
+        .iter()
+        .find(|v| v.positions == vec![60])
+        .expect("the downstream SNV must be annotated");
+    assert!(
+        !snv_row.aa_changes[0].contains("(fs)"),
+        "an indel below --frameshift-min-freq must not shift downstream codons, got {:?}",
+        snv_row.aa_changes
+    );
+}

@@ -79,7 +79,9 @@ fn indel_stop_effect(reference_protein: &str, alternate_protein: &str) -> Option
     let alternate_stops = alternate_protein.matches('*').count();
     if alternate_stops > reference_stops {
         Some(ChangeType::StopGained)
-    } else if reference_stops > 0 && alternate_stops < reference_stops {
+    } else if alternate_stops < reference_stops {
+        // These are counts, so a reference with no stop at all cannot lose one:
+        // the comparison already carries the guard that used to be written here.
         Some(ChangeType::StopLost)
     } else {
         None

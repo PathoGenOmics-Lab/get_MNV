@@ -15,6 +15,10 @@ minimal_example.tar.gz
 minimal_example/
 /test_pancreas/
 
+# Mutation testing reports (cargo mutants)
+/mutants.out/
+/mutants.out.old/
+
 # Documentation site (MkDocs)
 /.venv-docs/
 /site/

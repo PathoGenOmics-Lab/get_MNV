@@ -1,0 +1,31 @@
+# Mutation testing configuration.
+#
+# `cargo mutants` changes the source (flips a comparison, replaces a function
+# body with a default) and reports whether the test suite notices. A surviving
+# mutant is a piece of logic no test distinguishes: either a test is missing, or
+# the logic does not do anything, and both are worth knowing.
+#
+# It is advisory. A surviving mutant is a question, not a defect, and it never
+# fails CI.
+
+# The scientific core. Mutating a comparison in codon, splice or consequence
+# handling changes what a variant is annotated as; mutating the report builder
+# or the CLI mostly changes formatting, which the suite is not designed to pin
+# down mutant by mutant.
+examine_globs = ["src/variants/**/*.rs", "src/genetic_code.rs", "src/utils.rs"]
+
+# Generated data and fixture plumbing carry no annotation logic.
+exclude_globs = [
+    "src/variants/property_tests.rs",
+    "src/variants/codon/tests.rs",
+    "src/io/annotation/tests.rs",
+]
+
+# Only the unit tests. The scenario and differential suites need samtools and
+# bcftools and take seconds per run, which multiplied by every mutant is hours.
+additional_cargo_test_args = ["--lib"]
+
+# The unit tests finish in well under a second, so anything still running after
+# a minute is a mutant that made the code loop rather than one under test.
+timeout_multiplier = 5.0
+minimum_test_timeout = 60

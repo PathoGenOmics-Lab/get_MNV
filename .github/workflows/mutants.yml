@@ -1,0 +1,55 @@
+name: Mutation testing (advisory)
+
+# `cargo mutants` changes the source (flips a comparison, replaces a function
+# body with a default) and reports whether the test suite notices. A surviving
+# mutant is a piece of logic no test distinguishes: either a test is missing, or
+# the logic does nothing, and both are worth knowing.
+#
+# It runs on its own schedule rather than on every push, because it builds and
+# tests once per mutant and the scientific core has hundreds of them. It never
+# fails the build: a surviving mutant is a question to look at, not a defect.
+#
+# Scope, test selection and timeouts live in `.cargo/mutants.toml` so a local
+# run matches this one.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Mondays at 04:00 UTC.
+    - cron: "0 4 * * 1"
+
+jobs:
+  mutants:
+    name: cargo mutants over the annotation core
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked
+      - name: Run mutation testing
+        # Surviving mutants exit non-zero; that is a report, not a failure.
+        continue-on-error: true
+        run: cargo mutants --no-shuffle
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutants-report
+          path: mutants.out/
+          retention-days: 30
+      - name: Summarise surviving mutants
+        if: always()
+        run: |
+          echo "## Surviving mutants" >> "$GITHUB_STEP_SUMMARY"
+          if [ -s mutants.out/missed.txt ]; then
+            echo "Logic no test distinguishes. Each line is a question: is a test" >> "$GITHUB_STEP_SUMMARY"
+            echo "missing, or does the code not do anything?" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            cat mutants.out/missed.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "None: every mutant in the annotation core was caught." >> "$GITHUB_STEP_SUMMARY"
+          fi
