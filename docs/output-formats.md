@@ -27,9 +27,9 @@ Main columns:
 | `Local SNP AA Changes` | Per-SNP amino acid changes in local numbering. |
 | `Variant Type` | `SNP`, `MNV`, `SNP/MNV`, or `INDEL`. |
 | `Change Type` | Synonymous, non-synonymous, stop gained/lost, unknown, etc. |
-| `Reference Codon` | Original codon. |
-| `SNP Codon` | Codon with individual SNP substitutions. |
-| `MNV Codon` | Codon with all grouped substitutions. |
+| `Reference Codon` | Original codon, in the transcript's own orientation: on a minus-strand gene these are the coding-strand bases, not the genomic ones, so the codon always translates to the amino acid reported beside it. |
+| `SNP Codon` | Codon with individual SNP substitutions, same orientation as `Reference Codon`. |
+| `MNV Codon` | Codon with all grouped substitutions, same orientation as `Reference Codon`. |
 | `Event Class` | Canonical allele event class: `snp`, `mnv`, `insertion`, `deletion`, `delins`, `complex_indel`, or `symbolic`. |
 | `Event Components` | REF/ALT decomposition such as `SNV:10:A>G`, `INS:10:+T`, or `DEL:11-12:TG`. |
 | `SO Term` | Sequence Ontology consequence term (`missense_variant`, `synonymous_variant`, `stop_gained`, `start_lost`, `frameshift_variant`, `inframe_deletion`, `intergenic_variant`, …). Variants near an internal exon-exon junction of a spliced transcript also carry a splice term: `splice_donor_variant` / `splice_acceptor_variant` (the two essential intronic bases at each intron end, `HIGH`) or `splice_region_variant` (the exon's last 3 bases or the intron's 3rd-8th bases, `LOW`). An exonic coding change near a junction is combined, e.g. `missense_variant&splice_region_variant`. A junction means a real intron: CDS segments that abut or overlap (a ribosomal-slippage join such as SARS-CoV-2 ORF1ab) are one continuous reading frame and carry no splice terms. A variant inside an intron but away from its splice sites is `intron_variant` (`MODIFIER`), reported against its gene rather than as intergenic, and a variant in a feature declared non-coding is `non_coding_transcript_exon_variant` (`MODIFIER`) with no amino-acid change. |

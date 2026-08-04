@@ -5,6 +5,8 @@ mod codon;
 pub mod consequence;
 mod event;
 pub mod hgvs;
+#[cfg(test)]
+mod property_tests;
 pub mod splice;
 mod types;
 

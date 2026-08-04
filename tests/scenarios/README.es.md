@@ -109,6 +109,7 @@ Resumen de la aritmética de codones:
 - `geneA` codón N (+): posiciones `(3N-2, 3N-1, 3N)`
 - `geneB` codón N (−): posiciones `(701-3N, 702-3N, 703-3N)`; base del mRNA = RC del genómico
 - `geneC` codón 34 abarca la unión exón 1/intrón/exón 2: pos 900 (exón 1) + pos 1001-1002 (exón 2)
+- Las columnas de codón se reportan en la orientación del transcrito, así que una expectativa de hebra menos es el codón del mRNA (`GCT`), no las bases genómicas (`AGC`)
 
 ## Validated scenarios
 

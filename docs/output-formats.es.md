@@ -27,9 +27,9 @@ Columnas principales:
 | `Local SNP AA Changes` | Cambios de aminoácido por SNP en numeración local. |
 | `Variant Type` | `SNP`, `MNV`, `SNP/MNV` o `INDEL`. |
 | `Change Type` | Sinónimo, no sinónimo, codón de parada ganado/perdido, desconocido, etc. |
-| `Reference Codon` | Codón original. |
-| `SNP Codon` | Codón con sustituciones de SNP individuales. |
-| `MNV Codon` | Codón con todas las sustituciones agrupadas. |
+| `Reference Codon` | Codón original, en la orientación del propio transcrito: en un gen de hebra menos son las bases de la hebra codificante, no las genómicas, de modo que el codón siempre traduce al aminoácido que aparece a su lado. |
+| `SNP Codon` | Codón con las sustituciones SNP individuales, misma orientación que `Reference Codon`. |
+| `MNV Codon` | Codón con todas las sustituciones agrupadas, misma orientación que `Reference Codon`. |
 | `Event Class` | Clase canónica del evento de alelo: `snp`, `mnv`, `insertion`, `deletion`, `delins`, `complex_indel` o `symbolic`. |
 | `Event Components` | Descomposición REF/ALT como `SNV:10:A>G`, `INS:10:+T` o `DEL:11-12:TG`. |
 | `SO Term` | Término de consecuencia Sequence Ontology (`missense_variant`, `synonymous_variant`, `stop_gained`, `start_lost`, `frameshift_variant`, `inframe_deletion`, `intergenic_variant`, …). Las variantes cerca de una unión exón-exón interna de un transcrito con splicing llevan además un término de splice: `splice_donor_variant` / `splice_acceptor_variant` (las dos bases intrónicas esenciales de cada extremo del intrón, `HIGH`) o `splice_region_variant` (las 3 últimas bases del exón o las bases 3ª-8ª del intrón, `LOW`). Un cambio codificante exónico cerca de una unión se combina, p. ej. `missense_variant&splice_region_variant`. Una unión exige un intrón real: los segmentos CDS contiguos o solapados (una unión por deslizamiento ribosómico, como ORF1ab de SARS-CoV-2) forman una pauta de lectura continua y no llevan términos de splice. Una variante dentro de un intrón pero lejos de sus sitios de splice es `intron_variant` (`MODIFIER`), reportada contra su gen y no como intergénica, y una variante en una feature declarada no codificante es `non_coding_transcript_exon_variant` (`MODIFIER`), sin cambio de aminoácido. |

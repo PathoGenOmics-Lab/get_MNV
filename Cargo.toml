@@ -13,6 +13,12 @@ default-run = "get_mnv"
 name = "get_mnv"
 path = "src/main.rs"
 
+[dev-dependencies]
+# Property tests: the strand-symmetry and codon-bounds invariants are checked
+# over generated gene shapes rather than the handful of coordinates a person
+# thinks to write down.
+proptest = "1"
+
 [dependencies]
 clap = { version = "4.5.30", features = ["derive"] }
 env_logger = "0.11.6"

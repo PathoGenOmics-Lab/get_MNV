@@ -215,28 +215,34 @@ pub fn process_codon(
             annotations: crate::variants::VariantAnnotations::default(),
         };
     }
-    let ref_codon = codon_info.original_codon.clone();
+    // Codons are built from the genomic slice, then turned to the transcript's
+    // own orientation before anything reads them. On the minus strand the
+    // genomic bases are the reverse complement of the codon that is actually
+    // translated, so reporting them would put a codon in the row that does not
+    // produce the amino acid beside it (CAT next to Met1, rather than ATG). The
+    // spliced-transcript path and the `HGVS c.` column already use transcript
+    // orientation; this keeps the genomic path consistent with both.
+    let oriented = |codon: &str| match strand {
+        Strand::Minus => reverse_complement(codon),
+        Strand::Plus => codon.to_string(),
+    };
+
+    let ref_codon = oriented(&codon_info.original_codon);
 
     let mnv_snps: Vec<&Snp> = codon_info.codon_list.iter().collect();
-    let mnv_codon = construct_codon(&codon_info, &mnv_snps);
+    let mnv_codon = oriented(&construct_codon(&codon_info, &mnv_snps));
 
     let snp_codons: Vec<String> = codon_info
         .codon_list
         .iter()
-        .map(|snp| construct_codon(&codon_info, &[snp]))
+        .map(|snp| oriented(&construct_codon(&codon_info, &[snp])))
         .collect();
     let snp_codon = snp_codons.join(", ");
 
-    let (orig_aa, mut_aa) = match strand {
-        Strand::Minus => (
-            genetic_code.translate_seq(reverse_complement(&ref_codon).as_bytes()),
-            genetic_code.translate_seq(reverse_complement(&mnv_codon).as_bytes()),
-        ),
-        Strand::Plus => (
-            genetic_code.translate_seq(ref_codon.as_bytes()),
-            genetic_code.translate_seq(mnv_codon.as_bytes()),
-        ),
-    };
+    let (orig_aa, mut_aa) = (
+        genetic_code.translate_seq(ref_codon.as_bytes()),
+        genetic_code.translate_seq(mnv_codon.as_bytes()),
+    );
 
     let local_aa_pos = match strand {
         Strand::Plus => {
@@ -269,11 +275,7 @@ pub fn process_codon(
         .codon_list
         .iter()
         .map(|snp| {
-            let single_codon = construct_codon(&codon_info, &[snp]);
-            let single = match strand {
-                Strand::Minus => reverse_complement(&single_codon),
-                Strand::Plus => single_codon,
-            };
+            let single = oriented(&construct_codon(&codon_info, &[snp]));
             genetic_code
                 .translate_seq(single.as_bytes())
                 .chars()
@@ -367,7 +369,7 @@ pub(super) fn effective_bounds(gene: &Gene) -> (usize, usize) {
 }
 
 // Process one gene at a time to keep memory usage low.
-pub(super) fn codon_bounds_for_position(gene: &Gene, position: usize) -> Option<(usize, usize)> {
+pub(crate) fn codon_bounds_for_position(gene: &Gene, position: usize) -> Option<(usize, usize)> {
     let (eff_start, eff_end) = effective_bounds(gene);
     // The variant fell inside the GFF feature interval but outside the
     // phase-adjusted region (the first `phase` bases of a plus-strand CDS or

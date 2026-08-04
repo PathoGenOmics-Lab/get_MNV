@@ -536,7 +536,7 @@ scenario_fs_del_with_mnv = Scenario(
 # Codon 10 mRNA: GCT -> ACT = Thr. Ala10Thr.
 scenario_minus_snp_simple = Scenario(
     name="10_minus_snp_simple",
-    description="SNP non-sin en geneB (hebra -): pos 673 C>T -> mRNA codon 10 GCT->ACT (Ala10Thr). NOTA: codones mostrados en +strand genomico",
+    description="SNP non-sin en geneB (hebra -): pos 673 C>T -> codon 10 GCT->ACT (Ala10Thr); los codones se reportan en la orientacion del transcrito",
     variants=[VcfRecord(pos=673, ref="C", alt="T")],
     reads=[
         ReadGroup(
@@ -556,8 +556,8 @@ scenario_minus_snp_simple = Scenario(
             aa_changes="Ala10Thr",
             variant_type="SNP",
             change_type="Non-synonymous",
-            reference_codon="AGC",   # genomic (RC=GCT mRNA Ala)
-            snp_codon="AGT",          # genomic (RC=ACT mRNA Thr)
+            reference_codon="GCT",  # orientacion de transcrito: traduce a Ala
+            snp_codon="ACT",        # traduce a Thr, el aminoacido reportado
             snp_reads="20",
             total_reads="20",
             snp_frequencies="1.0000",
@@ -572,7 +572,7 @@ scenario_minus_snp_simple = Scenario(
 # mRNA codon 10: GCT -> TCA = Ser. Ala10Ser.
 scenario_minus_mnv = Scenario(
     name="11_minus_mnv_same_codon",
-    description="MNV en geneB codon 10: pos 671 A>T + pos 673 C>A en cis (mRNA GCT->TCA, Ala10Ser); codones genomicos",
+    description="MNV en geneB codon 10: pos 671 A>T + pos 673 C>A en cis (codon GCT->TCA, Ala10Ser); los codones se reportan en la orientacion del transcrito",
     variants=[
         VcfRecord(pos=671, ref="A", alt="T"),
         VcfRecord(pos=673, ref="C", alt="A"),
@@ -595,8 +595,8 @@ scenario_minus_mnv = Scenario(
             gene="geneB",
             variant_type="SNP/MNV",
             aa_changes="Ala10Ser",
-            reference_codon="AGC",   # genomic (RC=GCT mRNA)
-            mnv_codon="TGA",          # genomic (RC=TCA mRNA Ser)
+            reference_codon="GCT",  # orientacion de transcrito: traduce a Ala
+            mnv_codon="TCA",        # traduce a Ser, el aminoacido reportado
             change_type="Non-synonymous",
             mnv_reads="20",
             total_reads="20",

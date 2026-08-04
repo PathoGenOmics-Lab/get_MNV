@@ -27,6 +27,11 @@ use std::collections::BTreeMap;
 
 use config::indel_passes_frameshift_gate;
 use gene_path::{codon_bounds_for_position, effective_bounds};
+
+// Re-exported so the property tests can check the codon-bounds invariants over
+// generated gene shapes rather than one hard-coded feature.
+#[cfg(test)]
+pub(crate) use gene_path::codon_bounds_for_position as codon_bounds;
 use grouping::{merge_snp_into_groups, variant_event_metadata};
 use indel_effect::{coding_delta_for_variant, protein_effect_for_indel};
 use transcript_model::{

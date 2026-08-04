@@ -107,6 +107,7 @@ Codon math summary:
 - `geneA` codon N (+): positions `(3N-2, 3N-1, 3N)`
 - `geneB` codon N (−): positions `(701-3N, 702-3N, 703-3N)`; mRNA base = RC of genomic
 - `geneC` codon 34 spans the exon 1/intron/exon 2 junction: pos 900 (exon 1) + pos 1001-1002 (exon 2)
+- The codon columns are reported in the transcript's orientation, so a minus-strand expectation is the mRNA codon (`GCT`), not the genomic bases (`AGC`)
 
 ## Validated scenarios
 
