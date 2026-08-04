@@ -46,6 +46,21 @@ jobs:
         # run.py exits non-zero if any scenario FAILs.
         run: python3 tests/scenarios/run.py
 
+  truth:
+    name: Synthetic ground-truth validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --release --locked
+      - name: Compare against the constructed truth
+        # Exits non-zero on any disagreement with the answer the dataset was
+        # built with. Covers the codon-level MNVs the differential oracles
+        # cannot judge.
+        run: python3 tests/truth/run.py
+
   differential:
     name: Differential annotation vs bcftools csq and SnpEff
     runs-on: ubuntu-latest
