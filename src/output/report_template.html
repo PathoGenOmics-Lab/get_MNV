@@ -1805,7 +1805,9 @@ function applyPop(){
   if(!popKey) return;
   var kind = FKIND[popKey], f = {};
   if(kind === "cat"){
-    var set = {};
+    // No prototype: a value named "constructor" or "toString" would otherwise
+    // find an inherited property and pass the filter without being selected.
+    var set = Object.create(null);
     Array.prototype.forEach.call(pop.querySelectorAll('input[type=checkbox]'), function(cb){
       if(cb.checked) set[cb.value] = 1;
     });

@@ -8,6 +8,25 @@ use super::gene_path::effective_bounds;
 use super::protein::{describe_protein_change, translate_cds};
 use super::transcript_model::{coding_sequence_for_gene, first_touched_transcript_offset};
 
+/// Detect whether an indel destroys the initiator codon, i.e. the reference
+/// protein begins with Met and the alternate no longer does.
+///
+/// Substitutions already report this through
+/// [`crate::utils::determine_change_type`], so without this an in-frame indel
+/// that removes the translation start was labelled a plain `inframe_deletion` /
+/// `inframe_insertion` (`MODERATE`) while the equivalent SNV was `start_lost`
+/// (`HIGH`), hiding it from anyone filtering on impact.
+///
+/// `None` when the reference protein does not start with Met, which is how a
+/// partial or phase-shifted CDS model presents itself: there is no initiator to
+/// lose. A downstream Met left at position 1 is not reported as a loss.
+pub(super) fn indel_start_effect(ref_protein: &str, alt_protein: &str) -> Option<ChangeType> {
+    if !ref_protein.starts_with('M') {
+        return None;
+    }
+    (!alt_protein.starts_with('M')).then_some(ChangeType::StartLost)
+}
+
 /// Detect whether an in-frame indel creates or removes a stop codon by
 /// comparing the number of stop residues (`*`) in the reference and alternate
 /// translations. Counting stops (rather than comparing positions) avoids a
@@ -64,15 +83,19 @@ pub(super) fn protein_effect_for_indel(
     let ref_protein = translate_cds(&ref_cds, genetic_code);
     let alt_protein = translate_cds(&alt_cds, genetic_code);
 
-    // For in-frame indels, refine the change type when the event creates or
-    // removes a stop codon (otherwise these high-impact events are hidden under
-    // the generic "In-frame Indel" label). Frameshifts keep the frameshift label
-    // because they almost always introduce a downstream stop, so flagging them
-    // as "stop gained" would be uninformative.
+    // For in-frame indels, refine the change type when the event destroys the
+    // initiator codon or creates/removes a stop (otherwise these high-impact
+    // events are hidden under the generic "In-frame Indel" label). Losing the
+    // start outranks any stop change: without an initiator the ORF is not
+    // translated from here at all. Frameshifts keep the frameshift label because
+    // they almost always introduce a downstream stop, so flagging them as "stop
+    // gained" would be uninformative, and they are already HIGH impact.
     let change_type = if frameshift {
         base_change_type
     } else {
-        indel_stop_effect(&ref_protein, &alt_protein).unwrap_or(base_change_type)
+        indel_start_effect(&ref_protein, &alt_protein)
+            .or_else(|| indel_stop_effect(&ref_protein, &alt_protein))
+            .unwrap_or(base_change_type)
     };
 
     let (protein_change, local_change) =
@@ -160,5 +183,54 @@ pub(super) fn indel_change_type_for_variant(
         ChangeType::FrameshiftIndel
     } else {
         ChangeType::InFrameIndel
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn losing_the_initiator_is_start_lost() {
+        // The whole start codon deleted, and the start codon disrupted in place.
+        assert_eq!(
+            indel_start_effect("MKLA*", "KLA*"),
+            Some(ChangeType::StartLost)
+        );
+        assert_eq!(
+            indel_start_effect("MKLA*", "RVKLA*"),
+            Some(ChangeType::StartLost)
+        );
+    }
+
+    #[test]
+    fn an_intact_initiator_is_not_start_lost() {
+        // Insertion and deletion downstream of the start codon.
+        assert_eq!(indel_start_effect("MKLA*", "MKLGGA*"), None);
+        assert_eq!(indel_start_effect("MKLA*", "MA*"), None);
+        // A Met left at position 1 still initiates translation.
+        assert_eq!(indel_start_effect("MKLA*", "MLA*"), None);
+    }
+
+    #[test]
+    fn a_cds_model_without_an_initiator_is_left_alone() {
+        // A partial or phase-shifted CDS does not begin at the initiator, so
+        // there is no start to lose and the generic in-frame label stands.
+        assert_eq!(indel_start_effect("KLA*", "LA*"), None);
+        assert_eq!(indel_start_effect("", "KLA*"), None);
+    }
+
+    #[test]
+    fn start_loss_outranks_a_stop_change() {
+        // Deleting the start codon of a protein whose stop also moves must not
+        // be reported as a stop change.
+        assert_eq!(
+            indel_start_effect("MKLA*", "KLA"),
+            Some(ChangeType::StartLost)
+        );
+        assert_eq!(
+            indel_stop_effect("MKLA*", "KLA"),
+            Some(ChangeType::StopLost)
+        );
     }
 }
