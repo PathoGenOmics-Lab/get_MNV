@@ -18,7 +18,7 @@ Main columns:
 |---|---|
 | `Chromosome` | Contig name |
 | `Gene` | Gene or feature name. Intergenic variants are marked as `intergenic`. |
-| `Positions` | One position for SNPs, multiple comma-separated positions for MNVs. |
+| `Positions` | One position for SNPs, multiple comma-separated positions for MNVs, in ascending genomic order on both strands. The per-SNV columns (`Reference Bases`, `Base Changes`, `SNP AA Changes`, `SNP Codon`, `Event Components`, and the read-support columns) are parallel arrays in that same order. |
 | `Reference Bases` | Reference bases at those positions. |
 | `Base Changes` | Alternative bases. |
 | `AA Changes` | Amino acid change after combining all SNVs in the codon. |

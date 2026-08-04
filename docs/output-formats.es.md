@@ -18,7 +18,7 @@ Columnas principales:
 |---|---|
 | `Chromosome` | Nombre del contig |
 | `Gene` | Nombre del gen o de la característica. Las variantes intergénicas se marcan como `intergenic`. |
-| `Positions` | Una posición para los SNP y varias posiciones separadas por comas para los MNV. |
+| `Positions` | Una posición para los SNP y varias posiciones separadas por comas para los MNV, en orden genómico ascendente en ambas hebras. Las columnas por SNV (`Reference Bases`, `Base Changes`, `SNP AA Changes`, `SNP Codon`, `Event Components` y las de soporte de lecturas) son arrays paralelos en ese mismo orden. |
 | `Reference Bases` | Bases de referencia en esas posiciones. |
 | `Base Changes` | Bases alternativas. |
 | `AA Changes` | Cambio de aminoácido tras combinar todos los SNV del codón. |

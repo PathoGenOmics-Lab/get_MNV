@@ -1500,3 +1500,76 @@ fn test_spliced_frameshift_gate_suppresses_a_low_frequency_indel() {
         snv_row.aa_changes
     );
 }
+
+/// The genomic-coordinate path and the spliced-transcript path must describe the
+/// same variant identically. They are two implementations of one question, and
+/// every divergence found so far has been a bug in one of them: the codon
+/// orientation, and the order of the per-SNV columns on a minus-strand MNV.
+///
+/// `Positions` is a coordinate column, so both emit ascending genomic order, and
+/// the parallel per-SNV columns follow it.
+#[test]
+fn test_both_codon_paths_describe_a_minus_strand_mnv_identically() {
+    // geneM on the minus strand: the mRNA is the reverse complement of 1..12.
+    let sequence = "CATAGCAGCCAT";
+    let reference = crate::io::Reference { sequence };
+    // Two SNVs in the same codon, given to the annotator in genomic order.
+    let variants = [
+        crate::io::VcfPosition {
+            position: 4,
+            ref_allele: "A".to_string(),
+            alt_allele: "C".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        },
+        crate::io::VcfPosition {
+            position: 6,
+            ref_allele: "C".to_string(),
+            alt_allele: "A".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        },
+    ];
+
+    // No transcript identifier: the genomic-coordinate path.
+    let genomic = single_exon_gene("geneM", 1, 12, Strand::Minus);
+    // One CDS segment under a transcript identifier: the spliced path, over the
+    // very same coding sequence.
+    let transcript = transcript_gene("geneM", Strand::Minus, &[(1, 12)]);
+
+    let from_genomic = crate::variants::get_mnv_variants_for_gene(
+        &genomic,
+        &variants,
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+    let from_transcript = crate::variants::get_mnv_variants_for_gene(
+        &transcript,
+        &variants,
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+
+    assert_eq!(from_genomic.len(), from_transcript.len());
+    for (g, t) in from_genomic.iter().zip(from_transcript.iter()) {
+        assert_eq!(g.positions, t.positions, "positions");
+        assert_eq!(g.positions, vec![4, 6], "ascending genomic order");
+        assert_eq!(g.ref_bases, t.ref_bases, "reference bases");
+        assert_eq!(g.base_changes, t.base_changes, "alternate bases");
+        assert_eq!(g.aa_changes, t.aa_changes, "amino-acid change");
+        assert_eq!(g.snp_aa_changes, t.snp_aa_changes, "per-SNV amino acids");
+        assert_eq!(g.change_type, t.change_type, "change type");
+        assert_eq!(g.ref_codon, t.ref_codon, "reference codon");
+        assert_eq!(g.snp_codon, t.snp_codon, "per-SNV codons");
+        assert_eq!(g.mnv_codon, t.mnv_codon, "combined codon");
+        assert_eq!(g.event_components, t.event_components, "event components");
+        assert_eq!(
+            g.annotations.hgvs_c, t.annotations.hgvs_c,
+            "HGVS coding descriptor"
+        );
+    }
+}

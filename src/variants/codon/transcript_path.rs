@@ -55,7 +55,6 @@ pub(super) fn process_transcript_codon(
         .iter()
         .map(|snp| construct_transcript_codon(ref_codon, &[snp]))
         .collect::<Vec<_>>();
-    let snp_codon = snp_codons.join(", ");
 
     let orig_aa = genetic_code.translate_seq(ref_codon.as_bytes());
     let mut_aa = genetic_code.translate_seq(mnv_codon.as_bytes());
@@ -109,16 +108,46 @@ pub(super) fn process_transcript_codon(
         .map(|snp| snp.snp.clone())
         .collect::<Vec<_>>();
 
+    // The per-SNV columns are emitted in ascending genomic order, not the
+    // transcript order the codon was built in. `Positions` is a coordinate
+    // column: the genomic-coordinate path already orders it that way, and
+    // `HGVS g.` on the same row is always ascending, so keeping transcript order
+    // here made a minus-strand MNV contradict its own row and change order
+    // depending on whether the annotation was a TSV or a GFF transcript.
+    let mut output_order: Vec<usize> = (0..codon_snps.len()).collect();
+    output_order.sort_by_key(|&idx| codon_snps[idx].snp.position);
+    let snp_codon = output_order
+        .iter()
+        .map(|&idx| snp_codons[idx].clone())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let ordered_positions = output_order
+        .iter()
+        .map(|&idx| codon_snps[idx].snp.position)
+        .collect::<Vec<_>>();
+    let ordered_ref_bases = output_order
+        .iter()
+        .map(|&idx| codon_snps[idx].snp.ref_base.clone())
+        .collect::<Vec<_>>();
+    let ordered_base_changes = output_order
+        .iter()
+        .map(|&idx| codon_snps[idx].snp.base.clone())
+        .collect::<Vec<_>>();
+    let ordered_snp_changes = output_order
+        .iter()
+        .map(|&idx| snp_changes[idx].clone())
+        .collect::<Vec<_>>();
+
     VariantInfo {
         chrom: chrom.to_string(),
         gene: gene.name.clone(),
-        positions: codon_snps.iter().map(|s| s.snp.position).collect(),
-        ref_bases: codon_snps.iter().map(|s| s.snp.ref_base.clone()).collect(),
-        base_changes: codon_snps.iter().map(|s| s.snp.base.clone()).collect(),
+        positions: ordered_positions,
+        ref_bases: ordered_ref_bases,
+        base_changes: ordered_base_changes,
         aa_changes: vec![combined_aa.clone()],
-        snp_aa_changes: snp_changes.clone(),
+        snp_aa_changes: ordered_snp_changes.clone(),
         aa_changes_local: vec![combined_aa],
-        snp_aa_changes_local: snp_changes,
+        snp_aa_changes_local: ordered_snp_changes,
         variant_type: if codon_snps.len() == 1 {
             VariantType::Snp
         } else {
@@ -148,9 +177,12 @@ pub(super) fn process_transcript_codon(
         } else {
             "mnv".to_string()
         }),
-        event_components: codon_snps
+        event_components: output_order
             .iter()
-            .map(|s| format!("SNV:{}:{}>{}", s.snp.position, s.snp.ref_base, s.snp.base))
+            .map(|&idx| {
+                let s = &codon_snps[idx];
+                format!("SNV:{}:{}>{}", s.snp.position, s.snp.ref_base, s.snp.base)
+            })
             .collect(),
         annotations,
     }
