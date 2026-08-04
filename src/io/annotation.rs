@@ -21,6 +21,8 @@ mod tests;
 
 pub use format::{detect_annotation_format, AnnotationFormat};
 
+#[cfg(test)]
+pub(crate) use cds_model::parse_gff_gene_records_from_reader;
 pub(crate) use cds_model::{
     assign_cds_protein_offsets, build_transcript_cds_records, parse_gff_gene_records,
 };

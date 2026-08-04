@@ -29,7 +29,17 @@ pub(crate) fn parse_gff_gene_records(
     feature_types: &[String],
 ) -> AppResult<Vec<GffGeneRecord>> {
     let file = File::open(genes_file)?;
-    let reader = BufReader::new(file);
+    parse_gff_gene_records_from_reader(BufReader::new(file), feature_types)
+}
+
+/// The parsing itself, over any reader. Split out from the file entry point so
+/// annotation can be parsed from memory, which is how test fixtures are built:
+/// a fixture that goes through the real parser cannot encode a gene model the
+/// parser would never produce.
+pub(crate) fn parse_gff_gene_records_from_reader<R: BufRead>(
+    reader: R,
+    feature_types: &[String],
+) -> AppResult<Vec<GffGeneRecord>> {
     let mut records = Vec::new();
 
     for (line_idx, line) in reader.lines().enumerate() {

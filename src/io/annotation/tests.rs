@@ -1,5 +1,6 @@
 use super::*;
-use crate::variants::{Biotype, CdsSegment};
+use crate::test_support::{single_exon_gene, spliced_gene};
+use crate::variants::Biotype;
 
 // ---- decode_percent_encoded ----
 
@@ -206,6 +207,8 @@ fn record(
     ft: &str,
     tid: Option<&str>,
 ) -> GffGeneRecord {
+    // Written by hand on purpose: this builds the raw record the GFF parser
+    // emits, in order to test the aggregation step that runs on top of it.
     GffGeneRecord {
         contig: contig.to_string(),
         gene: Gene {
@@ -480,28 +483,8 @@ fn test_build_transcript_cds_records_collapses_exons() {
 #[test]
 fn test_filter_genes_with_snps() {
     let genes = vec![
-        Gene {
-            name: "gene1".into(),
-            start: 100,
-            end: 200,
-            strand: crate::variants::Strand::Plus,
-            phase: 0,
-            protein_offset: 0,
-            transcript_id: None,
-            cds_segments: Vec::new(),
-            biotype: Biotype::ProteinCoding,
-        },
-        Gene {
-            name: "gene2".into(),
-            start: 500,
-            end: 600,
-            strand: crate::variants::Strand::Minus,
-            phase: 0,
-            protein_offset: 0,
-            transcript_id: None,
-            cds_segments: Vec::new(),
-            biotype: Biotype::ProteinCoding,
-        },
+        single_exon_gene("gene1", 100, 200, crate::variants::Strand::Plus),
+        single_exon_gene("gene2", 500, 600, crate::variants::Strand::Minus),
     ];
     let snps = vec![VcfPosition {
         position: 150,
@@ -519,23 +502,11 @@ fn test_filter_genes_with_snps() {
 #[test]
 fn test_transcript_gene_filter_keeps_intronic_variants() {
     // Two-exon transcript with a large intron (genomic 101..149).
-    let genes = vec![Gene {
-        name: "tx_gene".into(),
-        start: 1,
-        end: 200,
-        strand: crate::variants::Strand::Plus,
-        phase: 0,
-        protein_offset: 0,
-        transcript_id: Some("tx1".to_string()),
-        cds_segments: vec![
-            CdsSegment { start: 1, end: 100 },
-            CdsSegment {
-                start: 150,
-                end: 200,
-            },
-        ],
-        biotype: Biotype::ProteinCoding,
-    }];
+    let genes = vec![spliced_gene(
+        "tx_gene",
+        crate::variants::Strand::Plus,
+        &[(1, 100), (150, 200)],
+    )];
     let snp = |position: usize| VcfPosition {
         position,
         ref_allele: "A".to_string(),

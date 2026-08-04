@@ -112,29 +112,13 @@ pub fn is_intronic_position(gene: &Gene, position: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::variants::{Biotype, CdsSegment};
-
-    fn gene(strand: Strand, segments: &[(usize, usize)]) -> Gene {
-        Gene {
-            name: "t".to_string(),
-            start: segments.iter().map(|s| s.0).min().unwrap_or(0),
-            end: segments.iter().map(|s| s.1).max().unwrap_or(0),
-            strand,
-            phase: 0,
-            protein_offset: 0,
-            transcript_id: Some("tx".to_string()),
-            cds_segments: segments
-                .iter()
-                .map(|&(start, end)| CdsSegment { start, end })
-                .collect(),
-            biotype: Biotype::ProteinCoding,
-        }
-    }
+    use crate::test_support::{joined_gene, spliced_gene, transcript_gene};
+    use crate::variants::Biotype;
 
     #[test]
     fn plus_strand_donor_acceptor_and_regions() {
         // exon1 801-900, intron 901-1000, exon2 1001-1200.
-        let g = gene(Strand::Plus, &[(801, 900), (1001, 1200)]);
+        let g = spliced_gene("t", Strand::Plus, &[(801, 900), (1001, 1200)]);
         // Donor: first two intronic bases after exon1.
         assert_eq!(
             splice_consequence_for_position(&g, 901),
@@ -177,7 +161,7 @@ mod tests {
         // Intron 901-1000. In transcript orientation the donor is the low end of
         // the intron (just below 1001) and the acceptor the high end (just above
         // 900).
-        let g = gene(Strand::Minus, &[(1001, 1200), (801, 900)]);
+        let g = spliced_gene("t", Strand::Minus, &[(1001, 1200), (801, 900)]);
         assert_eq!(
             splice_consequence_for_position(&g, 1000),
             Some(SpliceConsequence::Donor)
@@ -199,9 +183,21 @@ mod tests {
 
     #[test]
     fn single_exon_has_no_splice_sites() {
-        let g = gene(Strand::Plus, &[(801, 900)]);
+        let g = transcript_gene("t", Strand::Plus, &[(801, 900)]);
         assert_eq!(splice_consequence_for_position(&g, 901), None);
-        let empty = gene(Strand::Plus, &[]);
+        // Written by hand on purpose: no annotation file produces a CDS record
+        // with zero segments, so this one cannot come from the parser.
+        let empty = Gene {
+            name: "t".to_string(),
+            start: 801,
+            end: 900,
+            strand: Strand::Plus,
+            phase: 0,
+            protein_offset: 0,
+            transcript_id: Some("tx".to_string()),
+            cds_segments: Vec::new(),
+            biotype: Biotype::ProteinCoding,
+        };
         assert_eq!(splice_consequence_for_position(&empty, 901), None);
     }
 
@@ -209,7 +205,7 @@ mod tests {
     fn abutting_segments_are_not_a_junction() {
         // Two CDS rows describing one continuous reading frame: no intron, so
         // the coding bases around the boundary are not splice sites.
-        let g = gene(Strand::Plus, &[(801, 900), (901, 1200)]);
+        let g = joined_gene("t", Strand::Plus, &[(801, 900), (901, 1200)]);
         for pos in [899, 900, 901, 902, 903, 905] {
             assert_eq!(
                 splice_consequence_for_position(&g, pos),
@@ -223,7 +219,7 @@ mod tests {
     fn ribosomal_slippage_join_is_not_a_junction() {
         // SARS-CoV-2 ORF1ab is annotated `join(266..13468,13468..21555)`: the
         // segments overlap by the re-read base, and nothing is spliced out.
-        let g = gene(Strand::Plus, &[(266, 13468), (13468, 21555)]);
+        let g = joined_gene("t", Strand::Plus, &[(266, 13468), (13468, 21555)]);
         for pos in [13466, 13467, 13469, 13470, 13473] {
             assert_eq!(
                 splice_consequence_for_position(&g, pos),
@@ -237,7 +233,7 @@ mod tests {
     fn a_real_intron_beside_a_slippage_join_still_yields_splice_sites() {
         // exon 1 (801-900), a real intron, exon 2 (1001-1200) continued by a
         // joined segment (1201-1400). Only the real intron has splice sites.
-        let g = gene(Strand::Plus, &[(801, 900), (1001, 1200), (1201, 1400)]);
+        let g = transcript_gene("t", Strand::Plus, &[(801, 900), (1001, 1200), (1201, 1400)]);
         assert_eq!(
             splice_consequence_for_position(&g, 901),
             Some(SpliceConsequence::Donor)
@@ -253,7 +249,7 @@ mod tests {
     #[test]
     fn intronic_positions_are_inside_a_real_intron() {
         // exon1 801-900, intron 901-1000, exon2 1001-1200.
-        let g = gene(Strand::Plus, &[(801, 900), (1001, 1200)]);
+        let g = spliced_gene("t", Strand::Plus, &[(801, 900), (1001, 1200)]);
         for pos in [901, 950, 1000] {
             assert!(is_intronic_position(&g, pos), "{pos} is in the intron");
         }
@@ -263,7 +259,7 @@ mod tests {
 
         // Minus strand: transcript order is descending, the intron is the same
         // genomic interval.
-        let m = gene(Strand::Minus, &[(1001, 1200), (801, 900)]);
+        let m = spliced_gene("t", Strand::Minus, &[(1001, 1200), (801, 900)]);
         for pos in [901, 950, 1000] {
             assert!(is_intronic_position(&m, pos), "{pos} is in the intron");
         }
@@ -275,12 +271,12 @@ mod tests {
     fn an_unspliced_transcript_has_no_intronic_positions() {
         // Single segment, abutting segments and a slippage join all lack introns,
         // so no position between or around them is intronic.
-        let single = gene(Strand::Plus, &[(801, 900)]);
+        let single = transcript_gene("t", Strand::Plus, &[(801, 900)]);
         assert!(!is_intronic_position(&single, 950));
-        let abutting = gene(Strand::Plus, &[(801, 900), (901, 1200)]);
+        let abutting = joined_gene("t", Strand::Plus, &[(801, 900), (901, 1200)]);
         assert!(!is_intronic_position(&abutting, 900));
         assert!(!is_intronic_position(&abutting, 901));
-        let slippage = gene(Strand::Plus, &[(266, 13468), (13468, 21555)]);
+        let slippage = joined_gene("t", Strand::Plus, &[(266, 13468), (13468, 21555)]);
         assert!(!is_intronic_position(&slippage, 13468));
         assert!(!is_intronic_position(&slippage, 13469));
     }
@@ -288,7 +284,7 @@ mod tests {
     #[test]
     fn minus_strand_slippage_join_is_not_a_junction() {
         // Transcript order descending: 1001-1200 then 800-1000 (abutting).
-        let g = gene(Strand::Minus, &[(1001, 1200), (800, 1000)]);
+        let g = joined_gene("t", Strand::Minus, &[(1001, 1200), (800, 1000)]);
         for pos in [999, 1000, 1001, 1002] {
             assert_eq!(
                 splice_consequence_for_position(&g, pos),

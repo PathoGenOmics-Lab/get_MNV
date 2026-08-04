@@ -120,7 +120,8 @@ pub(super) fn indel_nmd_prediction(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::variants::{Biotype, CdsSegment, Strand};
+    use crate::test_support::{joined_gene, spliced_gene, transcript_gene};
+    use crate::variants::Strand;
 
     /// Length of the intron separating the two exons of the test transcript.
     /// The exons must be genuinely separated, otherwise the transcript is an
@@ -130,28 +131,18 @@ mod tests {
     /// A two-exon plus-strand transcript: exon 1 spans genomic 1..=exon1_len, an
     /// intron follows, then exon 2 spans `exon2_len` bases. Coding length is
     /// exon1+exon2, so CDS offsets are unaffected by the intron.
+    ///
+    /// Built through `spliced_gene`, which refuses segments that are not
+    /// separated by an intron. The hand-written version of this helper produced
+    /// abutting exons, so every NMD test below was silently asserting the
+    /// behaviour of a transcript with no exon-exon junction at all.
     fn two_exon_gene(exon1_len: usize, exon2_len: usize) -> Gene {
         let exon2_start = exon1_len + INTRON_LEN + 1;
-        Gene {
-            name: "t".to_string(),
-            start: 1,
-            end: exon2_start + exon2_len - 1,
-            strand: Strand::Plus,
-            phase: 0,
-            protein_offset: 0,
-            transcript_id: Some("tx".to_string()),
-            cds_segments: vec![
-                CdsSegment {
-                    start: 1,
-                    end: exon1_len,
-                },
-                CdsSegment {
-                    start: exon2_start,
-                    end: exon2_start + exon2_len - 1,
-                },
-            ],
-            biotype: Biotype::ProteinCoding,
-        }
+        spliced_gene(
+            "t",
+            Strand::Plus,
+            &[(1, exon1_len), (exon2_start, exon2_start + exon2_len - 1)],
+        )
     }
 
     #[test]
@@ -198,11 +189,16 @@ mod tests {
 
     #[test]
     fn single_exon_transcript_has_no_prediction() {
-        let mut gene = two_exon_gene(120, 60);
-        gene.cds_segments.truncate(1);
+        let gene = transcript_gene("t", Strand::Plus, &[(1, 120)]);
         assert_eq!(snv_mnv_nmd_prediction(&gene, 30), None);
-        gene.cds_segments.clear();
-        assert_eq!(snv_mnv_nmd_prediction(&gene, 30), None);
+
+        // Written by hand on purpose: no annotation file produces a CDS record
+        // with zero segments, so this one cannot come from the parser.
+        let empty = Gene {
+            cds_segments: Vec::new(),
+            ..transcript_gene("t", Strand::Plus, &[(1, 120)])
+        };
+        assert_eq!(snv_mnv_nmd_prediction(&empty, 30), None);
     }
 
     #[test]
@@ -210,22 +206,15 @@ mod tests {
         // A CDS annotated as a slippage join (SARS-CoV-2 ORF1ab style) has two
         // segments but no intron, so there is no exon-exon junction and no NMD
         // prediction to make.
-        let mut gene = two_exon_gene(120, 60);
         // Abutting segments: 1-120 then 121-180.
-        gene.cds_segments[1] = CdsSegment {
-            start: 121,
-            end: 180,
-        };
-        assert_eq!(last_exon_junction_offset(&gene), None);
-        assert_eq!(snv_mnv_nmd_prediction(&gene, 30), None);
+        let abutting = joined_gene("t", Strand::Plus, &[(1, 120), (121, 180)]);
+        assert_eq!(last_exon_junction_offset(&abutting), None);
+        assert_eq!(snv_mnv_nmd_prediction(&abutting, 30), None);
 
         // Overlapping segments, as in `join(266..13468,13468..21555)`.
-        gene.cds_segments[1] = CdsSegment {
-            start: 120,
-            end: 180,
-        };
-        assert_eq!(last_exon_junction_offset(&gene), None);
-        assert_eq!(snv_mnv_nmd_prediction(&gene, 30), None);
+        let overlapping = joined_gene("t", Strand::Plus, &[(1, 120), (120, 180)]);
+        assert_eq!(last_exon_junction_offset(&overlapping), None);
+        assert_eq!(snv_mnv_nmd_prediction(&overlapping, 30), None);
     }
 
     #[test]
@@ -233,15 +222,7 @@ mod tests {
         // exon 1 (1-120), intron, exon 2 (201-260), then a slippage join
         // continuing at 261-320. The last junction is the start of exon 2 at CDS
         // offset 120, not the start of the trailing joined segment at offset 180.
-        let mut gene = two_exon_gene(120, 60);
-        gene.cds_segments[1] = CdsSegment {
-            start: 201,
-            end: 260,
-        };
-        gene.cds_segments.push(CdsSegment {
-            start: 261,
-            end: 320,
-        });
+        let gene = transcript_gene("t", Strand::Plus, &[(1, 120), (201, 260), (261, 320)]);
         assert_eq!(last_exon_junction_offset(&gene), Some(120));
         // 90 nt upstream of that junction still triggers NMD.
         assert_eq!(

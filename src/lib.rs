@@ -11,6 +11,8 @@ pub mod io;
 pub mod output;
 pub mod pipeline;
 pub mod read_count;
+#[cfg(test)]
+pub mod test_support;
 pub mod utils;
 pub mod variants;
 
