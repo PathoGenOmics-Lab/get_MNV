@@ -333,6 +333,26 @@ def expected_indel(
     # deleted and the rest of ALT is inserted after the anchor.
     deleted = set(range(position + 1, position + len(ref_allele)))
     inserted_after = {str(position): alt_allele[1:]} if len(alt_allele) > 1 else {}
+
+    if inserted_after:
+        # An insertion goes into the gap between genomic p and p+1, and that gap
+        # is only inside the coding sequence when both bases are. At the CDS
+        # terminus it is not: on the plus strand the highest coordinate is the
+        # last transcript base and the gap above it is 3' UTR, while on the minus
+        # strand that same coordinate is the *first* transcript base and the gap
+        # is 5' UTR. Either way the inserted bases are not translated, and there
+        # is no coding consequence for this suite to assert.
+        coding = set(gene.cds_positions())
+        # Any other exon end is an internal junction: in the spliced mRNA the
+        # inserted bases land between two exons and are transcribed. Only the
+        # gene's highest coordinate is outside, on either strand, because an
+        # insertion anchored there always inserts above the gene.
+        highest = gene.segments[-1][1]
+        internal_junction = any(
+            position == end and end != highest for _, end in gene.segments
+        )
+        if not ((position in coding and position + 1 in coding) or internal_junction):
+            return None
     reference_cds = gene.cds(genome)
     alternate_cds = gene.cds_with_indel(genome, deleted, inserted_after)
 
@@ -391,16 +411,14 @@ def build_indel_cases(genome: str, genes: list[Gene]) -> list[IndelCase]:
         for segment_start, segment_end in gene.segments:
             # Anchors spread through the exon, kept clear of its edges so the
             # deleted span stays inside the CDS.
-            span = segment_end - segment_start
-            # Both edges of the exon as well as the middle: the edges are where
-            # the initiator and the terminator codons live, and a start lost or
-            # a stop lost is exactly the label an indel path can get wrong.
-            anchors = [
-                segment_start + offset
-                for offset in (0, 1, 2, 5, span // 3, span // 2, span - 8, span - 5, span - 4)
-                if 0 <= offset <= span - 4
-            ]
-            for anchor in sorted(set(anchors)):
+            # Every position of every exon. Where an insertion goes is the
+            # subtlest decision in the whole indel path: the bases must be
+            # reverse-complemented on the minus strand, they must land between
+            # the right two residues, and the gap above the gene's highest
+            # coordinate is outside the CDS on *either* strand, because there it
+            # is the 3' end of a plus-strand transcript and the 5' end of a minus
+            # one. Sampling anchors would leave those edges untested.
+            for anchor in range(segment_start, segment_end + 1):
                 for length in (1, 2, 3):
                     reference = genome[anchor - 1 : anchor + length]
                     case = expected_indel(

@@ -44,9 +44,13 @@ Unos 1560 casos, cada uno como su propio VCF para que no se interfieran. De cada
 uno se comprueban gen, cambio de aminoácido, tipo de cambio, codón de
 referencia, codón alternativo y el descriptor `HGVS c.`.
 
-Más 324 indels: deleciones e inserciones de 1, 2 y 3 bases en anclas repartidas
-por cada exón, incluidos ambos bordes, donde viven el codón iniciador y el de
-parada. Su expectativa sale de la misma retraducción, aplicando el indel en el
+Más 2130 indels: deleciones e inserciones de 1, 2 y 3 bases en **cada posición
+de cada exón**. Dónde va una inserción es la decisión más sutil de todo el
+camino de indels, así que no se muestrea: las bases deben ir en complemento
+inverso en la hebra menos, deben caer entre los dos residuos correctos, y el
+hueco por encima de la coordenada más alta del gen queda fuera del CDS en
+*ambas* hebras, porque ahí es el extremo 3' de un transcrito de hebra más y el
+5' de uno de hebra menos. Con anclas repartidas esos bordes quedarían sin probar. Su expectativa sale de la misma retraducción, aplicando el indel en el
 espacio de coordenadas del CDS y no recortando el genoma, porque las bases de
 alrededor conservan sus coordenadas. Se comprueban tipo de cambio, clase de
 evento y ambos codones; la notación HGVS de proteína para indels es formato

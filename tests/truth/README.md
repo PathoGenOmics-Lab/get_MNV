@@ -43,9 +43,13 @@ Around 1560 cases, each run as its own VCF so no two expectations interfere.
 Each is checked on gene, amino-acid change, change type, reference codon,
 alternate codon, and the HGVS `c.` descriptor.
 
-Plus 324 indels: deletions and insertions of 1, 2 and 3 bases at anchors spread
-through every exon, including both edges where the initiator and terminator
-codons live. Their expectation comes from the same re-translation, with the
+Plus 2130 indels: deletions and insertions of 1, 2 and 3 bases at **every
+position of every exon**. Where an insertion goes is the subtlest decision in
+the indel path, so it is not sampled: the bases must be reverse-complemented on
+the minus strand, they must land between the right two residues, and the gap
+above the gene's highest coordinate is outside the CDS on *either* strand,
+because there it is the 3' end of a plus-strand transcript and the 5' end of a
+minus one. Anchors spread through the exon would leave those edges untested. Their expectation comes from the same re-translation, with the
 indel applied in CDS coordinate space rather than by cutting the genome, since
 the surrounding bases keep their coordinates. Checked on change type, event
 class and both codons; the HGVS protein notation for indels is get_MNV's own

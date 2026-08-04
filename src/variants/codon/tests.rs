@@ -1573,3 +1573,84 @@ fn test_both_codon_paths_describe_a_minus_strand_mnv_identically() {
         );
     }
 }
+
+/// Where an insertion goes is the subtlest decision in the indel path, and on
+/// the minus strand it has two parts that can each be wrong on their own: the
+/// inserted bases must be reverse-complemented, and they must land between the
+/// right two residues.
+///
+/// Worked through by hand. The genome is `TTAAAATTTCAT`; on the minus strand
+/// that reads `ATG AAA TTT TAA`, so Met-Lys-Phe-stop. A VCF insertion of `CCC`
+/// anchored at genomic 9 drops those bases into the gap between genomic 9 and
+/// 10. The transcript walks 10 before 9, so in mRNA orientation the gap sits
+/// straight after the ATG, and the bases arrive reverse-complemented as `GGG`:
+/// one glycine between Met1 and Lys2.
+#[test]
+fn test_minus_strand_insertion_is_complemented_and_placed_between_the_right_residues() {
+    let reference = crate::io::Reference {
+        sequence: "TTAAAATTTCAT",
+    };
+    let gene = single_exon_gene("geneM", 1, 12, Strand::Minus);
+    let variants = crate::variants::get_mnv_variants_for_gene(
+        &gene,
+        &[crate::io::VcfPosition {
+            position: 9,
+            ref_allele: "T".to_string(),
+            alt_allele: "TCCC".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+        }],
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+
+    assert_eq!(variants.len(), 1);
+    let variant = &variants[0];
+    assert_eq!(
+        variant.aa_changes,
+        vec!["Met1_Lys2insGly".to_string()],
+        "a glycine between Met1 and Lys2, not a proline: the genomic CCC is GGG \
+         in the transcript"
+    );
+    assert_eq!(variant.change_type, ChangeType::InFrameIndel);
+    // The event keeps the genomic-strand bases, which is what a coordinate
+    // column should report.
+    assert_eq!(variant.event_components, vec!["INS:9:+CCC".to_string()]);
+}
+
+/// An insertion anchored at the gene's highest coordinate falls outside the
+/// coding sequence on either strand, and for opposite reasons: on the plus
+/// strand that base is the last of the transcript, so the gap above it is 3'
+/// UTR; on the minus strand it is the *first*, so the same gap is 5' UTR.
+#[test]
+fn test_insertion_above_the_gene_is_not_coding_on_either_strand() {
+    let reference = crate::io::Reference {
+        sequence: "ATGAAATTTCCCGGG",
+    };
+    let anchored_above = |gene| {
+        crate::variants::get_mnv_variants_for_gene(
+            &gene,
+            &[crate::io::VcfPosition {
+                position: 12,
+                ref_allele: "C".to_string(),
+                alt_allele: "CAAA".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+            }],
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        )
+    };
+    assert!(
+        anchored_above(single_exon_gene("gp", 1, 12, Strand::Plus)).is_empty(),
+        "the gap after the last transcript base is 3' UTR"
+    );
+    assert!(
+        anchored_above(single_exon_gene("gm", 1, 12, Strand::Minus)).is_empty(),
+        "the gap above the first transcript base is 5' UTR"
+    );
+}
