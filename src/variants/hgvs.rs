@@ -162,6 +162,7 @@ mod tests {
             total_reverse_reads: None,
             mnv_total_forward_reads: None,
             mnv_total_reverse_reads: None,
+            mnv_phasing_reads: None,
             ref_codon: None,
             snp_codon: None,
             mnv_codon: None,

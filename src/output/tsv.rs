@@ -19,7 +19,11 @@ fn is_intergenic(variant: &VariantInfo) -> bool {
 /// impact, Grantham distance (with category), MNV-vs-SNV consequence shift,
 /// COSMIC-style DBS class, BAM-derived MNV phasing support, the 50-nt-rule NMD
 /// prediction, and the HGVS genomic / coding descriptors.
-fn annotation_cells(variant: &VariantInfo) -> [String; 9] {
+///
+/// With a BAM the phasing support is followed by the number of reads it was
+/// computed from, so a ratio of 1.0 from two reads is not mistaken for the same
+/// ratio from two hundred.
+fn annotation_cells(variant: &VariantInfo, bam_provided: bool) -> Vec<String> {
     let grantham = match variant.annotations.grantham {
         Some(d) => format!("{d} ({})", crate::utils::grantham_category(d)),
         None => "-".to_string(),
@@ -44,17 +48,23 @@ fn annotation_cells(variant: &VariantInfo) -> [String; 9] {
         .hgvs_c
         .clone()
         .unwrap_or_else(|| "-".to_string());
-    [
+    let mut cells = vec![
         so_term,
         impact.to_string(),
         grantham,
         variant.annotations.consequence_shift.to_string(),
         dbs,
         phasing,
-        nmd,
-        hgvs_g,
-        hgvs_c,
-    ]
+    ];
+    if bam_provided {
+        cells.push(
+            super::common::mnv_phasing_read_count(variant)
+                .map(|reads| reads.to_string())
+                .unwrap_or_else(|| "-".to_string()),
+        );
+    }
+    cells.extend([nmd, hgvs_g, hgvs_c]);
+    cells
 }
 
 /// Render a "Local …" column. Falls back to the protein-wide column when the
@@ -479,6 +489,7 @@ impl TsvWriter {
                 "MNV Consequence Shift",
                 "DBS Class",
                 "MNV Phasing Support",
+                "MNV Phasing Reads",
                 "NMD Prediction",
                 "HGVS g.",
                 "HGVS c.",
@@ -535,11 +546,11 @@ impl TsvWriter {
                     continue;
                 }
                 let mut row = build_tsv_row_with_reads(variant)?;
-                row.extend(annotation_cells(variant));
+                row.extend(annotation_cells(variant, true));
                 self.writer.write_record(&row)?;
             } else {
                 let mut row = build_tsv_row_without_reads(variant)?;
-                row.extend(annotation_cells(variant));
+                row.extend(annotation_cells(variant, false));
                 self.writer.write_record(&row)?;
             }
         }
@@ -596,6 +607,7 @@ mod tests {
             total_reverse_reads: Some(vec![3, 1]),
             mnv_total_forward_reads: Some(3),
             mnv_total_reverse_reads: Some(1),
+            mnv_phasing_reads: None,
             ref_codon: Some("ACC".to_string()),
             snp_codon: Some("TCC, AGC".to_string()),
             mnv_codon: Some("TGC".to_string()),
@@ -748,6 +760,7 @@ mod tests {
             total_reverse_reads: Some(vec![reverse]),
             mnv_total_forward_reads: Some(forward),
             mnv_total_reverse_reads: Some(reverse),
+            mnv_phasing_reads: None,
             ref_codon: None,
             snp_codon: None,
             mnv_codon: None,

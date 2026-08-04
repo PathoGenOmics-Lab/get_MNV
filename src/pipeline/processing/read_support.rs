@@ -99,6 +99,17 @@ pub(super) fn apply_read_summary(variant: &mut VariantInfo, summary: ReadCountSu
     variant.total_reverse_reads = Some(summary.total_reverse_reads);
     variant.mnv_total_forward_reads = Some(summary.mnv_total_forward_reads);
     variant.mnv_total_reverse_reads = Some(summary.mnv_total_reverse_reads);
+    // Reads that span the whole row and carry the rarest constituent SNV: the
+    // full-haplotype reads plus the spanning reads that carry that SNV alone.
+    // The least-supported SNV is the one with the fewest such reads, and since
+    // the full-haplotype reads are common to every position, that is the one
+    // with the fewest solo reads.
+    variant.mnv_phasing_reads = summary
+        .snp_only_informative_counts
+        .iter()
+        .copied()
+        .min()
+        .map(|rarest_solo| summary.mnv_count + rarest_solo);
 }
 
 pub(super) fn variant_allele_key(variant: &VariantInfo) -> Option<(usize, String, String)> {

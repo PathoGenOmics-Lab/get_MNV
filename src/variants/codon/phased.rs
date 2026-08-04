@@ -282,6 +282,7 @@ pub(super) fn phased_variant_from_group(
         total_reverse_reads: None,
         mnv_total_forward_reads: None,
         mnv_total_reverse_reads: None,
+        mnv_phasing_reads: None,
         ref_codon,
         snp_codon: None,
         mnv_codon: alt_codon,

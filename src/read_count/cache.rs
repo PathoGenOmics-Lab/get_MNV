@@ -30,6 +30,10 @@ struct MultiReadSupport {
     snp_support: Vec<bool>,
     snp_forward: Vec<bool>,
     snp_reverse: Vec<bool>,
+    /// Whether the read observes every requested position at sufficient base
+    /// quality. Only such a read can testify about linkage: one that ends
+    /// between two positions carries no information about the pair.
+    spans_all: bool,
 }
 
 impl MultiReadSupport {
@@ -38,6 +42,7 @@ impl MultiReadSupport {
             snp_support: vec![false; size],
             snp_forward: vec![false; size],
             snp_reverse: vec![false; size],
+            spans_all: false,
         }
     }
 }
@@ -214,6 +219,7 @@ pub fn count_reads_from_cache(
         .collect::<AppResult<Vec<_>>>()?;
 
     let mut snp_counts = vec![0; positions.len()];
+    let mut snp_only_informative_counts = vec![0; positions.len()];
     let mut total_reads = vec![0; positions.len()];
     let mut total_forward_reads = vec![0; positions.len()];
     let mut total_reverse_reads = vec![0; positions.len()];
@@ -292,6 +298,7 @@ pub fn count_reads_from_cache(
         let support = per_read_multi_support
             .entry(cached_read.key.clone())
             .or_insert_with(|| MultiReadSupport::new(positions.len()));
+        support.spans_all |= covers_all_positions;
         for (idx, observation) in observations.iter().enumerate() {
             if observation
                 .map(|(base, qual)| {
@@ -325,6 +332,9 @@ pub fn count_reads_from_cache(
                 for (idx, is_supported) in support.snp_support.iter().enumerate() {
                     if *is_supported {
                         snp_counts[idx] += 1;
+                        if support.spans_all {
+                            snp_only_informative_counts[idx] += 1;
+                        }
                         increment_directional_count(
                             support.snp_forward[idx],
                             support.snp_reverse[idx],
@@ -366,6 +376,7 @@ pub fn count_reads_from_cache(
         mnv_total_reads,
         mnv_total_forward_reads,
         mnv_total_reverse_reads,
+        snp_only_informative_counts,
     })
 }
 

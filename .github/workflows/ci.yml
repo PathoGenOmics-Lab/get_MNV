@@ -61,6 +61,22 @@ jobs:
         # cannot judge.
         run: python3 tests/truth/run.py
 
+  phasing:
+    name: Read-level phasing vs a known mixture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install samtools
+        run: sudo apt-get update && sudo apt-get install -y samtools
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --release --locked
+      - name: Compare against the mixture the BAM was built with
+        # Exits non-zero when a linkage call disagrees with the molecule counts
+        # the alignments were constructed from.
+        run: python3 tests/phasing/run.py
+
   differential:
     name: Differential annotation vs bcftools csq and SnpEff
     runs-on: ubuntu-latest

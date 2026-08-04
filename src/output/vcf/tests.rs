@@ -64,6 +64,7 @@ fn snp_variant_with_reads(support_reads: usize, depth: usize) -> VariantInfo {
         total_reverse_reads: Some(vec![0]),
         mnv_total_forward_reads: None,
         mnv_total_reverse_reads: None,
+        mnv_phasing_reads: None,
         ref_codon: Some("AAA".to_string()),
         snp_codon: Some("TAA".to_string()),
         mnv_codon: None,

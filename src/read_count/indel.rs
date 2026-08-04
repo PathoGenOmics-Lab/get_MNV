@@ -140,5 +140,8 @@ pub fn count_indel_reads(
         mnv_total_reads: total,
         mnv_total_forward_reads: total_forward,
         mnv_total_reverse_reads: total_reverse,
+        // An indel row is a single allele, not a multi-position haplotype, so
+        // there is no linkage question to answer here.
+        snp_only_informative_counts: vec![0],
     })
 }

@@ -853,7 +853,7 @@ var D = DATA.dict, ROWS = DATA.rows, META = DATA.meta;
 // Row schema (kept in sync with the Rust writer).
 var C = {sample:0,chrom:1,gene:2,pos:3,ref:4,alt:5,aa:6,type:7,change:8,so:9,impact:10,
          grantham:11,shift:12,dbs:13,nmd:14,hgvsg:15,hgvsc:16,freq:17,depth:18,
-         refCodon:19,altCodon:20,evClass:21,evComp:22,reads:23,phasing:24};
+         refCodon:19,altCodon:20,evClass:21,evComp:22,reads:23,phasing:24,phReads:25};
 
 var TYPE_COLOR = {"SNP":"var(--s1)","MNV":"var(--s2)","SNP/MNV":"var(--s3)","INDEL":"var(--s4)"};
 var IMP_COLOR  = {"HIGH":"var(--critical)","MODERATE":"var(--serious)","LOW":"var(--warning)","MODIFIER":"var(--muted)"};
@@ -1575,16 +1575,22 @@ function drawHaplotypes(){
     if(!groups[key]){
       groups[key] = {gene:geneOf(r), pos:txt(r,"pos"), aa:txt(r,"aa"), chrom:chromOf(r),
                      comp:txt(r,"evComp"), kind:complex?"complex indel":"codon MNV",
-                     samples:{}, ph:[], row:vi};
+                     samples:{}, phLinked:0, phReads:0, row:vi};
     }
     groups[key].samples[sampleOf(r)] = 1;
-    var p = r[C.phasing];
-    if(p!==null && p!==undefined) groups[key].ph.push(p);
+    // Pool the reads across samples rather than averaging the per-sample
+    // ratios: a sample with three informative reads should not weigh as much
+    // as one with three hundred.
+    var p = r[C.phasing], pr = r[C.phReads];
+    if(p!==null && p!==undefined && pr){
+      groups[key].phLinked += p*pr;
+      groups[key].phReads  += pr;
+    }
   });
   var list = Object.keys(groups).map(function(k){
     var g = groups[k];
     g.n = Object.keys(g.samples).length;
-    g.phMean = g.ph.length ? g.ph.reduce(function(a,b){return a+b;},0)/g.ph.length : null;
+    g.phMean = g.phReads ? g.phLinked/g.phReads : null;
     return g;
   });
   list.sort(function(a,b){ return b.n-a.n || a.gene.localeCompare(b.gene); });
@@ -1597,9 +1603,11 @@ function drawHaplotypes(){
   var maxN = list[0].n;
   el.innerHTML = list.slice(0,60).map(function(g){
     var pct = Math.round((g.n/maxN)*100);
-    var ph = g.phMean===null ? '<span title="Needs --bam">phasing n/a</span>'
-           : 'phasing ' + g.phMean.toFixed(2) +
-             '<span class="bartrack"><i style="width:'+Math.round(g.phMean*100)+'%"></i></span>';
+    var ph = g.phMean===null
+           ? '<span title="No read spans the whole codon, or the run had no --bam">phasing n/a</span>'
+           : '<span title="'+g.phReads.toLocaleString()+' read(s) span the codon and carry the least-supported constituent SNV">' +
+             'phasing ' + g.phMean.toFixed(2) + ' <span style="color:var(--muted)">n=' + g.phReads.toLocaleString() + '</span>' +
+             '<span class="bartrack"><i style="width:'+Math.round(g.phMean*100)+'%"></i></span></span>';
     return '<div class="hap" data-r="'+g.row+'">' +
       '<span class="rec">'+g.n+' sample'+(g.n===1?"":"s")+
         '<span class="bartrack" style="width:34px"><i style="width:'+pct+'%"></i></span></span>' +

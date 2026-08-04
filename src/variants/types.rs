@@ -629,6 +629,14 @@ pub struct VariantInfo {
     pub total_reverse_reads: Option<Vec<usize>>,
     pub mnv_total_forward_reads: Option<usize>,
     pub mnv_total_reverse_reads: Option<usize>,
+    /// Reads entitled to testify about linkage: those that observe every
+    /// position of the row and carry the least-supported constituent SNV,
+    /// whether or not they also carry the rest of the haplotype. This is the
+    /// denominator of `MNV Phasing Support`; `None` (not zero) when no read
+    /// spans the whole codon, which is a lack of evidence rather than evidence
+    /// of absence.
+    #[serde(default)]
+    pub mnv_phasing_reads: Option<usize>,
     pub ref_codon: Option<String>,
     pub snp_codon: Option<String>,
     pub mnv_codon: Option<String>,

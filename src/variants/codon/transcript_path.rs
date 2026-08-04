@@ -166,6 +166,7 @@ pub(super) fn process_transcript_codon(
         total_reverse_reads: None,
         mnv_total_forward_reads: None,
         mnv_total_reverse_reads: None,
+        mnv_phasing_reads: None,
         ref_codon: Some(ref_codon.to_string()),
         snp_codon: Some(snp_codon),
         mnv_codon: Some(mnv_codon),

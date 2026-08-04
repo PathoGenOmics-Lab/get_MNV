@@ -33,6 +33,12 @@ pub struct ReadCountSummary {
     pub mnv_total_reads: usize,
     pub mnv_total_forward_reads: usize,
     pub mnv_total_reverse_reads: usize,
+    /// Per position: reads that observe *every* requested position and carry
+    /// this position's ALT without carrying the full haplotype. These are the
+    /// reads that argue against linkage, and they are the only ones entitled
+    /// to: a read that stops before a partner position saw no evidence either
+    /// way. Always zero for a single-position request.
+    pub snp_only_informative_counts: Vec<usize>,
 }
 
 pub struct IndelReadCountRequest<'a> {

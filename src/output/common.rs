@@ -40,6 +40,7 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "MNVSHIFT"
             | "DBS"
             | "MNVPS"
+            | "MNVPR"
             | "NMD"
             | "HGVSG"
             | "HGVSC"
@@ -224,6 +225,12 @@ pub(crate) fn allele_frequency(support_reads: usize, depth: usize) -> f64 {
 /// largely fall on different molecules (a same-codon coincidence rather than a
 /// real MNV), which matters most for intra-host data. `None` unless this is a
 /// multi-SNV MNV / SNP-MNV with per-SNV and MNV read counts available.
+///
+/// Only reads that observe *every* position of the codon are counted, on either
+/// side of the ratio. A read that stops between two positions, or that crosses
+/// an intron the wrong way round, saw no evidence about the pair and neither
+/// supports nor refutes linkage. When no read spans the whole codon the answer
+/// is `None`: unknown, which is not the same as zero linkage.
 pub(crate) fn mnv_phasing_support(variant: &VariantInfo) -> Option<f64> {
     if variant.positions.len() < 2 {
         return None;
@@ -231,14 +238,28 @@ pub(crate) fn mnv_phasing_support(variant: &VariantInfo) -> Option<f64> {
     if !matches!(variant.variant_type, VariantType::Mnv | VariantType::SnpMnv) {
         return None;
     }
-    let min_snp = variant.snp_reads.as_ref()?.iter().copied().min()?;
-    if min_snp == 0 {
+    let informative = mnv_phasing_read_count(variant)?;
+    let mnv_reads = variant.mnv_reads?;
+    // `informative` already includes the full-haplotype reads, so the ratio is
+    // in [0, 1]. Clamp defensively.
+    Some((mnv_reads as f64 / informative as f64).min(1.0))
+}
+
+/// The denominator behind [`mnv_phasing_support`]: how many reads were entitled
+/// to answer the linkage question. Reported alongside the ratio so a reader can
+/// tell a confident 1.0 from one resting on a couple of reads. `None` when the
+/// question does not apply or nothing could answer it.
+pub(crate) fn mnv_phasing_read_count(variant: &VariantInfo) -> Option<usize> {
+    if variant.positions.len() < 2 {
         return None;
     }
-    let mnv_reads = variant.mnv_reads?;
-    // A read in the MNV count carries both variants, so it is also counted in
-    // every per-SNV count; the ratio is therefore in [0, 1]. Clamp defensively.
-    Some((mnv_reads as f64 / min_snp as f64).min(1.0))
+    if !matches!(variant.variant_type, VariantType::Mnv | VariantType::SnpMnv) {
+        return None;
+    }
+    match variant.mnv_phasing_reads {
+        Some(0) | None => None,
+        Some(reads) => Some(reads),
+    }
 }
 
 fn original_dp_for_index(variant: &VariantInfo, index: usize) -> Option<usize> {
@@ -327,6 +348,9 @@ pub(crate) fn build_info_string(
     }
     if let Some(phasing) = mnv_phasing_support(variant) {
         builder.push("MNVPS", format_freq(phasing));
+    }
+    if let Some(reads) = mnv_phasing_read_count(variant) {
+        builder.push("MNVPR", reads);
     }
     if let Some(nmd) = variant.annotations.nmd {
         builder.push_text("NMD", nmd.as_str());
@@ -701,7 +725,11 @@ pub(crate) fn write_info_header(
     )?;
     writeln!(
         writer,
-        "##INFO=<ID=MNVPS,Number=1,Type=Float,Description=\"MNV phasing support: fraction of the least-supported constituent SNV reads that also carry the full MNV haplotype\">"
+        "##INFO=<ID=MNVPS,Number=1,Type=Float,Description=\"MNV phasing support: among reads spanning every position of the codon and carrying the least-supported constituent SNV, the fraction that also carry the full MNV haplotype. Absent when no read spans the codon\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=MNVPR,Number=1,Type=Integer,Description=\"Reads the MNVPS ratio was computed from: reads spanning every position of the codon that carry the least-supported constituent SNV\">"
     )?;
     writeln!(
         writer,
@@ -831,6 +859,7 @@ mod tests {
             total_reverse_reads: Some(vec![8]),
             mnv_total_forward_reads: None,
             mnv_total_reverse_reads: None,
+            mnv_phasing_reads: None,
             ref_codon: Some("ACG".to_string()),
             snp_codon: Some("TCG".to_string()),
             mnv_codon: None,
@@ -894,23 +923,59 @@ mod tests {
 
     // ---- mnv_phasing_support ----
 
-    #[test]
-    fn test_mnv_phasing_support_ratio_and_guards() {
+    fn two_position_variant() -> VariantInfo {
         let mut v = make_snp_variant();
         v.variant_type = VariantType::SnpMnv;
         v.positions = vec![100, 101];
         v.ref_bases = vec!["A".to_string(), "C".to_string()];
         v.base_changes = vec!["T".to_string(), "G".to_string()];
-        v.snp_reads = Some(vec![8, 10]); // limiting SNV has 8 reads
-        v.mnv_reads = Some(6); // 6 of those 8 carry the full haplotype
+        v
+    }
+
+    #[test]
+    fn test_mnv_phasing_support_ratio_and_guards() {
+        let mut v = two_position_variant();
+        // 8 reads span both positions and carry the rarer SNV; 6 of them carry
+        // the whole haplotype.
+        v.mnv_phasing_reads = Some(8);
+        v.mnv_reads = Some(6);
         assert_eq!(mnv_phasing_support(&v), Some(0.75));
 
-        // Perfect linkage is clamped to 1.0.
+        // Perfect linkage.
         v.mnv_reads = Some(8);
         assert_eq!(mnv_phasing_support(&v), Some(1.0));
 
         // A single SNP is not an MNV, so phasing is not applicable.
         assert_eq!(mnv_phasing_support(&make_snp_variant()), None);
+    }
+
+    #[test]
+    fn test_mnv_phasing_support_does_not_saturate_on_an_even_mixture() {
+        // Ten molecules carry both variants and ten carry only the first: half
+        // the reads with that SNV lack its partner. The answer is 0.5, and an
+        // earlier formula that divided by the solo reads alone returned 1.0
+        // here, calling a coin-flip mixture a perfectly linked haplotype.
+        let mut v = two_position_variant();
+        v.mnv_reads = Some(10);
+        v.mnv_phasing_reads = Some(20);
+        assert_eq!(mnv_phasing_support(&v), Some(0.5));
+    }
+
+    #[test]
+    fn test_mnv_phasing_support_is_unknown_when_no_read_spans_the_codon() {
+        // A codon split by an intron, read with fragments too short to reach
+        // across it: both SNVs are seen, never together. That is an absence of
+        // evidence, so the metric must be absent too, not 0.0 (which reads as
+        // "proven to be on different molecules").
+        let mut v = two_position_variant();
+        v.snp_reads = Some(vec![20, 20]);
+        v.mnv_reads = Some(0);
+        v.mnv_phasing_reads = Some(0);
+        assert_eq!(mnv_phasing_support(&v), None);
+
+        // Likewise when the field was never populated (no BAM).
+        v.mnv_phasing_reads = None;
+        assert_eq!(mnv_phasing_support(&v), None);
     }
 
     // ---- filter_value ----
