@@ -1,6 +1,7 @@
 //! Genomic-coordinate codon construction, processing, and codon-bounds math.
 
-use crate::utils::{determine_change_type, grantham_distance, iupac_aa, reverse_complement};
+use crate::utils::{grantham_distance, iupac_aa, reverse_complement};
+use crate::variants::consequence::{first_residue, substitution_change_type};
 
 /// Coarse severity of an amino-acid change: stop (3) > missense (2) >
 /// synonymous (1) > ambiguous (0).
@@ -259,7 +260,8 @@ pub fn process_codon(
     let combined_change_local = format!("{orig_aa}{local_aa_pos}{mut_aa}");
     let combined_aa = iupac_aa(&combined_change);
     let combined_aa_local = iupac_aa(&combined_change_local);
-    let change_type = ChangeType::from_label(&determine_change_type(&combined_change));
+    let change_type =
+        substitution_change_type(first_residue(&orig_aa), first_residue(&mut_aa), aa_pos);
 
     // Single-residue result of each SNV on its own (reused for the per-SNP
     // columns and the MNV-vs-SNV consequence comparison).

@@ -1,6 +1,7 @@
 //! Spliced-transcript codon path: transcript SNPs, codon processing, frameshift/PTC.
 
-use crate::utils::{determine_change_type, iupac_aa};
+use crate::utils::iupac_aa;
+use crate::variants::consequence::{first_residue, substitution_change_type};
 use crate::variants::{ChangeType, Gene, Snp, Strand, VariantInfo, VariantType};
 use std::collections::BTreeSet;
 
@@ -59,13 +60,13 @@ pub(super) fn process_transcript_codon(
     let orig_aa = genetic_code.translate_seq(ref_codon.as_bytes());
     let mut_aa = genetic_code.translate_seq(mnv_codon.as_bytes());
     let aa_pos = (codon_start_offset / 3) + 1;
-    // Classify from the one-letter form (e.g. "L2L", "M1T"); `determine_change_type`
-    // inspects the first/last character, so it must NOT receive the three-letter
-    // IUPAC string (which would turn "Leu2Leu" into a spurious Non-synonymous and
-    // hide synonymous / start-lost calls). The IUPAC form is kept only for display.
+    // Classified from the residues themselves, not from a formatted string: the
+    // IUPAC form below is for display only, and feeding it to the classifier used
+    // to turn "Leu2Leu" into a spurious Non-synonymous.
     let combined_change = format!("{orig_aa}{aa_pos}{mut_aa}");
     let combined_aa = iupac_aa(&combined_change);
-    let change_type = ChangeType::from_label(&determine_change_type(&combined_change));
+    let change_type =
+        substitution_change_type(first_residue(&orig_aa), first_residue(&mut_aa), aa_pos);
 
     let single_aas: Vec<char> = codon_snps
         .iter()

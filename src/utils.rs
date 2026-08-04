@@ -33,39 +33,24 @@ fn translate_codon(codon: &[u8; 3]) -> char {
     }
 }
 
+/// Consequence label for a one-letter amino-acid change such as `M1T`.
+///
+/// A string front end over
+/// [`substitution_change_type`](crate::variants::consequence::substitution_change_type),
+/// which owns the rules. Prefer the typed function when you already hold the
+/// residues and the position: this one has to parse them back out, and passing
+/// it the three-letter IUPAC form (`Leu2Leu`) silently misclassifies the change.
 pub fn determine_change_type(aa_change: &str) -> String {
-    if aa_change.is_empty() {
-        return "Unknown".to_string();
-    }
-
-    let original = aa_change.chars().next().unwrap_or('X');
-    let mutated = aa_change.chars().last().unwrap_or('X');
-
-    // If either amino acid is unknown/ambiguous, we cannot classify the change.
-    if original == 'X' || mutated == 'X' {
-        return "Unknown".to_string();
-    }
-
-    // Start lost: the initiator Met (protein position 1) changed to another
-    // residue. A Met1 -> stop is left classified as "Stop gained".
-    if original == 'M' && mutated != 'M' && mutated != '*' {
-        let position = aa_change
-            .get(1..aa_change.len().saturating_sub(1))
-            .and_then(|s| s.parse::<usize>().ok());
-        if position == Some(1) {
-            return "Start lost".to_string();
-        }
-    }
-
-    if original == mutated {
-        "Synonymous".to_string()
-    } else if mutated == '*' {
-        "Stop gained".to_string()
-    } else if original == '*' {
-        "Stop lost".to_string()
-    } else {
-        "Non-synonymous".to_string()
-    }
+    let Some(reference) = aa_change.chars().next() else {
+        return crate::variants::ChangeType::Unknown.to_string();
+    };
+    let alternate = aa_change.chars().last().unwrap_or('X');
+    let protein_position = aa_change
+        .get(1..aa_change.len().saturating_sub(1))
+        .and_then(|digits| digits.parse::<usize>().ok())
+        .unwrap_or(0);
+    crate::variants::consequence::substitution_change_type(reference, alternate, protein_position)
+        .to_string()
 }
 
 pub(crate) fn aa_three_letter(code: char) -> &'static str {

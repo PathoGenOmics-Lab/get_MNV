@@ -2,6 +2,7 @@
 //! change classification.
 
 mod codon;
+pub mod consequence;
 mod event;
 pub mod hgvs;
 pub mod splice;
