@@ -332,10 +332,13 @@ fn run_report_from_tsvs(args: &Args) -> AppResult<RunSummary> {
         AppError::config("--report-from requires --report to name the output HTML file")
     })?;
 
+    // Label the whole input set at once: file names alone collide when a
+    // per-sample pipeline writes `results/<sample>/variants.MNV.tsv`.
+    let labels = output::sample_labels(&args.report_from);
     let mut builder = output::ReportBuilder::new();
-    for tsv_path in &args.report_from {
-        builder.add_tsv(tsv_path, None)?;
-        info!("Report input: {tsv_path}");
+    for (tsv_path, label) in args.report_from.iter().zip(labels.iter()) {
+        builder.add_tsv(tsv_path, Some(label))?;
+        info!("Report input: {tsv_path} (sample '{label}')");
     }
     if builder.is_empty() {
         return Err(AppError::validation(

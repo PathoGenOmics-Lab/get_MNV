@@ -128,6 +128,102 @@ fn sample_label(path: &str) -> String {
     stem.to_string()
 }
 
+/// Whether a file begins with the gzip magic number (which also covers BGZF).
+/// A file that cannot be opened or read is left to the reader, which reports the
+/// I/O error with its own path context.
+fn is_gzip_compressed(path: &str) -> bool {
+    use std::io::Read;
+    let mut magic = [0u8; 2];
+    std::fs::File::open(path)
+        .and_then(|mut file| file.read_exact(&mut magic))
+        .is_ok()
+        && magic == [0x1f, 0x8b]
+}
+
+/// Label candidates for a TSV path, from the bare file stem to progressively
+/// more qualified forms that prepend one more parent directory at a time, ending
+/// at the path itself.
+fn label_candidates(path: &str) -> Vec<String> {
+    let stem = sample_label(path);
+    let mut candidates = vec![stem.clone()];
+    let parents: Vec<String> = Path::new(path)
+        .parent()
+        .map(|parent| {
+            parent
+                .components()
+                .filter_map(|component| match component {
+                    std::path::Component::Normal(name) => Some(name.to_string_lossy().into_owned()),
+                    _ => None,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    for take in 1..=parents.len() {
+        let prefix = parents[parents.len() - take..].join("/");
+        candidates.push(format!("{prefix}/{stem}"));
+    }
+    candidates
+}
+
+/// Distinct sample labels for a set of TSV paths, in input order.
+///
+/// The label is normally just the file stem, but per-sample pipelines routinely
+/// write identically named files into per-sample directories
+/// (`results/<sample>/variants.MNV.tsv`), so a bare stem is not unique in
+/// general. Colliding paths are qualified with as many trailing directory
+/// components as it takes to tell them apart; paths that are still
+/// indistinguishable (the same file listed twice) get a numeric suffix. Without
+/// this the report interned one shared label and silently merged distinct
+/// samples into a single row of the matrix.
+pub fn sample_labels(paths: &[String]) -> Vec<String> {
+    let ladders: Vec<Vec<String>> = paths.iter().map(|path| label_candidates(path)).collect();
+    let mut levels = vec![0usize; paths.len()];
+
+    // Qualify every member of a colliding group until the collision clears or no
+    // member has any more parent directories to add.
+    loop {
+        let mut groups: HashMap<&str, Vec<usize>> = HashMap::new();
+        for (idx, level) in levels.iter().enumerate() {
+            groups
+                .entry(ladders[idx][*level].as_str())
+                .or_default()
+                .push(idx);
+        }
+        let colliding: Vec<usize> = groups
+            .into_values()
+            .filter(|members| members.len() > 1)
+            .flatten()
+            .collect();
+        let mut progressed = false;
+        for idx in colliding {
+            if levels[idx] + 1 < ladders[idx].len() {
+                levels[idx] += 1;
+                progressed = true;
+            }
+        }
+        if !progressed {
+            break;
+        }
+    }
+
+    // Anything still sharing a label is the same path more than once.
+    let mut used: HashMap<String, usize> = HashMap::new();
+    levels
+        .iter()
+        .enumerate()
+        .map(|(idx, level)| {
+            let base = ladders[idx][*level].clone();
+            let seen = used.entry(base.clone()).or_insert(0);
+            *seen += 1;
+            if *seen == 1 {
+                base
+            } else {
+                format!("{base} #{seen}")
+            }
+        })
+        .collect()
+}
+
 impl ReportBuilder {
     pub fn new() -> Self {
         let mut builder = Self::default();
@@ -152,6 +248,15 @@ impl ReportBuilder {
     /// Read one get_MNV TSV, labelling its rows with `sample` (defaults to the
     /// file stem when `None`).
     pub fn add_tsv(&mut self, path: &str, sample: Option<&str>) -> AppResult<()> {
+        // get_MNV writes plain TSVs, but a compressed one is an easy mistake to
+        // make and the CSV reader reports it as "invalid UTF-8 near byte index 1",
+        // which says nothing about compression.
+        if is_gzip_compressed(path) {
+            return Err(AppError::validation(format!(
+                "'{path}' is compressed; the report reads plain get_MNV TSV files. \
+                 Decompress it first, for example with `gunzip -c '{path}' > out.MNV.tsv`"
+            )));
+        }
         let label = match sample {
             Some(name) => name.to_string(),
             None => sample_label(path),
@@ -416,6 +521,116 @@ mod tests {
         assert_eq!(sample_label("/data/TB-001.MNV.tsv"), "TB-001");
         assert_eq!(sample_label("TB-002.MNV.tsv"), "TB-002");
         assert_eq!(sample_label("plain.tsv"), "plain");
+    }
+
+    #[test]
+    fn sample_labels_disambiguate_identical_file_names() {
+        // The canonical per-sample pipeline layout: same file name, different
+        // directory. These must stay distinct samples.
+        let paths = vec![
+            "results/TB-001/variants.MNV.tsv".to_string(),
+            "results/TB-002/variants.MNV.tsv".to_string(),
+        ];
+        assert_eq!(
+            sample_labels(&paths),
+            vec!["TB-001/variants", "TB-002/variants"]
+        );
+    }
+
+    #[test]
+    fn sample_labels_keep_the_bare_stem_when_it_is_unique() {
+        let paths = vec![
+            "a/TB-001.MNV.tsv".to_string(),
+            "b/TB-002.MNV.tsv".to_string(),
+        ];
+        assert_eq!(sample_labels(&paths), vec!["TB-001", "TB-002"]);
+    }
+
+    #[test]
+    fn sample_labels_qualify_only_the_colliding_group() {
+        let paths = vec![
+            "run/x/out.MNV.tsv".to_string(),
+            "run/y/out.MNV.tsv".to_string(),
+            "run/TB-003.MNV.tsv".to_string(),
+        ];
+        assert_eq!(sample_labels(&paths), vec!["x/out", "y/out", "TB-003"]);
+    }
+
+    #[test]
+    fn sample_labels_walk_up_until_the_paths_differ() {
+        let paths = vec![
+            "runA/s/out.MNV.tsv".to_string(),
+            "runB/s/out.MNV.tsv".to_string(),
+        ];
+        assert_eq!(sample_labels(&paths), vec!["runA/s/out", "runB/s/out"]);
+    }
+
+    #[test]
+    fn sample_labels_number_repeats_of_the_same_path() {
+        // The same file twice is indistinguishable by path, so both exhaust the
+        // ladder and the numeric suffix keeps them apart.
+        let paths = vec!["x/out.MNV.tsv".to_string(), "x/out.MNV.tsv".to_string()];
+        assert_eq!(sample_labels(&paths), vec!["x/out", "x/out #2"]);
+    }
+
+    #[test]
+    fn every_input_file_keeps_its_own_sample_row() {
+        let dir = std::env::temp_dir().join("get_mnv_report_label_test");
+        let header = "Chromosome\tGene\tPositions\tReference Bases\tBase Changes\t\
+             AA Changes\tVariant Type\tChange Type\tSO Term\tImpact\n";
+        let mut paths = Vec::new();
+        for (sample, pos) in [("S1", 500), ("S2", 900)] {
+            let sub = dir.join(sample);
+            std::fs::create_dir_all(&sub).expect("temp dir");
+            let path = sub.join("out.MNV.tsv");
+            std::fs::write(
+                &path,
+                format!(
+                    "{header}chr1\tgeneA\t{pos}\tA\tG\t-\tSNP\tNon-synonymous\t\
+                     missense_variant\tMODERATE\n"
+                ),
+            )
+            .expect("write tsv");
+            paths.push(path.to_string_lossy().into_owned());
+        }
+
+        let labels = sample_labels(&paths);
+        let mut builder = ReportBuilder::new();
+        for (path, label) in paths.iter().zip(labels.iter()) {
+            builder
+                .add_tsv(path, Some(label))
+                .expect("tsv should parse");
+        }
+        assert_eq!(builder.len(), 2);
+        assert_eq!(
+            builder.samples.values.len(),
+            2,
+            "identically named files must not merge into one sample: {:?}",
+            builder.samples.values
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn compressed_input_is_reported_as_such() {
+        let dir = std::env::temp_dir().join("get_mnv_report_gz_test");
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("S1.MNV.tsv.gz");
+        // A gzip header is enough; the check never gets as far as the payload.
+        std::fs::write(&path, [0x1f, 0x8b, 0x08, 0x00]).expect("write file");
+
+        let mut builder = ReportBuilder::new();
+        let err = builder
+            .add_tsv(path.to_str().expect("utf8 path"), None)
+            .expect_err("compressed input must be rejected");
+        let message = err.to_string();
+        assert!(
+            message.contains("compressed") && message.contains("gunzip"),
+            "error should name the cause and the fix: {message}"
+        );
+
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

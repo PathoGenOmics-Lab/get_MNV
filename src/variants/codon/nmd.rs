@@ -19,30 +19,33 @@ use super::transcript_model::{coding_sequence_for_gene, first_touched_transcript
 /// exon-exon junction still escapes NMD. The canonical rule uses 50-55 nt.
 const NMD_LAST_JUNCTION_MARGIN: usize = 50;
 
-/// Total spliced-CDS length and the length of the terminal (3') coding exon,
-/// or `None` for a single-exon transcript (fewer than two CDS segments), which
-/// has no exon-exon junction and therefore no NMD prediction.
-fn cds_total_and_last_exon(gene: &Gene) -> Option<(usize, usize)> {
-    if gene.cds_segments.len() < 2 {
-        return None;
-    }
-    let total = gene
-        .cds_segments
+/// Total length of the spliced CDS, in transcript coordinates.
+fn cds_total(gene: &Gene) -> usize {
+    gene.cds_segments
         .iter()
         .map(|segment| segment.end.saturating_sub(segment.start) + 1)
-        .sum();
-    // `cds_segments` is in transcript order, so the terminal exon is the last
-    // entry on either strand.
-    let last = gene.cds_segments.last()?;
-    let last_len = last.end.saturating_sub(last.start) + 1;
-    Some((total, last_len))
+        .sum()
 }
 
-/// CDS offset of the last exon-exon junction (the start of the terminal coding
-/// exon), or `None` for a single-exon transcript.
+/// CDS offset of the last exon-exon junction, i.e. the transcript coordinate at
+/// which the segment following the final intron begins. `None` when the
+/// transcript is not spliced (a single CDS segment, or segments that abut or
+/// overlap in a ribosomal-slippage join): with no junction there is no NMD
+/// prediction to make.
+///
+/// Only segment pairs separated by a real intron count, so a slippage join that
+/// follows a genuine intron does not move the junction downstream of it.
 fn last_exon_junction_offset(gene: &Gene) -> Option<usize> {
-    let (total, last_len) = cds_total_and_last_exon(gene)?;
-    Some(total.saturating_sub(last_len))
+    let mut offset = 0usize;
+    let mut last_junction = None;
+    for (idx, segment) in gene.cds_segments.iter().enumerate() {
+        // `offset` is the transcript coordinate at which this segment starts.
+        if idx > 0 && gene.intron_separates(&gene.cds_segments[idx - 1], segment) {
+            last_junction = Some(offset);
+        }
+        offset += segment.end.saturating_sub(segment.start) + 1;
+    }
+    last_junction
 }
 
 /// Classify a PTC by its distance upstream of the last exon-exon junction.
@@ -70,17 +73,19 @@ pub(super) fn snv_mnv_nmd_prediction(gene: &Gene, ptc_cds_offset: usize) -> Opti
 /// not terminate earlier than the reference (no premature stop).
 ///
 /// Coordinates are taken in the *alternate* CDS, whose length changes by the
-/// indel's coding delta. The terminal exon keeps its length unless the indel
-/// falls inside it, so the last junction sits at `alt_len - terminal_exon_len`
-/// when the indel is upstream of it, and at the reference junction otherwise.
+/// indel's coding delta. The terminal region keeps its length unless the indel
+/// falls inside it, so the last junction sits at `alt_len - terminal_len` when
+/// the indel is upstream of it, and at the reference junction otherwise.
 pub(super) fn indel_nmd_prediction(
     gene: &Gene,
     reference: &crate::io::Reference<'_>,
     variant: &VcfPosition,
     genetic_code: crate::genetic_code::GeneticCode,
 ) -> Option<NmdPrediction> {
-    let (_, last_exon_len) = cds_total_and_last_exon(gene)?;
     let ref_last_junction = last_exon_junction_offset(gene)?;
+    // Everything downstream of the last junction, which may span more than one
+    // CDS segment when a slippage join follows the final intron.
+    let terminal_len = cds_total(gene).saturating_sub(ref_last_junction);
 
     let ref_cds = coding_sequence_for_gene(gene, reference)?;
     let alt_cds = apply_allele_to_feature(gene, reference, variant)?;
@@ -96,15 +101,15 @@ pub(super) fn indel_nmd_prediction(
     }
     let ptc_cds_offset = alt_stop * 3;
 
-    // Place the last junction in alternate-CDS coordinates: the terminal exon's
+    // Place the last junction in alternate-CDS coordinates: the terminal region's
     // length is unchanged unless the indel lands inside it, so an indel upstream
     // of the junction shifts it by the coding-length delta (captured here as
-    // `alt_cds.len() - last_exon_len`); an indel in the terminal exon leaves the
-    // junction at its reference offset.
+    // `alt_cds.len() - terminal_len`); an indel downstream of the junction leaves
+    // the junction at its reference offset.
     let indel_upstream_of_last_junction =
         first_touched_transcript_offset(gene, variant).is_some_and(|pos| pos < ref_last_junction);
     let last_junction = if indel_upstream_of_last_junction {
-        alt_cds.len().saturating_sub(last_exon_len)
+        alt_cds.len().saturating_sub(terminal_len)
     } else {
         ref_last_junction
     };
@@ -117,13 +122,20 @@ mod tests {
     use super::*;
     use crate::variants::{CdsSegment, Strand};
 
-    /// A two-exon plus-strand transcript: exon 1 spans genomic 1..=exon1_len,
-    /// exon 2 spans the next `exon2_len` bases. Coding length is exon1+exon2.
+    /// Length of the intron separating the two exons of the test transcript.
+    /// The exons must be genuinely separated, otherwise the transcript is an
+    /// unspliced join and has no exon-exon junction at all.
+    const INTRON_LEN: usize = 500;
+
+    /// A two-exon plus-strand transcript: exon 1 spans genomic 1..=exon1_len, an
+    /// intron follows, then exon 2 spans `exon2_len` bases. Coding length is
+    /// exon1+exon2, so CDS offsets are unaffected by the intron.
     fn two_exon_gene(exon1_len: usize, exon2_len: usize) -> Gene {
+        let exon2_start = exon1_len + INTRON_LEN + 1;
         Gene {
             name: "t".to_string(),
             start: 1,
-            end: exon1_len + exon2_len,
+            end: exon2_start + exon2_len - 1,
             strand: Strand::Plus,
             phase: 0,
             protein_offset: 0,
@@ -134,8 +146,8 @@ mod tests {
                     end: exon1_len,
                 },
                 CdsSegment {
-                    start: exon1_len + 1,
-                    end: exon1_len + exon2_len,
+                    start: exon2_start,
+                    end: exon2_start + exon2_len - 1,
                 },
             ],
         }
@@ -190,5 +202,55 @@ mod tests {
         assert_eq!(snv_mnv_nmd_prediction(&gene, 30), None);
         gene.cds_segments.clear();
         assert_eq!(snv_mnv_nmd_prediction(&gene, 30), None);
+    }
+
+    #[test]
+    fn ribosomal_slippage_join_has_no_junction() {
+        // A CDS annotated as a slippage join (SARS-CoV-2 ORF1ab style) has two
+        // segments but no intron, so there is no exon-exon junction and no NMD
+        // prediction to make.
+        let mut gene = two_exon_gene(120, 60);
+        // Abutting segments: 1-120 then 121-180.
+        gene.cds_segments[1] = CdsSegment {
+            start: 121,
+            end: 180,
+        };
+        assert_eq!(last_exon_junction_offset(&gene), None);
+        assert_eq!(snv_mnv_nmd_prediction(&gene, 30), None);
+
+        // Overlapping segments, as in `join(266..13468,13468..21555)`.
+        gene.cds_segments[1] = CdsSegment {
+            start: 120,
+            end: 180,
+        };
+        assert_eq!(last_exon_junction_offset(&gene), None);
+        assert_eq!(snv_mnv_nmd_prediction(&gene, 30), None);
+    }
+
+    #[test]
+    fn junction_is_the_last_real_intron_not_the_last_segment() {
+        // exon 1 (1-120), intron, exon 2 (201-260), then a slippage join
+        // continuing at 261-320. The last junction is the start of exon 2 at CDS
+        // offset 120, not the start of the trailing joined segment at offset 180.
+        let mut gene = two_exon_gene(120, 60);
+        gene.cds_segments[1] = CdsSegment {
+            start: 201,
+            end: 260,
+        };
+        gene.cds_segments.push(CdsSegment {
+            start: 261,
+            end: 320,
+        });
+        assert_eq!(last_exon_junction_offset(&gene), Some(120));
+        // 90 nt upstream of that junction still triggers NMD.
+        assert_eq!(
+            snv_mnv_nmd_prediction(&gene, 30),
+            Some(NmdPrediction::Triggering)
+        );
+        // A stop past the junction escapes.
+        assert_eq!(
+            snv_mnv_nmd_prediction(&gene, 200),
+            Some(NmdPrediction::Escaping)
+        );
     }
 }

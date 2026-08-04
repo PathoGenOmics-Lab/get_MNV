@@ -51,6 +51,14 @@ pub fn splice_consequence_for_position(gene: &Gene, position: usize) -> Option<S
     let mut best: Option<SpliceConsequence> = None;
     for pair in gene.cds_segments.windows(2) {
         let (earlier, later) = (&pair[0], &pair[1]);
+        // Consecutive segments are only a splice junction when a real intron
+        // separates them. Abutting or overlapping segments are a continuous
+        // reading frame (a ribosomal-slippage join such as SARS-CoV-2 ORF1ab),
+        // and flagging their neighbouring coding bases as donor/acceptor sites
+        // would invent HIGH-impact consequences for an unspliced transcript.
+        if !gene.intron_separates(earlier, later) {
+            continue;
+        }
         // `cds_segments` is in transcript order, so `earlier` is the 5' exon of
         // the junction. On the plus strand its 3' end is the higher genomic base
         // and the intron lies above it; on the minus strand it is the lower base
@@ -171,5 +179,63 @@ mod tests {
         assert_eq!(splice_consequence_for_position(&g, 901), None);
         let empty = gene(Strand::Plus, &[]);
         assert_eq!(splice_consequence_for_position(&empty, 901), None);
+    }
+
+    #[test]
+    fn abutting_segments_are_not_a_junction() {
+        // Two CDS rows describing one continuous reading frame: no intron, so
+        // the coding bases around the boundary are not splice sites.
+        let g = gene(Strand::Plus, &[(801, 900), (901, 1200)]);
+        for pos in [899, 900, 901, 902, 903, 905] {
+            assert_eq!(
+                splice_consequence_for_position(&g, pos),
+                None,
+                "position {pos} is plain coding sequence"
+            );
+        }
+    }
+
+    #[test]
+    fn ribosomal_slippage_join_is_not_a_junction() {
+        // SARS-CoV-2 ORF1ab is annotated `join(266..13468,13468..21555)`: the
+        // segments overlap by the re-read base, and nothing is spliced out.
+        let g = gene(Strand::Plus, &[(266, 13468), (13468, 21555)]);
+        for pos in [13466, 13467, 13469, 13470, 13473] {
+            assert_eq!(
+                splice_consequence_for_position(&g, pos),
+                None,
+                "position {pos} is plain coding sequence"
+            );
+        }
+    }
+
+    #[test]
+    fn a_real_intron_beside_a_slippage_join_still_yields_splice_sites() {
+        // exon 1 (801-900), a real intron, exon 2 (1001-1200) continued by a
+        // joined segment (1201-1400). Only the real intron has splice sites.
+        let g = gene(Strand::Plus, &[(801, 900), (1001, 1200), (1201, 1400)]);
+        assert_eq!(
+            splice_consequence_for_position(&g, 901),
+            Some(SpliceConsequence::Donor)
+        );
+        assert_eq!(
+            splice_consequence_for_position(&g, 1000),
+            Some(SpliceConsequence::Acceptor)
+        );
+        assert_eq!(splice_consequence_for_position(&g, 1201), None);
+        assert_eq!(splice_consequence_for_position(&g, 1202), None);
+    }
+
+    #[test]
+    fn minus_strand_slippage_join_is_not_a_junction() {
+        // Transcript order descending: 1001-1200 then 800-1000 (abutting).
+        let g = gene(Strand::Minus, &[(1001, 1200), (800, 1000)]);
+        for pos in [999, 1000, 1001, 1002] {
+            assert_eq!(
+                splice_consequence_for_position(&g, pos),
+                None,
+                "position {pos} is plain coding sequence"
+            );
+        }
     }
 }

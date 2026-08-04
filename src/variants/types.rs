@@ -332,6 +332,23 @@ pub struct Gene {
 }
 
 impl Gene {
+    /// Whether a real intron separates two consecutive CDS segments given in
+    /// transcript order.
+    ///
+    /// Consecutive segments do not always imply splicing. A CDS annotated as a
+    /// ribosomal-slippage join, such as SARS-CoV-2 ORF1ab
+    /// (`join(266..13468,13468..21555)`), is one continuous reading frame whose
+    /// segments abut or overlap: the ribosome re-reads the shared base rather
+    /// than splicing anything out. Only a genuine gap between the segments is an
+    /// intron, and only an intron carries donor/acceptor sites and an exon-exon
+    /// junction.
+    pub(crate) fn intron_separates(&self, earlier: &CdsSegment, later: &CdsSegment) -> bool {
+        match self.strand {
+            Strand::Plus => later.start > earlier.end + 1,
+            Strand::Minus => earlier.start > later.end + 1,
+        }
+    }
+
     /// Whether an insertion anchored at genomic `position` lands at an internal
     /// exon-exon junction of the spliced CDS — i.e. immediately after the last
     /// base of an internal coding exon. The inserted bases then fall between two

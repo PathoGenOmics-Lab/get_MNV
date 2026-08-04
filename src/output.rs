@@ -6,6 +6,6 @@ pub(crate) mod stats;
 mod tsv;
 mod vcf;
 
-pub use report::ReportBuilder;
+pub use report::{sample_labels, ReportBuilder};
 pub use tsv::{TsvWriter, TsvWriterConfig};
 pub use vcf::{build_tabix_index, convert_vcf_to_bcf, VcfWriter, VcfWriterConfig};
