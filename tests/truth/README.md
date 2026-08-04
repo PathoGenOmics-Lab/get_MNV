@@ -41,7 +41,17 @@ spliced. For every codon of every one of them:
 
 Around 1560 cases, each run as its own VCF so no two expectations interfere.
 Each is checked on gene, amino-acid change, change type, reference codon,
-alternate codon, and the HGVS `c.` descriptor. It takes about five seconds.
+alternate codon, and the HGVS `c.` descriptor.
+
+Plus 324 indels: deletions and insertions of 1, 2 and 3 bases at anchors spread
+through every exon, including both edges where the initiator and terminator
+codons live. Their expectation comes from the same re-translation, with the
+indel applied in CDS coordinate space rather than by cutting the genome, since
+the surrounding bases keep their coordinates. Checked on change type, event
+class and both codons; the HGVS protein notation for indels is get_MNV's own
+formatting, so reproducing it here would test spelling rather than biology.
+
+The whole run takes about six seconds.
 
 ## How strong it is
 
@@ -66,7 +76,12 @@ GET_MNV_BIN=/path/to/older/get_mnv python3 tests/truth/run.py
 ```
 
 Against the build before the codon-orientation fix this reports 240
-disagreements, all on the minus-strand genes.
+disagreements, all on the minus-strand genes. Against the build before the
+start-codon fix it reports 11 more, all indels that remove the initiator.
+
+Failures are grouped by category and sampled from each group rather than
+printed in order, because one noisy category otherwise buries another: the run
+above shows both the 240 ordering failures and the 11 start-codon ones.
 
 ## A note on writing the oracle
 

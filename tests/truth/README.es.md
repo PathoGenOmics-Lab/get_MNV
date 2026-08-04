@@ -42,8 +42,17 @@ solo exón y con splicing. Para cada codón de cada uno:
 
 Unos 1560 casos, cada uno como su propio VCF para que no se interfieran. De cada
 uno se comprueban gen, cambio de aminoácido, tipo de cambio, codón de
-referencia, codón alternativo y el descriptor `HGVS c.`. Tarda unos cinco
-segundos.
+referencia, codón alternativo y el descriptor `HGVS c.`.
+
+Más 324 indels: deleciones e inserciones de 1, 2 y 3 bases en anclas repartidas
+por cada exón, incluidos ambos bordes, donde viven el codón iniciador y el de
+parada. Su expectativa sale de la misma retraducción, aplicando el indel en el
+espacio de coordenadas del CDS y no recortando el genoma, porque las bases de
+alrededor conservan sus coordenadas. Se comprueban tipo de cambio, clase de
+evento y ambos codones; la notación HGVS de proteína para indels es formato
+propio de get_MNV, así que reproducirla aquí probaría ortografía, no biología.
+
+La ejecución completa tarda unos seis segundos.
 
 ## Cuánto vale
 
@@ -68,7 +77,12 @@ GET_MNV_BIN=/ruta/a/get_mnv/anterior python3 tests/truth/run.py
 ```
 
 Contra el binario anterior al arreglo de orientación de codón reporta 240
-discrepancias, todas en los genes de hebra menos.
+discrepancias, todas en los genes de hebra menos. Contra el anterior al arreglo
+del codón de inicio reporta 11 más, todas indels que eliminan el iniciador.
+
+Los fallos se agrupan por categoría y se muestran ejemplos de cada grupo, en vez
+de los primeros en orden, porque si no una categoría ruidosa entierra a otra: la
+ejecución de arriba enseña tanto los 240 de orden como los 11 del codón de inicio.
 
 ## Una nota sobre escribir el oráculo
 

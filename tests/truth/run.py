@@ -97,6 +97,42 @@ class Gene:
         # down, and each piece is read on the other strand.
         return "".join(revcomp(piece) for piece in reversed(pieces))
 
+    def cds_positions(self) -> list[int]:
+        """Genomic position of every CDS base, in transcript order."""
+        positions: list[int] = []
+        if self.strand == "+":
+            for start, end in self.segments:
+                positions.extend(range(start, end + 1))
+        else:
+            for start, end in reversed(self.segments):
+                positions.extend(range(end, start - 1, -1))
+        return positions
+
+    def cds_with_indel(
+        self, genome: str, deleted: set[int], inserted_after: dict[str, str]
+    ) -> str:
+        """The CDS after removing `deleted` genomic bases and inserting after others.
+
+        Walking the CDS position by position keeps the coordinates of the
+        untouched bases fixed, which is what an indel actually does; shortening
+        the genome and re-slicing by the old coordinates does not.
+
+        A VCF insertion places its bases between genomic p and p+1. On the minus
+        strand the transcript walks p+1 before p, so the inserted sequence is
+        emitted before the base at p, reverse-complemented.
+        """
+        out: list[str] = []
+        for position in self.cds_positions():
+            insertion = inserted_after.get(str(position))
+            if insertion and self.strand == "-":
+                out.append(revcomp(insertion))
+            if position not in deleted:
+                base = genome[position - 1]
+                out.append(base if self.strand == "+" else COMPLEMENT[base])
+            if insertion and self.strand == "+":
+                out.append(insertion)
+        return "".join(out)
+
     def codon_of(self, position: int) -> int | None:
         """1-based codon number containing a genomic position, or None."""
         offset = self.transcript_offset(position)
@@ -117,6 +153,21 @@ class Gene:
                 return walked + end - position
             walked += end - start + 1
         return None
+
+
+@dataclass
+class IndelCase:
+    """An indel with the answer derived by re-translating the mutated CDS."""
+
+    position: int
+    ref_allele: str
+    alt_allele: str
+    gene: str
+    change_type: str
+    event_class: str
+    ref_codon: str | None
+    alt_codon: str | None
+    note: str = ""
 
 
 @dataclass
@@ -269,6 +320,105 @@ def expected_for(genome: str, gene: Gene, changes: list[tuple[int, str]]) -> Cas
     )
 
 
+def expected_indel(
+    genome: str, gene: Gene, position: int, ref_allele: str, alt_allele: str
+) -> IndelCase | None:
+    """Derive an indel's expected annotation by re-translating the mutated CDS.
+
+    The proteins and the frameshift determination come from string operations on
+    the reference; only the label mapping follows get_MNV's documented
+    convention.
+    """
+    # A VCF indel is anchored: the shared first base stays, the rest of REF is
+    # deleted and the rest of ALT is inserted after the anchor.
+    deleted = set(range(position + 1, position + len(ref_allele)))
+    inserted_after = {str(position): alt_allele[1:]} if len(alt_allele) > 1 else {}
+    reference_cds = gene.cds(genome)
+    alternate_cds = gene.cds_with_indel(genome, deleted, inserted_after)
+
+    delta = len(alternate_cds) - len(reference_cds)
+    if delta == 0:
+        return None  # not length-changing inside this gene: nothing to assert
+    frameshift = delta % 3 != 0
+
+    reference_protein = translate(reference_cds)
+    alternate_protein = translate(alternate_cds)
+
+    if frameshift:
+        change_type = "Frameshift Indel"
+    elif reference_protein[:1] == "M" and alternate_protein[:1] not in ("M", "*"):
+        change_type = "Start lost"
+    elif alternate_protein.count("*") > reference_protein.count("*"):
+        change_type = "Stop gained"
+    elif alternate_protein.count("*") < reference_protein.count("*"):
+        change_type = "Stop lost"
+    else:
+        change_type = "In-frame Indel"
+
+    event_class = "deletion" if len(alt_allele) < len(ref_allele) else "insertion"
+
+    # The codon shown is the one containing the first CDS base that actually
+    # changes. In a VCF indel the anchor base is padding and is unchanged, so
+    # for a deletion that is the first deleted base, and for an insertion it is
+    # the anchor the new bases hang off.
+    changed_positions = sorted(deleted) if deleted else [position]
+    touched = [gene.transcript_offset(pos) for pos in changed_positions]
+    touched = sorted(offset for offset in touched if offset is not None)
+    if not touched:
+        return None
+    codon_start = (touched[0] // 3) * 3
+    ref_codon = reference_cds[codon_start : codon_start + 3]
+    alt_codon = alternate_cds[codon_start : codon_start + 3]
+    if len(ref_codon) < 3:
+        return None
+
+    return IndelCase(
+        position=position,
+        ref_allele=ref_allele,
+        alt_allele=alt_allele,
+        gene=gene.name,
+        change_type=change_type,
+        event_class=event_class,
+        ref_codon=ref_codon,
+        alt_codon=alt_codon if len(alt_codon) == 3 else None,
+    )
+
+
+def build_indel_cases(genome: str, genes: list[Gene]) -> list[IndelCase]:
+    """Deletions and insertions of 1, 2 and 3 bases across each gene."""
+    cases: list[IndelCase] = []
+    for gene in genes:
+        for segment_start, segment_end in gene.segments:
+            # Anchors spread through the exon, kept clear of its edges so the
+            # deleted span stays inside the CDS.
+            span = segment_end - segment_start
+            # Both edges of the exon as well as the middle: the edges are where
+            # the initiator and the terminator codons live, and a start lost or
+            # a stop lost is exactly the label an indel path can get wrong.
+            anchors = [
+                segment_start + offset
+                for offset in (0, 1, 2, 5, span // 3, span // 2, span - 8, span - 5, span - 4)
+                if 0 <= offset <= span - 4
+            ]
+            for anchor in sorted(set(anchors)):
+                for length in (1, 2, 3):
+                    reference = genome[anchor - 1 : anchor + length]
+                    case = expected_indel(
+                        genome, gene, anchor, reference, genome[anchor - 1]
+                    )
+                    if case:
+                        case.note = f"del{length} {gene.name} at {anchor}"
+                        cases.append(case)
+                    inserted = "ACG"[:length]
+                    case = expected_indel(
+                        genome, gene, anchor, genome[anchor - 1], genome[anchor - 1] + inserted
+                    )
+                    if case:
+                        case.note = f"ins{length} {gene.name} at {anchor}"
+                        cases.append(case)
+    return cases
+
+
 def build_cases(genome: str, genes: list[Gene]) -> list[Case]:
     """Every single-base change in a stretch of codons, plus same-codon groups."""
     cases: list[Case] = []
@@ -370,6 +520,7 @@ def main() -> int:
     rng = random.Random(20260804)
     genome, genes = build_genome(rng)
     cases = build_cases(genome, genes)
+    indel_cases = build_indel_cases(genome, genes)
 
     if WORK.exists():
         shutil.rmtree(WORK)
@@ -379,6 +530,7 @@ def main() -> int:
     # codons would otherwise be grouped or shift each other's frame.
     failures: list[str] = []
     checked = 0
+    checked_indels = 0
     for index, case in enumerate(cases):
         case_dir = WORK / f"case_{index:04d}"
         case_dir.mkdir(parents=True, exist_ok=True)
@@ -424,7 +576,49 @@ def main() -> int:
                     f"{case.note} at {wanted}: {label} expected {expected!r}, got {actual!r}"
                 )
 
-    print(f"{len(cases)} cases built, {checked} rows compared")
+    # Indels, checked on the labels and codons that can be derived without
+    # reimplementing HGVS protein notation.
+    for index, indel in enumerate(indel_cases):
+        case_dir = WORK / f"indel_{index:04d}"
+        case_dir.mkdir(parents=True, exist_ok=True)
+        vcf = case_dir / "in.vcf"
+        write_vcf(vcf, genome, [(indel.position, indel.ref_allele, indel.alt_allele)])
+        proc = subprocess.run(
+            [
+                str(binary()),
+                "--vcf", "in.vcf",
+                "--fasta", str((WORK / "truth.fa").resolve()),
+                "--gff", str((WORK / "truth.gff").resolve()),
+            ],
+            cwd=case_dir,
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            failures.append(f"{indel.note}: get_mnv failed\n{proc.stderr.strip()[:400]}")
+            continue
+        with (case_dir / "in.MNV.tsv").open() as handle:
+            rows = [row for row in csv.DictReader(handle, delimiter="\t")]
+        row = next((r for r in rows if r["Gene"] == indel.gene), None)
+        if row is None:
+            failures.append(f"{indel.note}: no row for gene {indel.gene}")
+            continue
+        checked_indels += 1
+        checks = [
+            ("change type", indel.change_type, row["Change Type"]),
+            ("event class", indel.event_class, row["Event Class"]),
+            ("reference codon", indel.ref_codon, row["Reference Codon"]),
+        ]
+        if indel.alt_codon is not None:
+            checks.append(("alternate codon", indel.alt_codon, row["MNV Codon"]))
+        for label, expected, actual in checks:
+            if expected != actual:
+                failures.append(
+                    f"{indel.note}: {label} expected {expected!r}, got {actual!r}"
+                )
+
+    print(f"{len(cases)} substitution cases built, {checked} rows compared")
+    print(f"{len(indel_cases)} indel cases built, {checked_indels} rows compared")
     print(f"  genes: {', '.join(f'{g.name}({g.strand}, {len(g.segments)} exon(s))' for g in genes)}")
 
     if not args.keep:
@@ -432,10 +626,23 @@ def main() -> int:
 
     if failures:
         print(f"\nFAIL: {len(failures)} disagreement(s) with the constructed truth.\n")
-        for failure in failures[:40]:
-            print(f"  {failure}")
-        if len(failures) > 40:
-            print(f"  ... and {len(failures) - 40} more")
+        # Grouped, and sampled per group. Printing the first N instead would let
+        # one noisy category bury another entirely: a run that broke both the
+        # substitution ordering and the start-codon label showed 40 of the
+        # former and none of the latter.
+        buckets: dict[str, list[str]] = {}
+        for failure in failures:
+            kind = failure.split()[0].rstrip(":")
+            kind = "".join(ch for ch in kind if not ch.isdigit()) or kind
+            buckets.setdefault(kind, []).append(failure)
+        for kind, group in sorted(buckets.items(), key=lambda item: -len(item[1])):
+            print(f"  {len(group):5d}  {kind}")
+        print()
+        for kind, group in sorted(buckets.items(), key=lambda item: -len(item[1])):
+            for failure in group[:4]:
+                print(f"  {failure}")
+            if len(group) > 4:
+                print(f"  ... and {len(group) - 4} more {kind}")
         return 1
 
     print("\nOK: every call matches the answer the dataset was built with.")
