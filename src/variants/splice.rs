@@ -86,6 +86,29 @@ pub fn splice_consequence_for_position(gene: &Gene, position: usize) -> Option<S
     best
 }
 
+/// Whether a genomic `position` falls inside a real intron of `gene`.
+///
+/// Only pairs of CDS segments that a genuine intron separates are considered,
+/// so an unspliced transcript (a single segment, or a ribosomal-slippage join)
+/// has no intronic positions at all. Splice sites are intronic too, but they are
+/// classified by [`splice_consequence_for_position`], which is more specific;
+/// this answers the wider question of "inside the transcript but not coding".
+pub fn is_intronic_position(gene: &Gene, position: usize) -> bool {
+    gene.cds_segments.windows(2).any(|pair| {
+        let (earlier, later) = (&pair[0], &pair[1]);
+        if !gene.intron_separates(earlier, later) {
+            return false;
+        }
+        // `cds_segments` is in transcript order, so on the minus strand the
+        // intron sits below the earlier exon rather than above it.
+        let (low, high) = match gene.strand {
+            Strand::Plus => (earlier.end + 1, later.start - 1),
+            Strand::Minus => (later.end + 1, earlier.start - 1),
+        };
+        position >= low && position <= high
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,6 +247,41 @@ mod tests {
         );
         assert_eq!(splice_consequence_for_position(&g, 1201), None);
         assert_eq!(splice_consequence_for_position(&g, 1202), None);
+    }
+
+    #[test]
+    fn intronic_positions_are_inside_a_real_intron() {
+        // exon1 801-900, intron 901-1000, exon2 1001-1200.
+        let g = gene(Strand::Plus, &[(801, 900), (1001, 1200)]);
+        for pos in [901, 950, 1000] {
+            assert!(is_intronic_position(&g, pos), "{pos} is in the intron");
+        }
+        for pos in [900, 1001, 850, 1100] {
+            assert!(!is_intronic_position(&g, pos), "{pos} is exonic");
+        }
+
+        // Minus strand: transcript order is descending, the intron is the same
+        // genomic interval.
+        let m = gene(Strand::Minus, &[(1001, 1200), (801, 900)]);
+        for pos in [901, 950, 1000] {
+            assert!(is_intronic_position(&m, pos), "{pos} is in the intron");
+        }
+        assert!(!is_intronic_position(&m, 900));
+        assert!(!is_intronic_position(&m, 1001));
+    }
+
+    #[test]
+    fn an_unspliced_transcript_has_no_intronic_positions() {
+        // Single segment, abutting segments and a slippage join all lack introns,
+        // so no position between or around them is intronic.
+        let single = gene(Strand::Plus, &[(801, 900)]);
+        assert!(!is_intronic_position(&single, 950));
+        let abutting = gene(Strand::Plus, &[(801, 900), (901, 1200)]);
+        assert!(!is_intronic_position(&abutting, 900));
+        assert!(!is_intronic_position(&abutting, 901));
+        let slippage = gene(Strand::Plus, &[(266, 13468), (13468, 21555)]);
+        assert!(!is_intronic_position(&slippage, 13468));
+        assert!(!is_intronic_position(&slippage, 13469));
     }
 
     #[test]

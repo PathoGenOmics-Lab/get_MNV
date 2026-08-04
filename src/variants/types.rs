@@ -234,6 +234,12 @@ pub struct VariantAnnotations {
     /// `missense_variant&splice_region_variant`), an intronic site stands alone.
     #[serde(default)]
     pub splice: Option<SpliceConsequence>,
+    /// Set when the variant lies inside a real intron of the named gene but
+    /// outside its splice sites, which makes it an `intron_variant`. Splice-site
+    /// positions are intronic too, but they carry the more specific `splice`
+    /// annotation instead, so the two are mutually exclusive by construction.
+    #[serde(default)]
+    pub intronic: bool,
 }
 
 impl VariantType {

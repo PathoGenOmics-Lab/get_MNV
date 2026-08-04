@@ -514,7 +514,7 @@ fn test_filter_genes_with_snps() {
 }
 
 #[test]
-fn test_transcript_gene_filter_keeps_splice_but_drops_deep_intronic() {
+fn test_transcript_gene_filter_keeps_intronic_variants() {
     // Two-exon transcript with a large intron (genomic 101..149).
     let genes = vec![Gene {
         name: "tx_gene".into(),
@@ -541,10 +541,11 @@ fn test_transcript_gene_filter_keeps_splice_but_drops_deep_intronic() {
         original_info: None,
     };
 
-    // A deep intronic variant (>8 nt from either junction) does not make the gene
-    // coding and is not a splice site: the gene is dropped.
+    // A deep intronic variant (>8 nt from either junction) keeps the gene so it
+    // can be reported as an intron_variant against the transcript it sits in.
+    // It still does not overlap the CDS, so it is not coding.
     let deep = vec![snp(125)];
-    assert!(filter_genes_with_snps(&genes, &deep).is_empty());
+    assert_eq!(filter_genes_with_snps(&genes, &deep).len(), 1);
     assert!(!gene_overlaps_variant(&genes[0], &deep[0]));
 
     // An intronic variant in the essential donor site (first base of the intron)
@@ -553,4 +554,8 @@ fn test_transcript_gene_filter_keeps_splice_but_drops_deep_intronic() {
     let splice = vec![snp(101)];
     assert_eq!(filter_genes_with_snps(&genes, &splice).len(), 1);
     assert!(!gene_overlaps_variant(&genes[0], &splice[0]));
+
+    // A variant outside the transcript entirely is neither, and the gene goes.
+    let outside = vec![snp(500)];
+    assert!(filter_genes_with_snps(&genes, &outside).is_empty());
 }

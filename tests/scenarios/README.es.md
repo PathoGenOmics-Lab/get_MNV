@@ -179,7 +179,7 @@ las filas TSV esperadas.
 
 | # | Name | What it validates |
 |---|------|-------------------|
-| 21 | `intron_variant` | SNV en el intrón de geneC (pos 950) → anotado como `intergenic` con `--gff-features CDS` |
+| 21 | `intron_variant` | SNV en el intrón de geneC (pos 950), lejos de los sitios de splice → `intron_variant` contra geneC, no `intergenic` |
 | 22 | `multiallelic_split` | VCF multialélico `pos 28 REF=G ALT=A,T` con `--split-multiallelic`: cada ALT produce ahora una fila de anotación independiente (prueba de regresión para la corrección del commit 9ea2aed) |
 | 23 | `delins_subst_plus_del` | `REF=GCT ALT=GA`: un alelo compuesto de sustitución + deleción de 1 bp produce una fila INDEL con frameshift |
 

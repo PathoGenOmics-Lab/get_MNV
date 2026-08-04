@@ -477,6 +477,21 @@ pub fn build_splice_variant(
     variant
 }
 
+/// Build a `VariantInfo` for a variant inside a real intron of a gene, away from
+/// its splice sites. It carries the gene name so the variant is reported against
+/// the transcript it actually sits in rather than as intergenic, which is what a
+/// position inside a gene is not.
+pub fn build_intron_variant(
+    chrom: &str,
+    vcf_pos: &crate::io::VcfPosition,
+    gene_name: &str,
+) -> VariantInfo {
+    let mut variant = build_intergenic_variant(chrom, vcf_pos);
+    variant.gene = gene_name.to_string();
+    variant.annotations.intronic = true;
+    variant
+}
+
 /// Build a `VariantInfo` for a VCF position that falls outside all annotated
 /// genes (intergenic).  The entry preserves the original position, alleles and
 /// any original metrics but has no codon / amino-acid annotation.

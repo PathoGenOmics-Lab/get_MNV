@@ -135,6 +135,16 @@ fn splice_site_for_variant(
     })
 }
 
+/// First gene with a real intron containing this variant. Only reached when the
+/// variant is not in any CDS and not at a splice site, so it describes a variant
+/// sitting deep inside an intron.
+fn intron_for_variant(genes: &[Gene], snp: &VcfPosition) -> Option<String> {
+    genes
+        .iter()
+        .find(|gene| variants::splice::is_intronic_position(gene, snp.position))
+        .map(|gene| gene.name.clone())
+}
+
 fn count_intergenic_variant_reads(
     args: &Args,
     contig: &str,
@@ -368,16 +378,23 @@ pub(crate) fn process_contig(
         let mut intergenic: Vec<VariantInfo> = Vec::new();
         for (idx, snp) in snp_list.iter().enumerate() {
             if !covered[idx] {
-                // A variant not in any CDS may still fall in the splice region of
-                // a gene's intron; annotate it as a splice variant (gene-named)
-                // instead of intergenic. It stays in this vector so its read
-                // support is counted with the intergenic SNPs.
-                match splice_site_for_variant(&genes, snp) {
-                    Some((gene_name, splice)) => intergenic.push(variants::build_splice_variant(
-                        contig, snp, &gene_name, splice,
-                    )),
-                    None => intergenic.push(variants::build_intergenic_variant(contig, snp)),
-                }
+                // A variant not in any CDS may still sit inside a gene: at a
+                // splice site, or deeper in the intron. Both are annotated
+                // against their gene rather than called intergenic, which a
+                // position inside a transcript is not. Splice sites are checked
+                // first because they are the more specific consequence. These
+                // stay in this vector so their read support is counted with the
+                // intergenic SNPs.
+                let variant = match splice_site_for_variant(&genes, snp) {
+                    Some((gene_name, splice)) => {
+                        variants::build_splice_variant(contig, snp, &gene_name, splice)
+                    }
+                    None => match intron_for_variant(&genes, snp) {
+                        Some(gene_name) => variants::build_intron_variant(contig, snp, &gene_name),
+                        None => variants::build_intergenic_variant(contig, snp),
+                    },
+                };
+                intergenic.push(variant);
             }
         }
         if !intergenic.is_empty() {

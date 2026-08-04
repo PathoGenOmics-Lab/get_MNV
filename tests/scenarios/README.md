@@ -177,7 +177,7 @@ expected TSV rows.
 
 | # | Name | What it validates |
 |---|------|-------------------|
-| 21 | `intron_variant` | SNV in the geneC intron (pos 950) → annotated as `intergenic` under `--gff-features CDS` |
+| 21 | `intron_variant` | SNV in the geneC intron (pos 950), away from the splice sites → `intron_variant` against geneC, not `intergenic` |
 | 22 | `multiallelic_split` | Multiallelic VCF `pos 28 REF=G ALT=A,T` with `--split-multiallelic`: each ALT now produces an independent annotation row (regression test for the fix in commit 9ea2aed) |
 | 23 | `delins_subst_plus_del` | `REF=GCT ALT=GA`: a substitution + 1 bp deletion compound allele yields a frameshift INDEL row |
 

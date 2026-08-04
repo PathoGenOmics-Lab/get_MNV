@@ -940,7 +940,10 @@ scenario_stop_lost = Scenario(
 # Sin CDS feature en el intron -> intergenic con --gff-features CDS
 scenario_intron_variant = Scenario(
     name="21_intron_variant",
-    description="SNV en intron de geneC (pos 950 T>A): debe reportarse como intergenic",
+    description=(
+        "SNV en el intron de geneC (pos 950 T>A), lejos de los sitios de splice: "
+        "se reporta contra geneC como intron_variant, no como intergenic"
+    ),
     variants=[VcfRecord(pos=950, ref="T", alt="A")],
     reads=[
         ReadGroup(
@@ -954,8 +957,9 @@ scenario_intron_variant = Scenario(
     expected=[
         ExpectedRow(
             positions="950",
-            gene="intergenic",
+            gene="geneC",
             variant_type="SNP",
+            change_type="Unknown",
         ),
     ],
     expected_row_count=1,

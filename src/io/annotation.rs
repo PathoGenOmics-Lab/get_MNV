@@ -71,12 +71,14 @@ pub fn gene_overlaps_variant(gene: &Gene, variant: &VcfPosition) -> bool {
 fn gene_has_variant(gene: &Gene, snp_list: &[VcfPosition]) -> bool {
     snp_list.iter().any(|variant| {
         gene_overlaps_variant(gene, variant)
-            // Keep genes whose only nearby variant is intronic but in a splice
-            // region, so it can be annotated as a splice variant instead of being
-            // dropped to intergenic. `gene_overlaps_variant` (used for intergenic
-            // coverage) is deliberately left CDS-only.
+            // Keep genes whose only nearby variant is intronic, whether at a
+            // splice site or deeper in the intron, so it can be annotated
+            // against its gene instead of being dropped to intergenic.
+            // `gene_overlaps_variant` (used for intergenic coverage) is
+            // deliberately left CDS-only.
             || crate::variants::splice::splice_consequence_for_position(gene, variant.position)
                 .is_some()
+            || crate::variants::splice::is_intronic_position(gene, variant.position)
     })
 }
 

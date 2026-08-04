@@ -104,6 +104,11 @@ fn base_so_consequence(variant: &VariantInfo) -> (&'static str, &'static str) {
     if variant.gene == "intergenic" {
         return ("intergenic_variant", "MODIFIER");
     }
+    // Inside a gene but not in its coding sequence: an intronic variant is not
+    // intergenic, and it has no codon to classify.
+    if variant.annotations.intronic {
+        return ("intron_variant", "MODIFIER");
+    }
     match variant.change_type {
         ChangeType::Synonymous => ("synonymous_variant", "LOW"),
         ChangeType::NonSynonymous => ("missense_variant", "MODERATE"),

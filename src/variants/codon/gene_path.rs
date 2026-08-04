@@ -44,6 +44,8 @@ pub(super) fn compute_annotations(
         hgvs_c: None,
         // Set by the transcript caller for exonic near-junction substitutions.
         splice: None,
+        // This path only builds coding annotations, which are never intronic.
+        intronic: false,
     }
 }
 
