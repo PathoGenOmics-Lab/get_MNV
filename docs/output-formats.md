@@ -51,8 +51,8 @@ Extra columns when `--bam` is used:
 
 | Column | Meaning |
 |---|---|
-| `SNP Reads` | Reads supporting each individual SNV. |
-| `SNP Forward/Reverse Reads` | Strand-specific SNP support. |
+| `SNP Reads` | Reads carrying each individual SNV **without** the full MNV haplotype. On a row where every read carries the whole haplotype this is `0` for each constituent and the count lives in `MNV Reads`, so the two columns partition the support rather than double-count it. |
+| `SNP Forward/Reverse Reads` | Strand-specific counts for the reads above. |
 | `MNV Reads` | Reads supporting the full MNV haplotype. |
 | `MNV Forward/Reverse Reads` | Strand-specific MNV support. |
 | `Total Reads` | Depth at the variant positions. |

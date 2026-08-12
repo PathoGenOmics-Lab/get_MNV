@@ -20,19 +20,40 @@ Descarga la última versión para tu plataforma desde la
    ordenado por coordenada e indexado.
 2. **Configura los parámetros.** El formulario expone las opciones habituales: código
    genético, umbrales de calidad y MAPQ, recuento de lecturas SNP/MNV, filtros de
-   frecuencia y de hebra, y los ajustes finos de indels. Los valores por defecto coinciden
-   con los de la CLI.
+   frecuencia y de hebra, y los ajustes finos de indels.
 3. **Ejecuta.** Analiza una sola muestra, o varias muestras emparejadas en un mismo lote.
 4. **Inspecciona y exporta.** Explora, ordena y filtra la tabla de resultados, y luego
    exporta a TSV o VCF.
 
+Para un recorrido con capturas, mira el
+[tutorial de la GUI de escritorio](gui-tutorial.es.md).
+
+### En qué se aparta el formulario de la CLI
+
+La app ejecuta el mismo motor, y todo ajuste que no muestra cae en el valor por
+defecto de la CLI. Cinco de los que sí muestra son a propósito más conservadores,
+así que los mismos archivos pueden dar aquí menos filas que `get_mnv` sin flags:
+
+| Campo del formulario | App | CLI | Efecto |
+|---|---:|---:|---|
+| Min MAPQ | `20` | `0` | las lecturas multimapeadas no se cuentan |
+| Min SNP reads | `2` | `0` | un SNP con una sola lectura se descarta |
+| Min MNV reads | `2` | `0` | un haplotipo con una sola lectura se descarta |
+| Normalize alleles | activado | desactivado | se recorta el contexto REF/ALT compartido |
+| Split multiallelic | activado | desactivado | los registros multialélicos se dividen en vez de rechazarse |
+
+Pon esos valores a los de la CLI en el formulario para reproducir exactamente una
+ejecución de línea de comandos. La lista la impone un test que lee los valores por
+defecto del frontend y los compara con el parser de la propia CLI, así que una
+sexta divergencia rompe el build.
+
 ## Visor de pistas genómicas
 
 <div style="text-align: center;" markdown>
-![Visor de pistas genómicas de get_MNV: pistas de codones y pileup de lecturas de un MNV](assets/gui-track-viewer.png){ width="840" }
+![Visor de pistas genómicas de get_MNV: pistas de codones y pileup de lecturas de un MNV](assets/gui-06-reads.png){ width="840" }
 </div>
 
-*El visor de pistas para un MNV (`GCT → TCA`, Ala10Ser): pistas de codones y el pileup de lecturas, con las bases ALT resaltadas en las 20 lecturas que dan soporte.*
+*El visor de pistas para el MNV de `Rv2036` (`GTT → GCC`, Val93Ala) en el ejemplo incluido: pistas de codones y el pileup de lecturas, con las bases ALT resaltadas en las 24 lecturas que dan soporte.*
 
 Al seleccionar una fila de variante se abre una vista de estilo IGV que alinea, columna a columna:
 

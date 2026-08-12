@@ -51,8 +51,8 @@ Columnas adicionales cuando se usa `--bam`:
 
 | Columna | Significado |
 |---|---|
-| `SNP Reads` | Lecturas que respaldan cada SNV individual. |
-| `SNP Forward/Reverse Reads` | Soporte de SNP por hebra. |
+| `SNP Reads` | Lecturas que llevan cada SNV individual **sin** el haplotipo MNV completo. En una fila donde todas las lecturas llevan el haplotipo entero esto vale `0` para cada constituyente y el recuento vive en `MNV Reads`, así que las dos columnas reparten el soporte en vez de contarlo dos veces. |
+| `SNP Forward/Reverse Reads` | Recuentos por hebra de las lecturas de arriba. |
 | `MNV Reads` | Lecturas que respaldan el haplotipo MNV completo. |
 | `MNV Forward/Reverse Reads` | Soporte de MNV por hebra. |
 | `Total Reads` | Profundidad en las posiciones de la variante. |

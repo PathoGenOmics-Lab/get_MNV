@@ -1616,6 +1616,52 @@ mod tests {
         let _ = std::fs::remove_file(&fasta);
         let _ = std::fs::remove_file(format!("{fasta}.fai"));
     }
+
+    /// Regenerates the browser demo's read-pileup fixture from the example data
+    /// shipped in `example/`, so the demo shows a real `get_bam_view` answer
+    /// rather than a hand-written imitation of one.
+    ///
+    /// Ignored by default because it writes into the working tree. Run it after
+    /// changing `BamViewResponse`:
+    ///
+    /// ```text
+    /// cargo test -p get-mnv-gui --bins -- --ignored regenerate_demo_bam_view
+    /// ```
+    ///
+    /// The locus is the `Rv2036` codon that `docs/getting-started.md` walks
+    /// through: two substitutions in one codon, carried by all 24 reads. The
+    /// request mirrors what `BamViewer.tsx` sends, including its 80 bp padding
+    /// and the form's MAPQ and base-quality floors.
+    #[test]
+    #[ignore = "writes frontend/demo/sample_bam_view.json"]
+    fn regenerate_demo_bam_view_fixture() {
+        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
+        let response = get_bam_view(BamViewRequest {
+            bam_path: format!("{root}/example/G35894.demo.bam"),
+            fasta_path: format!("{root}/example/MTB_ancestor.fas"),
+            chrom: "MTB_anc".to_string(),
+            positions: vec![2_282_376, 2_282_377],
+            ref_bases: vec!["T".to_string(), "T".to_string()],
+            alt_bases: vec!["C".to_string(), "C".to_string()],
+            min_mapq: Some(20),
+            min_base_quality: Some(20),
+            max_reads: Some(80),
+            window_start: 2_282_296,
+            window_end: 2_282_457,
+        })
+        .expect("get_bam_view failed on the example data");
+
+        assert!(
+            response.total_reads > 0,
+            "the example BAM produced no reads at the Rv2036 locus"
+        );
+        // Pretty-printed: it is checked in, so a regeneration should produce a
+        // diff a reviewer can read.
+        let path = format!("{root}/frontend/demo/sample_bam_view.json");
+        std::fs::write(&path, serde_json::to_string_pretty(&response).unwrap())
+            .unwrap_or_else(|e| panic!("cannot write {path}: {e}"));
+        println!("wrote {path} ({} reads)", response.total_reads);
+    }
 }
 
 #[cfg(test)]
@@ -1623,14 +1669,18 @@ mod default_parity_tests {
     use super::tests::minimal_config;
     use clap::Parser;
 
-    /// The desktop app runs the same engine as the command line, so a config the
-    /// user did not touch must produce the same `Args` the CLI would with no
-    /// flags. These drifted apart once before, and the app quietly answered
+    /// Every knob the front end leaves unset must fall back to the CLI's own
+    /// default. These drifted apart once before, and the app quietly answered
     /// differently from the CLI on the same inputs: a frameshift gate of 0.0
     /// against 0.5, the legacy indel depth denominator, and a phased-haplotype
     /// floor of one read against two.
+    ///
+    /// This covers the fallback layer only. The React front end sends a value
+    /// for nearly every field, so the defaults a user actually gets are the ones
+    /// in `frontend/src/types.ts`; those are checked by
+    /// `shipped_frontend_defaults_match_the_cli_except_where_intended`.
     #[test]
-    fn untouched_gui_config_matches_the_cli_defaults() {
+    fn unset_gui_fields_fall_back_to_the_cli_defaults() {
         let cli = get_mnv::cli::Args::parse_from([
             "get_mnv",
             "--vcf",
@@ -1652,5 +1702,139 @@ mod default_parity_tests {
         assert_eq!(gui.translation_table, cli.translation_table);
         assert_eq!(gui.min_snp_reads, cli.min_snp_reads);
         assert_eq!(gui.min_mnv_reads, cli.min_mnv_reads);
+    }
+
+    /// Reads `DEFAULT_CONFIG` out of the front end and compares it with the CLI.
+    ///
+    /// This is the check the fallback test above cannot make. The form ships
+    /// with a value in nearly every field, so `into_args` never reaches its
+    /// `unwrap_or`, and a test that only exercises the fallback path will pass
+    /// while the app a user opens answers differently from `get_mnv` on the same
+    /// files. The app is deliberately more conservative in a few places;
+    /// `INTENDED_DIFFERENCES` is that list, and anything outside it is drift.
+    ///
+    /// The list is checked in both directions: an entry that no longer differs
+    /// also fails, so aligning a default forces the note to be removed rather
+    /// than left behind to mislead the next reader.
+    const INTENDED_DIFFERENCES: &[(&str, &str)] = &[
+        (
+            "minMapq",
+            "the form asks for MAPQ 20, so a run started by clicking Run \
+                     ignores multi-mapping reads the CLI would count",
+        ),
+        ("minSnpReads", "the form asks for 2 supporting reads"),
+        ("minMnvReads", "the form asks for 2 supporting reads"),
+        (
+            "normalizeAlleles",
+            "the form trims shared REF/ALT context by default",
+        ),
+        (
+            "splitMultiallelic",
+            "the form splits multiallelic records rather than \
+                               failing the run in front of the user",
+        ),
+    ];
+
+    fn frontend_defaults() -> std::collections::HashMap<String, String> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../frontend/src/types.ts");
+        let source =
+            std::fs::read_to_string(path).unwrap_or_else(|e| panic!("cannot read {path}: {e}"));
+        let start = source
+            .find("DEFAULT_CONFIG: AnalysisConfig = {")
+            .expect("DEFAULT_CONFIG not found in types.ts");
+        let body = &source[start..];
+        let end = body.find("\n};").expect("unterminated DEFAULT_CONFIG");
+        let mut out = std::collections::HashMap::new();
+        for line in body[..end].lines().skip(1) {
+            let line = line.trim().trim_end_matches(',');
+            if let Some((key, value)) = line.split_once(':') {
+                out.insert(key.trim().to_string(), value.trim().to_string());
+            }
+        }
+        assert!(
+            out.len() > 20,
+            "parsed only {} fields out of DEFAULT_CONFIG; the literal's shape changed",
+            out.len()
+        );
+        out
+    }
+
+    #[test]
+    fn shipped_frontend_defaults_match_the_cli_except_where_intended() {
+        let cli = get_mnv::cli::Args::parse_from([
+            "get_mnv",
+            "--vcf",
+            "/tmp/v.vcf",
+            "--fasta",
+            "/tmp/ref.fasta",
+            "--gff",
+            "/tmp/ref.gff",
+        ]);
+        let gui = frontend_defaults();
+
+        let numeric: Vec<(&str, f64)> = vec![
+            ("minQuality", cli.min_quality as f64),
+            ("minMapq", cli.min_mapq as f64),
+            ("minSnpReads", cli.min_snp_reads as f64),
+            ("minMnvReads", cli.min_mnv_reads as f64),
+            ("minSnpFrequency", cli.min_snp_frequency),
+            ("minMnvFrequency", cli.min_mnv_frequency),
+            ("minSnpStrandReads", cli.min_snp_strand_reads as f64),
+            ("minMnvStrandReads", cli.min_mnv_strand_reads as f64),
+            ("minStrandBiasP", cli.min_strand_bias_p),
+            ("frameshiftMinFreq", cli.frameshift_min_freq),
+            ("phasedIndelMinReads", cli.phased_indel_min_reads as f64),
+            ("phasedIndelMinFreq", cli.phased_indel_min_freq),
+            ("translationTable", cli.translation_table as f64),
+        ];
+        let boolean: Vec<(&str, bool)> = vec![
+            ("indelAnchorDepth", cli.indel_anchor_depth),
+            ("normalizeAlleles", cli.normalize_alleles),
+            ("splitMultiallelic", cli.split_multiallelic),
+            ("strict", cli.strict),
+            ("emitFiltered", cli.emit_filtered),
+            ("strandBiasInfo", cli.strand_bias_info),
+            ("keepOriginalInfo", cli.keep_original_info),
+            ("excludeIntergenic", cli.exclude_intergenic),
+        ];
+
+        let mut differing = Vec::new();
+        for (key, expected) in &numeric {
+            let raw = gui
+                .get(*key)
+                .unwrap_or_else(|| panic!("{key} missing from DEFAULT_CONFIG"));
+            let actual: f64 = raw
+                .parse()
+                .unwrap_or_else(|_| panic!("{key} is not a number in types.ts: {raw}"));
+            if (actual - expected).abs() > f64::EPSILON {
+                differing.push((*key, format!("form {actual}, CLI {expected}")));
+            }
+        }
+        for (key, expected) in &boolean {
+            let raw = gui
+                .get(*key)
+                .unwrap_or_else(|| panic!("{key} missing from DEFAULT_CONFIG"));
+            let actual = raw == "true";
+            if actual != *expected {
+                differing.push((*key, format!("form {actual}, CLI {expected}")));
+            }
+        }
+
+        let intended: Vec<&str> = INTENDED_DIFFERENCES.iter().map(|(k, _)| *k).collect();
+        for (key, detail) in &differing {
+            assert!(
+                intended.contains(key),
+                "{key} drifted away from the CLI ({detail}). Either restore the CLI \
+                 default or add it to INTENDED_DIFFERENCES with the reason, and say \
+                 so in docs/gui.md."
+            );
+        }
+        for key in &intended {
+            assert!(
+                differing.iter().any(|(k, _)| k == key),
+                "{key} is listed in INTENDED_DIFFERENCES but now matches the CLI; \
+                 drop the entry and the note in docs/gui.md."
+            );
+        }
     }
 }

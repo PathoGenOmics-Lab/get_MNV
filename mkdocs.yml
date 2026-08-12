@@ -76,6 +76,7 @@ plugins:
             Getting Started: Primeros pasos
             Common Recipes: Recetas habituales
             Desktop GUI: GUI de escritorio
+            Desktop GUI Tutorial: Tutorial de la GUI
             CLI Reference: Referencia de CLI
             Input Formats: Formatos de entrada
             Output Formats: Formatos de salida
@@ -135,6 +136,7 @@ nav:
       - Getting Started: getting-started.md
       - Common Recipes: usage.md
       - Desktop GUI: gui.md
+      - Desktop GUI Tutorial: gui-tutorial.md
   - Reference:
       - CLI Reference: cli-reference.md
       - Input Formats: input-formats.md

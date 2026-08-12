@@ -6,7 +6,7 @@ support.
 
 ## 1. Get the example data
 
-The [`example/`](https://github.com/PathoGenOmics-Lab/get_MNV/tree/indels/example)
+The [`example/`](https://github.com/PathoGenOmics-Lab/get_MNV/tree/main/example)
 folder of the repository ships everything you need:
 
 | File | Role |

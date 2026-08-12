@@ -73,7 +73,7 @@ get_mnv \
 
 Hay un conjunto de datos de *M. tuberculosis* listo para usar (referencia, genes,
 VCF y un BAM de demostración minúsculo para el visor de lecturas) en la carpeta
-[`example/`](https://github.com/PathoGenOmics-Lab/get_MNV/tree/indels/example)
+[`example/`](https://github.com/PathoGenOmics-Lab/get_MNV/tree/main/example)
 del repositorio.
 
 !!! tip "Siguientes pasos"

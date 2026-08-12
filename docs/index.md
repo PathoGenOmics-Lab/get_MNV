@@ -72,7 +72,7 @@ get_mnv \
 
 A ready-to-run *M. tuberculosis* dataset (reference, genes, VCF, and a tiny demo
 BAM for the read viewer) lives in the
-[`example/`](https://github.com/PathoGenOmics-Lab/get_MNV/tree/indels/example)
+[`example/`](https://github.com/PathoGenOmics-Lab/get_MNV/tree/main/example)
 folder of the repository.
 
 !!! tip "Next steps"

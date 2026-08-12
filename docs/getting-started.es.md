@@ -6,7 +6,7 @@ incluido su soporte de lecturas.
 
 ## 1. Obtén los datos de ejemplo
 
-La carpeta [`example/`](https://github.com/PathoGenOmics-Lab/get_MNV/tree/indels/example)
+La carpeta [`example/`](https://github.com/PathoGenOmics-Lab/get_MNV/tree/main/example)
 del repositorio incluye todo lo que necesitas:
 
 | Archivo | Función |

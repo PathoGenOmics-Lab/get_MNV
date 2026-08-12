@@ -19,18 +19,39 @@ Download the latest build for your platform from the
    sorted indexed BAM.
 2. **Set parameters.** The form exposes the common options: genetic code,
    quality and MAPQ thresholds, SNP/MNV read-count, frequency and strand filters,
-   and the indel-tuning knobs. Defaults match the CLI.
+   and the indel-tuning knobs.
 3. **Run.** Analyze a single sample, or several matched samples in one batch.
 4. **Inspect and export.** Browse, sort and filter the results table, then
    export to TSV or VCF.
 
+For a walkthrough with screenshots, see the
+[Desktop GUI tutorial](gui-tutorial.md).
+
+### Where the form differs from the CLI
+
+The app runs the same engine, and every knob it does not show falls back to the
+CLI default. Five of the values it does show are deliberately more conservative,
+so the same files can give fewer rows here than `get_mnv` with no flags:
+
+| Form field | App | CLI | Effect |
+|---|---:|---:|---|
+| Min MAPQ | `20` | `0` | multi-mapping reads are not counted |
+| Min SNP reads | `2` | `0` | a single-read SNP is dropped |
+| Min MNV reads | `2` | `0` | a single-read haplotype is dropped |
+| Normalize alleles | on | off | shared REF/ALT context is trimmed first |
+| Split multiallelic | on | off | multiallelic records are split, not refused |
+
+Set them to the CLI values in the form to reproduce a command-line run exactly.
+The list is enforced by a test that reads the front end's defaults and compares
+them with the CLI's own parser, so a sixth divergence fails the build.
+
 ## Genomic track viewer
 
 <div style="text-align: center;" markdown>
-![get_MNV genomic track viewer: codon tracks and the read pileup for an MNV](assets/gui-track-viewer.png){ width="840" }
+![get_MNV genomic track viewer: codon tracks and the read pileup for an MNV](assets/gui-06-reads.png){ width="840" }
 </div>
 
-*The track viewer for an MNV (`GCT → TCA`, Ala10Ser): codon tracks plus the read pileup, with the ALT bases highlighted across all 20 supporting reads.*
+*The track viewer for the `Rv2036` MNV (`GTT → GCC`, Val93Ala) in the bundled example: codon tracks plus the read pileup, with the ALT bases highlighted across all 24 supporting reads.*
 
 Selecting a variant row opens an IGV-style view that lines up, column by column:
 
