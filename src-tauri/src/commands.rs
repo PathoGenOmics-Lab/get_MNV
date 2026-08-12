@@ -47,6 +47,7 @@ pub struct AnalysisConfig {
     pub frameshift_min_freq: Option<f64>,
     pub indel_anchor_depth: Option<bool>,
     pub phased_indel_min_reads: Option<usize>,
+    pub count_mates_separately: Option<bool>,
     pub phased_indel_min_freq: Option<f64>,
     pub dry_run: Option<bool>,
     pub strict: Option<bool>,
@@ -125,11 +126,15 @@ impl AnalysisConfig {
             min_mnv_strand_reads: self.min_mnv_strand_reads.unwrap_or(0),
             min_strand_bias_p: self.min_strand_bias_p.unwrap_or(0.0),
             // Indel-annotation knobs (exposed in the desktop UI); fall back to the
-            // CLI defaults when the frontend does not send a value.
-            frameshift_min_freq: self.frameshift_min_freq.unwrap_or(0.0),
-            indel_anchor_depth: self.indel_anchor_depth.unwrap_or(false),
-            phased_indel_min_reads: self.phased_indel_min_reads.unwrap_or(1),
+            // CLI defaults when the frontend does not send a value. These must
+            // track `src/cli.rs`: the app runs the same engine, so a default
+            // that drifts here makes the desktop build answer differently from
+            // the command line on the same inputs.
+            frameshift_min_freq: self.frameshift_min_freq.unwrap_or(0.5),
+            indel_anchor_depth: self.indel_anchor_depth.unwrap_or(true),
+            phased_indel_min_reads: self.phased_indel_min_reads.unwrap_or(2),
             phased_indel_min_freq: self.phased_indel_min_freq.unwrap_or(0.0),
+            count_mates_separately: self.count_mates_separately.unwrap_or(false),
             dry_run: self.dry_run.unwrap_or(false),
             strict: self.strict.unwrap_or(false),
             split_multiallelic: self.split_multiallelic.unwrap_or(false),
@@ -160,6 +165,10 @@ impl AnalysisConfig {
             },
             output_dir,
             output_prefix: self.output_prefix,
+            // The desktop app has its own results viewer, so it does not ask the
+            // engine for the standalone HTML report.
+            report: None,
+            report_from: Vec::new(),
         }
     }
 }
@@ -1195,7 +1204,7 @@ mod tests {
         }
     }
 
-    fn minimal_config(variant_file: &str) -> AnalysisConfig {
+    pub(super) fn minimal_config(variant_file: &str) -> AnalysisConfig {
         AnalysisConfig {
             vcf_file: variant_file.to_string(),
             input_format: None,
@@ -1218,6 +1227,7 @@ mod tests {
             frameshift_min_freq: None,
             indel_anchor_depth: None,
             phased_indel_min_reads: None,
+            count_mates_separately: None,
             phased_indel_min_freq: None,
             dry_run: None,
             strict: None,
@@ -1382,13 +1392,11 @@ mod tests {
 
     #[test]
     fn test_gui_config_indel_knobs_default_to_cli_defaults() {
-        // When the frontend omits the indel knobs, into_args() must reproduce
-        // the CLI defaults (historical behaviour) — note reads default to 1, not 0.
+        // Superseded by `default_parity_tests`, which asks the CLI's own parser
+        // what the defaults are instead of writing them down here. This test
+        // carried its own copy of them, so when the CLI moved it went on
+        // asserting the old values and the drift passed unnoticed.
         let args = minimal_config("/tmp/sample.vcf").into_args();
-
-        assert_eq!(args.frameshift_min_freq, 0.0);
-        assert!(!args.indel_anchor_depth);
-        assert_eq!(args.phased_indel_min_reads, 1);
         assert_eq!(args.phased_indel_min_freq, 0.0);
     }
 
@@ -1607,5 +1615,42 @@ mod tests {
 
         let _ = std::fs::remove_file(&fasta);
         let _ = std::fs::remove_file(format!("{fasta}.fai"));
+    }
+}
+
+#[cfg(test)]
+mod default_parity_tests {
+    use super::tests::minimal_config;
+    use clap::Parser;
+
+    /// The desktop app runs the same engine as the command line, so a config the
+    /// user did not touch must produce the same `Args` the CLI would with no
+    /// flags. These drifted apart once before, and the app quietly answered
+    /// differently from the CLI on the same inputs: a frameshift gate of 0.0
+    /// against 0.5, the legacy indel depth denominator, and a phased-haplotype
+    /// floor of one read against two.
+    #[test]
+    fn untouched_gui_config_matches_the_cli_defaults() {
+        let cli = get_mnv::cli::Args::parse_from([
+            "get_mnv",
+            "--vcf",
+            "/tmp/v.vcf",
+            "--fasta",
+            "/tmp/ref.fasta",
+            "--gff",
+            "/tmp/ref.gff",
+        ]);
+        let gui = minimal_config("/tmp/v.vcf").into_args();
+
+        assert_eq!(gui.frameshift_min_freq, cli.frameshift_min_freq);
+        assert_eq!(gui.indel_anchor_depth, cli.indel_anchor_depth);
+        assert_eq!(gui.phased_indel_min_reads, cli.phased_indel_min_reads);
+        assert_eq!(gui.phased_indel_min_freq, cli.phased_indel_min_freq);
+        assert_eq!(gui.count_mates_separately, cli.count_mates_separately);
+        assert_eq!(gui.min_quality, cli.min_quality);
+        assert_eq!(gui.min_mapq, cli.min_mapq);
+        assert_eq!(gui.translation_table, cli.translation_table);
+        assert_eq!(gui.min_snp_reads, cli.min_snp_reads);
+        assert_eq!(gui.min_mnv_reads, cli.min_mnv_reads);
     }
 }

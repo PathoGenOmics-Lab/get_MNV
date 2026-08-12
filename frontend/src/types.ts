@@ -20,6 +20,8 @@ export interface AnalysisConfig {
   minMnvStrandReads: number;
   minStrandBiasP: number;
   frameshiftMinFreq: number;
+  /** Anchor-base depth for the indel locus. On by default, as in the CLI, where
+   *  `--legacy-indel-depth` is the opt-out. */
   indelAnchorDepth: boolean;
   phasedIndelMinReads: number;
   phasedIndelMinFreq: number;
@@ -201,9 +203,9 @@ export const DEFAULT_CONFIG: AnalysisConfig = {
   minSnpStrandReads: 0,
   minMnvStrandReads: 0,
   minStrandBiasP: 0,
-  frameshiftMinFreq: 0,
-  indelAnchorDepth: false,
-  phasedIndelMinReads: 1,
+  frameshiftMinFreq: 0.5,
+  indelAnchorDepth: true,
+  phasedIndelMinReads: 2,
   phasedIndelMinFreq: 0,
   normalizeAlleles: true,
   splitMultiallelic: true,

@@ -500,7 +500,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
         />
         <ToggleField
           label="Indel anchor depth"
-          tip="Count indel locus depth (the EDP/EFREQ denominator) from reads observing the anchor base, instead of only reads that fully span the REF allele. Reduces depth under-counting and frequency bias for multi-base deletions."
+          tip="Count indel locus depth (the EDP/EFREQ denominator) from every read observing the anchor base, rather than only reads that fully span the REF allele. On by default, matching the CLI; turning it off restores the older, narrower denominator, which under-counts depth and biases the frequency of a multi-base deletion."
           checked={config.indelAnchorDepth}
           onChange={(v) => update("indelAnchorDepth", v)}
         />

@@ -25,3 +25,7 @@ get_mnv = { path = ".." }
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+
+[dev-dependencies]
+# The defaults-parity test asks the CLI's own parser what its defaults are.
+clap = { version = "4.5.30", features = ["derive"] }

@@ -10,7 +10,14 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@tauri-apps/api/core": path.resolve(__dirname, "demo/tauri-core-mock.ts"),
+      // The BamViewer demo only needs `invoke`; the whole-app demo (app.html)
+      // needs every Tauri module the app imports, so all of them point at the
+      // shared mock. Nothing here reimplements analysis: see demo/tauri-mocks.ts.
+      "@tauri-apps/api/core": path.resolve(__dirname, "demo/tauri-mocks.ts"),
+      "@tauri-apps/api/event": path.resolve(__dirname, "demo/tauri-mocks.ts"),
+      "@tauri-apps/api/webview": path.resolve(__dirname, "demo/tauri-mocks.ts"),
+      "@tauri-apps/plugin-dialog": path.resolve(__dirname, "demo/tauri-mocks.ts"),
+      "@tauri-apps/plugin-shell": path.resolve(__dirname, "demo/tauri-shell-mock.ts"),
     },
   },
   server: { port: 5180, strictPort: true },
