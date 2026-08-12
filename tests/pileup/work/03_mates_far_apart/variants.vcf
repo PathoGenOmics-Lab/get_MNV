@@ -1,0 +1,10 @@
+##fileformat=VCFv4.2
+##contig=<ID=chr_test,length=1300>
+##contig=<ID=chr_test2,length=600>
+##INFO=<ID=DP,Number=1,Type=Integer,Description="depth">
+##INFO=<ID=AF,Number=A,Type=Float,Description="allele frequency">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="genotype">
+##FORMAT=<ID=PS,Number=1,Type=Integer,Description="phase set">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE
+chr_test	320	.	A	G	100	PASS	DP=30	GT	1/1
+chr_test	750	.	A	G	100	PASS	DP=30	GT	1/1

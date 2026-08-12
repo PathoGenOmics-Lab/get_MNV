@@ -74,6 +74,17 @@ pub(super) fn build_read_key(rec: &bam::Record) -> ReadKey {
     }
 }
 
+/// A distinct per-record key for tests that build a cache without a BAM.
+#[cfg(test)]
+pub(super) fn test_read_key(index: usize) -> ReadKey {
+    ReadKey {
+        qname: format!("record{index}").into_bytes(),
+        is_first_segment: true,
+        is_last_segment: false,
+        start_pos: index as i64,
+    }
+}
+
 pub(super) fn get_query_pos(rec: &bam::Record, pos: usize) -> Option<usize> {
     // pos is 1-based
     let target_pos = (pos - 1) as i64; // 0-based reference position

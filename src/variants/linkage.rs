@@ -228,6 +228,42 @@ mod tests {
     }
 
     #[test]
+    fn an_asymmetric_table_pins_the_arithmetic() {
+        // 100 molecules: 30 carry both, 10 the first only, 20 the second only,
+        // 40 neither. So p1 = 0.4, p2 = 0.5 and they co-occur on 0.30 where
+        // independence predicts 0.20. The excess is 0.10 and the most it could
+        // have been is min(0.4*0.5, 0.6*0.5) = 0.20, so D' is exactly 0.5, and
+        // r squared is 0.01 / (0.4*0.6*0.5*0.5) = 1/6. Neither number survives
+        // a changed operator, which the symmetric cases above do.
+        let linkage = pair_linkage(PairTable {
+            both: 30,
+            first_only: 10,
+            second_only: 20,
+            neither: 40,
+        })
+        .expect("both alleles vary");
+        approx(linkage.d_prime, 0.5);
+        approx(linkage.r_squared, 1.0 / 6.0);
+        assert_eq!(linkage.molecules, 100);
+    }
+
+    #[test]
+    fn an_asymmetric_deficit_pins_the_other_branch() {
+        // The mirror image: they co-occur on 0.10 where 0.20 is predicted. The
+        // deficit is normalised by min(p1*p2, (1-p1)*(1-p2)) = 0.20 instead,
+        // which is the branch the positive case never reaches.
+        let linkage = pair_linkage(PairTable {
+            both: 10,
+            first_only: 30,
+            second_only: 40,
+            neither: 20,
+        })
+        .expect("both alleles vary");
+        approx(linkage.d_prime, -0.5);
+        approx(linkage.r_squared, 1.0 / 6.0);
+    }
+
+    #[test]
     fn a_locus_carried_by_every_molecule_has_no_linkage_to_report() {
         // Nothing varies at the second locus, so there is no correlation to
         // measure. That is unknown, not independent.

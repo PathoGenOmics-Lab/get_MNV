@@ -1,0 +1,29 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##bcftoolsVersion=1.24+htslib-1.24
+##bcftoolsCommand=mpileup -B -a FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP -Q 20 -q 30 -d 100000 -R /Users/paururo/Developer/testing_science/get_MNV/tests/pileup/work/01_mixed_strands/regions.txt -f /Users/paururo/Developer/testing_science/get_MNV/tests/pileup/work/01_mixed_strands/ref.fasta -o /Users/paururo/Developer/testing_science/get_MNV/tests/pileup/work/01_mixed_strands/pileup.vcf /Users/paururo/Developer/testing_science/get_MNV/tests/pileup/work/01_mixed_strands/reads.bam
+##reference=file:///Users/paururo/Developer/testing_science/get_MNV/tests/pileup/work/01_mixed_strands/ref.fasta
+##contig=<ID=chr_test,length=1300>
+##contig=<ID=chr_test2,length=600>
+##ALT=<ID=*,Description="Represents allele(s) other than observed.">
+##INFO=<ID=INDEL,Number=0,Type=Flag,Description="Indicates that the variant is an INDEL.">
+##INFO=<ID=IDV,Number=1,Type=Integer,Description="Maximum number of raw reads supporting an indel">
+##INFO=<ID=IMF,Number=1,Type=Float,Description="Maximum fraction of raw reads supporting an indel">
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Raw read depth">
+##INFO=<ID=VDB,Number=1,Type=Float,Description="Variant Distance Bias for filtering splice-site artefacts in RNA-seq data (bigger is better)",Version="3">
+##INFO=<ID=RPBZ,Number=1,Type=Float,Description="Mann-Whitney U-z test of Read Position Bias (closer to 0 is better)">
+##INFO=<ID=MQBZ,Number=1,Type=Float,Description="Mann-Whitney U-z test of Mapping Quality Bias (closer to 0 is better)">
+##INFO=<ID=BQBZ,Number=1,Type=Float,Description="Mann-Whitney U-z test of Base Quality Bias (closer to 0 is better)">
+##INFO=<ID=MQSBZ,Number=1,Type=Float,Description="Mann-Whitney U-z test of Mapping Quality vs Strand Bias (closer to 0 is better)">
+##INFO=<ID=SCBZ,Number=1,Type=Float,Description="Mann-Whitney U-z test of Soft-Clip Length Bias (closer to 0 is better)">
+##INFO=<ID=SGB,Number=1,Type=Float,Description="Segregation based metric, http://samtools.github.io/bcftools/rd-SegBias.pdf">
+##INFO=<ID=MQ0F,Number=1,Type=Float,Description="Fraction of MQ0 reads (smaller is better)">
+##INFO=<ID=I16,Number=16,Type=Float,Description="Auxiliary tag used for calling, see description of bcf_callret1_t in bam2bcf.h">
+##INFO=<ID=QS,Number=R,Type=Float,Description="Auxiliary tag used for calling">
+##FORMAT=<ID=PL,Number=G,Type=Integer,Description="List of Phred-scaled genotype likelihoods">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Number of high-quality bases">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths (high-quality bases)">
+##FORMAT=<ID=ADF,Number=R,Type=Integer,Description="Allelic depths on the forward strand (high-quality bases)">
+##FORMAT=<ID=ADR,Number=R,Type=Integer,Description="Allelic depths on the reverse strand (high-quality bases)">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	sample
+chr_test	320	.	A	G,<*>	0	.	DP=32;I16=5,7,12,8,480,19200,800,32000,720,43200,1200,72000,240,4800,400,8000;QS=0.375,0.625,0;VDB=2.63505e-13;SGB=-0.692067;RPBZ=0;MQBZ=0;MQSBZ=0;BQBZ=0;SCBZ=0;MQ0F=0	PL:DP:ADF:ADR:AD	255,0,247,255,255,255:32:5,12,0:7,8,0:12,20,0

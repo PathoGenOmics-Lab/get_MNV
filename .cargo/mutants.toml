@@ -12,13 +12,40 @@
 # handling changes what a variant is annotated as; mutating the report builder
 # or the CLI mostly changes formatting, which the suite is not designed to pin
 # down mutant by mutant.
-examine_globs = ["src/variants/**/*.rs", "src/genetic_code.rs", "src/utils.rs"]
+#
+# `read_count` was outside this list until the counting core became reachable
+# without a BAM. It was the least-tested part of the tool and the part where
+# every recent defect lived, which is exactly the combination mutation testing
+# exists to expose: a surviving mutant there means no test distinguishes a rule
+# the scientific output depends on.
+examine_globs = [
+    "src/variants/**/*.rs",
+    "src/read_count/**/*.rs",
+    "src/read_count.rs",
+    "src/genetic_code.rs",
+    "src/utils.rs",
+]
 
 # Generated data and fixture plumbing carry no annotation logic.
 exclude_globs = [
     "src/variants/property_tests.rs",
     "src/variants/codon/tests.rs",
     "src/io/annotation/tests.rs",
+]
+
+# Reading a BAM is I/O, not logic: those functions are covered by the scenario,
+# pileup and phasing suites, which need samtools and cannot run per mutant.
+# What is examined here is the counting that happens once the observations are
+# in hand, which the unit tests now reach directly.
+exclude_re = [
+    "build_region_observation_cache",
+    "observe_local_haplotypes",
+    "count_indel_reads",
+    "indel_snv_linkage",
+    "observed_allele_for_ref_span",
+    "get_query_pos",
+    "anchor_base_quality",
+    "build_region",
 ]
 
 # Only the unit tests. The scenario and differential suites need samtools and

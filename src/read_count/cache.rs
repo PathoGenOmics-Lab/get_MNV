@@ -7,6 +7,8 @@ use noodles::sam::Header;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
 
+#[cfg(test)]
+use super::observation::test_read_key;
 use super::observation::{
     build_molecule_key, build_read_key, build_region, get_query_pos, increment_directional_count,
     MoleculeKey, ReadKey,
@@ -163,6 +165,48 @@ impl MultiReadSupport {
             snp_reverse: vec![false; size],
             spans_all: false,
         }
+    }
+}
+
+/// One described record for [`cache_from_molecules`]: the fragment it belongs
+/// to, whether it is on the reverse strand, and what it read at each requested
+/// position.
+#[cfg(test)]
+pub(super) type DescribedRecord<'a> = (&'a str, bool, Vec<Option<(char, u8)>>);
+
+/// Build a cache directly from described molecules, without a BAM.
+///
+/// The counting this feeds is where the layer's bugs have lived, and it was
+/// reachable only through an indexed BAM, which is why it had almost no unit
+/// tests and was excluded from mutation testing. Each entry is
+/// `(fragment_name, is_reverse, bases)`, one base per requested position, and
+/// two entries sharing a name are the two mates of one molecule.
+#[cfg(test)]
+pub(super) fn cache_from_molecules(
+    positions: &[usize],
+    records: &[DescribedRecord<'_>],
+) -> RegionObservationCache {
+    let index_by_position = positions
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(idx, pos)| (pos, idx))
+        .collect::<HashMap<_, _>>();
+    let reads = records
+        .iter()
+        .enumerate()
+        .map(
+            |(index, (name, is_reverse, observations))| CachedReadObservation {
+                key: Rc::new(test_read_key(index)),
+                fragment: Rc::new(MoleculeKey::Fragment(name.as_bytes().to_vec())),
+                is_reverse: *is_reverse,
+                observations: observations.clone(),
+            },
+        )
+        .collect();
+    RegionObservationCache {
+        index_by_position,
+        reads,
     }
 }
 
@@ -526,5 +570,250 @@ mod tests {
     fn test_normalize_positions_deduplicates_and_sorts() {
         let normalized = normalize_positions(&[5, 2, 5, 1]).expect("should normalize");
         assert_eq!(normalized, vec![1, 2, 5]);
+    }
+}
+
+#[cfg(test)]
+mod counting_tests {
+    use super::*;
+
+    const POSITIONS: [usize; 2] = [100, 102];
+    const GOOD: u8 = 40;
+    const POOR: u8 = 5;
+
+    fn alts() -> Vec<String> {
+        vec!["T".to_string(), "A".to_string()]
+    }
+
+    fn count(records: &[DescribedRecord<'_>], pair_aware: bool) -> ReadCountSummary {
+        let cache = cache_from_molecules(&POSITIONS, records);
+        count_reads_from_cache(&cache, &POSITIONS, &alts(), 20, pair_aware).expect("counted")
+    }
+
+    /// One read carrying both alternates is one haplotype-supporting molecule.
+    #[test]
+    fn a_read_carrying_every_alternate_supports_the_haplotype() {
+        let summary = count(
+            &[("r1", false, vec![Some(('T', GOOD)), Some(('A', GOOD))])],
+            true,
+        );
+        assert_eq!(summary.mnv_count, 1);
+        assert_eq!(summary.mnv_total_reads, 1);
+        assert_eq!(summary.snp_only_informative_counts, vec![0, 0]);
+        assert_eq!(summary.haplotype_patterns, vec![(vec![true, true], 1)]);
+    }
+
+    /// Two mates of one fragment are one molecule, not two observations.
+    #[test]
+    fn overlapping_mates_are_one_molecule() {
+        let both = vec![Some(('T', GOOD)), Some(('A', GOOD))];
+        let summary = count(&[("frag", false, both.clone()), ("frag", true, both)], true);
+        assert_eq!(summary.mnv_count, 1);
+        assert_eq!(summary.mnv_total_reads, 1);
+        assert_eq!(summary.total_reads, vec![1, 1]);
+    }
+
+    /// The same records counted per record are two observations.
+    #[test]
+    fn counting_mates_separately_gives_two_observations() {
+        let both = vec![Some(('T', GOOD)), Some(('A', GOOD))];
+        let summary = count(
+            &[("frag", false, both.clone()), ("frag", true, both)],
+            false,
+        );
+        assert_eq!(summary.mnv_count, 2);
+        assert_eq!(summary.total_reads, vec![2, 2]);
+    }
+
+    /// A molecule read from both ends is evidence on both strands.
+    #[test]
+    fn an_overlapping_pair_counts_on_both_strands() {
+        let both = vec![Some(('T', GOOD)), Some(('A', GOOD))];
+        let summary = count(&[("frag", false, both.clone()), ("frag", true, both)], true);
+        assert_eq!(summary.mnv_forward_count, 1);
+        assert_eq!(summary.mnv_reverse_count, 1);
+        assert_eq!(summary.total_forward_reads, vec![1, 1]);
+        assert_eq!(summary.total_reverse_reads, vec![1, 1]);
+        // Each strand read the whole codon by itself here, so each arm holds
+        // the molecule.
+        assert_eq!(summary.mnv_total_forward_reads, 1);
+        assert_eq!(summary.mnv_total_reverse_reads, 1);
+    }
+
+    /// A base exactly at the floor passes: the gate is "at least", and an
+    /// off-by-one there silently drops a whole quality tier.
+    #[test]
+    fn a_base_exactly_at_the_quality_floor_is_observed() {
+        let summary = count(
+            &[("r1", false, vec![Some(('T', 20)), Some(('A', 20))])],
+            true,
+        );
+        assert_eq!(summary.total_reads, vec![1, 1]);
+        assert_eq!(summary.mnv_count, 1);
+        assert_eq!(summary.mnv_total_reads, 1);
+        assert_eq!(summary.mnv_total_forward_reads, 1);
+    }
+
+    /// The strand belongs to the position that was read, not to the fragment.
+    /// A mate covering one position lends nothing to the position the other
+    /// mate covered, which is how a variant read only on reverse reads came to
+    /// report forward support.
+    #[test]
+    fn strand_does_not_travel_between_positions_of_a_fragment() {
+        let summary = count(
+            &[
+                ("frag", false, vec![Some(('T', GOOD)), None]),
+                ("frag", true, vec![None, Some(('A', GOOD))]),
+            ],
+            true,
+        );
+        assert_eq!(summary.total_forward_reads, vec![1, 0]);
+        assert_eq!(summary.total_reverse_reads, vec![0, 1]);
+        // The molecule does span both positions, so it is a haplotype; but
+        // neither strand established it alone.
+        assert_eq!(summary.mnv_count, 1);
+        assert_eq!(summary.mnv_forward_count, 0);
+        assert_eq!(summary.mnv_reverse_count, 0);
+        assert_eq!(summary.mnv_total_forward_reads, 0);
+        assert_eq!(summary.mnv_total_reverse_reads, 0);
+    }
+
+    /// Mates that read different bases leave the molecule with no observation
+    /// there: one of them is wrong and there is no telling which.
+    #[test]
+    fn mates_that_disagree_observe_nothing_at_that_position() {
+        let summary = count(
+            &[
+                ("frag", false, vec![Some(('T', GOOD)), Some(('A', GOOD))]),
+                ("frag", true, vec![Some(('G', GOOD)), Some(('A', GOOD))]),
+            ],
+            true,
+        );
+        assert_eq!(summary.total_reads, vec![0, 1]);
+        assert_eq!(summary.mnv_count, 0);
+        assert_eq!(summary.mnv_total_reads, 0);
+    }
+
+    /// A read that stops between the positions is not evidence about the pair,
+    /// on either side of the ratio.
+    #[test]
+    fn a_read_covering_one_position_is_not_informative_about_linkage() {
+        let summary = count(
+            &[
+                (
+                    "spanning",
+                    false,
+                    vec![Some(('T', GOOD)), Some(('A', GOOD))],
+                ),
+                ("partial", false, vec![Some(('T', GOOD)), None]),
+            ],
+            true,
+        );
+        assert_eq!(summary.mnv_count, 1);
+        assert_eq!(summary.mnv_total_reads, 1);
+        // The partial read carries the first alternate but never saw the
+        // second, so it argues neither for nor against the haplotype.
+        assert_eq!(summary.snp_only_informative_counts, vec![0, 0]);
+        assert_eq!(summary.snp_counts, vec![1, 0]);
+    }
+
+    /// A spanning read carrying one alternate and not the other argues against
+    /// linkage, and is the only kind entitled to.
+    #[test]
+    fn a_spanning_read_with_one_alternate_argues_against_linkage() {
+        let summary = count(
+            &[
+                (
+                    "spanning",
+                    false,
+                    vec![Some(('T', GOOD)), Some(('A', GOOD))],
+                ),
+                ("solo", false, vec![Some(('T', GOOD)), Some(('C', GOOD))]),
+            ],
+            true,
+        );
+        assert_eq!(summary.mnv_count, 1);
+        assert_eq!(summary.snp_only_informative_counts, vec![1, 0]);
+        assert_eq!(
+            summary.haplotype_patterns,
+            vec![(vec![true, false], 1), (vec![true, true], 1)]
+        );
+    }
+
+    /// Bases below the floor are not observed at all, so they leave both the
+    /// numerator and the denominator.
+    #[test]
+    fn a_base_below_the_quality_floor_is_not_observed() {
+        let summary = count(
+            &[("r1", false, vec![Some(('T', POOR)), Some(('A', GOOD))])],
+            true,
+        );
+        assert_eq!(summary.total_reads, vec![0, 1]);
+        // The second position was read cleanly and does carry its alternate,
+        // so it counts there; the first was never observed, which is why the
+        // molecule spans nothing and joins no combination.
+        assert_eq!(summary.snp_counts, vec![0, 1]);
+        assert_eq!(summary.snp_only_informative_counts, vec![0, 0]);
+        assert_eq!(summary.mnv_total_reads, 0);
+        assert!(summary.haplotype_patterns.is_empty());
+    }
+
+    /// Where the mates agree, the better base quality carries the position over
+    /// the floor.
+    #[test]
+    fn agreeing_mates_keep_the_better_quality() {
+        let summary = count(
+            &[
+                ("frag", false, vec![Some(('T', POOR)), Some(('A', GOOD))]),
+                ("frag", true, vec![Some(('T', GOOD)), Some(('A', GOOD))]),
+            ],
+            true,
+        );
+        assert_eq!(summary.total_reads, vec![1, 1]);
+        assert_eq!(summary.mnv_count, 1);
+    }
+
+    /// Reference-carrying molecules belong in the joint distribution: without
+    /// them the linkage statistics cannot tell a haplotype from two common
+    /// alleles meeting by chance.
+    #[test]
+    fn molecules_carrying_neither_alternate_are_still_counted() {
+        let summary = count(
+            &[
+                ("both", false, vec![Some(('T', GOOD)), Some(('A', GOOD))]),
+                ("neither", false, vec![Some(('G', GOOD)), Some(('C', GOOD))]),
+            ],
+            true,
+        );
+        assert_eq!(summary.mnv_total_reads, 2);
+        assert_eq!(
+            summary.haplotype_patterns,
+            vec![(vec![false, false], 1), (vec![true, true], 1)]
+        );
+    }
+
+    /// A single-position request counts that position alone and asks no
+    /// linkage question.
+    #[test]
+    fn a_single_position_request_counts_only_that_position() {
+        let cache = cache_from_molecules(
+            &[100],
+            &[
+                ("alt", false, vec![Some(('T', GOOD))]),
+                ("ref", true, vec![Some(('G', GOOD))]),
+            ],
+        );
+        let summary =
+            count_reads_from_cache(&cache, &[100], &["T".to_string()], 20, true).expect("counted");
+        assert_eq!(summary.snp_counts, vec![1]);
+        assert_eq!(summary.snp_forward_counts, vec![1]);
+        assert_eq!(summary.snp_reverse_counts, vec![0]);
+        assert_eq!(summary.total_reads, vec![2]);
+        assert!(summary.haplotype_patterns.is_empty());
+        // With one position the haplotype depths are that position's depths;
+        // there is no set of spanning molecules distinct from it.
+        assert_eq!(summary.mnv_total_reads, 2);
+        assert_eq!(summary.mnv_total_forward_reads, 1);
+        assert_eq!(summary.mnv_total_reverse_reads, 1);
     }
 }

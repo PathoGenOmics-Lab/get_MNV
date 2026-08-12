@@ -77,6 +77,21 @@ jobs:
         # the alignments were constructed from.
         run: python3 tests/phasing/run.py
 
+  pileup:
+    name: Read counting vs bcftools mpileup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install samtools and bcftools
+        run: sudo apt-get update && sudo apt-get install -y samtools bcftools
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --release --locked
+      - name: Compare depth, support and strand against mpileup
+        # Fails on any count that differs and is not explained in the suite.
+        run: python3 tests/pileup/run.py
+
   differential:
     name: Differential annotation vs bcftools csq and SnpEff
     runs-on: ubuntu-latest

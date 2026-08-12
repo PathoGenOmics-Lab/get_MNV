@@ -183,6 +183,8 @@ class ReadGroup:
     mate_start: int | None = None
     mate_length: int = 0
     mate_ops: list[Op] = field(default_factory=list)
+    mapq: int = 60          # calidad de mapeo emitida en el SAM
+    base_quality: str = "I" # caracter de calidad por base ('I' = Q40)
 
 
 @dataclass
@@ -396,13 +398,13 @@ def write_bam(path: Path, work_dir: Path, reads: list[ReadGroup]) -> None:
         for grp in reads:
             chrom = getattr(grp, "chrom", CONTIG)
             seq, cigar = _build_read_seq_cigar(grp.start, grp.length, grp.ops, chrom)
-            qual = "I" * len(seq)  # Q40
+            qual = grp.base_quality * len(seq)
             paired = getattr(grp, "mate_start", None) is not None
             if paired:
                 mate_seq, mate_cigar = _build_read_seq_cigar(
                     grp.mate_start, grp.mate_length, grp.mate_ops, chrom
                 )
-                mate_qual = "I" * len(mate_seq)
+                mate_qual = grp.base_quality * len(mate_seq)
                 # 1 paired, 2 proper pair, 32 mate reverse, 64 first, 128 last.
                 segments = [
                     (1 + 2 + 32 + 64, grp.start, cigar, seq, qual, grp.mate_start),
@@ -422,7 +424,7 @@ def write_bam(path: Path, work_dir: Path, reads: list[ReadGroup]) -> None:
                                 str(flag),
                                 chrom,
                                 str(start),
-                                "60",
+                                str(grp.mapq),
                                 cig,
                                 "=" if mate_pos is not None else "*",
                                 str(mate_pos) if mate_pos is not None else "0",
