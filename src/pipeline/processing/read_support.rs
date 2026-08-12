@@ -167,6 +167,11 @@ pub(super) fn apply_read_summary(variant: &mut VariantInfo, summary: ReadCountSu
         .copied()
         .min()
         .map(|rarest_solo| summary.mnv_count + rarest_solo);
+    // How much the substitutions co-occur beyond what their own frequencies
+    // predict. The co-occurrence ratio above cannot make that distinction: two
+    // alleles on 90% of molecules each meet on 81% of them by arithmetic alone.
+    variant.annotations.linkage =
+        variants::linkage::codon_linkage(&summary.haplotype_patterns, variant.positions.len());
 }
 
 pub(super) fn variant_allele_key(variant: &VariantInfo) -> Option<(usize, String, String)> {

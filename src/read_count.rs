@@ -44,6 +44,12 @@ pub struct ReadCountSummary {
     /// to: a read that stops before a partner position saw no evidence either
     /// way. Always zero for a single-position request.
     pub snp_only_informative_counts: Vec<usize>,
+    /// Which combination of the requested alternates each molecule carried,
+    /// counted over the molecules that observed every position. This is the
+    /// joint distribution the codon's linkage statistics are read from; a bare
+    /// co-occurrence count cannot separate a haplotype from two common alleles
+    /// meeting by chance. Empty for a single-position request.
+    pub haplotype_patterns: Vec<(Vec<bool>, usize)>,
 }
 
 pub struct IndelReadCountRequest<'a> {

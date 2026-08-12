@@ -6,6 +6,7 @@ pub mod consequence;
 pub mod declared_phase;
 mod event;
 pub mod hgvs;
+pub mod linkage;
 #[cfg(test)]
 mod property_tests;
 pub mod splice;

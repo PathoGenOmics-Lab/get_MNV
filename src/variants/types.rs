@@ -251,6 +251,12 @@ pub struct VariantAnnotations {
     /// evidence rather than merged into it.
     #[serde(default)]
     pub declared_phase: Option<DeclaredPhaseCall>,
+    /// Read-level linkage disequilibrium between this codon's substitutions.
+    /// `None` when no molecule observed every position, or when one of the
+    /// alleles is carried by all of them or none, which leaves nothing to
+    /// correlate. See [`crate::variants::linkage`].
+    #[serde(default)]
+    pub linkage: Option<crate::variants::linkage::CodonLinkage>,
 }
 
 /// The input caller's phase claim for one row, and whether the reads refute it.

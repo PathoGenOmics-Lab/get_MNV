@@ -2056,6 +2056,70 @@ scenario_read_ending_on_insertion_anchor = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 51. Dos sustituciones en el mismo codon que nunca comparten molecula
+# ---------------------------------------------------------------------------
+# 20 moleculas llevan la de pos 28 y otras 20 la de pos 30, ninguna las dos.
+# El ratio de co-ocurrencia dice 0.0000, que es cierto pero no distingue "no
+# hay evidencia" de "se excluyen activamente". D' = -1 con un p diminuto dice lo
+# segundo: en una poblacion haploide eso son dos linajes en competencia, la
+# firma de una infeccion mixta, no un MNV.
+scenario_competing_haplotypes = Scenario(
+    name="51_competing_haplotypes",
+    description="Dos sustituciones del mismo codon que se excluyen: D' = -1, la firma de dos linajes en competencia",
+    variants=[
+        VcfRecord(pos=28, ref="G", alt="T"),
+        VcfRecord(pos=30, ref="T", alt="A"),
+    ],
+    reads=[
+        ReadGroup(name_prefix="r_first", start=1, length=100,
+                  ops=[Op(kind="snv", pos=28, seq="T")], count=20),
+        ReadGroup(name_prefix="r_second", start=1, length=100,
+                  ops=[Op(kind="snv", pos=30, seq="A")], count=20),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="28, 30",
+            variant_type="SNP/MNV",
+            mnv_phasing_support="0.0000",
+            codon_ld="-1.0000",
+        ),
+    ],
+)
+
+
+# 52. Dos sustituciones comunes que solo coinciden
+# Cada una esta en el 90% de las moleculas y se encuentran juntas en el 81%,
+# que es exactamente lo que predice el azar. El ratio dice 0.9000 y se lee como
+# ligamiento fuerte; D' = 0 dice que no hay ningun exceso sobre las frecuencias.
+scenario_coincidence_not_linkage = Scenario(
+    name="52_coincidence_is_not_linkage",
+    description="Dos sustituciones comunes e independientes: el ratio dice 0.9000 y D' dice 0.0000",
+    variants=[
+        VcfRecord(pos=28, ref="G", alt="T"),
+        VcfRecord(pos=30, ref="T", alt="A"),
+    ],
+    reads=[
+        ReadGroup(name_prefix="r_both", start=1, length=100,
+                  ops=[Op(kind="snv", pos=28, seq="T"), Op(kind="snv", pos=30, seq="A")],
+                  count=81),
+        ReadGroup(name_prefix="r_first", start=1, length=100,
+                  ops=[Op(kind="snv", pos=28, seq="T")], count=9),
+        ReadGroup(name_prefix="r_second", start=1, length=100,
+                  ops=[Op(kind="snv", pos=30, seq="A")], count=9),
+        ReadGroup(name_prefix="r_neither", start=1, length=100, ops=[], count=1),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="28, 30",
+            variant_type="SNP/MNV",
+            mnv_phasing_support="0.9000",
+            codon_ld="0.0000",
+        ),
+    ],
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -2118,6 +2182,8 @@ ALL_SCENARIOS = [
     scenario_indel_mates_disagree,
     scenario_indel_mates_agree,
     scenario_read_ending_on_insertion_anchor,
+    scenario_competing_haplotypes,
+    scenario_coincidence_not_linkage,
 ]
 
 

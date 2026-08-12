@@ -43,6 +43,8 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "MNVPR"
             | "FSPH"
             | "DPHASE"
+            | "LD"
+            | "LDP"
             | "NMD"
             | "HGVSG"
             | "HGVSC"
@@ -278,6 +280,19 @@ pub(crate) fn declared_phase_field(variant: &VariantInfo) -> String {
         .unwrap_or_else(|| "-".to_string())
 }
 
+/// Read-level linkage disequilibrium for a codon, as `D'` and its p-value.
+/// `-` when no molecule observed every position or one of the alleles does not
+/// vary across them, which leaves nothing to correlate.
+pub(crate) fn codon_linkage_fields(variant: &VariantInfo) -> (String, String) {
+    match variant.annotations.linkage {
+        Some(linkage) => (
+            format!("{:.4}", linkage.d_prime),
+            format!("{:.3e}", linkage.p_value),
+        ),
+        None => ("-".to_string(), "-".to_string()),
+    }
+}
+
 /// What the reads said about each upstream indel sharing molecules with this
 /// codon, as `trans:1234:0/18 | cis:1250:17/18`: the verdict, the indel's
 /// position, and the reads behind it. `-` when the reads were never consulted,
@@ -387,6 +402,10 @@ pub(crate) fn build_info_string(
     }
     if let Some(call) = variant.annotations.declared_phase {
         builder.push_text("DPHASE", &call.to_string());
+    }
+    if let Some(linkage) = variant.annotations.linkage {
+        builder.push("LD", format!("{:.4}", linkage.d_prime));
+        builder.push("LDP", format!("{:.3e}", linkage.p_value));
     }
     if !variant.annotations.frameshift_linkage.is_empty() {
         builder.push_text("FSPH", &frameshift_linkage_field(variant));
@@ -769,6 +788,14 @@ pub(crate) fn write_info_header(
     writeln!(
         writer,
         "##INFO=<ID=MNVPR,Number=1,Type=Integer,Description=\"Reads the MNVPS ratio was computed from: reads spanning every position of the codon that carry the least-supported constituent SNV\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=LD,Number=1,Type=Float,Description=\"Read-level linkage disequilibrium D-prime between the codon's substitutions, over the molecules observing every position: +1 they travel together as far as their frequencies allow, 0 they co-occur exactly as often as chance predicts, -1 they exclude each other (competing haplotypes). The weakest pair decides\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=LDP,Number=1,Type=Float,Description=\"Two-tailed Fisher exact p-value for the LD table, so a D-prime from four molecules is not read as one from four hundred\">"
     )?;
     writeln!(
         writer,

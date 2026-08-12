@@ -51,6 +51,8 @@ pub(super) fn compute_annotations(
         frameshift_linkage: Vec::new(),
         // Filled in by the pipeline, which still has the input records.
         declared_phase: None,
+        // Filled in by the pipeline, from the molecules the reads showed.
+        linkage: None,
     }
 }
 

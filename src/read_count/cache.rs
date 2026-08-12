@@ -4,7 +4,7 @@
 use crate::error::{AppError, AppResult};
 use noodles::bam;
 use noodles::sam::Header;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
 
 use super::observation::{
@@ -389,8 +389,17 @@ pub fn count_reads_from_cache(
         }
     }
 
+    // The pattern each spanning molecule showed, which is the joint distribution
+    // the linkage statistics are computed from. A molecule that did not observe
+    // every position saw no combination and is left out.
+    let mut haplotype_patterns: BTreeMap<Vec<bool>, usize> = BTreeMap::new();
     if positions.len() > 1 {
         for support in per_read_multi_support.values() {
+            if support.spans_all {
+                *haplotype_patterns
+                    .entry(support.snp_support.clone())
+                    .or_default() += 1;
+            }
             if support.snp_support.iter().all(|is_supported| *is_supported) {
                 mnv_count += 1;
                 let has_forward = support.snp_forward.iter().any(|is_forward| *is_forward);
@@ -450,6 +459,7 @@ pub fn count_reads_from_cache(
         mnv_total_forward_reads,
         mnv_total_reverse_reads,
         snp_only_informative_counts,
+        haplotype_patterns: haplotype_patterns.into_iter().collect(),
     })
 }
 

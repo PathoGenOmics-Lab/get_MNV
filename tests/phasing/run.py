@@ -19,6 +19,7 @@ Point it at another binary with GET_MNV to confirm it can still fail:
 
 from __future__ import annotations
 
+import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -238,6 +239,108 @@ def expected_phasing(molecules: list[Molecule], width: int) -> tuple[str, str]:
     return f"{full_haplotype / least_supported:.4f}", str(least_supported)
 
 
+def fisher_exact_two_tailed(a: int, b: int, c: int, d: int) -> float:
+    """Two-tailed Fisher exact p for the 2x2 table, from first principles.
+
+    Sum the hypergeometric probability of every table with the same margins that
+    is no more likely than the observed one. Written out here rather than
+    imported so it is a genuinely separate derivation from the Rust.
+    """
+    row1, row2, col1 = a + b, c + d, a + c
+    total = row1 + row2
+    if total == 0:
+        return 1.0
+
+    def pmf(k: int) -> float:
+        if k < 0 or k > row1 or col1 - k < 0 or col1 - k > row2:
+            return 0.0
+        return math.comb(row1, k) * math.comb(row2, col1 - k) / math.comb(total, col1)
+
+    observed = pmf(a)
+    return min(1.0, sum(
+        pmf(k) for k in range(max(0, col1 - row2), min(row1, col1) + 1)
+        if pmf(k) <= observed + 1e-12
+    ))
+
+
+def expected_linkage(both: int, first: int, second: int, neither: int):
+    """D-prime and its p-value for a 2x2 table, derived from the counts alone.
+
+    D-prime is the excess co-occurrence over what the two frequencies predict,
+    divided by the most that excess could have been. Undefined when either
+    allele is on every molecule or on none, since nothing varies to correlate.
+    """
+    total = both + first + second + neither
+    if total == 0:
+        return MISSING, None
+    n = float(total)
+    p1 = (both + first) / n
+    p2 = (both + second) / n
+    if p1 in (0.0, 1.0) or p2 in (0.0, 1.0):
+        return MISSING, None
+    disequilibrium = both / n - p1 * p2
+    if disequilibrium >= 0:
+        maximum = min(p1 * (1 - p2), (1 - p1) * p2)
+    else:
+        maximum = min(p1 * p2, (1 - p1) * (1 - p2))
+    if maximum <= 0:
+        return MISSING, None
+    d_prime = max(-1.0, min(1.0, disequilibrium / maximum))
+    return f"{d_prime:.4f}", fisher_exact_two_tailed(both, first, second, neither)
+
+
+def run_linkage_case(both: int, first: int, second: int, neither: int, work: Path) -> list[str]:
+    """One 2x2 mixture of molecules, checked against the arithmetic above."""
+    groups = []
+    edits = {
+        "both": [Op(kind="snv", pos=p, seq=a) for p, a in zip(PLUS.positions, PLUS.alts)],
+        "first": [Op(kind="snv", pos=PLUS.positions[0], seq=PLUS.alts[0])],
+        "second": [Op(kind="snv", pos=PLUS.positions[1], seq=PLUS.alts[1])],
+        "neither": [],
+    }
+    for name, count in [("both", both), ("first", first), ("second", second),
+                        ("neither", neither)]:
+        if count:
+            groups.append(ReadGroup(name_prefix=f"r_{name}", start=PLUS.span_start,
+                                    length=PLUS.span_length, ops=edits[name], count=count))
+
+    name = f"linkage_{both}_{first}_{second}_{neither}"
+    scenario = Scenario(
+        name=name,
+        description="linkage from a 2x2 mixture chosen by construction",
+        variants=[
+            VcfRecord(pos=position, ref=ref, alt=alt)
+            for position, ref, alt in zip(PLUS.positions, PLUS.refs, PLUS.alts)
+        ],
+        reads=groups,
+        expected=[],
+    )
+    _, _, out = run_scenario(scenario, work)
+    _, rows = parse_tsv(out)
+    row = next((r for r in rows if r.get("Positions") == "28, 30"), None)
+    if row is None:
+        return [f"{name}: no row for the codon"]
+
+    want_d, want_p = expected_linkage(both, first, second, neither)
+    problems = []
+    got_d = row.get("Codon LD", "<absent>")
+    if got_d != want_d:
+        problems.append(f"{name}: Codon LD expected {want_d}, got {got_d}")
+    got_p = row.get("Codon LD p", "<absent>")
+    if want_p is None:
+        if got_p != MISSING:
+            problems.append(f"{name}: Codon LD p expected {MISSING}, got {got_p}")
+    else:
+        try:
+            parsed = float(got_p)
+        except ValueError:
+            problems.append(f"{name}: Codon LD p expected ~{want_p:.3e}, got {got_p}")
+        else:
+            if abs(parsed - want_p) > 1e-3 * max(want_p, 1e-12):
+                problems.append(f"{name}: Codon LD p expected {want_p:.3e}, got {got_p}")
+    return problems
+
+
 def run_case(
     codon: Codon,
     molecules: list[Molecule],
@@ -384,7 +487,25 @@ def main() -> int:
         )
     )
 
-    print(f"{len(cases) + 1} phased mixtures built, {len(cases) + 1} rows compared")
+    # Linkage: 2x2 mixtures spanning independence, both directions of
+    # association, and the degenerate tables where D-prime has no value.
+    linkage_cases = [
+        (81, 9, 9, 1),      # both common, exactly what chance predicts
+        (90, 0, 0, 10),     # both common and genuinely together
+        (3, 0, 0, 97),      # a rare pair, perfectly linked
+        (0, 20, 20, 0),     # never together: competing haplotypes
+        (10, 10, 10, 10),   # independent at intermediate frequency
+        (18, 2, 2, 18),     # strong but imperfect association
+        (2, 18, 18, 2),     # strong repulsion, imperfect
+        (5, 0, 0, 1),       # linked but on few molecules: p should be weak
+        (20, 0, 20, 0),     # first allele on every molecule: undefined
+        (20, 20, 0, 0),     # second allele on every molecule: undefined
+    ]
+    for mixture in linkage_cases:
+        problems.extend(run_linkage_case(*mixture, work))
+
+    total_cases = len(cases) + 1 + len(linkage_cases)
+    print(f"{total_cases} phased mixtures built, {total_cases} rows compared")
     print("  codons: " + ", ".join(
         f"{c.label}({c.gene}, {len(c.positions)} SNV(s))"
         for c in (PLUS, MINUS, SPLICED, TRIPLE, PAIRED)

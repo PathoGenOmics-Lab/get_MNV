@@ -244,6 +244,7 @@ class ExpectedRow:
     mnv_phasing_reads: str | None = None
     frameshift_phasing: str | None = None
     declared_phase: str | None = None
+    codon_ld: str | None = None
 
 
 @dataclass
@@ -529,6 +530,7 @@ _FIELD_BY_ATTR = {
     "mnv_phasing_reads": "MNV Phasing Reads",
     "frameshift_phasing": "Frameshift Phasing",
     "declared_phase": "Declared Phase",
+    "codon_ld": "Codon LD",
 }
 
 

@@ -58,6 +58,9 @@ fn annotation_cells(variant: &VariantInfo, bam_provided: bool) -> Vec<String> {
         phasing,
     ];
     if bam_provided {
+        let (d_prime, p_value) = super::common::codon_linkage_fields(variant);
+        cells.push(d_prime);
+        cells.push(p_value);
         cells.push(
             super::common::mnv_phasing_read_count(variant)
                 .map(|reads| reads.to_string())
@@ -492,6 +495,8 @@ impl TsvWriter {
                 "DBS Class",
                 "Declared Phase",
                 "MNV Phasing Support",
+                "Codon LD",
+                "Codon LD p",
                 "MNV Phasing Reads",
                 "Frameshift Phasing",
                 "NMD Prediction",

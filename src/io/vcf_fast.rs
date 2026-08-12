@@ -43,7 +43,8 @@ pub fn load_vcf_text(
     let get_mnv_tags: &[&str] = &[
         "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
         "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ", "SO", "IMPACT",
-        "GD", "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "DPHASE", "NMD", "HGVSG", "HGVSC",
+        "GD", "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "DPHASE", "LD", "LDP", "NMD", "HGVSG",
+        "HGVSC",
     ];
 
     // Per-allele (Number=A/R/G) INFO fields, so they can be subset to a single
@@ -469,7 +470,8 @@ pub fn extract_text_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
     let get_mnv_tags: &[&str] = &[
         "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
         "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ", "SO", "IMPACT",
-        "GD", "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "DPHASE", "NMD", "HGVSG", "HGVSC",
+        "GD", "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "DPHASE", "LD", "LDP", "NMD", "HGVSG",
+        "HGVSC",
     ];
     let file = std::fs::File::open(vcf_file)
         .map_err(|e| format!("Cannot open VCF file '{}': {}", vcf_file, e))?;

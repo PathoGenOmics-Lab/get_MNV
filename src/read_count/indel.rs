@@ -161,5 +161,7 @@ pub fn count_indel_reads(
         // An indel row is a single allele, not a multi-position haplotype, so
         // there is no linkage question to answer here.
         snp_only_informative_counts: vec![0],
+        // A single allele has no pair, so no combination to distribute.
+        haplotype_patterns: Vec::new(),
     })
 }
