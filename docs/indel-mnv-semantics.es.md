@@ -7,6 +7,11 @@ decidir qué alelos existen. Cuando se proporciona un BAM, get_MNV usa la
 evidencia de las lecturas para contar el soporte y para emitir haplotipos
 combinados exactos de indel/SNV/MNV observados en las mismas lecturas.
 
+Para cómo se lee un indel a partir de los alineamientos, qué cuenta cada número
+de la salida, y cómo se descubren y reportan los haplotipos locales, mira
+[Indels y haplotipos locales](indel-haplotypes.es.md). Para si las variantes de
+un haplotipo van juntas de verdad, mira [Ligamiento](linkage.es.md).
+
 ## Compatibilidad con llamadores
 
 Distintos llamadores pueden representar el mismo haplotipo local de maneras

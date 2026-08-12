@@ -6,6 +6,11 @@ responsible for deciding which alleles exist. When a BAM is provided, get_MNV
 uses read evidence to count support and to emit exact combined indel/SNV/MNV
 haplotypes that are observed on the same reads.
 
+For how an indel is read off the alignments, what each output number counts,
+and how local haplotypes are discovered and reported, see
+[Indels and Local Haplotypes](indel-haplotypes.md). For whether a haplotype's
+variants genuinely travel together, see [Linkage](linkage.md).
+
 ## Caller Compatibility
 
 Different callers can represent the same local haplotype in different ways.

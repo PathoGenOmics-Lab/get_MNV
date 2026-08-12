@@ -70,6 +70,8 @@ plugins:
             Input Formats: Formatos de entrada
             Output Formats: Formatos de salida
             Indel & MNV Semantics: Semántica de indels y MNV
+            Indels & Local Haplotypes: Indels y haplotipos locales
+            Linkage: Ligamiento
             Desktop GUI: GUI de escritorio
             Troubleshooting: Resolución de problemas
             FAQ: Preguntas frecuentes
@@ -113,6 +115,8 @@ nav:
   - Input Formats: input-formats.md
   - Output Formats: output-formats.md
   - Indel & MNV Semantics: indel-mnv-semantics.md
+  - Indels & Local Haplotypes: indel-haplotypes.md
+  - Linkage: linkage.md
   - Desktop GUI: gui.md
   - Troubleshooting: troubleshooting.md
   - FAQ: faq.md
