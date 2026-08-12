@@ -53,9 +53,13 @@ presentes en la muestra, a frecuencia apreciable, y ninguna molécula lleva ambo
 
 En un organismo haploide eso no es una variante con dos formas. Son **dos
 linajes**, y a nivel de codón es la firma a nivel de lectura de una infección
-mixta o de subpoblaciones distintas. Nada en la salida podía expresar eso antes:
-un ratio de co-ocurrencia de `0.0000` dice "no co-ocurren", que se lee igual
-tanto si se excluyen como si nadie miró.
+mixta o de subpoblaciones distintas.
+
+Un ratio de co-ocurrencia de `0.0000` sí lo reporta, y con honestidad: hubo
+moléculas que cruzaron el sitio y ninguna llevaba ambas. Lo que no puede hacer es
+decir cuánto se aleja eso del azar, así que se lee igual tanto si las dos se
+excluyen como si una es simplemente demasiado rara para esperar una molécula
+compartida. Un `D'` de `-1` con un p pequeño distingue los dos casos.
 
 ## El valor p
 
@@ -93,8 +97,8 @@ también lo lleva, calculado sobre las variantes que esa fila afirma que van
 juntas.
 
 Esa fila antes solo tenía un recuento de lecturas, que no distingue una
-asociación real de dos variantes comunes que se encuentran. Una inserción en el
-40% de las moléculas y una sustitución en el 30%:
+asociación real de dos variantes comunes que se encuentran. Dos ventanas, cada
+una con una inserción y una sustitución:
 
 | Moléculas con ambas | solo inserción | solo sustitución | ninguna | Event Reads | `D'` | p |
 |---|---|---|---|---|---|---|
@@ -102,8 +106,10 @@ asociación real de dos variantes comunes que se encuentran. Una inserción en e
 | 18 | 2 | 2 | 18 | 18 | 0.8000 | 5.3e-7 |
 
 Las dos filas son reales: cinco y dieciocho moléculas llevan de verdad esas dos
-variantes juntas. La primera es lo que se encuentran por azar dos variantes a
-esas frecuencias; la segunda es un haplotipo.
+variantes juntas. En la primera la inserción está en el 40% de las moléculas y la
+sustitución en el 30%, y encontrarse en el 10% es lo que predice el azar. En la
+segunda las dos están en la mitad y se encuentran en el 45% donde el azar predice
+el 25%.
 
 ## Leerlo junto al recuento de lecturas
 

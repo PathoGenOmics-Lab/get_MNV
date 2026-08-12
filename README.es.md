@@ -243,7 +243,7 @@ bash scripts/build_gui_bundle.sh  # paquete de producción .app + .dmg
 Chromosome  Gene      Positions       Base Changes  AA Changes  Variant Type  Change Type
 MTB_anc     Rv0095c   104838          T             Asp126Glu   SNP           Non-synonymous
 MTB_anc     Rv0095c   104941,104942   T,G           Gly92Gln    SNP/MNV       Non-synonymous
-MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    MNV           Non-synonymous
+MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    SNP/MNV       Non-synonymous
 ```
 
 **Tipos de variante:**
@@ -286,14 +286,14 @@ bash scripts/build_gui_bundle.sh
 `tests/scenarios/` contiene un arnés en Python que construye entradas sintéticas de FASTA,
 GFF, VCF (o TSV de iVar) y BAM a partir de escenarios declarativos, ejecuta
 el binario `get_mnv` compilado y comprueba cada salida TSV frente a las
-filas esperadas. La suite cubre actualmente 30 escenarios, entre ellos
+filas esperadas. La suite cubre actualmente 57 escenarios, entre ellos
 la agrupación SNP/MNV a nivel de codón, la propagación de frameshift, la emisión de
 haplotipos complex_indel, la anotación de CDS en hebra negativa y multiexón,
 la división de multialélicos y la entrada de TSV de iVar.
 
 ```bash
 cargo build                                # produce target/debug/get_mnv
-python3 tests/scenarios/run.py             # ejecuta los 30 escenarios
+python3 tests/scenarios/run.py             # ejecuta todos los escenarios
 python3 tests/scenarios/run.py 22 27       # ejecuta un subconjunto por prefijo de nombre
 ```
 

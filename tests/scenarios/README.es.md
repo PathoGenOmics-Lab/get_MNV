@@ -32,7 +32,7 @@ Requisitos:
 # Compila get_mnv primero
 cargo build
 
-# Ejecuta los 36 escenarios
+# Ejecuta todos los escenarios
 python3 tests/scenarios/run.py
 
 # Ejecuta un subconjunto por prefijo de nombre
@@ -113,7 +113,7 @@ Resumen de la aritmética de codones:
 
 ## Validated scenarios
 
-Actualmente hay 36 escenarios definidos en [`scenarios.py`](scenarios.py).
+Actualmente hay 57 escenarios definidos en [`scenarios.py`](scenarios.py).
 Cada uno declara las variantes de entrada, los grupos de lecturas del BAM (con
 operaciones opcionales: sustitución SNV, inserción, deleción y salto de intrón) y
 las filas TSV esperadas.
@@ -142,7 +142,7 @@ las filas TSV esperadas.
 |---|------|-------------------|
 | 06 | `indel_plus_snv_haplotype` | Indel + SNV a más de 3 bp de distancia: NO se fusionan en un `complex_indel` (quedan fuera de la ventana local de 3 bp) |
 | 07 | `fs_del_plus_downstream_snv` | El frameshift se propaga a un SNV aguas abajo → sufijo `(fs)` en el AA Change y Change Type `Synonymous (frameshift)` |
-| 08 | `inframe_ins_inside_codon_with_mnv` | Inserción en marco dentro de un codón + MNV en el mismo codón: emite 5 filas, que incluyen 2 `complex_indel`, la fila del MNV marcada como `Indel overlap` / `Unknown`, la inserción sola y el `complex_indel` ins+SNV |
+| 08 | `inframe_ins_inside_codon_with_mnv` | Inserción en marco dentro de un codón + MNV en el mismo codón, todo en cis: emite 3 filas, el haplotipo completo como un `complex_indel`, la fila del MNV marcada como `Indel overlap` / `Unknown`, y la inserción sola. Los subconjuntos de una combinación que llevan las moléculas no se emiten |
 | 09 | `fs_del_with_snv_overlap` | Deleción con frameshift que solapa el codón + SNV: la fila del SNV obtiene `Indel overlap` / `Unknown`; la fila de la deleción sola tiene `Event Reads = 0` (ninguna lectura porta solo la deleción); el `complex_indel` lleva el frameshift `Ala10Cysfs` |
 
 ### Negative-strand gene (`geneB`)
@@ -173,7 +173,7 @@ las filas TSV esperadas.
 | # | Name | What it validates |
 |---|------|-------------------|
 | 18 | `stop_gained_via_mnv` | MNV de tres SNVs en el codón 50 `GCT`→`TAA` → `Ala50Ter`, `Change Type = Stop gained` |
-| 19 | `start_codon_altered` | SNV en el codón de inicio ATG en la pos 2 → `Met1Thr`. NOTA: `get_mnv` no tiene un Change Type `Start lost` dedicado; la fila se reporta como `Non-synonymous` |
+| 19 | `start_codon_altered` | SNV en el codón de inicio ATG en la pos 2 → `Met1Thr`, reportado con Change Type `Start lost` |
 | 20 | `stop_lost` | SNV en el codón de stop `TAA` (pos 298) → `Change Type = Stop lost` |
 
 ### Complex alleles
@@ -203,7 +203,7 @@ control de propagación aguas abajo `--frameshift-min-freq`.
 |---|------|-------------------|
 | 30 | `stop_gained_inframe_ins` | Una inserción en marco de `TAA` tras la pos 30 forma un codón de stop prematuro → `Change Type = Stop gained`, `AA Changes = Ala10_Ala11ins*` (en lugar del genérico `In-frame Indel`). Lo gobierna `indel_stop_effect`, que compara el número de residuos de stop en la proteína ref frente a la alt |
 | 31 | `stop_lost_inframe_del` | Deleción en marco de 3 bp del stop terminal `TAA` (pos 298-300, `DEL:298-300:TAA`) → `Change Type = Stop lost`, `AA Changes = *100del` |
-| 32 | `fs_gate_default_propagates` | Deleción con frameshift aguas arriba de baja frecuencia (`AF=0.20`) + un SNV aguas abajo. Con el valor por defecto `--frameshift-min-freq 0.0` el frameshift se propaga → el SNV aguas abajo se etiqueta como `Synonymous (frameshift)` / `Ala13Ala (fs)` |
+| 32 | `fs_gate_zero_propagates` | Deleción con frameshift aguas arriba de baja frecuencia (`AF=0.20`) + un SNV aguas abajo, ejecutado con `--frameshift-min-freq 0.0` para que el frameshift se propague desde cualquier indel → el SNV aguas abajo se etiqueta como `Synonymous (frameshift)` / `Ala13Ala (fs)`. El valor por defecto es `0.5`, que lo suprime (escenario 33) |
 | 33 | `fs_gate_high_freq_suppressed` | Entradas idénticas a las del escenario 32, pero con `--frameshift-min-freq 0.5`. La deleción aguas arriba (`AF=0.20`) no supera el control, por lo que el frameshift **no** se propaga → el SNV aguas abajo es un simple `Synonymous` / `Ala13Ala` |
 
 Los escenarios 32 y 33 forman un par A/B: el mismo VCF (que ahora lleva `AF` en
@@ -223,7 +223,7 @@ arriba permanece como `Frameshift Indel` (`Ala11Leufs`) en ambos casos.
     los escenarios puedan ejercitar lógica condicionada por la frecuencia, como
     `--frameshift-min-freq`
   - `Scenario.extra_cli_args` pasa flags adicionales a `get_mnv`
-- [`scenarios.py`](scenarios.py) declara los 36 escenarios.
+- [`scenarios.py`](scenarios.py) declara los escenarios.
 - [`run.py`](run.py) es el driver de la CLI:
   ```bash
   python3 run.py             # all scenarios
@@ -261,8 +261,9 @@ imprimirá las filas reales producidas para que puedas ajustar la expectativa.
 ## Known behaviours documented by these tests
 
 - `geneB` (hebra negativa) — las columnas `Reference Codon` y `MNV Codon`
-  muestran la secuencia **genómica directa** (p. ej. `AGC`), no la del mRNA
-  (`GCT`). El efecto en el AA sigue siendo correcto.
+  muestran la secuencia del **transcrito** (p. ej. `GCT`), no la genómica
+  directa (`AGC`), de modo que el codón siempre traduce al aminoácido que
+  aparece a su lado.
 - Un CDS multiexón sin un atributo `Name=` en la feature de CDS reporta la
   columna del gen como el primer ID de CDS (p. ej. `cds-geneC-e1`). Los GFF
   estándar de NCBI/Ensembl incluyen `Name=`, así que esto solo afecta a los
@@ -279,9 +280,10 @@ imprimirá las filas reales producidas para que puedas ajustar la expectativa.
 - `--frameshift-min-freq F` controla la **propagación aguas abajo del frameshift**:
   un indel aguas arriba solo desplaza el marco de los codones aguas abajo si su
   frecuencia alélica reportada (`AF`/`FREQ`/`AD` del VCF, `ALT_FREQ` de iVar) es
-  ≥ `F`. El valor por defecto `0.0` reproduce el comportamiento histórico de
-  propagar siempre, y los indels sin una frecuencia conocida se propagan siempre.
-  El control nunca cambia la clasificación propia del indel.
+  ≥ `F`. El valor por defecto `0.5` solo propaga desde un indel aguas arriba
+  mayoritario; `0.0` recupera el comportamiento original de propagar siempre. Los
+  indels sin una frecuencia conocida se propagan siempre. El control nunca cambia
+  la clasificación propia del indel.
 - Cuando no se proporciona `--gff-features` y el GFF contiene features `CDS`, se
   selecciona automáticamente el modelo de CDS que tiene en cuenta la fase y el
   empalme (escenario 34); pasa `--gff-features gene` para conservar el
@@ -291,6 +293,8 @@ imprimirá las filas reales producidas para que puedas ajustar la expectativa.
   de llevar una anotación `(fs)` como si estuviera traducida (escenario 35). La
   propagación ordinaria del frameshift, en la que no se introduce ningún stop
   temprano, no cambia.
-- La ventana de haplotipo local es de 3 bp (`LOCAL_HAPLOTYPE_JOIN_DISTANCE`) y
-  acepta hasta 8 eventos (`MAX_LOCAL_HAPLOTYPE_VARIANTS`). Los eventos más
-  alejados producen filas separadas en lugar de fusionarse en un `complex_indel`.
+- Los eventos cercanos se unen en una misma ventana de haplotipo cuando sus
+  ventanas de codón están a menos de 3 bp (`LOCAL_HAPLOTYPE_JOIN_DISTANCE`); los
+  eventos más alejados producen filas separadas en lugar de fusionarse en un
+  `complex_indel`. No hay tope al número de eventos que una ventana admite,
+  porque las combinaciones se leen de las moléculas en vez de enumerarse.

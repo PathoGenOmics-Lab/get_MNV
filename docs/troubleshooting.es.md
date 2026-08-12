@@ -196,4 +196,6 @@ Solución:
 | `11` | Error de análisis de CSV/TSV |
 | `12` | Error de análisis de BAM/VCF |
 | `13` | Error de codificación UTF-8 |
-| `14` | Error de análisis de datos |
+| `14` | Error de análisis de enteros |
+| `15` | Error de análisis de números en coma flotante |
+| `16` | Error de JSON |

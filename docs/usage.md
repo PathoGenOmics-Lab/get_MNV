@@ -120,14 +120,16 @@ Read-count and strand-support filters follow the same rule: `--snp` and
 
 ## Indel annotation tuning
 
-These opt-in knobs refine indel/frameshift annotation. The defaults reproduce
-the historical behaviour, so existing commands are unaffected. See
+These knobs refine indel and frameshift annotation. Two of them no longer
+reproduce the tool's original behaviour, because that behaviour was wrong more
+often than it was right: the frame shift now propagates only from a majority
+upstream indel, and indel locus depth is counted from the anchor base. See
 [indel-mnv-semantics.md](indel-mnv-semantics.md) for the biological rationale.
 
 | Argument | Default | Meaning |
 |---|---:|---|
-| `--frameshift-min-freq <F>` | `0.0` | Minimum allele frequency an *upstream* indel must reach to mark downstream SNV/MNV codons as frameshifted. `0.0` propagates from every indel; raise it (e.g. `0.5`) to avoid relabelling high-frequency downstream substitutions because of a low-frequency upstream indel (intra-host data). |
-| `--indel-anchor-depth` | off | Count indel locus depth (the EDP/EFREQ denominator) from reads observing the anchor base instead of only reads that fully span the REF allele. Reduces depth under-counting for multi-base deletions. Requires `--bam`. |
+| `--frameshift-min-freq <F>` | `0.5` | Minimum allele frequency an *upstream* indel must reach to mark downstream SNV/MNV codons as frameshifted. The default propagates the frame shift only from a consensus (majority) upstream indel, so a high-frequency downstream substitution is not relabelled because of a low-frequency upstream indel almost certainly on a different molecule (intra-host data). Set `0.0` to propagate from every indel. Indels with no known frequency always propagate. |
+| `--legacy-indel-depth` | off | Restrict indel locus depth (the EDP/EFREQ denominator) to reads that fully span the REF allele. By default it is counted from reads observing the anchor base, which avoids under-counting depth and EFREQ bias on multi-base deletions. Requires `--bam`. |
 | `--phased-indel-min-reads <N>` | `2` | Minimum BAM-supporting reads required to emit a phased indel / complex (indel+SNV) haplotype row. One read is not evidence of a haplotype; set `1` to emit every combination any read shows. Requires `--bam`. |
 | `--count-mates-separately` | off | Count the two mates of a paired-end fragment as two observations instead of one molecule. By default a fragment is one molecule: mates are merged, so the overlap is not counted twice and a variant on each mate is recognised as proof the two are on the same molecule. Single-end data is unaffected. Requires `--bam`. |
 | `--phased-indel-min-freq <F>` | `0.0` | Minimum BAM-derived frequency required to emit a phased indel / complex haplotype row. Requires `--bam`. |

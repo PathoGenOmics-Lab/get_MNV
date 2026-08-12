@@ -32,7 +32,7 @@ Requirements:
 # Build get_mnv first
 cargo build
 
-# Run all 36 scenarios
+# Run every scenario
 python3 tests/scenarios/run.py
 
 # Run a subset by name prefix
@@ -111,7 +111,7 @@ Codon math summary:
 
 ## Validated scenarios
 
-36 scenarios are currently defined in [`scenarios.py`](scenarios.py).
+57 scenarios are currently defined in [`scenarios.py`](scenarios.py).
 Each one declares input variants, BAM read groups (with optional
 operations: SNV substitution, insertion, deletion, intron skip) and the
 expected TSV rows.
@@ -140,7 +140,7 @@ expected TSV rows.
 |---|------|-------------------|
 | 06 | `indel_plus_snv_haplotype` | Indel + SNV >3 bp apart: NOT merged into `complex_indel` (out of the 3 bp local window) |
 | 07 | `fs_del_plus_downstream_snv` | Frameshift propagates to a downstream SNV → `(fs)` suffix in AA Change and `Synonymous (frameshift)` Change Type |
-| 08 | `inframe_ins_inside_codon_with_mnv` | In-frame insertion inside a codon + MNV in the same codon: emits 5 rows including 2 `complex_indel`, the MNV row marked `Indel overlap` / `Unknown`, the insertion alone, and `complex_indel` ins+SNV |
+| 08 | `inframe_ins_inside_codon_with_mnv` | In-frame insertion inside a codon + MNV in the same codon, all in cis: emits 3 rows, the full haplotype as one `complex_indel`, the MNV row marked `Indel overlap` / `Unknown`, and the insertion alone. Subsets of a combination the molecules carry are not emitted |
 | 09 | `fs_del_with_snv_overlap` | Frameshift deletion overlapping the codon + SNV: the SNV row gets `Indel overlap` / `Unknown`; the deletion-alone row has `Event Reads = 0` (no read carries only the del); the `complex_indel` carries the frameshift `Ala10Cysfs` |
 
 ### Negative-strand gene (`geneB`)
@@ -171,7 +171,7 @@ expected TSV rows.
 | # | Name | What it validates |
 |---|------|-------------------|
 | 18 | `stop_gained_via_mnv` | Three-SNV MNV in codon 50 `GCT`→`TAA` → `Ala50Ter`, `Change Type = Stop gained` |
-| 19 | `start_codon_altered` | SNV in start codon ATG at pos 2 → `Met1Thr`. NOTE: `get_mnv` does not have a dedicated `Start lost` Change Type; the row is reported as `Non-synonymous` |
+| 19 | `start_codon_altered` | SNV in start codon ATG at pos 2 → `Met1Thr`, reported with Change Type `Start lost` |
 | 20 | `stop_lost` | SNV at the stop codon `TAA` (pos 298) → `Change Type = Stop lost` |
 
 ### Complex alleles
@@ -201,7 +201,7 @@ These exercise the indel-handling refinements added on the `indels` branch
 |---|------|-------------------|
 | 30 | `stop_gained_inframe_ins` | In-frame insertion of `TAA` after pos 30 forms a premature stop codon → `Change Type = Stop gained`, `AA Changes = Ala10_Ala11ins*` (instead of the generic `In-frame Indel`). Driven by `indel_stop_effect`, which compares the number of stop residues in the ref vs alt protein |
 | 31 | `stop_lost_inframe_del` | In-frame 3 bp deletion of the terminal stop `TAA` (pos 298-300, `DEL:298-300:TAA`) → `Change Type = Stop lost`, `AA Changes = *100del` |
-| 32 | `fs_gate_default_propagates` | Low-frequency upstream frameshift deletion (`AF=0.20`) + a downstream SNV. With the default `--frameshift-min-freq 0.0` the frameshift propagates → the downstream SNV is labelled `Synonymous (frameshift)` / `Ala13Ala (fs)` |
+| 32 | `fs_gate_zero_propagates` | Low-frequency upstream frameshift deletion (`AF=0.20`) + a downstream SNV, run with `--frameshift-min-freq 0.0` so the frameshift propagates from any indel → the downstream SNV is labelled `Synonymous (frameshift)` / `Ala13Ala (fs)`. The default is `0.5`, which suppresses it (scenario 33) |
 | 33 | `fs_gate_high_freq_suppressed` | Identical inputs to scenario 32 but run with `--frameshift-min-freq 0.5`. The upstream deletion (`AF=0.20`) does not pass the gate, so the frameshift is **not** propagated → the downstream SNV is a plain `Synonymous` / `Ala13Ala` |
 
 Scenarios 32 and 33 are an A/B pair: same VCF (now carrying `AF` in `INFO`)
@@ -219,7 +219,7 @@ upstream deletion's own row stays `Frameshift Indel` (`Ala11Leufs`) in both.
   - `VcfRecord(af=...)` emits an `AF=` INFO field (default omitted) so
     scenarios can drive frequency-gated logic such as `--frameshift-min-freq`
   - `Scenario.extra_cli_args` passes extra flags through to `get_mnv`
-- [`scenarios.py`](scenarios.py) declares the 36 scenarios.
+- [`scenarios.py`](scenarios.py) declares the scenarios.
 - [`run.py`](run.py) is the CLI driver:
   ```bash
   python3 run.py             # all scenarios
@@ -257,8 +257,8 @@ print the actual rows produced so you can adjust the expectation.
 ## Known behaviours documented by these tests
 
 - `geneB` (negative strand) — `Reference Codon` and `MNV Codon` columns
-  show the **genomic forward** sequence (e.g. `AGC`), not the mRNA
-  sequence (`GCT`). The AA effect is still correct.
+  show the **transcript** sequence (e.g. `GCT`), not the genomic forward one
+  (`AGC`), so the codon always translates to the amino acid beside it.
 - Multi-exon CDS without a `Name=` attribute on the CDS feature reports
   the gene column as the first CDS ID (e.g. `cds-geneC-e1`). Standard
   NCBI/Ensembl GFFs include `Name=`, so this only affects hand-rolled
@@ -275,9 +275,9 @@ print the actual rows produced so you can adjust the expectation.
 - `--frameshift-min-freq F` gates **downstream frameshift propagation**: an
   upstream indel only shifts the frame of downstream codons if its reported
   allele frequency (VCF `AF`/`FREQ`/`AD`, iVar `ALT_FREQ`) is ≥ `F`. The
-  default `0.0` reproduces the historical always-propagate behaviour, and
-  indels without a known frequency always propagate. The gate never changes
-  the indel's own classification.
+  default `0.5` propagates only from a majority upstream indel; `0.0` restores
+  the original always-propagate behaviour. Indels without a known frequency
+  always propagate. The gate never changes the indel's own classification.
 - When `--gff-features` is not given and the GFF contains `CDS` features, the
   phase/splice-aware CDS model is selected automatically (scenario 34); pass
   `--gff-features gene` to keep the legacy whole-gene behaviour.
@@ -285,7 +285,8 @@ print the actual rows produced so you can adjust the expectation.
   with Change Type `Downstream of premature stop` instead of carrying an `(fs)`
   annotation as if it were translated (scenario 35). Ordinary frameshift
   propagation, where no early stop is introduced, is unchanged.
-- The local haplotype window is 3 bp (`LOCAL_HAPLOTYPE_JOIN_DISTANCE`)
-  and accepts up to 8 events
-  (`MAX_LOCAL_HAPLOTYPE_VARIANTS`). Events further apart produce
-  separate rows instead of being merged into a `complex_indel`.
+- Nearby events are joined into one haplotype window when their codon windows
+  are within 3 bp (`LOCAL_HAPLOTYPE_JOIN_DISTANCE`); events further apart
+  produce separate rows instead of being merged into a `complex_indel`. There is
+  no cap on how many events a window may hold, since the combinations are read
+  off the molecules rather than enumerated.

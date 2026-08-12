@@ -267,7 +267,7 @@ pub(crate) fn mnv_phasing_read_count(variant: &VariantInfo) -> Option<usize> {
 }
 
 /// The phase the input VCF declared for this row's alleles, as `cis:12345`
-/// (the verdict and the `PS` phase set), with `;contradicted-by-reads`
+/// (the verdict and the `PS` phase set), with `|contradicted-by-reads`
 /// appended when the BAM leaves the claim no room. `-` when the input did not
 /// phase these alleles together, which is the usual case for haploid pathogen
 /// callers. This is the caller's claim; the read evidence is the neighbouring

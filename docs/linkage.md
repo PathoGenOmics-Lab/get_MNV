@@ -52,9 +52,13 @@ sample, at appreciable frequency, and no molecule carries both.
 
 In a haploid organism that is not one variant with two forms. It is **two
 lineages**, and at codon level it is the read-level signature of a mixed
-infection or of distinct sub-populations. Nothing in the output could express
-that before: a co-occurrence ratio of `0.0000` says "they do not co-occur", which
-reads the same whether they exclude each other or whether nobody looked.
+infection or of distinct sub-populations.
+
+A co-occurrence ratio of `0.0000` does report it, and reports it honestly:
+molecules did span the site and none carried both. What it cannot do is say how
+far that is from chance, so it reads the same whether the two exclude each other
+or whether one of them is simply too rare for a shared molecule to be expected.
+`D'` of `-1` with a small p-value distinguishes the two.
 
 ## The p-value
 
@@ -91,8 +95,8 @@ The statistic is not codon-specific. A local indel haplotype row carries it as
 well, computed over the variants that row claims travel together.
 
 That row previously had only a read count, which cannot distinguish a real
-association from two common variants meeting. An insertion on 40% of molecules
-and a substitution on 30%:
+association from two common variants meeting. Two windows, each holding an
+insertion and a substitution:
 
 | Molecules with both | insertion only | substitution only | neither | Event Reads | `D'` | p |
 |---|---|---|---|---|---|---|
@@ -100,8 +104,9 @@ and a substitution on 30%:
 | 18 | 2 | 2 | 18 | 18 | 0.8000 | 5.3e-7 |
 
 Both rows are real: five and eighteen molecules genuinely carry those two
-variants together. The first is what two variants at those frequencies meet at
-by chance; the second is a haplotype.
+variants together. In the first the insertion is on 40% of molecules and the
+substitution on 30%, and meeting on 10% is what chance predicts. In the second
+both are on half the molecules and they meet on 45% where chance predicts 25%.
 
 ## Reading it beside the read count
 

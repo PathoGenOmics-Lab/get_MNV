@@ -191,4 +191,6 @@ Fix:
 | `11` | CSV/TSV parsing error |
 | `12` | BAM/VCF parsing error |
 | `13` | UTF-8 encoding error |
-| `14` | Data parsing error |
+| `14` | Integer parsing error |
+| `15` | Floating-point parsing error |
+| `16` | JSON error |

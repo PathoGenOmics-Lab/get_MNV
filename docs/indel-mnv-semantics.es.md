@@ -119,11 +119,13 @@ utilizable mantienen el comportamiento anterior por característica.
 
 ## Parámetros de ajuste
 
-Estos flags opcionales modifican el comportamiento que tiene en cuenta los
-indels. Todos adoptan por defecto el comportamiento histórico, de modo que los
-pipelines existentes no se ven afectados salvo que se establezca un flag.
+Estos flags modifican el comportamiento que tiene en cuenta los indels. Dos de
+ellos ya no adoptan por defecto el comportamiento original de la herramienta,
+porque ese comportamiento acertaba menos veces de las que fallaba: el cambio de
+marco solo se propaga desde un indel aguas arriba mayoritario, y la profundidad
+del locus del indel se cuenta desde la base ancla.
 
-- `--frameshift-min-freq <0.0-1.0>` (por defecto `0.0`): frecuencia alélica
+- `--frameshift-min-freq <0.0-1.0>` (por defecto `0.5`): frecuencia alélica
   mínima que un indel *aguas arriba* debe alcanzar para desplazar el marco de
   lectura de los codones SNV/MNV aguas abajo (el marcador `(fs)` y los tipos de
   cambio de frameshift). El valor por defecto propaga el efecto desde cualquier
@@ -139,12 +141,13 @@ pipelines existentes no se ven afectados salvo que se establezca un flag.
   conservador que solo suprime (nunca añade propagación que el gate de frecuencia
   no haría), y solo aplica donde hay lecturas que abarcan ambos loci; más allá del
   alcance de un read sigue gobernando el gate de frecuencia.
-- `--indel-anchor-depth` (desactivado por defecto): cuenta la profundidad del
-  locus del indel (el denominador de `EDP`/`EFREQ`) a partir de las lecturas que
-  observan la base de anclaje, en lugar de solo las que abarcan por completo el
-  alelo REF. Reduce el subconteo de profundidad y el sesgo de `EFREQ` en las
-  deleciones de varias bases, donde de otro modo las lecturas con solapamiento
-  parcial quedan excluidas del denominador.
+- `--legacy-indel-depth` (desactivado por defecto): restringe la profundidad del
+  locus del indel (el denominador de `EDP`/`EFREQ`) a las lecturas que abarcan
+  por completo el alelo REF. Por defecto se cuenta desde toda lectura que observe
+  la base de anclaje, lo que evita el subconteo de profundidad y el sesgo de
+  `EFREQ` que sufre una deleción de varias bases, donde las lecturas con
+  solapamiento parcial quedan excluidas del denominador. Este flag recupera el
+  denominador antiguo, más estrecho.
 - `--count-mates-separately` (desactivado por defecto): cuenta los dos mates de
   un fragmento como dos observaciones en vez de una molécula. Por defecto son
   una. Un fragmento es una sola molécula de ADN secuenciada por los dos

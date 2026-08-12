@@ -325,19 +325,19 @@ def run_linkage_case(both: int, first: int, second: int, neither: int, work: Pat
     problems = []
     got_d = row.get("Haplotype LD", "<absent>")
     if got_d != want_d:
-        problems.append(f"{name}: Codon LD expected {want_d}, got {got_d}")
+        problems.append(f"{name}: Haplotype LD expected {want_d}, got {got_d}")
     got_p = row.get("Haplotype LD p", "<absent>")
     if want_p is None:
         if got_p != MISSING:
-            problems.append(f"{name}: Codon LD p expected {MISSING}, got {got_p}")
+            problems.append(f"{name}: Haplotype LD p expected {MISSING}, got {got_p}")
     else:
         try:
             parsed = float(got_p)
         except ValueError:
-            problems.append(f"{name}: Codon LD p expected ~{want_p:.3e}, got {got_p}")
+            problems.append(f"{name}: Haplotype LD p expected ~{want_p:.3e}, got {got_p}")
         else:
             if abs(parsed - want_p) > 1e-3 * max(want_p, 1e-12):
-                problems.append(f"{name}: Codon LD p expected {want_p:.3e}, got {got_p}")
+                problems.append(f"{name}: Haplotype LD p expected {want_p:.3e}, got {got_p}")
     return problems
 
 

@@ -243,7 +243,7 @@ bash scripts/build_gui_bundle.sh  # production .app + .dmg bundle
 Chromosome  Gene      Positions       Base Changes  AA Changes  Variant Type  Change Type
 MTB_anc     Rv0095c   104838          T             Asp126Glu   SNP           Non-synonymous
 MTB_anc     Rv0095c   104941,104942   T,G           Gly92Gln    SNP/MNV       Non-synonymous
-MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    MNV           Non-synonymous
+MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    SNP/MNV       Non-synonymous
 ```
 
 **Variant types:**
@@ -286,14 +286,14 @@ bash scripts/build_gui_bundle.sh
 `tests/scenarios/` contains a Python harness that builds synthetic FASTA,
 GFF, VCF (or iVar TSV) and BAM inputs from declarative scenarios, runs
 the compiled `get_mnv` binary, and checks each TSV output against
-expected rows. The suite currently covers 30 scenarios including
+expected rows. The suite currently covers 57 scenarios including
 codon-level SNP/MNV grouping, frameshift propagation, complex_indel
 haplotype emission, negative-strand and multi-exon CDS annotation,
 multiallelic split, and iVar TSV input.
 
 ```bash
 cargo build                                # produces target/debug/get_mnv
-python3 tests/scenarios/run.py             # run all 30 scenarios
+python3 tests/scenarios/run.py             # run every scenario
 python3 tests/scenarios/run.py 22 27       # run a subset by name prefix
 ```
 

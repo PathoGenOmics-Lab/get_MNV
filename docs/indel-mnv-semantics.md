@@ -105,10 +105,12 @@ usable transcript identifier keep the older per-feature behavior.
 
 ## Tuning Knobs
 
-These optional flags change indel-aware behaviour. All default to the historical
-behaviour, so existing pipelines are unaffected unless a flag is set.
+These flags change indel-aware behaviour. Two of them no longer default to the
+tool's original behaviour, because that behaviour was wrong more often than it
+was right: the frame shift propagates only from a majority upstream indel, and
+indel locus depth is counted from the anchor base.
 
-- `--frameshift-min-freq <0.0-1.0>` (default `0.0`): minimum allele frequency an
+- `--frameshift-min-freq <0.0-1.0>` (default `0.5`): minimum allele frequency an
   *upstream* indel must reach before it shifts the reading frame of downstream
   SNV/MNV codons (the `(fs)` marker and frameshift change types). The default
   propagates from every indel regardless of frequency. For intra-host / mixed
@@ -122,11 +124,12 @@ behaviour, so existing pipelines are unaffected unless a flag is set.
   on different molecules). This is a conservative, suppression-only refinement
   (it never adds propagation the frequency gate would not), and only applies where
   reads span both loci; beyond a read's reach the frequency gate still governs.
-- `--indel-anchor-depth` (default off): count indel locus depth (the `EDP`/`EFREQ`
-  denominator) from reads that observe the anchor base, instead of only reads
-  that fully span the REF allele. Reduces depth under-counting and `EFREQ` bias
-  for multi-base deletions, where partially-overlapping reads are otherwise
-  dropped from the denominator.
+- `--legacy-indel-depth` (default off): restrict indel locus depth (the
+  `EDP`/`EFREQ` denominator) to reads that fully span the REF allele. By default
+  it is counted from every read observing the anchor base, which avoids the
+  depth under-counting and `EFREQ` bias a multi-base deletion otherwise suffers,
+  where partially-overlapping reads are dropped from the denominator. This flag
+  restores the older, narrower denominator.
 - `--count-mates-separately` (default off): count the two mates of a paired-end
   fragment as two observations instead of one molecule. By default they are one.
   A fragment is a single DNA molecule sequenced from both ends, so counting the

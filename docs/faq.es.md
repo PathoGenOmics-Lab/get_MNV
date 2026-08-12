@@ -77,7 +77,7 @@ Se incluyen por defecto y se etiquetan como `intergenic`. Usa
 
 ## ¿Dónde va la salida?
 
-Por defecto get_MNV escribe `<input_name>.MNV.tsv` junto a la entrada. Usa
+Por defecto get_MNV escribe `<input_name>.MNV.tsv` en el directorio de trabajo actual, no junto a la entrada. Usa
 `--convert` para VCF, `--both` para ambos, y las opciones de salida relacionadas
 en la [Referencia de la CLI](cli-reference.es.md).
 

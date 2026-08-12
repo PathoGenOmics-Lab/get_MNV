@@ -71,7 +71,7 @@ They are included by default and labelled `intergenic`. Use
 
 ## Where does the output go?
 
-By default get_MNV writes `<input_name>.MNV.tsv` next to the input. Use
+By default get_MNV writes `<input_name>.MNV.tsv` into the current working directory, not next to the input. Use
 `--convert` for VCF, `--both` for both, and the related output options in the
 [CLI Reference](cli-reference.md).
 

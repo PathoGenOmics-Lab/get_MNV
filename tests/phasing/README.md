@@ -33,7 +33,7 @@ If the code and the arithmetic disagree, one of them is wrong.
 
 ## What it covers
 
-Four codon geometries, each swept through all 21 mixtures from fully trans to
+Five codon geometries, each swept through all 21 mixtures from fully trans to
 fully cis:
 
 - a plus-strand codon
@@ -42,6 +42,9 @@ fully cis:
 - a codon split by an intron, spanned by reads carrying a CIGAR `N`
 - all three positions of one codon, which exercises the least-supported rule
   with more than two constituents
+- the plus-strand codon again, sequenced as mate pairs whose two mates each
+  reach one end of it and not the other, so the answer exists only at the level
+  of the molecule
 
 Plus the cases where the honest answer is not a number:
 
@@ -51,7 +54,7 @@ Plus the cases where the honest answer is not a number:
 - a minority haplotype nested inside a major variant, which is full support on
   few reads, and the reason the read count is reported next to the ratio
 
-88 mixtures, a few seconds.
+120 mixtures, a few seconds.
 
 ## Checking that it can still fail
 
@@ -80,5 +83,5 @@ the answer is fixed before get_MNV runs, and a sweep leaves nowhere for an
 off-by-one or a saturating ratio to hide.
 
 What it does not cover: real alignment artefacts. Every read here is a clean
-40-to-200 bp record at MAPQ 60 with Q40 bases. Soft clips, overlapping mate
-pairs, and reference bias at the ends of amplicons are outside its reach.
+record at MAPQ 60 with Q40 bases, laid out to a chosen geometry. Soft clips,
+overlapping mate pairs, and reference bias at the ends of amplicons are outside its reach.

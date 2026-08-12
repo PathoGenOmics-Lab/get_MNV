@@ -121,16 +121,18 @@ lecturas y de soporte por hebra siguen la misma regla: `--snp` y
 
 ## Ajuste de la anotación de indels
 
-Estos parámetros opcionales afinan la anotación de indels y frameshift. Los
-valores por defecto reproducen el comportamiento histórico, así que los comandos
-existentes no se ven afectados. Consulta
+Estos parámetros afinan la anotación de indels y frameshift. Dos de ellos ya no
+reproducen el comportamiento original de la herramienta, porque ese
+comportamiento acertaba menos veces de las que fallaba: el cambio de marco solo
+se propaga desde un indel aguas arriba mayoritario, y la profundidad del locus
+del indel se cuenta desde la base ancla. Consulta
 [indel-mnv-semantics.md](indel-mnv-semantics.es.md) para conocer el fundamento
 biológico.
 
 | Argumento | Por defecto | Significado |
 |---|---:|---|
-| `--frameshift-min-freq <F>` | `0.0` | Frecuencia alélica mínima que debe alcanzar un indel *aguas arriba* para marcar como frameshift los codones SNV/MNV aguas abajo. Con `0.0` la marca se propaga desde cualquier indel; súbela (p. ej. a `0.5`) para no reetiquetar sustituciones aguas abajo de alta frecuencia por culpa de un indel aguas arriba de baja frecuencia (datos intrahospedador). |
-| `--indel-anchor-depth` | desactivado | Cuenta la profundidad del locus del indel (el denominador de EDP/EFREQ) a partir de las lecturas que observan la base de anclaje, en lugar de solo las que abarcan por completo el alelo REF. Reduce el subconteo de profundidad en deleciones multibase. Requiere `--bam`. |
+| `--frameshift-min-freq <F>` | `0.5` | Frecuencia alélica mínima que debe alcanzar un indel *aguas arriba* para marcar como frameshift los codones SNV/MNV aguas abajo. Por defecto solo propaga el cambio de marco desde un indel aguas arriba de consenso (mayoritario), así una sustitución aguas abajo de alta frecuencia no se reetiqueta por culpa de un indel de baja frecuencia que casi con seguridad está en otra molécula (datos intrahospedador). Pon `0.0` para propagar desde cualquier indel. Los indels sin frecuencia conocida siempre propagan. |
+| `--legacy-indel-depth` | desactivado | Restringe la profundidad del locus del indel (el denominador de EDP/EFREQ) a las lecturas que abarcan por completo el alelo REF. Por defecto se cuenta desde las que observan la base de anclaje, lo que evita subcontar profundidad y sesgar EFREQ en deleciones multibase. Requiere `--bam`. |
 | `--phased-indel-min-reads <N>` | `2` | Mínimo de lecturas del BAM necesarias para emitir una fila de haplotipo de indel en fase o complejo (indel+SNV). Una sola lectura no es evidencia de un haplotipo; pon `1` para emitir toda combinación que alguna lectura muestre. Requiere `--bam`. |
 | `--count-mates-separately` | apagado | Cuenta los dos mates de un fragmento como dos observaciones en vez de una molécula. Por defecto un fragmento es una molécula: los mates se fusionan, así el solape no se cuenta dos veces y una variante en cada mate se reconoce como prueba de que ambas están en la misma molécula. Los datos single-end no se ven afectados. Requiere `--bam`. |
 | `--phased-indel-min-freq <F>` | `0.0` | Frecuencia mínima derivada del BAM necesaria para emitir una fila de haplotipo de indel en fase o complejo. Requiere `--bam`. |

@@ -10,7 +10,9 @@ get_mnv [OPTIONS] --fasta <FASTA_FILE> <--vcf <VCF_FILE>|--tsv <TSV_FILE>>
 ```
 
 You must provide a reference (`--fasta`) and exactly one variant source
-(`--vcf` or `--tsv`), plus a gene annotation (`--gff` or `--genes`).
+(`--vcf` or `--tsv`), plus a gene annotation (`--gff` or `--genes`). The one
+exception is `--report-from`, which builds a report out of existing TSV outputs
+and needs none of them.
 
 ## Input
 
@@ -59,8 +61,8 @@ These apply only when `--bam` is provided.
 
 | Option | Default | Description |
 |---|---|---|
-| `--frameshift-min-freq <F>` | `0.0` | Minimum frequency an upstream indel must reach to mark downstream SNV/MNV codons as frameshifted. Raise it on intra-host data to avoid relabelling high-frequency substitutions because of a low-frequency upstream indel on a different molecule. |
-| `--indel-anchor-depth` | off | Count indel-locus depth (the `EFREQ` denominator) from reads observing the anchor base, not only reads spanning the full REF allele. Reduces depth under-counting for multi-base deletions. |
+| `--frameshift-min-freq <F>` | `0.5` | Minimum frequency an upstream indel must reach to mark downstream SNV/MNV codons as frameshifted. The default propagates only from a majority upstream indel; set `0.0` to propagate from every one. Indels with no known frequency always propagate. |
+| `--legacy-indel-depth` | off | Restrict indel-locus depth (the `EFREQ` denominator) to reads spanning the whole REF allele. By default it is counted from reads observing the anchor base, which avoids under-counting depth on multi-base deletions; this flag restores the older, narrower denominator. |
 | `--phased-indel-min-reads <N>` | `2` | Minimum BAM-supporting reads to emit a phased indel/complex haplotype row. One read is not evidence of a haplotype. |
 | `--count-mates-separately` | off | Count the two mates of a paired-end fragment as two observations instead of one molecule. |
 | `--phased-indel-min-freq <F>` | `0.0` | Minimum BAM-derived frequency to emit a phased indel/complex haplotype row. |

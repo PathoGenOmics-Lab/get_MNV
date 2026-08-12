@@ -32,7 +32,7 @@ Si el código y la aritmética discrepan, uno de los dos está mal.
 
 ## Qué cubre
 
-Cuatro geometrías de codón, cada una barrida por las 21 mezclas que van de todo
+Cinco geometrías de codón, cada una barrida por las 21 mezclas que van de todo
 en trans a todo en cis:
 
 - un codón en hebra más
@@ -42,6 +42,9 @@ en trans a todo en cis:
 - un codón partido por un intrón, cruzado por lecturas con una `N` en el CIGAR
 - las tres posiciones de un mismo codón, que ejercita la regla del constituyente
   menos soportado con más de dos
+- el codón de hebra más otra vez, secuenciado como pares de mates donde cada uno
+  alcanza un extremo del codón y no el otro, así que la respuesta solo existe a
+  nivel de la molécula
 
 Más los casos en los que la respuesta honesta no es un número:
 
@@ -52,7 +55,7 @@ Más los casos en los que la respuesta honesta no es un número:
   soporte total sobre pocas lecturas, y la razón de que el recuento se publique
   al lado del ratio
 
-88 mezclas, unos segundos.
+120 mezclas, unos segundos.
 
 ## Comprobar que todavía puede fallar
 
@@ -82,6 +85,6 @@ respuesta queda fijada antes de que get_MNV se ejecute, y un barrido no deja
 sitio donde esconderse a un off-by-one ni a un ratio que satura.
 
 Lo que no cubre: artefactos reales de alineamiento. Aquí toda lectura es un
-registro limpio de 40 a 200 pb con MAPQ 60 y bases Q40. El soft clipping, los
-pares solapados y el sesgo de referencia en los extremos de los amplicones
+registro limpio con MAPQ 60 y bases Q40, colocado según una geometría elegida.
+El soft clipping, los pares solapados y el sesgo de referencia en los extremos de los amplicones
 quedan fuera de su alcance.

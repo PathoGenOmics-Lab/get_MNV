@@ -10,7 +10,9 @@ get_mnv [OPTIONS] --fasta <FASTA_FILE> <--vcf <VCF_FILE>|--tsv <TSV_FILE>>
 ```
 
 Debes proporcionar una referencia (`--fasta`) y exactamente una fuente de variantes
-(`--vcf` o `--tsv`), además de una anotación de genes (`--gff` o `--genes`).
+(`--vcf` o `--tsv`), además de una anotación de genes (`--gff` o `--genes`). La
+única excepción es `--report-from`, que construye un report a partir de salidas
+TSV ya existentes y no necesita ninguna de las tres.
 
 ## Entrada
 
@@ -59,8 +61,8 @@ Estas solo aplican cuando se proporciona `--bam`.
 
 | Opción | Por defecto | Descripción |
 |---|---|---|
-| `--frameshift-min-freq <F>` | `0.0` | Frecuencia mínima que debe alcanzar un indel aguas arriba para marcar con frameshift los codones de SNV/MNV aguas abajo. Súbela en datos intrahospedador para evitar reetiquetar sustituciones de alta frecuencia debido a un indel de baja frecuencia aguas arriba en una molécula distinta. |
-| `--indel-anchor-depth` | off | Cuenta la profundidad del locus del indel (el denominador de `EFREQ`) a partir de las lecturas que observan la base de anclaje, no solo de las lecturas que abarcan el alelo REF completo. Reduce el subconteo de profundidad en deleciones multibase. |
+| `--frameshift-min-freq <F>` | `0.5` | Frecuencia mínima que debe alcanzar un indel aguas arriba para marcar con frameshift los codones de SNV/MNV aguas abajo. Por defecto solo propaga desde un indel aguas arriba mayoritario; pon `0.0` para propagar desde cualquiera. Los indels sin frecuencia conocida siempre propagan. |
+| `--legacy-indel-depth` | desactivado | Restringe la profundidad del locus del indel (el denominador de `EFREQ`) a las lecturas que abarcan el alelo REF entero. Por defecto se cuenta desde las que observan la base de anclaje, lo que evita subcontar profundidad en deleciones multibase; este flag recupera el denominador antiguo, más estrecho. |
 | `--phased-indel-min-reads <N>` | `2` | Lecturas mínimas que soportan en el BAM para emitir una fila de haplotipo indel/complejo en fase. Una sola lectura no es evidencia de un haplotipo. |
 | `--count-mates-separately` | apagado | Cuenta los dos mates de un fragmento como dos observaciones en vez de una molécula. |
 | `--phased-indel-min-freq <F>` | `0.0` | Frecuencia mínima derivada del BAM para emitir una fila de haplotipo indel/complejo en fase. |
