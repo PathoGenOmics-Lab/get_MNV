@@ -413,3 +413,125 @@ mod tests {
         assert_eq!(reverse, 1);
     }
 }
+
+#[cfg(test)]
+mod component_tests {
+    use super::*;
+    use crate::variants::{AlleleComponent, AlleleComponentKind};
+
+    /// An observation described directly, so the rule that decides whether a
+    /// read supports an allele's components can be tested without a BAM.
+    fn observed(
+        bases: &[(usize, char)],
+        insertions: &[(usize, &str)],
+        deletions: &[usize],
+    ) -> ObservedAllele {
+        ObservedAllele {
+            allele: bases.iter().map(|(_, base)| base).collect(),
+            min_quality: 40,
+            bases_by_position: bases.iter().copied().collect(),
+            insertions_after: insertions
+                .iter()
+                .map(|(position, seq)| (*position, (*seq).to_string()))
+                .collect(),
+            deleted_positions: deletions.iter().copied().collect(),
+        }
+    }
+
+    fn component(
+        kind: AlleleComponentKind,
+        position: usize,
+        reference: &str,
+        alternate: &str,
+    ) -> AlleleComponent {
+        AlleleComponent {
+            kind,
+            position,
+            ref_allele: reference.to_string(),
+            alt_allele: alternate.to_string(),
+        }
+    }
+
+    #[test]
+    fn a_substitution_is_supported_only_by_that_base() {
+        let seen = observed(&[(10, 'T')], &[], &[]);
+        assert!(observed_supports_components(
+            &seen,
+            &[component(AlleleComponentKind::Snp, 10, "A", "T")]
+        ));
+        assert!(!observed_supports_components(
+            &seen,
+            &[component(AlleleComponentKind::Snp, 10, "A", "G")]
+        ));
+        // A base the read never reached supports nothing.
+        assert!(!observed_supports_components(
+            &seen,
+            &[component(AlleleComponentKind::Snp, 11, "A", "T")]
+        ));
+    }
+
+    #[test]
+    fn an_insertion_must_match_the_sequence_after_the_anchor() {
+        let seen = observed(&[(10, 'A')], &[(10, "GCT")], &[]);
+        assert!(observed_supports_components(
+            &seen,
+            &[component(AlleleComponentKind::Insertion, 10, "A", "GCT")]
+        ));
+        assert!(!observed_supports_components(
+            &seen,
+            &[component(AlleleComponentKind::Insertion, 10, "A", "GC")]
+        ));
+        assert!(!observed_supports_components(
+            &seen,
+            &[component(AlleleComponentKind::Insertion, 11, "A", "GCT")]
+        ));
+    }
+
+    #[test]
+    fn a_deletion_needs_every_one_of_its_bases_gone() {
+        let seen = observed(&[(10, 'A')], &[], &[11, 12]);
+        assert!(observed_supports_components(
+            &seen,
+            &[component(AlleleComponentKind::Deletion, 11, "CC", "")]
+        ));
+        // Only part of the span deleted is not this deletion.
+        assert!(!observed_supports_components(
+            &seen,
+            &[component(AlleleComponentKind::Deletion, 11, "CCC", "")]
+        ));
+    }
+
+    #[test]
+    fn every_component_must_hold_at_once() {
+        let seen = observed(&[(10, 'T')], &[(10, "GG")], &[]);
+        assert!(observed_supports_components(
+            &seen,
+            &[
+                component(AlleleComponentKind::Snp, 10, "A", "T"),
+                component(AlleleComponentKind::Insertion, 10, "A", "GG"),
+            ]
+        ));
+        assert!(!observed_supports_components(
+            &seen,
+            &[
+                component(AlleleComponentKind::Snp, 10, "A", "T"),
+                component(AlleleComponentKind::Insertion, 10, "A", "GC"),
+            ]
+        ));
+    }
+
+    #[test]
+    fn a_symbolic_component_can_never_be_supported_by_a_read() {
+        // There is no sequence for a read to reproduce.
+        let seen = observed(&[(10, 'A')], &[], &[]);
+        assert!(!observed_supports_components(
+            &seen,
+            &[component(AlleleComponentKind::Symbolic, 10, "A", "<DEL>")]
+        ));
+    }
+
+    #[test]
+    fn no_components_at_all_is_vacuously_supported() {
+        assert!(observed_supports_components(&observed(&[], &[], &[]), &[]));
+    }
+}

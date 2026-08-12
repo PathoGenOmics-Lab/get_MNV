@@ -705,10 +705,15 @@ mod counting_tests {
                     false,
                     vec![Some(('T', GOOD)), Some(('A', GOOD))],
                 ),
-                ("partial", false, vec![Some(('T', GOOD)), None]),
+                ("partial", true, vec![Some(('T', GOOD)), None]),
             ],
             true,
         );
+        // The partial molecule is reverse and gives the first position reverse
+        // depth, but it spans nothing, so the haplotype's reverse arm stays
+        // empty. The two numbers must not be read from the same place.
+        assert_eq!(summary.total_reverse_reads, vec![1, 0]);
+        assert_eq!(summary.mnv_total_reverse_reads, 0);
         assert_eq!(summary.mnv_count, 1);
         assert_eq!(summary.mnv_total_reads, 1);
         // The partial read carries the first alternate but never saw the

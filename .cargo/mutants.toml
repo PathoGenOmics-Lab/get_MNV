@@ -56,3 +56,18 @@ additional_cargo_test_args = ["--lib"]
 # a minute is a mutant that made the code loop rather than one under test.
 timeout_multiplier = 5.0
 minimum_test_timeout = 60
+
+# Fourteen mutants survive in the counting core as of the run that added it to
+# this list, and they fall into three groups worth naming rather than chasing:
+#
+# - Eleven need a `bam::Record` to reach: the name guard in `build_molecule_key`,
+#   the coordinate arithmetic in `build_read_key`, and `observed_base_at`. They
+#   are exercised by the scenario, pileup and phasing suites, which need
+#   samtools and cannot be run once per mutant. Nothing here can kill them; only
+#   a way to build records in memory would.
+# - Two are equivalent: `positions.len() > 1` guarding a block that is empty for
+#   a single position either way, and `(first + 1)..positions` in `codon_linkage`,
+#   where the extra self-pairs it admits are always perfectly linked and so can
+#   never be the weakest pair the function returns.
+# - One is a tie-break: which of two equally-linked pairs `codon_linkage`
+#   reports. Both answers are equally right.

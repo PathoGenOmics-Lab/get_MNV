@@ -183,3 +183,55 @@ pub fn indel_snv_linkage(
         cis_reads,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn linkage(cis_reads: usize, informative_reads: usize) -> IndelSnvLinkage {
+        IndelSnvLinkage {
+            informative_reads,
+            cis_reads,
+        }
+    }
+
+    /// The rule that decides whether an upstream indel shifts a downstream
+    /// codon's reading frame. It had no test of its own, so nothing pinned
+    /// either threshold.
+    #[test]
+    fn no_molecule_carrying_the_indel_is_trans() {
+        assert!(linkage(0, 18).is_trans());
+        assert!(linkage(0, 18).is_informative());
+    }
+
+    #[test]
+    fn a_handful_of_cis_molecules_is_tolerated_as_sequencing_error() {
+        // Up to a tenth of the informative molecules may carry the indel and
+        // the pair is still called trans.
+        assert!(linkage(2, 20).is_trans());
+        assert!(!linkage(3, 20).is_trans());
+    }
+
+    #[test]
+    fn molecules_that_mostly_carry_both_are_not_trans() {
+        assert!(!linkage(17, 18).is_trans());
+        assert!(!linkage(9, 18).is_trans());
+    }
+
+    #[test]
+    fn one_molecule_settles_nothing() {
+        // A single read is not evidence either way, and "not trans" here means
+        // unknown rather than cis.
+        assert!(!linkage(0, 1).is_trans());
+        assert!(!linkage(0, 1).is_informative());
+        // Two is the least that can say anything.
+        assert!(linkage(0, 2).is_trans());
+        assert!(linkage(0, 2).is_informative());
+    }
+
+    #[test]
+    fn nothing_spanning_both_loci_says_nothing() {
+        assert!(!linkage(0, 0).is_trans());
+        assert!(!linkage(0, 0).is_informative());
+    }
+}

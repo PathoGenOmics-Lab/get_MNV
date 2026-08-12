@@ -264,6 +264,54 @@ mod tests {
     }
 
     #[test]
+    fn the_other_half_of_the_maximum_decides_when_it_is_the_smaller() {
+        // p1 = 0.6, p2 = 0.5, so the two candidates for the largest possible
+        // excess are 0.6*0.5 = 0.30 and 0.4*0.5 = 0.20 and the second wins.
+        // The tables above are all shaped so the first wins, which leaves the
+        // second expression untested and any change to it invisible.
+        // Observed co-occurrence 0.35 against 0.30 predicted, so D' = 0.25.
+        let linkage = pair_linkage(PairTable {
+            both: 35,
+            first_only: 25,
+            second_only: 15,
+            neither: 25,
+        })
+        .expect("both alleles vary");
+        approx(linkage.d_prime, 0.25);
+    }
+
+    #[test]
+    fn the_other_half_of_the_deficit_maximum_decides_too() {
+        // p1 = 0.6, p2 = 0.7: the candidates are 0.42 and 0.4*0.3 = 0.12, and
+        // the second wins. Observed 0.35 against 0.42 predicted, so the deficit
+        // is 0.07 and D' = -0.07/0.12.
+        let linkage = pair_linkage(PairTable {
+            both: 35,
+            first_only: 25,
+            second_only: 35,
+            neither: 5,
+        })
+        .expect("both alleles vary");
+        approx(linkage.d_prime, -0.07 / 0.12);
+    }
+
+    #[test]
+    fn a_two_position_codon_is_its_only_pair() {
+        // The ordinary case, and the one the module exists for. Nothing here
+        // reached codon_linkage with two positions, so a guard that turned
+        // exactly that case away went unnoticed.
+        let patterns = vec![
+            (vec![true, true], 30),
+            (vec![true, false], 10),
+            (vec![false, true], 20),
+            (vec![false, false], 40),
+        ];
+        let linkage = codon_linkage(&patterns, 2).expect("both alleles vary");
+        approx(linkage.d_prime, 0.5);
+        assert_eq!(linkage.molecules, 100);
+    }
+
+    #[test]
     fn a_locus_carried_by_every_molecule_has_no_linkage_to_report() {
         // Nothing varies at the second locus, so there is no correlation to
         // measure. That is unknown, not independent.
