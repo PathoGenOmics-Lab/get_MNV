@@ -50,7 +50,13 @@ pub struct LocalHaplotypeRequest<'a> {
 pub struct ObservedHaplotype {
     /// `carried[i]` is true when the reads of this haplotype carry variant `i`.
     pub carried: Vec<bool>,
+    /// Molecules whose combination is exactly this one. A molecule carrying
+    /// more than this belongs to its own combination and is counted there.
     pub reads: usize,
+    /// Of those, how many were read on each strand. A molecule read from both
+    /// ends counts on both.
+    pub forward_reads: usize,
+    pub reverse_reads: usize,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -109,6 +115,8 @@ pub fn observe_local_haplotypes(
         /// of them is wrong and there is no telling which, so the molecule has
         /// observed nothing there.
         conflicted: Vec<bool>,
+        from_forward: bool,
+        from_reverse: bool,
     }
     let mut views: HashMap<MoleculeKey, MoleculeView> = HashMap::new();
     let mut record_index = 0usize;
@@ -149,7 +157,11 @@ pub fn observe_local_haplotypes(
                 observed: vec![false; variants.len()],
                 carried: vec![false; variants.len()],
                 conflicted: vec![false; variants.len()],
+                from_forward: false,
+                from_reverse: false,
             });
+        view.from_forward |= !flags.is_reverse_complemented();
+        view.from_reverse |= flags.is_reverse_complemented();
         for (index, support) in per_variant.into_iter().enumerate() {
             if let Some(carries) = support {
                 if view.observed[index] && view.carried[index] != carries {
@@ -161,22 +173,30 @@ pub fn observe_local_haplotypes(
         }
     }
 
-    let mut by_combination: BTreeMap<Vec<bool>, usize> = BTreeMap::new();
+    let mut by_combination: BTreeMap<Vec<bool>, (usize, usize, usize)> = BTreeMap::new();
     let mut partial_reads = 0usize;
     for view in views.into_values() {
-        if view.conflicted.iter().any(|clash| *clash) {
+        if view.conflicted.iter().any(|clash| *clash) || !view.observed.iter().all(|seen| *seen) {
             partial_reads += 1;
-        } else if view.observed.iter().all(|seen| *seen) {
-            *by_combination.entry(view.carried).or_default() += 1;
-        } else {
-            partial_reads += 1;
+            continue;
         }
+        let entry = by_combination.entry(view.carried).or_insert((0, 0, 0));
+        entry.0 += 1;
+        entry.1 += usize::from(view.from_forward);
+        entry.2 += usize::from(view.from_reverse);
     }
 
-    let spanning_reads = by_combination.values().sum();
+    let spanning_reads = by_combination.values().map(|counts| counts.0).sum();
     let haplotypes = by_combination
         .into_iter()
-        .map(|(carried, reads)| ObservedHaplotype { carried, reads })
+        .map(
+            |(carried, (reads, forward_reads, reverse_reads))| ObservedHaplotype {
+                carried,
+                reads,
+                forward_reads,
+                reverse_reads,
+            },
+        )
         .collect();
 
     Ok(LocalHaplotypeObservations {

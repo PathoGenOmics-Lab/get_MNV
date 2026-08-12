@@ -535,16 +535,28 @@ pub(super) fn append_supported_phased_indel_haplotypes(
                 inputs.gene,
                 &mut candidate,
             )?;
-            let reads = candidate.mnv_reads.unwrap_or(0);
+            // The exact count answers "can a molecule reproduce this allele",
+            // which is the CIGAR-aware validity check and matters for
+            // net-neutral combinations. It cannot answer "how many molecules
+            // are this haplotype": it matches over the combination's own span,
+            // so a molecule carrying that combination *and more* matches too,
+            // and a two-variant row inside a real three-variant species was
+            // reported with the species' whole read count at 100% frequency.
+            // Which molecules are this combination is what discovery decided,
+            // over every variant of the window.
+            if candidate.mnv_reads.unwrap_or(0) == 0 {
+                continue;
+            }
             let depth = candidate.mnv_total_reads.unwrap_or(0);
+            candidate.mnv_reads = Some(haplotype.reads);
+            candidate.mnv_forward_reads = Some(haplotype.forward_reads);
+            candidate.mnv_reverse_reads = Some(haplotype.reverse_reads);
+            let reads = haplotype.reads;
             let freq = if depth > 0 {
                 reads as f64 / depth as f64
             } else {
                 0.0
             };
-            // Defaults (min_reads = 1, min_freq = 0.0) reproduce the historical
-            // "emit if any read supports it" rule; raising either suppresses
-            // low-confidence phased haplotypes from dense local windows.
             if reads >= args.phased_indel_min_reads && freq >= args.phased_indel_min_freq {
                 variants.push(candidate);
             }

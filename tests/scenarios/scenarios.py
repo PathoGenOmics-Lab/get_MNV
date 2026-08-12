@@ -2179,6 +2179,56 @@ scenario_longer_deletion_is_not_support = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 56. Un haplotipo dentro de otro se cuenta por sus propias moleculas
+# ---------------------------------------------------------------------------
+# 12 moleculas llevan las tres variantes y 8 solo las dos primeras. Las dos
+# combinaciones son reales y salen las dos, pero la del par son 8 moleculas, no
+# 20: las 12 del triple no son evidencia de una molecula con solo dos.
+# El conteo exacto empareja el alelo compuesto sobre SU tramo, asi que una
+# molecula que lleva eso y ademas otra cosa fuera del tramo tambien casa, y la
+# fila del par salia con las 20 lecturas del triple al 100% de frecuencia.
+scenario_nested_haplotype_counts = Scenario(
+    name="56_nested_haplotype_counts_its_own_molecules",
+    description="Par contenido en un triple: 8 moleculas para el par y 12 para el triple, no 20 para ambos",
+    variants=[
+        VcfRecord(pos=28, ref="G", alt="T"),
+        VcfRecord(pos=29, ref="C", alt="CGCT"),
+        VcfRecord(pos=30, ref="T", alt="A"),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_all_three", start=1, length=147,
+            ops=[
+                Op(kind="snv", pos=28, seq="T"),
+                Op(kind="ins", pos=29, seq="GCT"),
+                Op(kind="snv", pos=30, seq="A"),
+            ],
+            count=12,
+        ),
+        ReadGroup(
+            name_prefix="r_first_two", start=1, length=147,
+            ops=[Op(kind="snv", pos=28, seq="T"), Op(kind="ins", pos=29, seq="GCT")],
+            count=8,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            event_class="complex_indel",
+            event_components="SNV:28:G>T | INS:29:+GCT | SNV:30:T>A",
+            event_reads="12",
+            event_frequency="0.6000",
+        ),
+        ExpectedRow(
+            event_class="complex_indel",
+            event_components="SNV:28:G>T | INS:29:+GCT",
+            event_reads="8",
+            event_frequency="0.4000",
+        ),
+    ],
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -2245,6 +2295,7 @@ ALL_SCENARIOS = [
     scenario_coincidence_not_linkage,
     scenario_strand_is_per_position,
     scenario_longer_deletion_is_not_support,
+    scenario_nested_haplotype_counts,
 ]
 
 
