@@ -3,7 +3,7 @@
 ## Is get_MNV a variant caller?
 
 No. get_MNV **annotates and summarizes existing variant calls** (from a VCF or
-iVar TSV) against a reference. It does not call variants or assemble reads — it
+iVar TSV) against a reference. It does not call variants or assemble reads; it
 reinterprets the alleles already present in your input, with codon awareness.
 
 ## What inputs do I need?
@@ -30,7 +30,7 @@ For the standard nuclear code use `1`; other supported tables are 2, 3, 4, 5, 6,
 When two or more SNVs fall in the same codon, the amino acid effect depends on
 the **combined** codon, not the individual changes. get_MNV groups them and
 reports a `MNV` (or `SNP/MNV`) row with the real codon and amino acid. See
-[Indel & MNV Semantics](indel-mnv-semantics.md).
+[Scope and Compatibility](indel-mnv-semantics.md).
 
 ## Do I need a BAM?
 
@@ -46,11 +46,11 @@ show for each SNV, MNV haplotype and indel event.
 
 ## Can I use a BCF file as input?
 
-Not directly — convert it to VCF first, for example with
+Not directly. Convert it to VCF first, for example with
 `bcftools view input.bcf -O v -o input.vcf`. get_MNV can *write* BCF output via
 `--bcf`. See [Troubleshooting](troubleshooting.md).
 
-## My VCF has multiallelic records — what happens?
+## My VCF has multiallelic records: what happens?
 
 By default get_MNV stops so you can decide how to handle them. Pass
 `--split-multiallelic` to split each record into independent ALT alleles, or
@@ -61,7 +61,7 @@ pre-split with `bcftools norm -m -`.
 Yes. get_MNV decomposes `REF/ALT` alleles into SNV, MNV, insertion, deletion,
 delins and complex components, reports their protein effect when they overlap a
 coding feature, and (with `--bam`) counts exact indel-event support. It does not
-left-align or fully normalize indels for you — normalize cross-caller inputs
+left-align or fully normalize indels for you; normalize cross-caller inputs
 with `bcftools norm -f ref.fa` (or `--normalize-alleles` for simple trimming).
 
 ## What about intergenic variants?

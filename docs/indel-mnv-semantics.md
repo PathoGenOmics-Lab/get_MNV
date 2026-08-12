@@ -1,4 +1,7 @@
-# Indel and MNV Semantics
+# Scope and Compatibility
+
+What get_MNV takes responsibility for when it annotates indels and MNVs, what it
+leaves to your variant caller, and where its limits are.
 
 get_MNV is a variant annotator and haplotype summarizer for existing variant
 calls. It does not replace a variant caller: the input VCF or iVar TSV is still

@@ -17,7 +17,7 @@ Download the latest build for your platform from the
 1. **Add inputs.** Drop your variant file (VCF or iVar TSV), the reference FASTA,
    a gene annotation (GFF/GFF3 or a genes TSV) and, optionally, a coordinate-
    sorted indexed BAM.
-2. **Set parameters.** The form exposes the common options — genetic code,
+2. **Set parameters.** The form exposes the common options: genetic code,
    quality and MAPQ thresholds, SNP/MNV read-count, frequency and strand filters,
    and the indel-tuning knobs. Defaults match the CLI.
 3. **Run.** Analyze a single sample, or several matched samples in one batch.

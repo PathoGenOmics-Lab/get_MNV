@@ -257,14 +257,40 @@ BAM for the read viewer) lives in [`example/`](example/README.md).
 
 ## Documentation
 
+Browsable at <https://pathogenomics-lab.github.io/get_MNV/>, in English and
+Spanish. The same pages, grouped the same way, are under [`docs/`](docs/).
+
+**Get started**
+
 | Document | Description |
 |---|---|
-| [Usage](docs/usage.md) | Full CLI reference and examples |
+| [Getting started](docs/getting-started.md) | A first run end to end on the bundled example data |
+| [Common recipes](docs/usage.md) | Ready-to-run commands for the usual jobs |
+| [Desktop GUI](docs/gui.md) | The desktop app and its genomic track viewer |
+
+**Reference**
+
+| Document | Description |
+|---|---|
+| [CLI reference](docs/cli-reference.md) | Every option, with its default and meaning |
 | [Input formats](docs/input-formats.md) | VCF, FASTA, GFF, TSV, BAM specifications |
-| [Output formats](docs/output-formats.md) | TSV, VCF, BCF, JSON output details |
-| [Indel and MNV semantics](docs/indel-mnv-semantics.md) | How indels, MNVs, boundaries, and complex haplotypes are represented |
-| [Troubleshooting](docs/troubleshooting.md) | Common errors and solutions |
+| [Output formats](docs/output-formats.md) | TSV, VCF, BCF, JSON, and the interactive HTML report |
+
+**How it works**
+
+| Document | Description |
+|---|---|
+| [Scope and compatibility](docs/indel-mnv-semantics.md) | What get_MNV takes on, what it leaves to your caller, and where its limits are |
+| [Indels and local haplotypes](docs/indel-haplotypes.md) | How an indel is read off the alignments and what each output number counts |
+| [Linkage](docs/linkage.md) | Telling a real haplotype from a coincidence |
 | [Benchmarking](docs/benchmarking.md) | Performance testing |
+
+**Help**
+
+| Document | Description |
+|---|---|
+| [Troubleshooting](docs/troubleshooting.md) | Common errors and solutions |
+| [FAQ](docs/faq.md) | Short answers to the questions that come up most |
 | [Changelog](CHANGELOG.md) | Version history |
 
 ## For Developers

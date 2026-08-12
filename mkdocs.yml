@@ -21,6 +21,9 @@ theme:
   icon:
     repo: fontawesome/brands/github
   features:
+    # Render the four groups as always-open headers. The whole map fits in the
+    # sidebar at once, so no page is hidden behind a collapsed parent.
+    - navigation.sections
     - navigation.tracking
     - navigation.top
     - navigation.footer
@@ -64,18 +67,24 @@ plugins:
           site_name: get_MNV
           nav_translations:
             Home: Inicio
+            # Section names
+            Get started: Empezar
+            Reference: Referencia
+            How it works: Cómo funciona
+            Help: Ayuda
+            # Pages
             Getting Started: Primeros pasos
-            Usage: Uso
+            Common Recipes: Recetas habituales
+            Desktop GUI: GUI de escritorio
             CLI Reference: Referencia de CLI
             Input Formats: Formatos de entrada
             Output Formats: Formatos de salida
-            Indel & MNV Semantics: Semántica de indels y MNV
-            Indels & Local Haplotypes: Indels y haplotipos locales
+            Scope and Compatibility: Alcance y compatibilidad
+            Indels and Local Haplotypes: Indels y haplotipos locales
             Linkage: Ligamiento
-            Desktop GUI: GUI de escritorio
+            Benchmarking: Rendimiento
             Troubleshooting: Resolución de problemas
             FAQ: Preguntas frecuentes
-            Benchmarking: Rendimiento
 
 markdown_extensions:
   - abbr
@@ -107,17 +116,34 @@ extra:
       link: https://github.com/PathoGenOmics-Lab/get_MNV
       name: get_MNV on GitHub
 
+# Under `mkdocs build --strict`, which is what CI runs, these turn a link to a
+# page or a heading that does not exist into a failure. Renaming a section is
+# then caught here instead of by a reader hitting a dead anchor.
+validation:
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
+
+# Four groups, in the order a reader meets them: run it, look something up,
+# understand what it did, get unstuck. Every entry title matches the page's own
+# H1, so the sidebar and the page agree; `linkage.md` keeps a longer H1 and is
+# listed under its short name.
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md
-  - Usage: usage.md
-  - CLI Reference: cli-reference.md
-  - Input Formats: input-formats.md
-  - Output Formats: output-formats.md
-  - Indel & MNV Semantics: indel-mnv-semantics.md
-  - Indels & Local Haplotypes: indel-haplotypes.md
-  - Linkage: linkage.md
-  - Desktop GUI: gui.md
-  - Troubleshooting: troubleshooting.md
-  - FAQ: faq.md
-  - Benchmarking: benchmarking.md
+  - Get started:
+      - Getting Started: getting-started.md
+      - Common Recipes: usage.md
+      - Desktop GUI: gui.md
+  - Reference:
+      - CLI Reference: cli-reference.md
+      - Input Formats: input-formats.md
+      - Output Formats: output-formats.md
+  - How it works:
+      - Scope and Compatibility: indel-mnv-semantics.md
+      - Indels and Local Haplotypes: indel-haplotypes.md
+      - Linkage: linkage.md
+      - Benchmarking: benchmarking.md
+  - Help:
+      - Troubleshooting: troubleshooting.md
+      - FAQ: faq.md

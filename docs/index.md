@@ -76,11 +76,12 @@ BAM for the read viewer) lives in the
 folder of the repository.
 
 !!! tip "Next steps"
-    - [Usage](usage.md) — common commands and what each argument means.
-    - [Input Formats](input-formats.md) — VCF, iVar TSV, FASTA, and annotations.
-    - [Output Formats](output-formats.md) — TSV/VCF/BCF/JSON columns and fields.
-    - [Indel & MNV Semantics](indel-mnv-semantics.md) — boundary rules and tuning.
-    - [Troubleshooting](troubleshooting.md) — fixes for common input mismatches.
+    - [Getting Started](getting-started.md): a first run end to end on the example data.
+    - [Common Recipes](usage.md): ready-to-run commands for the usual jobs.
+    - [CLI Reference](cli-reference.md): every option, with its default.
+    - [Output Formats](output-formats.md): what each column and field means.
+    - [Linkage](linkage.md): telling a real haplotype from a coincidence.
+    - [Troubleshooting](troubleshooting.md): fixes for common input mismatches.
 
 ## Citation
 

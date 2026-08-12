@@ -1,4 +1,7 @@
-# Semántica de indels y MNV
+# Alcance y compatibilidad
+
+De qué se responsabiliza get_MNV al anotar indels y MNV, qué deja en manos de tu
+llamador de variantes, y dónde están sus límites.
 
 get_MNV es un anotador de variantes y un generador de resúmenes de haplotipos
 para llamadas de variantes ya existentes. No reemplaza a un llamador de

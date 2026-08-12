@@ -1,6 +1,8 @@
-# Uso
+# Recetas habituales
 
-Esta página muestra los comandos más habituales y el significado de los argumentos principales.
+Comandos listos para ejecutar de las tareas que más se piden. Cada opción, con
+su valor por defecto y su significado, vive en un único sitio: la
+[referencia de CLI](cli-reference.es.md).
 
 ## Comando básico
 
@@ -15,9 +17,7 @@ Usa `--vcf` para entrada `.vcf` sin comprimir o `.vcf.gz` comprimida con BGZF, y
 `--tsv` para el archivo `variants.tsv` que genera `ivar variants`. La entrada BCF
 no se admite directamente; conviértela antes a VCF con `bcftools view`.
 
-## Recetas habituales
-
-### Entrada VCF
+## Entrada VCF
 
 ```bash
 get_mnv \
@@ -26,7 +26,7 @@ get_mnv \
   --gff genes.gff3
 ```
 
-### Entrada TSV de iVar
+## Entrada TSV de iVar
 
 ```bash
 get_mnv \
@@ -35,7 +35,7 @@ get_mnv \
   --gff genes.gff3
 ```
 
-### Añadir soporte de lecturas desde un BAM
+## Añadir soporte de lecturas del BAM
 
 ```bash
 get_mnv \
@@ -45,7 +45,30 @@ get_mnv \
   --gff genes.gff3
 ```
 
-### Escribir tanto TSV como VCF
+Sin BAM, get_MNV anota lo que reportó el llamador de variantes. Con BAM cuenta
+las lecturas por su cuenta, y solo entonces puede distinguir un haplotipo real a
+nivel de codón de dos sustituciones que nunca compartieron una molécula. Mira
+[Ligamiento](linkage.es.md) para ver qué te da eso.
+
+## Filtrar por el soporte recontado
+
+```bash
+get_mnv \
+  --vcf variants.vcf \
+  --bam reads.bam \
+  --fasta reference.fasta \
+  --gff genes.gff3 \
+  --min-snp-frequency 0.05 \
+  --min-mnv-frequency 0.20
+```
+
+Los filtros de frecuencia y de número de lecturas usan el soporte que get_MNV
+recalcula del BAM, no los valores `OFREQ`/`ODP` de la entrada, así que necesitan
+`--bam`. Los umbrales de SNP y de MNV son independientes: un haplotipo MNV fuerte
+sobrevive aunque sus sustituciones individuales queden por debajo del umbral de
+SNP.
+
+## Escribir TSV y VCF a la vez
 
 ```bash
 get_mnv \
@@ -56,7 +79,29 @@ get_mnv \
   --both
 ```
 
-### Analizar características CDS de un GFF
+## Generar el informe interactivo
+
+```bash
+get_mnv \
+  --vcf variants.vcf \
+  --bam reads.bam \
+  --fasta reference.fasta \
+  --gff genes.gff3 \
+  --report sample.html
+```
+
+El informe es un único archivo HTML autocontenido, así que se abre sin servidor y
+viaja como un solo adjunto. Necesita la salida TSV, que es la de por defecto; si
+añades `--convert`, pide también `--both`.
+
+Para una cohorte ya procesada con una muestra por ejecución, genera el informe a
+partir de las salidas existentes en vez de volver a ejecutar el pipeline:
+
+```bash
+get_mnv --report-from run1.MNV.tsv run2.MNV.tsv --report cohort.html
+```
+
+## Analizar features CDS de un GFF
 
 ```bash
 get_mnv \
@@ -66,108 +111,21 @@ get_mnv \
   --gff-features CDS
 ```
 
-Usa `--gff-features CDS` cuando quieras una anotación proteica consciente del
-codón a partir de las características CDS, sobre todo con archivos GFF/GTF
-eucariotas. Las filas CDS con `transcript_id` o `Parent` se reconstruyen como
-modelos de CDS de transcrito empalmado.
-
-## Argumentos obligatorios
-
-| Argumento | Significado |
-|---|---|
-| `--vcf <FILE>` | Llamadas de variantes en formato `.vcf` sin comprimir o `.vcf.gz`. |
-| `--tsv <FILE>` | Llamadas `variants.tsv` de iVar. |
-| `--fasta <FILE>` | FASTA de referencia con el que se llamaron las variantes. |
-| `--gff <FILE>` | Anotación de genes en formato GFF/GFF3/GTF. |
-| `--genes <FILE>` | TSV sencillo de anotación de genes. Úsalo en lugar de `--gff`. |
-
-Debes proporcionar `--gff` o `--genes`.
-
-## Argumentos de entrada
-
-| Argumento | Por defecto | Significado |
-|---|---:|---|
-| `--bam <FILE>` | ninguno | BAM ordenado e indexado con el que se cuenta el soporte de lecturas. |
-| `--sample <NAME>` | primera muestra | Muestra que se lee de un VCF multimuestra. Usa `all` para todas las muestras. |
-| `--chrom <NAME>` | todos los contigs | Restringe la ejecución a un solo contig. |
-| `--gff-features <LIST>` | `gene,pseudogene` | Tipos de característica que se analizan del GFF/GTF. |
-| `--translation-table <N>` | `11` | Tabla del código genético del NCBI. Admitidas: `1,2,3,4,5,6,11,12,25`. |
-
-## Argumentos de filtrado
-
-| Argumento | Por defecto | Significado |
-|---|---:|---|
-| `--quality <N>` | `20` | Calidad Phred mínima de la base para el soporte de lecturas del BAM. |
-| `--min-mapq <N>` | `0` | Calidad de mapeo mínima de las lecturas del BAM. |
-| `--snp <N>` | `0` | Mínimo de lecturas que respaldan el SNP. |
-| `--mnv <N>` | `0` | Mínimo de lecturas que respaldan el MNV. |
-| `--min-snp-frequency <F>` | `0` | Frecuencia alélica mínima del SNP derivada del BAM (`0` a `1`). |
-| `--min-mnv-frequency <F>` | `0` | Frecuencia mínima del haplotipo MNV derivada del BAM (`0` a `1`). |
-| `--min-snp-strand <N>` | `0` | Mínimo de lecturas del SNP en cada hebra. |
-| `--min-mnv-strand <N>` | `0` | Mínimo de lecturas del MNV en cada hebra. |
-| `--min-strand-bias-p <P>` | `0` | p-valor exacto de Fisher mínimo para el filtrado por sesgo de hebra. |
-| `--strict` | desactivado | Falla cuando faltan las métricas originales de profundidad o frecuencia. |
-
-Los filtros de frecuencia requieren `--bam`, porque usan el soporte de lecturas
-recalculado por get_MNV. No filtran según el valor `OFREQ` original de la
-entrada. Por ejemplo, `--min-snp-frequency 0.05` conserva los registros SNP con
-un 5% o más, y `--min-mnv-frequency 0.20` conserva los haplotipos MNV con un 20%
-o más. Estos dos umbrales son independientes: en llamadas mixtas `SNP/MNV`, el
-umbral del SNP no elimina un haplotipo MNV fuerte, y el umbral del MNV no elimina
-las observaciones SNP que superan el umbral del SNP. Los filtros de recuento de
-lecturas y de soporte por hebra siguen la misma regla: `--snp` y
-`--min-snp-strand` se aplican a las observaciones SNP, mientras que `--mnv` y
-`--min-mnv-strand` se aplican a los haplotipos MNV.
-
-## Ajuste de la anotación de indels
-
-Estos parámetros afinan la anotación de indels y frameshift. Dos de ellos ya no
-reproducen el comportamiento original de la herramienta, porque ese
-comportamiento acertaba menos veces de las que fallaba: el cambio de marco solo
-se propaga desde un indel aguas arriba mayoritario, y la profundidad del locus
-del indel se cuenta desde la base ancla. Consulta
-[indel-mnv-semantics.md](indel-mnv-semantics.es.md) para conocer el fundamento
-biológico.
-
-| Argumento | Por defecto | Significado |
-|---|---:|---|
-| `--frameshift-min-freq <F>` | `0.5` | Frecuencia alélica mínima que debe alcanzar un indel *aguas arriba* para marcar como frameshift los codones SNV/MNV aguas abajo. Por defecto solo propaga el cambio de marco desde un indel aguas arriba de consenso (mayoritario), así una sustitución aguas abajo de alta frecuencia no se reetiqueta por culpa de un indel de baja frecuencia que casi con seguridad está en otra molécula (datos intrahospedador). Pon `0.0` para propagar desde cualquier indel. Los indels sin frecuencia conocida siempre propagan. |
-| `--legacy-indel-depth` | desactivado | Restringe la profundidad del locus del indel (el denominador de EDP/EFREQ) a las lecturas que abarcan por completo el alelo REF. Por defecto se cuenta desde las que observan la base de anclaje, lo que evita subcontar profundidad y sesgar EFREQ en deleciones multibase. Requiere `--bam`. |
-| `--phased-indel-min-reads <N>` | `2` | Mínimo de lecturas del BAM necesarias para emitir una fila de haplotipo de indel en fase o complejo (indel+SNV). Una sola lectura no es evidencia de un haplotipo; pon `1` para emitir toda combinación que alguna lectura muestre. Requiere `--bam`. |
-| `--count-mates-separately` | apagado | Cuenta los dos mates de un fragmento como dos observaciones en vez de una molécula. Por defecto un fragmento es una molécula: los mates se fusionan, así el solape no se cuenta dos veces y una variante en cada mate se reconoce como prueba de que ambas están en la misma molécula. Los datos single-end no se ven afectados. Requiere `--bam`. |
-| `--phased-indel-min-freq <F>` | `0.0` | Frecuencia mínima derivada del BAM necesaria para emitir una fila de haplotipo de indel en fase o complejo. Requiere `--bam`. |
-
-## Argumentos de salida
-
-| Argumento | Significado |
-|---|---|
-| `--convert` | Escribe VCF en lugar de TSV. |
-| `--both` | Escribe tanto TSV como VCF. |
-| `--vcf-gz` | Escribe salida comprimida `.MNV.vcf.gz`. |
-| `--index-vcf-gz` | Crea un índice Tabix para `.MNV.vcf.gz`. |
-| `--bcf` | Escribe también salida BCF. Requiere salida VCF. |
-| `--emit-filtered` | En la salida VCF, conserva los registros que no superan los filtros y los marca en `FILTER`. La salida TSV sigue omitiendo las filas rechazadas. |
-| `--strand-bias-info` | Añade p-valores de sesgo de hebra a los campos INFO del VCF. |
-| `--keep-original-info` | Conserva los campos INFO ajenos a get_MNV del VCF de entrada. Requiere salida VCF. |
-| `--exclude-intergenic` | Omite las variantes que quedan fuera de las características anotadas. |
-| `--summary-json <FILE>` | Escribe un resumen de la ejecución en JSON. |
-| `--error-json <FILE>` | Escribe los detalles del error en JSON si la ejecución falla. |
-| `--run-manifest <FILE>` | Escribe el comando, la versión, las entradas, las salidas y las sumas de verificación. |
-
-## Argumentos de utilidad
-
-| Argumento | Significado |
-|---|---|
-| `--dry-run` | Valida las entradas sin escribir archivos de salida. |
-| `--threads <N>` | Número de hilos de trabajo. Por defecto: automático. |
-| `--normalize-alleles` | Recorta el contexto REF/ALT compartido antes de procesar. |
-| `--split-multiallelic` | Divide los registros VCF multialélicos dentro de get_MNV. Cada ALT se convierte en una fila de anotación independiente, incluidos los alts que comparten la misma posición del codón. |
+Usa `--gff-features CDS` cuando quieras anotación proteica consciente de codones
+a partir de features CDS, sobre todo en archivos GFF/GTF eucariotas. Las filas
+CDS con `transcript_id` o `Parent` se reconstruyen como modelos CDS de
+transcrito con splicing.
 
 ## Notas
 
-- Los nombres de los contigs deben coincidir exactamente entre el archivo de variantes, el FASTA, el GFF y el BAM.
-- El análisis del TSV de iVar conserva las filas SNV e indel que pasan. La
-  notación de indels como `+SEQ` o `-SEQ` se convierte en alelos `REF/ALT`
-  anclados al estilo VCF usando la referencia FASTA.
+- Los nombres de contig deben coincidir exactamente entre el archivo de
+  variantes, el FASTA, el GFF y el BAM.
+- El parseo de TSV de iVar conserva las filas SNV e indel que pasan los filtros.
+  La notación de indels tipo `+SEQ` o `-SEQ` se convierte a alelos `REF/ALT`
+  anclados al estilo VCF usando el FASTA de referencia.
 - Si usas `--genes`, el TSV de anotación no tiene columna de contig. Para datos
-  multicontig, usa preferiblemente `--gff`.
+  con varios contigs, mejor `--gff`.
+- El comportamiento con indels y frameshift tiene sus propios ajustes, y dos de
+  sus valores por defecto se apartan a propósito del comportamiento original de
+  la herramienta. El razonamiento está en
+  [Alcance y compatibilidad](indel-mnv-semantics.es.md#parametros-de-ajuste).

@@ -2,7 +2,7 @@
 
 Cómo lee get_MNV un indel a partir de los alineamientos, qué cuenta, y qué
 significa cada número de la salida. Para la compatibilidad con llamadores y las
-reglas de límites, mira [Semántica de indels y MNV](indel-mnv-semantics.es.md);
+reglas de límites, mira [Alcance y compatibilidad](indel-mnv-semantics.es.md);
 esta página va de la lectura y del recuento.
 
 ## Qué es un indel, posicionalmente

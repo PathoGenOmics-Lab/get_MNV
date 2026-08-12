@@ -2,7 +2,7 @@
 
 How get_MNV reads an indel off the alignments, what it counts, and what each
 number in the output means. For the caller-compatibility and boundary rules, see
-[Indel & MNV Semantics](indel-mnv-semantics.md); this page is about the reading
+[Scope and Compatibility](indel-mnv-semantics.md); this page is about the reading
 and the counting.
 
 ## What an indel is, positionally

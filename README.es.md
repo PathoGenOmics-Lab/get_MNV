@@ -257,14 +257,40 @@ de demostración diminuto para el visor de lecturas).
 
 ## Documentación
 
+Se puede navegar en <https://pathogenomics-lab.github.io/get_MNV/>, en inglés y
+español. Las mismas páginas, agrupadas igual, están en [`docs/`](docs/).
+
+**Empezar**
+
 | Documento | Descripción |
 |---|---|
-| [Uso](docs/usage.es.md) | Referencia completa de la CLI y ejemplos |
+| [Primeros pasos](docs/getting-started.es.md) | Una primera ejecución de principio a fin con los datos de ejemplo |
+| [Recetas habituales](docs/usage.es.md) | Comandos listos para ejecutar de las tareas más frecuentes |
+| [GUI de escritorio](docs/gui.es.md) | La aplicación de escritorio y su visor de tracks genómicos |
+
+**Referencia**
+
+| Documento | Descripción |
+|---|---|
+| [Referencia de CLI](docs/cli-reference.es.md) | Cada opción, con su valor por defecto y su significado |
 | [Formatos de entrada](docs/input-formats.es.md) | Especificaciones de VCF, FASTA, GFF, TSV, BAM |
-| [Formatos de salida](docs/output-formats.es.md) | Detalles de la salida TSV, VCF, BCF, JSON |
-| [Semántica de indels y MNV](docs/indel-mnv-semantics.es.md) | Cómo se representan los indels, los MNV, los límites y los haplotipos complejos |
-| [Resolución de problemas](docs/troubleshooting.es.md) | Errores comunes y soluciones |
+| [Formatos de salida](docs/output-formats.es.md) | TSV, VCF, BCF, JSON y el informe HTML interactivo |
+
+**Cómo funciona**
+
+| Documento | Descripción |
+|---|---|
+| [Alcance y compatibilidad](docs/indel-mnv-semantics.es.md) | De qué se responsabiliza get_MNV, qué deja al llamador y dónde están sus límites |
+| [Indels y haplotipos locales](docs/indel-haplotypes.es.md) | Cómo se lee un indel de los alineamientos y qué cuenta cada número de la salida |
+| [Ligamiento](docs/linkage.es.md) | Distinguir un haplotipo real de una coincidencia |
 | [Benchmarking](docs/benchmarking.es.md) | Pruebas de rendimiento |
+
+**Ayuda**
+
+| Documento | Descripción |
+|---|---|
+| [Resolución de problemas](docs/troubleshooting.es.md) | Errores comunes y soluciones |
+| [FAQ](docs/faq.es.md) | Respuestas breves a las preguntas más habituales |
 | [Changelog](CHANGELOG.md) | Historial de versiones |
 
 ## Para desarrolladores

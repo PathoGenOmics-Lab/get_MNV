@@ -1,7 +1,7 @@
 # Getting Started
 
 This short tutorial runs get_MNV end to end on the bundled *M. tuberculosis*
-example and shows how to inspect a real codon-level MNV — including its read
+example and shows how to inspect a real codon-level MNV, including its read
 support.
 
 ## 1. Get the example data
@@ -39,7 +39,7 @@ produces 941 variants: 797 SNP, 10 SNP/MNV and 134 intergenic.
 
 ## 3. Read the output
 
-Open the TSV. One row stands out — gene `Rv2036` carries two SNVs in the same
+Open the TSV. One row stands out: gene `Rv2036` carries two SNVs in the same
 codon:
 
 | Positions | Reference Bases | Base Changes | Reference Codon | MNV Codon | AA Changes | Variant Type |
@@ -65,7 +65,7 @@ get_mnv \
 ```
 
 The `Rv2036` row now reports `MNV Reads = 24` (12 forward / 12 reverse) and
-`MNV Frequencies = 1.0000` — every read spanning the codon carries both ALT
+`MNV Frequencies = 1.0000`, meaning every read spanning the codon carries both ALT
 bases.
 
 !!! tip "BAM requirements"
@@ -81,7 +81,8 @@ all 24 reads with the two ALT bases highlighted. See the
 
 ## Next steps
 
-- [Usage](usage.md) — every common command.
-- [CLI Reference](cli-reference.md) — every option.
+- [Common Recipes](usage.md): ready-to-run commands for the usual jobs.
+- [CLI Reference](cli-reference.md): every option, with its default.
 - [Input Formats](input-formats.md) and [Output Formats](output-formats.md).
-- [Indel & MNV Semantics](indel-mnv-semantics.md) — boundary rules and tuning.
+- [Scope and Compatibility](indel-mnv-semantics.md): boundary rules and tuning.
+- [Linkage](linkage.md): telling a real haplotype from a coincidence.

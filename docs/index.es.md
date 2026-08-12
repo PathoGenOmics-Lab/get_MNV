@@ -77,11 +77,12 @@ VCF y un BAM de demostración minúsculo para el visor de lecturas) en la carpet
 del repositorio.
 
 !!! tip "Siguientes pasos"
-    - [Uso](usage.es.md) — comandos habituales y qué significa cada argumento.
-    - [Formatos de entrada](input-formats.es.md) — VCF, iVar TSV, FASTA y anotaciones.
-    - [Formatos de salida](output-formats.es.md) — columnas y campos de TSV/VCF/BCF/JSON.
-    - [Semántica de indels y MNV](indel-mnv-semantics.es.md) — reglas de límite y ajustes.
-    - [Resolución de problemas](troubleshooting.es.md) — soluciones a desajustes de entrada habituales.
+    - [Primeros pasos](getting-started.es.md): una primera ejecución completa con los datos de ejemplo.
+    - [Recetas habituales](usage.es.md): comandos listos para ejecutar de las tareas más frecuentes.
+    - [Referencia de CLI](cli-reference.es.md): cada opción, con su valor por defecto.
+    - [Formatos de salida](output-formats.es.md): qué significa cada columna y cada campo.
+    - [Ligamiento](linkage.es.md): distinguir un haplotipo real de una coincidencia.
+    - [Resolución de problemas](troubleshooting.es.md): soluciones a desajustes de entrada habituales.
 
 ## Cita
 

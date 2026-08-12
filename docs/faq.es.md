@@ -34,7 +34,7 @@ admitidas son 2, 3, 4, 5, 6, 12 y 25. Consulta la
 Cuando dos o más SNV caen en el mismo codón, el efecto sobre el aminoácido
 depende del codón **combinado**, no de los cambios individuales. get_MNV los
 agrupa e informa una fila `MNV` (o `SNP/MNV`) con el codón y el aminoácido
-reales. Consulta [Semántica de indels y MNV](indel-mnv-semantics.es.md).
+reales. Consulta [Alcance y compatibilidad](indel-mnv-semantics.es.md).
 
 ## ¿Necesito un BAM?
 

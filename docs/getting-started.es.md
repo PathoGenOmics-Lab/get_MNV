@@ -81,7 +81,8 @@ guía de la [GUI de escritorio](gui.es.md).
 
 ## Próximos pasos
 
-- [Uso](usage.es.md) — todos los comandos habituales.
-- [Referencia de la CLI](cli-reference.es.md) — todas las opciones.
+- [Recetas habituales](usage.es.md): comandos listos para ejecutar de las tareas más frecuentes.
+- [Referencia de CLI](cli-reference.es.md): cada opción, con su valor por defecto.
 - [Formatos de entrada](input-formats.es.md) y [Formatos de salida](output-formats.es.md).
-- [Semántica de indels y MNV](indel-mnv-semantics.es.md) — reglas de límites y ajustes.
+- [Alcance y compatibilidad](indel-mnv-semantics.es.md): reglas de límites y ajustes.
+- [Ligamiento](linkage.es.md): distinguir un haplotipo real de una coincidencia.
