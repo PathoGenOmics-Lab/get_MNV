@@ -31,7 +31,7 @@ if (new URLSearchParams(location.search).get("reads") === "1") {
 createRoot(root).render(
   <StrictMode>
     <div className="app" style={{ padding: 16 }}>
-      <h2 style={{ margin: "4px 0 12px" }}>get_MNV — Genomic Track Viewer (demo)</h2>
+      <h2 style={{ margin: "4px 0 12px" }}>get_MNV Genomic Track Viewer (demo)</h2>
       <BamViewer
         bamPath="scenario02a/reads.bam"
         fastaPath="scenario02a/ref.fasta"

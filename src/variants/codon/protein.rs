@@ -115,7 +115,7 @@ pub(super) fn describe_protein_change(
 
         if ref_mid.is_empty() {
             // HGVS protein insertions name the two flanking (unchanged) residues
-            // bracketing the insertion point, e.g. `Lys2_Phe3insGly` — matching
+            // bracketing the insertion point, e.g. `Lys2_Phe3insGly`, matching
             // the residue-aware form already used for `del` / `delins`. The
             // flanks are the last residue of the common prefix (`prefix - 1`) and
             // the first of the common suffix (`prefix`). A `wrapping_sub` on a

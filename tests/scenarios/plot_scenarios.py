@@ -6,7 +6,7 @@
     that overlap, and the input variants (VCF or iVar).
   - Two output tables:
       * "Without get_mnv": each input variant annotated INDEPENDENTLY
-        (no MNV grouping) — computed by running get_mnv on one variant at a
+        (no MNV grouping), computed by running get_mnv on one variant at a
         time, which is what a plain per-call annotation would yield.
       * "get_mnv output": the real, codon-aware grouped annotation.
 
@@ -123,7 +123,7 @@ CATEGORIES = [
      "Single-nucleotide and multi-nucleotide variants within one codon. get_mnv's headline feature: "
      "grouping co-occurring SNVs into the correct combined amino-acid change, plus stop/start effects.",
      ["01", "02a", "02b", "03", "18", "19", "20"]),
-    ("Indels — classification and amino-acid effect", "Indels: classification",
+    ("Indels: classification and amino-acid effect", "Indels: classification",
      "Single insertions/deletions: in-frame vs frameshift, large in-frame indels, delins, and in-frame "
      "indels that create or remove a stop codon.",
      ["04", "05", "23", "24", "25", "30", "31"]),
@@ -133,7 +133,7 @@ CATEGORIES = [
      ["06", "07", "08", "09", "32", "33", "35"]),
     ("Negative-strand gene", "Negative strand",
      "Genes on the minus strand (reverse-complement codon maths). Reported codons are shown in "
-     "genomic-forward orientation — a documented behaviour.",
+     "genomic-forward orientation, a documented behaviour.",
      ["10", "11", "12"]),
     ("Eukaryotic multi-exon transcripts (phase and splicing)", "Eukaryotic / multi-exon",
      "Spliced CDS models (gene → mRNA → CDS with Parent), non-zero phase, intron skips, and codons / MNVs "
@@ -329,9 +329,9 @@ def classify_vcf(pos, ref, alt):
     REF/ALT lengths (what a plain caller record tells you)."""
     dl = len(alt) - len(ref)
     if len(ref) == 1 and len(alt) == 1:
-        return (pos, f"{ref}→{alt}", "substitution", "—")
+        return (pos, f"{ref}→{alt}", "substitution", "-")
     if len(ref) == len(alt):
-        return (pos, f"{ref}→{alt}", f"MNP ({len(ref)} bp)", "—")
+        return (pos, f"{ref}→{alt}", f"MNP ({len(ref)} bp)", "-")
     if dl > 0 and alt.startswith(ref):
         return (pos, f"+{alt[len(ref):]}", f"insertion (+{dl} bp)", _frame_by_length(dl))
     if dl < 0 and ref.startswith(alt):
@@ -340,7 +340,7 @@ def classify_vcf(pos, ref, alt):
 
 
 def raw_calls(scn):
-    """The raw variant calls as the caller emits them — no annotation at all.
+    """The raw variant calls as the caller emits them, with no annotation at all.
     This is what you have *before* get_mnv."""
     out = []
     if scn.ivar_records:
@@ -353,7 +353,7 @@ def raw_calls(scn):
                 out.append((r.pos, f"−{a[1:]}", f"deletion (−{len(a) - 1} bp)",
                             _frame_by_length(len(a) - 1)))
             else:
-                out.append((r.pos, f"{r.ref}→{a}", "substitution", "—"))
+                out.append((r.pos, f"{r.ref}→{a}", "substitution", "-"))
     else:
         for v in scn.variants:
             for alt in v.alt.split(","):
@@ -364,7 +364,7 @@ def raw_calls(scn):
 def getmnv_adds(rows):
     """One honest line summarising what get_mnv contributes beyond the raw call."""
     if not rows:
-        return "the variant is filtered out / intergenic — get_mnv emits no row here"
+        return "the variant is filtered out / intergenic; get_mnv emits no row here"
     cls = {r.get("Event Class", "") for r in rows}
     ct = {r.get("Change Type", "") for r in rows}
     adds = []
@@ -373,7 +373,7 @@ def getmnv_adds(rows):
     if "mnv" in cls or any(r.get("Variant Type") == "SNP/MNV" for r in rows):
         adds.append("groups co-occurring SNVs in the same codon into a single MNV codon")
     if any("(fs)" in (r.get("AA Changes", "") or "") for r in rows):
-        adds.append("propagates the frameshift downstream — marks later variants (fs)")
+        adds.append("propagates the frameshift downstream, marking later variants (fs)")
     if ("Stop gained" in ct or "Stop lost" in ct) and any(r.get("Variant Type") == "INDEL" for r in rows):
         which = "Stop gained" if "Stop gained" in ct else "Stop lost"
         adds.append(f"detects the in-frame indel as {which} (a length-based guess would say 'in-frame')")
@@ -609,7 +609,7 @@ def _style_table(tab, header_color, row_lines, header_lines=1.5):
 
 def draw_raw_table(ax, calls):
     ax.axis("off")
-    ax.set_title("Without get_mnv — raw variant calls (caller output: position + allele, no annotation)",
+    ax.set_title("Without get_mnv: raw variant calls (caller output: position + allele, no annotation)",
                  fontsize=10.5, fontweight="bold", loc="left", color="#555", pad=4)
     cell_text = [[str(p), allele, cls, frame] for (p, allele, cls, frame) in calls]
     row_lines = [1] * len(cell_text)
@@ -628,7 +628,7 @@ def draw_adds_note(ax, note):
 
 def draw_getmnv_table(ax, rows):
     ax.axis("off")
-    ax.set_title("get_mnv output — codon-aware grouping", fontsize=10.5, fontweight="bold",
+    ax.set_title("get_mnv output: codon-aware grouping", fontsize=10.5, fontweight="bold",
                  loc="left", color=ACCENT, pad=4)
     if not rows:
         ax.text(0.5, 0.4, "get_mnv produced no rows for this scenario (e.g. filtered or intergenic)",
@@ -779,7 +779,7 @@ def make_legend_page():
         "reference amino acid, with a red AA below (↓) when a variant makes the codon non-synonymous.")
 
     ax.text(0.06, y - 0.05,
-            "Tables:  'Without get_mnv' shows the raw variant calls as a caller emits them — position, "
+            "Tables:  'Without get_mnv' shows the raw variant calls as a caller emits them: position, "
             "allele and a length-based frame guess, with no annotation.\n'get_mnv output' is the real "
             "codon-aware result; the green 'What get_mnv adds' line summarises the difference (MNV / "
             "complex-indel grouping, frameshift propagation, in-frame stop detection, amino-acid effect).\n\n"
@@ -792,7 +792,7 @@ def make_legend_page():
 
 def make_title_page(n, n_sections):
     fig = plt.figure(figsize=(11.7, 8.3))
-    fig.text(0.5, 0.62, "get_MNV — validation scenarios", ha="center", fontsize=22, fontweight="bold")
+    fig.text(0.5, 0.62, "get_MNV validation scenarios", ha="center", fontsize=22, fontweight="bold")
     fig.text(0.5, 0.54, f"Read mapping and annotated output · {n} scenarios in {n_sections} sections",
              ha="center", fontsize=15, color="#444")
     fig.text(0.5, 0.47, "indels branch · generated from tests/scenarios/", ha="center",
@@ -874,7 +874,7 @@ def main(argv):
         for si, (title, short, blurb, scns) in enumerate(sections, 1):
             color = CAT_COLORS[(si - 1) % len(CAT_COLORS)]
             pdf.savefig(make_section_page(si, len(sections), title, blurb, scns, color)); plt.close()
-            print(f"— Section {si}: {title}")
+            print(f"- Section {si}: {title}")
             for scn in scns:
                 try:
                     render(scn, short, color)

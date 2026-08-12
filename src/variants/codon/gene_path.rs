@@ -382,7 +382,7 @@ pub(crate) fn codon_bounds_for_position(gene: &Gene, position: usize) -> Option<
     // The variant fell inside the GFF feature interval but outside the
     // phase-adjusted region (the first `phase` bases of a plus-strand CDS or
     // the last `phase` bases of a minus-strand CDS belong to a codon that
-    // physically spans into the *previous* exon — we cannot reconstruct that
+    // physically spans into the *previous* exon, and we cannot reconstruct that
     // codon from this single CDS row, so the variant has to be dropped). Warn
     // explicitly so the user knows: silently dropping was the trap that
     // hid the codon-grouping bug behind issue #12 for so long.

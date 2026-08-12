@@ -18,10 +18,10 @@ Append `?reads=1` to the URL to auto-scroll the read pileup into view.
 
 ## Fixtures
 
-- `sample_bam_view.json` — a real `get_bam_view` response for scenario `02a`
+- `sample_bam_view.json`: a real `get_bam_view` response for scenario `02a`
   (`chr_test` MNV `28 G>T` / `30 T>A`, codon `GCT→TCA` = Ala10Ser, 20 supporting
   reads), produced by calling the GUI backend command on the scenario BAM/FASTA.
-- `sample_tsv.json` — the matching `TsvData` parsed from that scenario's
+- `sample_tsv.json`: the matching `TsvData` parsed from that scenario's
   `variants.MNV.tsv`.
 
 To refresh the fixtures, call `get_bam_view` (src-tauri) on a scenario work dir

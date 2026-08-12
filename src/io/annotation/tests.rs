@@ -189,7 +189,7 @@ fn test_gene_name_from_gff_locus_tag_equal_to_primary_not_duplicated() {
 #[test]
 fn test_gene_name_from_gff_empty_locus_tag_no_trailing_underscore() {
     // Regression: an empty `locus_tag=""` (some annotation tools emit it)
-    // used to produce "BRCA1_" — a trailing underscore that broke
+    // used to produce "BRCA1_", a trailing underscore that broke
     // downstream filtering by gene name.
     let mut attrs = HashMap::new();
     attrs.insert("gene_name".to_string(), "BRCA1".to_string());

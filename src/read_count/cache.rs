@@ -261,7 +261,7 @@ pub fn build_region_observation_cache(
 
     let mut reads: Vec<CachedReadObservation> = Vec::new();
 
-    // Structured region (1-based, inclusive) — avoids misparsing ':' in contig names.
+    // Structured region (1-based, inclusive); avoids misparsing ':' in contig names.
     let region = build_region(chrom, region_start, region_end)?;
     let mut query = bam_reader.query(header, &region).map_err(|e| {
         AppError::validation(format!(

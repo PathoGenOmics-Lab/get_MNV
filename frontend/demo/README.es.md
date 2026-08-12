@@ -18,10 +18,10 @@ Añade `?reads=1` a la URL para desplazar el pileup de lecturas hasta que quede 
 
 ## Fixtures
 
-- `sample_bam_view.json` — una respuesta real de `get_bam_view` para el escenario `02a`
+- `sample_bam_view.json`: una respuesta real de `get_bam_view` para el escenario `02a`
   (`chr_test` MNV `28 G>T` / `30 T>A`, codón `GCT→TCA` = Ala10Ser, 20 lecturas de
   soporte), generada al ejecutar el comando del backend de la GUI sobre el BAM/FASTA del escenario.
-- `sample_tsv.json` — el `TsvData` correspondiente, obtenido del
+- `sample_tsv.json`: el `TsvData` correspondiente, obtenido del
   `variants.MNV.tsv` de ese escenario.
 
 Para actualizar los fixtures, ejecuta `get_bam_view` (src-tauri) sobre el directorio de trabajo

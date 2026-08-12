@@ -88,7 +88,7 @@ compuesta por dos contigs diseñados para mantener explícita la aritmética de 
 
 | Range       | Feature        | Content                                                   |
 |-------------|----------------|-----------------------------------------------------------|
-| 1–300       | `geneA` (+)    | `ATG` + 98 × `GCT` + `TAA` — Met, 98×Ala, stop           |
+| 1–300       | `geneA` (+)    | `ATG` + 98 × `GCT` + `TAA`: Met, 98×Ala, stop           |
 | 301–400     | filler         | `A` × 100                                                 |
 | 401–700     | `geneB` (−)    | RC of the standard CDS: `TTA` + 98 × `AGC` + `CAT`        |
 | 701–800     | filler         | `A` × 100                                                 |
@@ -149,23 +149,23 @@ las filas TSV esperadas.
 
 | # | Name | What it validates |
 |---|------|-------------------|
-| 10 | `minus_snp_simple` | Un único SNV en `geneB` (pos 673 C>T) — el codón 10 del mRNA `GCT`→`ACT` → `Ala10Thr` |
-| 11 | `minus_mnv_same_codon` | MNV en el codón 10 de `geneB` (pos 671 A>T + pos 673 C>A en cis) — mRNA `GCT`→`TCA` → `Ala10Ser` |
+| 10 | `minus_snp_simple` | Un único SNV en `geneB` (pos 673 C>T): el codón 10 del mRNA `GCT`→`ACT` → `Ala10Thr` |
+| 11 | `minus_mnv_same_codon` | MNV en el codón 10 de `geneB` (pos 671 A>T + pos 673 C>A en cis): mRNA `GCT`→`TCA` → `Ala10Ser` |
 | 12 | `minus_fs_del` | Deleción de 1 bp con frameshift dentro de `geneB` |
 
 ### Multi-exon CDS (`geneC`, with `--gff-features CDS`)
 
 | # | Name | What it validates |
 |---|------|-------------------|
-| 13 | `multiexon_snp_exon2` | SNV en el exón 2 — confirma que la posición del codón se resuelve teniendo en cuenta el transcrito |
-| 14 | `multiexon_junction_snp` | SNV en el codón que abarca la unión (base 1 en el exón 1, pos 900) — requiere el modelo empalmado |
-| 15 | `multiexon_junction_mnv` | MNV con una base en el exón 1 (pos 900) y otra en el exón 2 (pos 1002) — adyacentes en el mRNA empalmado, pero a unos 100 bp de distancia en el genoma. Se valida mediante lecturas con N-CIGAR que abarcan el intrón |
+| 13 | `multiexon_snp_exon2` | SNV en el exón 2, confirma que la posición del codón se resuelve teniendo en cuenta el transcrito |
+| 14 | `multiexon_junction_snp` | SNV en el codón que abarca la unión (base 1 en el exón 1, pos 900), requiere el modelo empalmado |
+| 15 | `multiexon_junction_mnv` | MNV con una base en el exón 1 (pos 900) y otra en el exón 2 (pos 1002), adyacentes en el mRNA empalmado, pero a unos 100 bp de distancia en el genoma. Se valida mediante lecturas con N-CIGAR que abarcan el intrón |
 
 ### Operational edge cases
 
 | # | Name | What it validates |
 |---|------|-------------------|
-| 16 | `no_bam_coverage` | El VCF declara un SNV en una posición donde el BAM no tiene lecturas solapantes — `get_mnv` aún emite la fila, con las columnas de soporte de lecturas vacías |
+| 16 | `no_bam_coverage` | El VCF declara un SNV en una posición donde el BAM no tiene lecturas solapantes; `get_mnv` aún emite la fila, con las columnas de soporte de lecturas vacías |
 | 17 | `min_snp_frequency_filter` | Un SNV presente al 10% (2/20 lecturas) se descarta de la salida cuando se establece `--min-snp-frequency 0.5` |
 
 ### Amino-acid edge cases
@@ -189,7 +189,7 @@ las filas TSV esperadas.
 | # | Name | What it validates |
 |---|------|-------------------|
 | 26 | `multicontig` | Dos variantes en dos contigs distintos (`chr_test` y `chr_test2`) producen dos filas correctamente anotadas |
-| 27 | `ivar_tsv_snv` | Entrada TSV de iVar con un SNV simple — la misma fila anotada que su equivalente en VCF |
+| 27 | `ivar_tsv_snv` | Entrada TSV de iVar con un SNV simple, la misma fila anotada que su equivalente en VCF |
 | 28 | `ivar_tsv_insertion` | La notación `+GCT` del TSV de iVar se normaliza al alelo anclado estilo VCF y se anota como `INS:30:+GCT` |
 | 29 | `ivar_tsv_deletion` | La notación `-G` del TSV de iVar se normaliza a `DEL:31:G` y produce la misma fila con frameshift |
 
@@ -209,7 +209,7 @@ control de propagación aguas abajo `--frameshift-min-freq`.
 Los escenarios 32 y 33 forman un par A/B: el mismo VCF (que ahora lleva `AF` en
 el `INFO`) y el mismo BAM, que se diferencian solo en el flag
 `--frameshift-min-freq`. Juntos muestran que el control afecta únicamente a la
-propagación aguas abajo del frameshift — la fila propia de la deleción aguas
+propagación aguas abajo del frameshift: la fila propia de la deleción aguas
 arriba permanece como `Frameshift Indel` (`Ala11Leufs`) en ambos casos.
 
 ## Framework architecture
@@ -241,17 +241,17 @@ arriba permanece como `Frameshift Indel` (`Ala11Leufs`) en ambos casos.
    - `geneC` codón de unión 34: pos 900 + pos 1001-1002
 3. Construye los grupos de lecturas con las operaciones necesarias para dar
    soporte a la variante en el BAM. Los tipos de `Op` son:
-   - `Op("snv", pos=P, seq="X")` — sustituye la base en la pos de ref `P` por `X`
-   - `Op("ins", pos=P, seq="ABC")` — inserta `ABC` tras la pos de ref `P`
-   - `Op("del", pos=P, length=N)` — borra `N` bases a partir de `P`
-   - `Op("skip", pos=P, length=N)` — emite un CIGAR `N` (salto de intrón), para
+   - `Op("snv", pos=P, seq="X")`: sustituye la base en la pos de ref `P` por `X`
+   - `Op("ins", pos=P, seq="ABC")`: inserta `ABC` tras la pos de ref `P`
+   - `Op("del", pos=P, length=N)`: borra `N` bases a partir de `P`
+   - `Op("skip", pos=P, length=N)`: emite un CIGAR `N` (salto de intrón), para
      las lecturas empalmadas de los escenarios multiexón
 4. Declara las filas TSV esperadas con los campos que quieras verificar
    (`positions`, `gene`, `base_changes`, `aa_changes`, `variant_type`,
    `change_type`, `event_class`, `event_components`, `*_reads`,
    `*_frequencies`, etc.). Los campos sin establecer no se comprueban.
 5. Si quieres, establece `expected_row_count` para afirmar el número total
-   exacto de filas producidas — resulta útil cuando la ventana de haplotipo
+   exacto de filas producidas, resulta útil cuando la ventana de haplotipo
    local emite más de una fila (consulta los escenarios 08 y 09).
 6. Añade el escenario a `ALL_SCENARIOS` y ejecuta `python3 run.py`.
 
@@ -260,7 +260,7 @@ imprimirá las filas reales producidas para que puedas ajustar la expectativa.
 
 ## Known behaviours documented by these tests
 
-- `geneB` (hebra negativa) — las columnas `Reference Codon` y `MNV Codon`
+- `geneB` (hebra negativa): las columnas `Reference Codon` y `MNV Codon`
   muestran la secuencia del **transcrito** (p. ej. `GCT`), no la genómica
   directa (`AGC`), de modo que el codón siempre traduce al aminoácido que
   aparece a su lado.

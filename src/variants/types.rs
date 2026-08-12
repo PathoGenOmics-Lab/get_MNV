@@ -110,7 +110,7 @@ pub enum ConsequenceShift {
     /// Same severity as the most severe individual SNV.
     Concordant,
     /// More severe than any single SNV alone (e.g. two individually-synonymous
-    /// SNVs producing a non-synonymous residue) — what per-SNV annotation misses.
+    /// SNVs producing a non-synonymous residue), which is what per-SNV annotation misses.
     Gained,
     /// Less severe than the most severe single SNV (e.g. a nonsense SNV rescued
     /// to a missense by its neighbour).
@@ -645,7 +645,7 @@ impl Gene {
     }
 
     /// Whether an insertion anchored at genomic `position` lands at an internal
-    /// exon-exon junction of the spliced CDS — i.e. immediately after the last
+    /// exon-exon junction of the spliced CDS, i.e. immediately after the last
     /// base of an internal coding exon. The inserted bases then fall between two
     /// exons in the spliced transcript, so the insertion is coding, even though
     /// the exon's terminal base is excluded from the half-open exon interval used

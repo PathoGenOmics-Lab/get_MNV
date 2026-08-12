@@ -10,7 +10,7 @@
 //! without needing the unchanged bases between them. Coding descriptors cover
 //! substitutions only; the protein-level HGVS (`p.`, in the AA columns) already
 //! conveys indel consequences. Neither form is 3'-shifted, and neither carries a
-//! reference-sequence accession prefix — the Chromosome and Gene columns supply
+//! reference-sequence accession prefix; the Chromosome and Gene columns supply
 //! that context.
 
 use crate::variants::{VariantInfo, VariantType};

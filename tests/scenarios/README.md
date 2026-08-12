@@ -24,7 +24,7 @@ Requirements:
 
 - Python 3.10 or newer (only the standard library is used)
 - `samtools` on `PATH` (or set the `SAMTOOLS` environment variable)
-- A built `get_mnv` binary — by default the suite looks for
+- A built `get_mnv` binary; by default the suite looks for
   `target/debug/get_mnv`, then `target/release/get_mnv`, then
   `dist/get_mnv`, then `get_mnv` on `PATH`. Override with `GET_MNV=/path/to/get_mnv`.
 
@@ -67,10 +67,10 @@ glyph legend and a table of contents. Each scenario page shows:
 - the **mapped reads** as a small alignment pileup, marking SNVs, insertions,
   deletions and intron skips (CIGAR `N`), the overlapping genes/CDS, and the
   input variants;
-- a **reading-frame / amino-acid track** — alternating shaded codon triplets
+- a **reading-frame / amino-acid track**: alternating shaded codon triplets
   plus the reference amino acid per codon, with the alternate AA in red when a
   variant makes the codon non-synonymous (strand- and phase-aware);
-- two tables: **"Without get_mnv"** (the raw caller calls — position, allele,
+- two tables: **"Without get_mnv"** (the raw caller calls: position, allele,
   length-based frame guess) versus the real **"get_mnv output"**, with a
   one-line **"What get_mnv adds"** summary between them.
 
@@ -86,7 +86,7 @@ composed of two contigs designed to keep codon math explicit:
 
 | Range       | Feature        | Content                                                   |
 |-------------|----------------|-----------------------------------------------------------|
-| 1–300       | `geneA` (+)    | `ATG` + 98 × `GCT` + `TAA` — Met, 98×Ala, stop           |
+| 1–300       | `geneA` (+)    | `ATG` + 98 × `GCT` + `TAA`: Met, 98×Ala, stop           |
 | 301–400     | filler         | `A` × 100                                                 |
 | 401–700     | `geneB` (−)    | RC of the standard CDS: `TTA` + 98 × `AGC` + `CAT`        |
 | 701–800     | filler         | `A` × 100                                                 |
@@ -147,23 +147,23 @@ expected TSV rows.
 
 | # | Name | What it validates |
 |---|------|-------------------|
-| 10 | `minus_snp_simple` | Single SNV in `geneB` (pos 673 C>T) — mRNA codon 10 `GCT`→`ACT` → `Ala10Thr` |
-| 11 | `minus_mnv_same_codon` | MNV in `geneB` codon 10 (pos 671 A>T + pos 673 C>A in cis) — mRNA `GCT`→`TCA` → `Ala10Ser` |
+| 10 | `minus_snp_simple` | Single SNV in `geneB` (pos 673 C>T): mRNA codon 10 `GCT`→`ACT` → `Ala10Thr` |
+| 11 | `minus_mnv_same_codon` | MNV in `geneB` codon 10 (pos 671 A>T + pos 673 C>A in cis): mRNA `GCT`→`TCA` → `Ala10Ser` |
 | 12 | `minus_fs_del` | 1 bp frameshift deletion inside `geneB` |
 
 ### Multi-exon CDS (`geneC`, with `--gff-features CDS`)
 
 | # | Name | What it validates |
 |---|------|-------------------|
-| 13 | `multiexon_snp_exon2` | SNV in exon 2 — confirms transcript-aware codon position resolution |
-| 14 | `multiexon_junction_snp` | SNV in the junction-spanning codon (base 1 in exon 1 pos 900) — requires the spliced model |
-| 15 | `multiexon_junction_mnv` | MNV with one base in exon 1 (pos 900) and another in exon 2 (pos 1002) — adjacent in spliced mRNA but ~100 bp apart in the genome. Validated via N-CIGAR reads spanning the intron |
+| 13 | `multiexon_snp_exon2` | SNV in exon 2, confirms transcript-aware codon position resolution |
+| 14 | `multiexon_junction_snp` | SNV in the junction-spanning codon (base 1 in exon 1 pos 900), requires the spliced model |
+| 15 | `multiexon_junction_mnv` | MNV with one base in exon 1 (pos 900) and another in exon 2 (pos 1002), adjacent in spliced mRNA but ~100 bp apart in the genome. Validated via N-CIGAR reads spanning the intron |
 
 ### Operational edge cases
 
 | # | Name | What it validates |
 |---|------|-------------------|
-| 16 | `no_bam_coverage` | VCF declares a SNV at a position where the BAM has no overlapping reads — `get_mnv` still emits the row with empty read-support columns |
+| 16 | `no_bam_coverage` | VCF declares a SNV at a position where the BAM has no overlapping reads; `get_mnv` still emits the row with empty read-support columns |
 | 17 | `min_snp_frequency_filter` | SNV present at 10% (2/20 reads) is dropped from the output when `--min-snp-frequency 0.5` is set |
 
 ### Amino-acid edge cases
@@ -187,7 +187,7 @@ expected TSV rows.
 | # | Name | What it validates |
 |---|------|-------------------|
 | 26 | `multicontig` | Two variants in two different contigs (`chr_test` and `chr_test2`) produce two correctly annotated rows |
-| 27 | `ivar_tsv_snv` | iVar TSV input with a simple SNV — same annotated row as the VCF equivalent |
+| 27 | `ivar_tsv_snv` | iVar TSV input with a simple SNV, same annotated row as the VCF equivalent |
 | 28 | `ivar_tsv_insertion` | iVar TSV `+GCT` notation is normalized to the VCF-style anchored allele and annotated as `INS:30:+GCT` |
 | 29 | `ivar_tsv_deletion` | iVar TSV `-G` notation is normalized to `DEL:31:G` and produces the same frameshift row |
 
@@ -206,7 +206,7 @@ These exercise the indel-handling refinements added on the `indels` branch
 
 Scenarios 32 and 33 are an A/B pair: same VCF (now carrying `AF` in `INFO`)
 and same BAM, differing only in the `--frameshift-min-freq` flag. Together
-they show the gate affects only downstream frameshift propagation — the
+they show the gate affects only downstream frameshift propagation: the
 upstream deletion's own row stays `Frameshift Indel` (`Ala11Leufs`) in both.
 
 ## Framework architecture
@@ -237,17 +237,17 @@ upstream deletion's own row stays `Frameshift Indel` (`Ala11Leufs`) in both.
    - `geneC` junction codon 34: pos 900 + pos 1001-1002
 3. Build the read groups with the operations needed to support the
    variant in BAM. The `Op` kinds are:
-   - `Op("snv", pos=P, seq="X")` — substitute base at ref pos `P` with `X`
-   - `Op("ins", pos=P, seq="ABC")` — insert `ABC` after ref pos `P`
-   - `Op("del", pos=P, length=N)` — delete `N` bases starting at `P`
-   - `Op("skip", pos=P, length=N)` — emit a CIGAR `N` (intron skip), for
+   - `Op("snv", pos=P, seq="X")`: substitute base at ref pos `P` with `X`
+   - `Op("ins", pos=P, seq="ABC")`: insert `ABC` after ref pos `P`
+   - `Op("del", pos=P, length=N)`: delete `N` bases starting at `P`
+   - `Op("skip", pos=P, length=N)`: emit a CIGAR `N` (intron skip), for
      spliced reads in multi-exon scenarios
 4. Declare the expected TSV rows with the fields you want to verify
    (`positions`, `gene`, `base_changes`, `aa_changes`, `variant_type`,
    `change_type`, `event_class`, `event_components`, `*_reads`,
    `*_frequencies`, etc.). Unset fields are not checked.
 5. Optionally set `expected_row_count` to assert the exact total number
-   of rows produced — useful when the local haplotype window emits more
+   of rows produced, useful when the local haplotype window emits more
    than one row (see scenarios 08 and 09).
 6. Append the scenario to `ALL_SCENARIOS` and run `python3 run.py`.
 
@@ -256,7 +256,7 @@ print the actual rows produced so you can adjust the expectation.
 
 ## Known behaviours documented by these tests
 
-- `geneB` (negative strand) — `Reference Codon` and `MNV Codon` columns
+- `geneB` (negative strand): `Reference Codon` and `MNV Codon` columns
   show the **transcript** sequence (e.g. `GCT`), not the genomic forward one
   (`AGC`), so the codon always translates to the amino acid beside it.
 - Multi-exon CDS without a `Name=` attribute on the CDS feature reports
