@@ -323,10 +323,10 @@ def run_linkage_case(both: int, first: int, second: int, neither: int, work: Pat
 
     want_d, want_p = expected_linkage(both, first, second, neither)
     problems = []
-    got_d = row.get("Codon LD", "<absent>")
+    got_d = row.get("Haplotype LD", "<absent>")
     if got_d != want_d:
         problems.append(f"{name}: Codon LD expected {want_d}, got {got_d}")
-    got_p = row.get("Codon LD p", "<absent>")
+    got_p = row.get("Haplotype LD p", "<absent>")
     if want_p is None:
         if got_p != MISSING:
             problems.append(f"{name}: Codon LD p expected {MISSING}, got {got_p}")

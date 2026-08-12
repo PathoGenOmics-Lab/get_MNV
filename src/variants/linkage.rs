@@ -25,6 +25,7 @@
 //! molecules is not read as a `D'` of 1.0 from four hundred.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 use crate::output::stats::fisher_exact_two_tailed;
 
@@ -151,6 +152,28 @@ pub fn codon_linkage(patterns: &[(Vec<bool>, usize)], positions: usize) -> Optio
         }
     }
     weakest
+}
+
+/// The joint distribution restricted to some of the window's variants.
+///
+/// A local haplotype row is usually a subset of the variants its window holds,
+/// and the linkage question for that row is about *its* variants: whether they
+/// travel together. Projecting the observed combinations onto those positions
+/// and merging the ones that become identical asks exactly that, over the
+/// molecules that observed the whole window.
+pub fn restricted_to(
+    patterns: &[(Vec<bool>, usize)],
+    indices: &[usize],
+) -> Vec<(Vec<bool>, usize)> {
+    let mut merged: BTreeMap<Vec<bool>, usize> = BTreeMap::new();
+    for (pattern, count) in patterns {
+        if indices.iter().any(|index| *index >= pattern.len()) {
+            continue;
+        }
+        let projected = indices.iter().map(|index| pattern[*index]).collect();
+        *merged.entry(projected).or_default() += count;
+    }
+    merged.into_iter().collect()
 }
 
 #[cfg(test)]
@@ -342,6 +365,32 @@ mod tests {
         ];
         let linkage = codon_linkage(&patterns, 3).expect("some pair varies");
         approx(linkage.d_prime, 0.0);
+    }
+
+    #[test]
+    fn restricting_merges_the_combinations_that_become_identical() {
+        // Three variants observed; asking about the first two only. The two
+        // combinations that differ solely in the third become one.
+        let patterns = vec![
+            (vec![true, true, true], 12),
+            (vec![true, true, false], 8),
+            (vec![false, false, true], 5),
+        ];
+        assert_eq!(
+            restricted_to(&patterns, &[0, 1]),
+            vec![(vec![false, false], 5), (vec![true, true], 20)]
+        );
+    }
+
+    #[test]
+    fn a_haplotype_inside_another_is_still_perfectly_linked() {
+        // 12 molecules carry all three variants and 8 carry only the first two.
+        // Asking about the first two: all 20 carry both, so they are as linked
+        // as they could be, even though only 8 molecules are the two-variant
+        // species. The read count and the linkage answer different questions
+        // and both are right.
+        let patterns = vec![(vec![true, true, true], 12), (vec![true, true, false], 8)];
+        assert!(codon_linkage(&restricted_to(&patterns, &[0, 1]), 2).is_none());
     }
 
     #[test]

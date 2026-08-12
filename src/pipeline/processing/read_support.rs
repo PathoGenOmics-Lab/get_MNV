@@ -510,7 +510,21 @@ pub(super) fn append_supported_phased_indel_haplotypes(
             );
             haplotypes.truncate(MAX_LOCAL_HAPLOTYPES_PER_WINDOW);
         }
+        // The joint distribution over the window, which is what the linkage
+        // statistics read. Discovery already built it to decide which
+        // combinations exist; nothing else has to be counted.
+        let window_patterns = haplotypes
+            .iter()
+            .map(|haplotype| (haplotype.carried.clone(), haplotype.reads))
+            .collect::<Vec<_>>();
+
         for haplotype in haplotypes {
+            let carried_indices = haplotype
+                .carried
+                .iter()
+                .enumerate()
+                .filter_map(|(index, carried)| carried.then_some(index))
+                .collect::<Vec<_>>();
             let group = component
                 .iter()
                 .zip(haplotype.carried.iter())
@@ -551,6 +565,14 @@ pub(super) fn append_supported_phased_indel_haplotypes(
             candidate.mnv_reads = Some(haplotype.reads);
             candidate.mnv_forward_reads = Some(haplotype.forward_reads);
             candidate.mnv_reverse_reads = Some(haplotype.reverse_reads);
+            // Whether this row's own variants travel together, measured the same
+            // way as for a codon MNV and over the same molecules its counts come
+            // from. Asked about the variants this row carries, not the whole
+            // window, since that is what the row claims.
+            candidate.annotations.linkage = variants::linkage::codon_linkage(
+                &variants::linkage::restricted_to(&window_patterns, &carried_indices),
+                carried_indices.len(),
+            );
             let reads = haplotype.reads;
             let freq = if depth > 0 {
                 reads as f64 / depth as f64

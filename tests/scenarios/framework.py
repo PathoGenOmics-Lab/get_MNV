@@ -532,7 +532,7 @@ _FIELD_BY_ATTR = {
     "mnv_phasing_reads": "MNV Phasing Reads",
     "frameshift_phasing": "Frameshift Phasing",
     "declared_phase": "Declared Phase",
-    "codon_ld": "Codon LD",
+    "codon_ld": "Haplotype LD",
 }
 
 

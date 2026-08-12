@@ -2229,6 +2229,42 @@ scenario_nested_haplotype_counts = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 57. Un haplotipo de indel real que aun asi es una casualidad
+# ---------------------------------------------------------------------------
+# 5 moleculas llevan insercion + SNV, 15 solo la insercion, 10 solo la SNV y 20
+# ninguna. La combinacion existe y sale con sus 5 moleculas, pero cada variante
+# esta al 40% y al 30%, asi que encontrarlas juntas en el 10% es lo que predice
+# el azar: D' = -0.1667 con p = 0.75. El recuento dice cuantas moleculas son esa
+# combinacion; D' dice si tiene algo que ver una con otra.
+scenario_indel_haplotype_by_chance = Scenario(
+    name="57_indel_haplotype_by_chance",
+    description="Haplotipo indel+SNV en 5 moleculas cuyas variantes son independientes: D' cerca de 0 y p no significativo",
+    variants=[
+        VcfRecord(pos=29, ref="C", alt="CGCT"),
+        VcfRecord(pos=30, ref="T", alt="A"),
+    ],
+    reads=[
+        ReadGroup(name_prefix="r_both", start=1, length=147,
+                  ops=[Op(kind="ins", pos=29, seq="GCT"), Op(kind="snv", pos=30, seq="A")],
+                  count=5),
+        ReadGroup(name_prefix="r_ins", start=1, length=147,
+                  ops=[Op(kind="ins", pos=29, seq="GCT")], count=15),
+        ReadGroup(name_prefix="r_snv", start=1, length=147,
+                  ops=[Op(kind="snv", pos=30, seq="A")], count=10),
+        ReadGroup(name_prefix="r_ref", start=1, length=147, ops=[], count=20),
+    ],
+    expected=[
+        ExpectedRow(
+            event_class="complex_indel",
+            event_components="INS:29:+GCT | SNV:30:T>A",
+            event_reads="5",
+            codon_ld="-0.1667",
+        ),
+    ],
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -2296,6 +2332,7 @@ ALL_SCENARIOS = [
     scenario_strand_is_per_position,
     scenario_longer_deletion_is_not_support,
     scenario_nested_haplotype_counts,
+    scenario_indel_haplotype_by_chance,
 ]
 
 
