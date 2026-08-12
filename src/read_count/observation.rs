@@ -27,18 +27,29 @@ pub(super) struct ReadKey {
 pub(super) enum MoleculeKey {
     Fragment(Vec<u8>),
     Record(ReadKey),
+    /// A record with no QNAME (SAM `*`). It cannot be paired with anything, and
+    /// it cannot be told apart from its neighbours either: `ReadKey` without a
+    /// name is just the segment flags and the start, so every unnamed read
+    /// starting at one position collapsed into a single molecule and the depth
+    /// there fell to one. Numbering them keeps each its own.
+    Unnamed(usize),
 }
 
-pub(super) fn build_molecule_key(rec: &bam::Record, pair_aware: bool) -> MoleculeKey {
-    if pair_aware {
-        if let Some(name) = rec.name() {
-            let qname = <_ as AsRef<[u8]>>::as_ref(&name).to_vec();
-            if !qname.is_empty() {
-                return MoleculeKey::Fragment(qname);
+pub(super) fn build_molecule_key(
+    rec: &bam::Record,
+    pair_aware: bool,
+    record_index: usize,
+) -> MoleculeKey {
+    match rec.name() {
+        Some(name) if !<_ as AsRef<[u8]>>::as_ref(&name).is_empty() => {
+            if pair_aware {
+                MoleculeKey::Fragment(<_ as AsRef<[u8]>>::as_ref(&name).to_vec())
+            } else {
+                MoleculeKey::Record(build_read_key(rec))
             }
         }
+        _ => MoleculeKey::Unnamed(record_index),
     }
-    MoleculeKey::Record(build_read_key(rec))
 }
 
 pub(super) fn build_read_key(rec: &bam::Record) -> ReadKey {
@@ -138,7 +149,7 @@ pub(super) struct ObservedAllele {
     pub(super) min_quality: u8,
     bases_by_position: HashMap<usize, char>,
     insertions_after: HashMap<usize, String>,
-    deleted_positions: HashSet<usize>,
+    pub(super) deleted_positions: HashSet<usize>,
 }
 
 pub(super) fn observed_allele_for_ref_span(

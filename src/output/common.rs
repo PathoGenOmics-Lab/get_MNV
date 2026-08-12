@@ -799,7 +799,7 @@ pub(crate) fn write_info_header(
     )?;
     writeln!(
         writer,
-        "##INFO=<ID=DPHASE,Number=1,Type=String,Description=\"Phase the input VCF declared for this row's alleles, as verdict:phase_set, with ;contradicted-by-reads when the BAM refutes it. The caller's claim, not an observation\">"
+        "##INFO=<ID=DPHASE,Number=1,Type=String,Description=\"Phase the input VCF declared for this row's alleles, as verdict:phase_set, with |contradicted-by-reads when the BAM refutes it. The caller's claim, not an observation\">"
     )?;
     writeln!(
         writer,

@@ -82,6 +82,13 @@ pub fn indel_snv_linkage(
     min_mapq: u8,
     pair_aware: bool,
 ) -> AppResult<IndelSnvLinkage> {
+    // Same observation span as the exact counting: a read that stops on an
+    // insertion's anchor has seen nothing of the junction and must not be
+    // recorded as spanning the indel and not carrying it.
+    let indel_observation_span = crate::variants::observation_ref_len(
+        indel_ref,
+        &crate::variants::decompose_allele(indel_position, indel_ref, indel_alt).components,
+    );
     let indel_end = indel_position + indel_ref.len().saturating_sub(1);
     let start = indel_position.min(snv_position);
     let end = indel_end.max(snv_position);
@@ -97,16 +104,22 @@ pub fn indel_snv_linkage(
     #[derive(Default)]
     struct MoleculeEvidence {
         carries_snv: bool,
+        saw_snv_position: bool,
         spans_indel: bool,
         carries_indel: bool,
+        /// The molecule's mates read different things at the SNV or over the
+        /// indel. Neither claim survives, so the molecule is not informative.
+        conflicted: bool,
     }
     let mut evidence: HashMap<MoleculeKey, MoleculeEvidence> = HashMap::new();
+    let mut record_index = 0usize;
     let mut record = bam::Record::default();
     while query
         .read_record(&mut record)
         .map_err(|e| AppError::validation(format!("BAM read error: {e}")))?
         != 0
     {
+        record_index += 1;
         let flags = record.flags();
         if flags.is_duplicate() || flags.is_secondary() || flags.is_supplementary() {
             continue;
@@ -119,30 +132,43 @@ pub fn indel_snv_linkage(
             continue;
         }
 
-        let carries_snv = matches!(
-            observed_base_at(&record, snv_position, min_phred_quality),
-            Some(base) if base.eq_ignore_ascii_case(&snv_alt)
-        );
+        let observed_snv_base = observed_base_at(&record, snv_position, min_phred_quality);
+        let carries_snv =
+            matches!(observed_snv_base, Some(base) if base.eq_ignore_ascii_case(&snv_alt));
+        let saw_the_whole_indel = indel_observation_span == indel_ref.len()
+            || observed_allele_for_ref_span(&record, indel_position, indel_observation_span)
+                .is_some();
         let observed_indel_allele =
-            observed_allele_for_ref_span(&record, indel_position, indel_ref.len())
-                .filter(|observed| observed.min_quality >= min_phred_quality);
-        if !carries_snv && observed_indel_allele.is_none() {
+            observed_allele_for_ref_span(&record, indel_position, indel_ref.len()).filter(
+                |observed| observed.min_quality >= min_phred_quality && saw_the_whole_indel,
+            );
+        if observed_snv_base.is_none() && observed_indel_allele.is_none() {
             continue;
         }
 
         let molecule = evidence
-            .entry(build_molecule_key(&record, pair_aware))
+            .entry(build_molecule_key(&record, pair_aware, record_index))
             .or_default();
-        molecule.carries_snv |= carries_snv;
+        if observed_snv_base.is_some() {
+            if molecule.saw_snv_position && molecule.carries_snv != carries_snv {
+                molecule.conflicted = true;
+            }
+            molecule.saw_snv_position = true;
+            molecule.carries_snv |= carries_snv;
+        }
         if let Some(observed) = observed_indel_allele {
+            let carries_indel = observed.allele.eq_ignore_ascii_case(indel_alt);
+            if molecule.spans_indel && molecule.carries_indel != carries_indel {
+                molecule.conflicted = true;
+            }
             molecule.spans_indel = true;
-            molecule.carries_indel |= observed.allele.eq_ignore_ascii_case(indel_alt);
+            molecule.carries_indel |= carries_indel;
         }
     }
 
     let informative = evidence
         .values()
-        .filter(|molecule| molecule.carries_snv && molecule.spans_indel);
+        .filter(|molecule| !molecule.conflicted && molecule.carries_snv && molecule.spans_indel);
     let mut informative_reads = 0usize;
     let mut cis_reads = 0usize;
     for molecule in informative {

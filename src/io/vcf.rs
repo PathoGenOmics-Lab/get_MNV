@@ -42,6 +42,10 @@ pub struct DeclaredPhase {
     /// Which haplotype slots of a `|`-separated `GT` carry this record's ALT.
     /// `1|0` gives `[0]`, `0|1` gives `[1]`, `1|1` gives `[0, 1]`.
     pub alt_haplotypes: Vec<u8>,
+    /// Whether any slot is a no-call (`.`). Such a slot might hold this ALT, so
+    /// two half-called records cannot be shown to be on different haplotypes
+    /// even when their called slots are disjoint.
+    pub has_unknown_slot: bool,
 }
 
 impl DeclaredPhase {
@@ -56,11 +60,19 @@ impl DeclaredPhase {
         // Phased with no phase set names no group, so two such records make no
         // claim about each other.
         self.phase_set?;
-        Some(
-            self.alt_haplotypes
-                .iter()
-                .any(|slot| other.alt_haplotypes.contains(slot)),
-        )
+        if self
+            .alt_haplotypes
+            .iter()
+            .any(|slot| other.alt_haplotypes.contains(slot))
+        {
+            return Some(true);
+        }
+        // Disjoint called slots settle it as trans only when both genotypes
+        // were fully called. A `.` could be holding this ALT.
+        if self.has_unknown_slot || other.has_unknown_slot {
+            return None;
+        }
+        Some(false)
     }
 }
 
@@ -90,6 +102,7 @@ pub fn parse_declared_phase(
     Some(DeclaredPhase {
         phase_set: phase_set.and_then(|value| value.parse::<usize>().ok()),
         alt_haplotypes,
+        has_unknown_slot: genotype.split('|').any(|allele| allele == "."),
     })
 }
 

@@ -35,6 +35,7 @@ pub fn count_indel_reads(
         )));
     }
 
+    let observation_span = crate::variants::observation_ref_len(ref_allele, required_components);
     let end = position + ref_allele.len().saturating_sub(1);
     let region = build_region(chrom, position, end)?;
     let mut query = bam_reader.query(header, &region).map_err(|e| {
@@ -58,12 +59,14 @@ pub fn count_indel_reads(
     // realignment artefacts appear.
     let mut contradicted: HashSet<Rc<MoleculeKey>> = HashSet::new();
 
+    let mut record_index = 0usize;
     let mut record = bam::Record::default();
     while query
         .read_record(&mut record)
         .map_err(|e| AppError::validation(format!("BAM read error: {e}")))?
         != 0
     {
+        record_index += 1;
         let flags = record.flags();
         if flags.is_duplicate() || flags.is_secondary() || flags.is_supplementary() {
             continue;
@@ -76,7 +79,28 @@ pub fn count_indel_reads(
             continue;
         }
 
+        // The allele is read over the REF span, because exact support means
+        // reproducing that allele and nothing else.
         let observed = observed_allele_for_ref_span(&record, position, ref_allele.len());
+        // Whether the read is entitled to an opinion at all. For an insertion
+        // that needs the base after the anchor too: a read stopping on the
+        // anchor covers the REF span and has still seen nothing of the
+        // junction, so its "reads the reference" observation is not a
+        // disagreement and must not strip a partner mate's support.
+        let extended = if observation_span == ref_allele.len() {
+            None
+        } else {
+            observed_allele_for_ref_span(&record, position, observation_span)
+        };
+        let saw_the_whole_allele = observation_span == ref_allele.len() || extended.is_some();
+        // The base just past the REF span still deleted means this read carries
+        // a longer deletion than the allele being counted. Inside the span the
+        // two are indistinguishable, which is how a read deleting 4-5 came to
+        // be exact support for a deletion of 4 alone.
+        let deletion_runs_on = extended.as_ref().is_some_and(|seen| {
+            seen.deleted_positions
+                .contains(&(position + ref_allele.len()))
+        });
 
         // Depth (denominator) eligibility. By default a read must fully span the
         // REF allele with every base either observed or deleted. With
@@ -103,7 +127,7 @@ pub fn count_indel_reads(
             }
         }
 
-        let key = Rc::new(build_molecule_key(&record, pair_aware));
+        let key = Rc::new(build_molecule_key(&record, pair_aware, record_index));
         let is_reverse = flags.is_reverse_complemented();
         if counts_for_depth {
             unique_total.insert(key.clone());
@@ -118,6 +142,7 @@ pub fn count_indel_reads(
             if observed.min_quality >= min_phred_quality {
                 if observed.allele.eq_ignore_ascii_case(alt_allele)
                     && observed_supports_components(observed, required_components)
+                    && !deletion_runs_on
                 {
                     unique_alt.insert(key.clone());
                     if is_reverse {
@@ -125,7 +150,7 @@ pub fn count_indel_reads(
                     } else {
                         unique_alt_forward.insert(key);
                     }
-                } else {
+                } else if saw_the_whole_allele {
                     contradicted.insert(key);
                 }
             }

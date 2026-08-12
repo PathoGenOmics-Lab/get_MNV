@@ -29,27 +29,69 @@ struct CachedReadObservation {
     observations: Vec<Option<(char, u8)>>,
 }
 
+/// What one molecule saw at one position, and from which strands.
+///
+/// The strands are per position, not per molecule. A fragment's two mates often
+/// land hundreds of bases apart, and the strand that read one variant says
+/// nothing about the strand that read another; crediting a position to both
+/// arms because the far mate happened to be on the other strand makes every
+/// site look strand-balanced and leaves strand-bias detection unable to reject
+/// anything.
+#[derive(Debug, Clone, Copy)]
+struct PositionObservation {
+    base: char,
+    quality: u8,
+    from_forward: bool,
+    from_reverse: bool,
+}
+
 /// One molecule's view of the requested positions: a single record, or a
 /// paired-end fragment's two mates merged.
 struct MoleculeObservation {
     identity: Rc<MoleculeKey>,
-    has_forward: bool,
-    has_reverse: bool,
-    observations: Vec<Option<(char, u8)>>,
+    observations: Vec<Option<PositionObservation>>,
+}
+
+impl MoleculeObservation {
+    /// Whether a single strand established every one of these positions. For a
+    /// multi-position row that is the strand-bias question: a haplotype pieced
+    /// together from a forward mate and a reverse mate was confirmed by neither
+    /// strand on its own.
+    fn spans_all_on(&self, forward: bool, min_phred_quality: u8, indices: &[usize]) -> bool {
+        indices.iter().all(|idx| {
+            self.observations[*idx].is_some_and(|seen| {
+                seen.quality >= min_phred_quality
+                    && if forward {
+                        seen.from_forward
+                    } else {
+                        seen.from_reverse
+                    }
+            })
+        })
+    }
 }
 
 /// Merge what two mates saw at one position.
 ///
 /// Where only one mate reaches the position, it speaks alone. Where both do and
-/// agree, the better base quality stands. Where both do and disagree, one of
-/// them is wrong and there is no way to tell which, so the molecule is treated
-/// as not having observed that position at all.
-fn merge_observation(left: Option<(char, u8)>, right: Option<(char, u8)>) -> Option<(char, u8)> {
+/// agree, the better base quality stands and the position is credited to both
+/// strands. Where both do and disagree, one of them is wrong and there is no
+/// way to tell which, so the molecule is treated as not having observed that
+/// position at all.
+fn merge_observation(
+    left: Option<PositionObservation>,
+    right: Option<PositionObservation>,
+) -> Option<PositionObservation> {
     match (left, right) {
         (None, other) | (other, None) => other,
-        (Some((left_base, left_quality)), Some((right_base, right_quality))) => {
-            if left_base.eq_ignore_ascii_case(&right_base) {
-                Some((left_base, left_quality.max(right_quality)))
+        (Some(left), Some(right)) => {
+            if left.base.eq_ignore_ascii_case(&right.base) {
+                Some(PositionObservation {
+                    base: left.base,
+                    quality: left.quality.max(right.quality),
+                    from_forward: left.from_forward || right.from_forward,
+                    from_reverse: left.from_reverse || right.from_reverse,
+                })
             } else {
                 None
             }
@@ -69,13 +111,24 @@ fn molecules(reads: &[CachedReadObservation], pair_aware: bool) -> Vec<MoleculeO
         } else {
             Rc::new(MoleculeKey::Record((*read.key).clone()))
         };
+        // The strand travels with each observation, so it only ever applies to
+        // the positions this record actually read.
+        let stamped = read
+            .observations
+            .iter()
+            .map(|observation| {
+                observation.map(|(base, quality)| PositionObservation {
+                    base,
+                    quality,
+                    from_forward: !read.is_reverse,
+                    from_reverse: read.is_reverse,
+                })
+            })
+            .collect::<Vec<_>>();
         match by_identity.get(&identity) {
             Some(&index) => {
                 let molecule: &mut MoleculeObservation = &mut merged[index];
-                molecule.has_forward |= !read.is_reverse;
-                molecule.has_reverse |= read.is_reverse;
-                for (slot, observation) in molecule.observations.iter_mut().zip(&read.observations)
-                {
+                for (slot, observation) in molecule.observations.iter_mut().zip(&stamped) {
                     *slot = merge_observation(*slot, *observation);
                 }
             }
@@ -83,9 +136,7 @@ fn molecules(reads: &[CachedReadObservation], pair_aware: bool) -> Vec<MoleculeO
                 by_identity.insert(identity.clone(), merged.len());
                 merged.push(MoleculeObservation {
                     identity,
-                    has_forward: !read.is_reverse,
-                    has_reverse: read.is_reverse,
-                    observations: read.observations.clone(),
+                    observations: stamped,
                 });
             }
         }
@@ -174,12 +225,14 @@ pub fn build_region_observation_cache(
         ))
     })?;
 
+    let mut record_index = 0usize;
     let mut record = bam::Record::default();
     while query
         .read_record(&mut record)
         .map_err(|e| AppError::validation(format!("BAM read error: {e}")))?
         != 0
     {
+        record_index += 1;
         let flags = record.flags();
         if flags.is_duplicate() || flags.is_secondary() || flags.is_supplementary() {
             continue;
@@ -227,7 +280,7 @@ pub fn build_region_observation_cache(
 
         reads.push(CachedReadObservation {
             key: Rc::new(build_read_key(&record)),
-            fragment: Rc::new(build_molecule_key(&record, true)),
+            fragment: Rc::new(build_molecule_key(&record, true, record_index)),
             is_reverse: flags.is_reverse_complemented(),
             observations,
         });
@@ -319,20 +372,18 @@ pub fn count_reads_from_cache(
             .collect::<Vec<_>>();
 
         for (idx, observation) in observations.iter().enumerate() {
-            if let Some((_, qual)) = observation {
-                if *qual < min_phred_quality {
+            if let Some(seen) = observation {
+                if seen.quality < min_phred_quality {
                     continue;
                 }
                 if unique_total[idx].insert(molecule.identity.clone()) {
                     total_reads[idx] += 1;
                 }
-                if molecule.has_forward
-                    && unique_total_forward[idx].insert(molecule.identity.clone())
+                if seen.from_forward && unique_total_forward[idx].insert(molecule.identity.clone())
                 {
                     total_forward_reads[idx] += 1;
                 }
-                if molecule.has_reverse
-                    && unique_total_reverse[idx].insert(molecule.identity.clone())
+                if seen.from_reverse && unique_total_reverse[idx].insert(molecule.identity.clone())
                 {
                     total_reverse_reads[idx] += 1;
                 }
@@ -340,33 +391,34 @@ pub fn count_reads_from_cache(
         }
 
         if positions.len() == 1 {
-            if observations[0]
-                .map(|(base, qual)| {
-                    qual >= min_phred_quality && base.eq_ignore_ascii_case(&alt_chars[0])
-                })
-                .unwrap_or(false)
-                && unique_snp[0].insert(molecule.identity.clone())
-            {
-                snp_counts[0] += 1;
-                increment_directional_count(
-                    molecule.has_forward,
-                    molecule.has_reverse,
-                    &mut snp_forward_counts[0],
-                    &mut snp_reverse_counts[0],
-                );
+            if let Some(seen) = observations[0] {
+                if seen.quality >= min_phred_quality
+                    && seen.base.eq_ignore_ascii_case(&alt_chars[0])
+                    && unique_snp[0].insert(molecule.identity.clone())
+                {
+                    snp_counts[0] += 1;
+                    increment_directional_count(
+                        seen.from_forward,
+                        seen.from_reverse,
+                        &mut snp_forward_counts[0],
+                        &mut snp_reverse_counts[0],
+                    );
+                }
             }
             continue;
         }
 
         let covers_all_positions = observations
             .iter()
-            .all(|value| matches!(value, Some((_, qual)) if *qual >= min_phred_quality));
+            .all(|value| matches!(value, Some(seen) if seen.quality >= min_phred_quality));
         if covers_all_positions {
             unique_mnv_total.insert(molecule.identity.clone());
-            if molecule.has_forward {
+            // A haplotype assembled from a forward mate and a reverse mate was
+            // established by neither strand alone, so it belongs to neither arm.
+            if molecule.spans_all_on(true, min_phred_quality, &requested_indices) {
                 unique_mnv_total_forward.insert(molecule.identity.clone());
             }
-            if molecule.has_reverse {
+            if molecule.spans_all_on(false, min_phred_quality, &requested_indices) {
                 unique_mnv_total_reverse.insert(molecule.identity.clone());
             }
         }
@@ -376,15 +428,14 @@ pub fn count_reads_from_cache(
             .or_insert_with(|| MultiReadSupport::new(positions.len()));
         support.spans_all |= covers_all_positions;
         for (idx, observation) in observations.iter().enumerate() {
-            if observation
-                .map(|(base, qual)| {
-                    qual >= min_phred_quality && base.eq_ignore_ascii_case(&alt_chars[idx])
-                })
-                .unwrap_or(false)
-            {
-                support.snp_support[idx] = true;
-                support.snp_forward[idx] |= molecule.has_forward;
-                support.snp_reverse[idx] |= molecule.has_reverse;
+            if let Some(seen) = observation {
+                if seen.quality >= min_phred_quality
+                    && seen.base.eq_ignore_ascii_case(&alt_chars[idx])
+                {
+                    support.snp_support[idx] = true;
+                    support.snp_forward[idx] |= seen.from_forward;
+                    support.snp_reverse[idx] |= seen.from_reverse;
+                }
             }
         }
     }
@@ -402,8 +453,12 @@ pub fn count_reads_from_cache(
             }
             if support.snp_support.iter().all(|is_supported| *is_supported) {
                 mnv_count += 1;
-                let has_forward = support.snp_forward.iter().any(|is_forward| *is_forward);
-                let has_reverse = support.snp_reverse.iter().any(|is_reverse| *is_reverse);
+                // A strand supports the haplotype only if it read every one of
+                // its substitutions. `any` would credit both arms for a
+                // haplotype pieced together from two mates, which is the same
+                // over-claim the depth arms above avoid.
+                let has_forward = support.snp_forward.iter().all(|is_forward| *is_forward);
+                let has_reverse = support.snp_reverse.iter().all(|is_reverse| *is_reverse);
                 increment_directional_count(
                     has_forward,
                     has_reverse,

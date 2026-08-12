@@ -234,10 +234,14 @@ fn passes_filters(variant: &VariantInfo, filters: TsvFilterConfig) -> AppResult<
 
 fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
     validate_variant_shape(variant)?;
-    // Indels (genic or intergenic) have no read counts and use the placeholder
-    // layout. Intergenic SNPs are read-counted, so they fall through to the
-    // normal SNP path below and report their read support like any SNP.
-    if variant.variant_type == VariantType::Indel {
+    // Rows without recomputed read counts use the placeholder layout. That is
+    // every indel, genic or intergenic, and also an intergenic multi-base
+    // substitution: the intergenic counter only handles single-position SNPs,
+    // so an allele such as `AC>GT` outside any gene arrives uncounted. Keying
+    // this on the absence of the counts rather than on the variant type stops
+    // such a row reaching the SNP path, where it aborted the whole run.
+    // Intergenic SNPs are read-counted and fall through as before.
+    if variant.variant_type == VariantType::Indel || variant.snp_reads.is_none() {
         let pos_str = variant
             .positions
             .iter()

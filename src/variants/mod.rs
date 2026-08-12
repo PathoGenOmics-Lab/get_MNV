@@ -19,7 +19,7 @@ pub use codon::{
     phased_haplotype_variant, process_codon, FrameshiftPhasing, IndelAnnotationConfig, PairLinkage,
 };
 pub use event::{
-    decompose_allele, parse_component_label, substitution_components, AlleleComponent,
-    AlleleComponentKind, AlleleEvent, AlleleEventClass,
+    decompose_allele, observation_ref_len, parse_component_label, substitution_components,
+    AlleleComponent, AlleleComponentKind, AlleleEvent, AlleleEventClass,
 };
 pub use types::*;

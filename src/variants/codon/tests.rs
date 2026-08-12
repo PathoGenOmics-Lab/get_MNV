@@ -570,7 +570,7 @@ fn test_frameshift_frequency_gate_skips_low_freq_upstream_indel() {
     // in trans suppresses propagation even with the default (0.0) frequency gate.
     let trans =
         crate::variants::FrameshiftPhasing::from_pairs(std::collections::HashMap::from([(
-            (3usize, 11usize),
+            (3usize, 11usize, 'A'),
             crate::variants::PairLinkage {
                 verdict: crate::variants::LinkageVerdict::Trans,
                 cis_reads: 0,

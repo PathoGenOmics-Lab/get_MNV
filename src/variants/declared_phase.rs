@@ -32,17 +32,28 @@ pub fn declared_phase_for_row(
         .map(|(position, alternate)| declared_phase_at(*position, alternate, snp_list))
         .collect::<Vec<_>>();
 
+    // Every position must carry a claim, and all of them must sit in one phase
+    // set. A row is a statement about all of its alleles together: publishing
+    // `cis` because two of three positions were phased together would speak for
+    // an allele the caller never placed.
     let mut phase_set = None;
+    for phase in &phases {
+        let Some(phase) = phase else { return None };
+        match (phase_set, phase.phase_set) {
+            (_, None) => return None,
+            (None, Some(set)) => phase_set = Some(set),
+            (Some(current), Some(set)) if current != set => return None,
+            (Some(_), Some(_)) => {}
+        }
+    }
+
     let mut comparisons = 0usize;
     let mut all_share = true;
     for (index, left) in phases.iter().enumerate() {
         let Some(left) = left else { continue };
         for right in phases.iter().skip(index + 1).flatten() {
-            let Some(shares) = left.shares_haplotype_with(right) else {
-                continue;
-            };
+            let shares = left.shares_haplotype_with(right)?;
             comparisons += 1;
-            phase_set = left.phase_set;
             all_share &= shares;
         }
     }
@@ -149,6 +160,16 @@ mod tests {
         ];
         let call = declared_phase_for_row(&[10, 12], &alts(), &snps).expect("comparable");
         assert_eq!(call.verdict, LinkageVerdict::Trans);
+    }
+
+    #[test]
+    fn a_row_whose_other_position_was_never_phased_claims_nothing() {
+        // Only position 10 carries a claim. Publishing `cis` off the back of it
+        // would speak for the allele at 12, which the caller never placed.
+        let mut unphased = phased(12, "G", "1|0", Some("7"));
+        unphased.declared_phase = None;
+        let snps = vec![phased(10, "C", "1|0", Some("7")), unphased];
+        assert!(declared_phase_for_row(&[10, 12], &alts(), &snps).is_none());
     }
 
     #[test]

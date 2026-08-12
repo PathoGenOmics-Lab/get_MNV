@@ -4,14 +4,6 @@ use crate::io::VcfPosition;
 use crate::variants::types::{FrameshiftLinkage, LinkageVerdict};
 use std::collections::HashMap;
 
-/// BAM-derived phasing evidence for frameshift propagation, keyed by
-/// `(indel_position, snv_position)`. An upstream indel's frame shift is not
-/// propagated to a downstream codon when the reads show the indel is in
-/// **trans** with that codon's SNV, since the codon's molecule does not carry
-/// it. Empty (the default, and whenever no BAM is available) means nobody was
-/// asked, so every pair keeps the frequency-based behaviour. This is a
-/// suppression-only signal that never adds propagation the frequency gate
-/// would not.
 /// The reads' answer for one pair, already judged. The cis/trans thresholds
 /// live with the read counting that applies them, so nothing here re-derives
 /// the rule from the counts.
@@ -22,15 +14,25 @@ pub struct PairLinkage {
     pub informative_reads: usize,
 }
 
+/// BAM-derived phasing evidence for frameshift propagation, keyed by
+/// `(indel_position, snv_position, snv_alt)`. An upstream indel's frame shift
+/// is not propagated to a downstream codon when the reads show the indel is in
+/// **trans** with that codon's substitution, since the codon's molecule does
+/// not carry it. Empty (the default, and whenever no BAM is available) means
+/// nobody was asked, so every pair keeps the frequency-based behaviour. This is
+/// a suppression-only signal that never adds propagation the frequency gate
+/// would not.
 #[derive(Debug, Clone, Default)]
 pub struct FrameshiftPhasing {
-    pairs: HashMap<(usize, usize), PairLinkage>,
+    pairs: HashMap<(usize, usize, char), PairLinkage>,
 }
 
 impl FrameshiftPhasing {
-    /// Build from `(indel_position, snv_position)` to the reads' answer, for
-    /// every pair they were consulted about.
-    pub fn from_pairs(pairs: HashMap<(usize, usize), PairLinkage>) -> Self {
+    /// Build from `(indel_position, snv_position, snv_alt)` to the reads'
+    /// answer, for every pair they were consulted about. The ALT belongs in the
+    /// key: the linkage is queried per allele, and at a multi-allelic site a
+    /// position-only key let the last ALT processed decide the other's codon.
+    pub fn from_pairs(pairs: HashMap<(usize, usize, char), PairLinkage>) -> Self {
         Self { pairs }
     }
 
@@ -39,11 +41,11 @@ impl FrameshiftPhasing {
     pub(super) fn indel_in_trans_with(
         &self,
         indel_position: usize,
-        snv_positions: &[usize],
+        snv_alleles: &[(usize, char)],
     ) -> bool {
-        snv_positions.iter().any(|snv| {
+        snv_alleles.iter().any(|(position, alt)| {
             self.pairs
-                .get(&(indel_position, *snv))
+                .get(&(indel_position, *position, *alt))
                 .is_some_and(|linkage| linkage.verdict == LinkageVerdict::Trans)
         })
     }
@@ -56,11 +58,13 @@ impl FrameshiftPhasing {
     pub(super) fn linkage_for(
         &self,
         indel_position: usize,
-        snv_positions: &[usize],
+        snv_alleles: &[(usize, char)],
     ) -> Option<FrameshiftLinkage> {
-        snv_positions
+        snv_alleles
             .iter()
-            .filter_map(|snv| self.pairs.get(&(indel_position, *snv)).copied())
+            .filter_map(|(position, alt)| {
+                self.pairs.get(&(indel_position, *position, *alt)).copied()
+            })
             .min_by_key(|linkage| (linkage.verdict, linkage.cis_reads))
             .map(|linkage| FrameshiftLinkage {
                 indel_position,

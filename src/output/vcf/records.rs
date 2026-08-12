@@ -44,7 +44,11 @@ impl VcfWriter {
 
     pub(super) fn write_snp(&mut self, variant: &VariantInfo) -> AppResult<()> {
         validate_variant_shape(variant)?;
-        if self.bam_provided {
+        // An intergenic multi-base substitution is never read-counted (the
+        // intergenic counter handles single-position SNPs only), so it has no
+        // counts to report even with a BAM. Emit it the way a run without a BAM
+        // would rather than failing the whole run for the missing vectors.
+        if self.bam_provided && variant.snp_reads.is_some() {
             let bam_vectors = snp_bam_vectors(variant)?;
             for i in 0..variant.positions.len() {
                 let metrics = self.snp_metrics_at(variant, &bam_vectors, i)?;
@@ -146,7 +150,7 @@ impl VcfWriter {
         validate_variant_shape(variant)?;
         let mut entries: Vec<VcfEntry> = Vec::new();
 
-        if self.bam_provided {
+        if self.bam_provided && variant.snp_reads.is_some() {
             let bam_vectors = snp_bam_vectors(variant)?;
             for i in 0..variant.positions.len() {
                 let metrics = self.snp_metrics_at(variant, &bam_vectors, i)?;

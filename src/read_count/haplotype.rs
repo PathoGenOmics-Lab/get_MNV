@@ -105,14 +105,20 @@ pub fn observe_local_haplotypes(
     struct MoleculeView {
         observed: Vec<bool>,
         carried: Vec<bool>,
+        /// Positions where the molecule's two mates read different things. One
+        /// of them is wrong and there is no telling which, so the molecule has
+        /// observed nothing there.
+        conflicted: Vec<bool>,
     }
     let mut views: HashMap<MoleculeKey, MoleculeView> = HashMap::new();
+    let mut record_index = 0usize;
     let mut record = bam::Record::default();
     while query
         .read_record(&mut record)
         .map_err(|e| AppError::validation(format!("BAM read error: {e}")))?
         != 0
     {
+        record_index += 1;
         let flags = record.flags();
         if flags.is_duplicate() || flags.is_secondary() || flags.is_supplementary() {
             continue;
@@ -138,13 +144,17 @@ pub fn observe_local_haplotypes(
         }
 
         let view = views
-            .entry(build_molecule_key(&record, pair_aware))
+            .entry(build_molecule_key(&record, pair_aware, record_index))
             .or_insert_with(|| MoleculeView {
                 observed: vec![false; variants.len()],
                 carried: vec![false; variants.len()],
+                conflicted: vec![false; variants.len()],
             });
         for (index, support) in per_variant.into_iter().enumerate() {
             if let Some(carries) = support {
+                if view.observed[index] && view.carried[index] != carries {
+                    view.conflicted[index] = true;
+                }
                 view.observed[index] = true;
                 view.carried[index] |= carries;
             }
@@ -154,7 +164,9 @@ pub fn observe_local_haplotypes(
     let mut by_combination: BTreeMap<Vec<bool>, usize> = BTreeMap::new();
     let mut partial_reads = 0usize;
     for view in views.into_values() {
-        if view.observed.iter().all(|seen| *seen) {
+        if view.conflicted.iter().any(|clash| *clash) {
+            partial_reads += 1;
+        } else if view.observed.iter().all(|seen| *seen) {
             *by_combination.entry(view.carried).or_default() += 1;
         } else {
             partial_reads += 1;

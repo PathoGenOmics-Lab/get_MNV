@@ -2120,6 +2120,65 @@ scenario_coincidence_not_linkage = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 53. La hebra de un mate no se presta a la posicion que leyo el otro
+# ---------------------------------------------------------------------------
+# Dos variantes en geneA. Cada fragmento es mate1 forward sobre la pos 28 (que
+# lee referencia) y mate2 reverse sobre la pos 200 (que lleva la ALT). La 200
+# solo la han leido mates reverse, asi que su brazo forward tiene que estar
+# vacio. Con banderas de hebra a nivel de fragmento salia 20/20 y cualquier
+# sitio parecia equilibrado, con lo que el sesgo de hebra no podia rechazar nada.
+scenario_strand_is_per_position = Scenario(
+    name="53_strand_is_per_position",
+    description="Mates lejanos: la hebra que leyo una variante no cuenta para la que leyo la otra",
+    variants=[
+        VcfRecord(pos=28, ref="G", alt="A"),
+        VcfRecord(pos=200, ref="C", alt="T"),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_pair", start=1, length=60, ops=[], count=20,
+            mate_start=160, mate_length=60,
+            mate_ops=[Op(kind="snv", pos=200, seq="T")],
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="200",
+            variant_type="SNP",
+            snp_reads="20",
+            snp_forward_reads="0",
+            snp_reverse_reads="20",
+        ),
+    ],
+)
+
+
+# 54. Una delecion mas larga no es soporte exacto de la corta
+# El VCF declara borrar solo la pos 29. Las lecturas borran 29 y 30. Dentro del
+# tramo REF las dos son indistinguibles, asi que hacia falta mirar una base mas
+# alla para ver donde termina la delecion de la lectura.
+scenario_longer_deletion_is_not_support = Scenario(
+    name="54_longer_deletion_is_not_support",
+    description="Lecturas con una delecion de 2 bp no respaldan la delecion de 1 bp declarada",
+    variants=[VcfRecord(pos=28, ref="GC", alt="G")],
+    reads=[
+        ReadGroup(
+            name_prefix="r_longer_del", start=1, length=100,
+            ops=[Op(kind="del", pos=29, length=2)], count=20,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="28",
+            variant_type="INDEL",
+            event_class="deletion",
+            event_reads="0",
+        ),
+    ],
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -2184,6 +2243,8 @@ ALL_SCENARIOS = [
     scenario_read_ending_on_insertion_anchor,
     scenario_competing_haplotypes,
     scenario_coincidence_not_linkage,
+    scenario_strand_is_per_position,
+    scenario_longer_deletion_is_not_support,
 ]
 
 

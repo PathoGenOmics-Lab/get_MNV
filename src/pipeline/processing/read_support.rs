@@ -6,7 +6,7 @@ use crate::cli::Args;
 use crate::error::{AppError, AppResult};
 use crate::io::VcfPosition;
 use crate::read_count::{self, ReadCountSummary};
-use crate::variants::{self, AlleleComponentKind, Gene, VariantInfo, VariantType};
+use crate::variants::{self, Gene, VariantInfo, VariantType};
 use std::collections::HashMap;
 
 /// Maximum genomic distance between an indel and a SNV for read-based phasing to
@@ -41,7 +41,15 @@ pub(super) fn compute_frameshift_phasing(
         .filter(|variant| variant.overlaps_interval(gene.start, gene.end))
     {
         if variant.event().class.has_indel_component() {
-            indels.push(variant);
+            // A symbolic ALT (`<DEL>`, `<DUP>`) has no sequence for a read to
+            // reproduce, so `observed.allele == alt` can never hold and every
+            // spanning molecule would score as informative-and-not-cis, which
+            // reads as proof of trans and silently cancels the frameshift the
+            // SV should propagate. The reads cannot answer here; leaving the
+            // pair out says so.
+            if !variant.alt_allele.starts_with('<') {
+                indels.push(variant);
+            }
         }
         for component in variant.substitution_components() {
             if let Some(alt) = component.alt_allele.chars().next() {
@@ -64,7 +72,7 @@ pub(super) fn compute_frameshift_phasing(
         .as_ref()
         .ok_or_else(|| AppError::validation("BAM header unavailable in worker thread"))?;
 
-    let mut pairs: HashMap<(usize, usize), variants::PairLinkage> = HashMap::new();
+    let mut pairs: HashMap<(usize, usize, char), variants::PairLinkage> = HashMap::new();
     for indel in &indels {
         for &(snv_position, snv_alt) in &snvs {
             let span = indel.position.abs_diff(snv_position);
@@ -94,7 +102,7 @@ pub(super) fn compute_frameshift_phasing(
                 variants::LinkageVerdict::Cis
             };
             pairs.insert(
-                (indel.position, snv_position),
+                (indel.position, snv_position, snv_alt.to_ascii_uppercase()),
                 variants::PairLinkage {
                     verdict,
                     cis_reads: linkage.cis_reads,
@@ -421,17 +429,9 @@ fn observe_component_haplotypes(
         .iter()
         .map(|variant| {
             let components = variant.event().components;
-            // An insertion lives between two reference bases, so a read that
-            // stops on the anchor has covered the anchor and still seen nothing
-            // of the junction. Requiring the following base too keeps such a
-            // read from being recorded as evidence that the insertion is
-            // absent, which would mint a subset haplotype no molecule showed.
-            let inserts = components
-                .iter()
-                .any(|component| component.kind == AlleleComponentKind::Insertion);
             read_count::LocalVariant {
                 start: variant.position,
-                ref_len: variant.ref_allele.len() + usize::from(inserts),
+                ref_len: variants::observation_ref_len(&variant.ref_allele, &components),
                 components,
             }
         })

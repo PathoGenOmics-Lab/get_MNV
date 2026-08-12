@@ -59,6 +59,33 @@ pub struct AlleleComponent {
     pub alt_allele: String,
 }
 
+/// How many reference bases a read has to observe before it may testify about
+/// an allele, given the allele's own REF span.
+///
+/// An insertion does not occupy a reference base: it lives *between* the anchor
+/// and the base after it. A read whose alignment stops on the anchor has
+/// covered every base of the REF span and still seen nothing of the junction,
+/// so asking only for the REF span lets such a read be recorded as reading the
+/// reference there. Requiring the following base as well makes the read
+/// uninformative instead, which is what it is.
+///
+/// A deletion needs the same extra base for the opposite reason: within the REF
+/// span a read deleting more than this allele looks identical to one deleting
+/// exactly it, so where the deletion ends can only be seen from outside.
+///
+/// One definition, used by every path that observes an allele: the exact-count
+/// path, the local-haplotype discovery and the indel-versus-SNV phasing had
+/// three chances to disagree about this, and did.
+pub fn observation_ref_len(ref_allele: &str, components: &[AlleleComponent]) -> usize {
+    let needs_the_next_base = components.iter().any(|component| {
+        matches!(
+            component.kind,
+            AlleleComponentKind::Insertion | AlleleComponentKind::Deletion
+        )
+    });
+    ref_allele.len().max(1) + usize::from(needs_the_next_base)
+}
+
 impl AlleleComponent {
     pub fn label(&self) -> String {
         match self.kind {

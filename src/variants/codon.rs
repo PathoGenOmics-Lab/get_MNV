@@ -126,8 +126,19 @@ fn get_mnv_variants_for_transcript(
                     .any(|offset| offset >= codon_start && offset < codon_end)
             });
 
-            let codon_positions: Vec<usize> =
-                codon_snps.iter().map(|snp| snp.snp.position).collect();
+            // Position and ALT together: the read phasing was queried per
+            // allele, so a position alone cannot pick the right answer at a
+            // multi-allelic site.
+            let codon_positions: Vec<(usize, char)> = codon_snps
+                .iter()
+                .filter_map(|snp| {
+                    snp.snp
+                        .base
+                        .chars()
+                        .next()
+                        .map(|alt| (snp.snp.position, alt.to_ascii_uppercase()))
+                })
+                .collect();
             let mut upstream_shift: isize = 0;
             let mut has_symbolic_sv = false;
             let mut frameshift_linkage = Vec::new();
@@ -362,7 +373,15 @@ pub fn get_mnv_variants_for_gene_with_config(
                 .iter()
                 .any(|indel| indel.overlaps_interval(codon_start, codon_end));
 
-            let codon_positions: Vec<usize> = codon_snps.iter().map(|s| s.position).collect();
+            let codon_positions: Vec<(usize, char)> = codon_snps
+                .iter()
+                .filter_map(|snp| {
+                    snp.base
+                        .chars()
+                        .next()
+                        .map(|alt| (snp.position, alt.to_ascii_uppercase()))
+                })
+                .collect();
             let mut upstream_shift: isize = 0;
             let mut has_symbolic_sv = false;
             let mut frameshift_linkage = Vec::new();

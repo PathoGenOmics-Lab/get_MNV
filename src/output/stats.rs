@@ -3,32 +3,6 @@
 
 use crate::variants::VariantInfo;
 
-fn ln_factorial(value: usize) -> f64 {
-    if value <= 1 {
-        0.0
-    } else {
-        (2..=value).map(|n| (n as f64).ln()).sum()
-    }
-}
-
-fn ln_choose(n: usize, k: usize) -> f64 {
-    if k > n {
-        f64::NEG_INFINITY
-    } else {
-        ln_factorial(n) - ln_factorial(k) - ln_factorial(n - k)
-    }
-}
-
-fn hypergeometric_probability(
-    a: usize,
-    row1: usize,
-    row2: usize,
-    col1: usize,
-    total: usize,
-) -> f64 {
-    (ln_choose(row1, a) + ln_choose(row2, col1.saturating_sub(a)) - ln_choose(total, col1)).exp()
-}
-
 pub(crate) fn fisher_exact_two_tailed(a: usize, b: usize, c: usize, d: usize) -> f64 {
     let row1 = a + b;
     let row2 = c + d;
@@ -38,12 +12,35 @@ pub(crate) fn fisher_exact_two_tailed(a: usize, b: usize, c: usize, d: usize) ->
         return 1.0;
     }
 
-    let observed = hypergeometric_probability(a, row1, row2, col1, total);
+    // Tabulate ln(n!) once. Computing it per term made the whole test quadratic
+    // in the molecule count, which is fine for a handful of reads and is not
+    // fine at the depths intra-host sequencing reaches.
+    let mut ln_factorials = Vec::with_capacity(total + 1);
+    let mut running = 0.0f64;
+    ln_factorials.push(running);
+    for n in 1..=total {
+        running += (n as f64).ln();
+        ln_factorials.push(running);
+    }
+    let choose = |n: usize, k: usize| -> f64 {
+        if k > n {
+            f64::NEG_INFINITY
+        } else {
+            ln_factorials[n] - ln_factorials[k] - ln_factorials[n - k]
+        }
+    };
+    let probability = |candidate: usize| -> f64 {
+        (choose(row1, candidate) + choose(row2, col1.saturating_sub(candidate))
+            - choose(total, col1))
+        .exp()
+    };
+
+    let observed = probability(a);
     let min_a = col1.saturating_sub(row2);
     let max_a = row1.min(col1);
     let mut p_value = 0.0f64;
     for candidate in min_a..=max_a {
-        let p = hypergeometric_probability(candidate, row1, row2, col1, total);
+        let p = probability(candidate);
         if p <= observed + 1e-12 {
             p_value += p;
         }
