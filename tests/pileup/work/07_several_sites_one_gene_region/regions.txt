@@ -1,3 +1,0 @@
-chr_test	320
-chr_test	350
-chr_test	750

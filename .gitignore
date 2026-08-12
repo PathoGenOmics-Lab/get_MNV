@@ -22,3 +22,6 @@ minimal_example/
 # Documentation site (MkDocs)
 /.venv-docs/
 /site/
+
+# Scratch directories the test suites build their inputs in.
+tests/*/work/
