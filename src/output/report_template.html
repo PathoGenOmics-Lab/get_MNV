@@ -1109,6 +1109,9 @@ function buildMatrix(){
   var spans = {};
   mtx.sites.forEach(function(st){
     var g = st.gene;
+    // The intergenic placeholder is not a gene, and its calls run the length of
+    // the contig, so it drew a gene bar across the whole track.
+    if(!g || g === "intergenic") return;
     if(!spans[g]) spans[g] = [st.pos, st.pos];
     else { if(st.pos<spans[g][0]) spans[g][0]=st.pos; if(st.pos>spans[g][1]) spans[g][1]=st.pos; }
   });
@@ -1629,7 +1632,12 @@ function drawKpis(){
   var genes = {}, samples = {}, high = 0, mnv = 0;
   view.forEach(function(i){
     var r = ROWS[i];
-    genes[geneOf(r)] = 1; samples[sampleOf(r)] = 1;
+    // `intergenic` is the placeholder get_MNV writes in the Gene column for a
+    // variant outside every annotated gene, not the name of a gene. Counting it
+    // made the report claim one gene more than the same run's log and summary.
+    var g = geneOf(r);
+    if(g && g !== "intergenic") genes[g] = 1;
+    samples[sampleOf(r)] = 1;
     if(impOf(r)==="HIGH") high++;
     var t = typeOf(r); if(t==="MNV"||t==="SNP/MNV") mnv++;
   });
@@ -1682,8 +1690,16 @@ function cellHtml(r,c){
 }
 
 function paint(){
-  var top = viewport.scrollTop, first = Math.max(0,Math.floor(top/ROWH)-4);
   var visible = Math.ceil(viewport.clientHeight/ROWH)+8;
+  // Clamp to the last start that can still fill the viewport. render() shrinks
+  // the spacer and paints in the same tick, before the browser has clamped
+  // scrollTop to the shorter content, so a stale scrollTop used to place the
+  // first row past the end of a filtered result: the table painted fewer rows
+  // than the count claimed, sometimes none, and once the shortened table no
+  // longer overflowed no scroll event ever arrived to correct it.
+  var maxFirst = Math.max(0, view.length - Math.floor(viewport.clientHeight/ROWH));
+  var top = viewport.scrollTop;
+  var first = Math.min(Math.max(0, Math.floor(top/ROWH)-4), maxFirst);
   var need = Math.min(visible, view.length-first);
   while(pool.length < need){
     var d = document.createElement("div");
@@ -1709,6 +1725,9 @@ function paint(){
 
 function render(){
   spacer.style.height = (view.length*ROWH)+"px";
+  // A new result set starts at its own top; keeping the old offset would show
+  // the middle of a list the reader has not seen the start of.
+  viewport.scrollTop = 0;
   document.getElementById("count").textContent =
     view.length.toLocaleString()+" variant"+(view.length===1?"":"s")+" shown";
   document.getElementById("empty").hidden = view.length!==0;

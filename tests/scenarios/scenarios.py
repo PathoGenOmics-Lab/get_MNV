@@ -1579,6 +1579,44 @@ scenario_uncountable_flags = Scenario(
 )
 
 
+
+# ---------------------------------------------------------------------------
+# 61. Insercion escrita contra la base SIGUIENTE, con soporte de lecturas.
+# ---------------------------------------------------------------------------
+# VCF permite `31 G>AAAG`, que inserta AAA entre la 30 y la 31, igual que
+# `30 T>TAAA`. El ancla cae entonces antes del POS del registro, y todo lo que
+# observa un alelo en get_MNV lee hacia delante desde POS: el contador exacto y
+# el descubrimiento de haplotipos no podian ver esa union, asi que la fila salia
+# con 0 lecturas sobre 20 de profundidad. Se re-ancla el registro al entrar. Se
+# inserta AAA, y no una copia del repeat GCT, para que la forma derecha no sea
+# ambigua.
+scenario_right_anchored_insertion = Scenario(
+    name="61_right_anchored_insertion_is_counted",
+    description="Insercion escrita contra la base siguiente (31 G>AAAG): se re-ancla a 30 T>TAAA y sus 20 lecturas se cuentan",
+    variants=[VcfRecord(pos=31, ref="G", alt="AAAG")],
+    reads=[
+        ReadGroup(
+            name_prefix="r_right_ins",
+            start=1,
+            length=151,
+            ops=[Op(kind="ins", pos=30, seq="AAA")],
+            count=20,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="30",
+            reference_bases="T",
+            base_changes="TAAA",
+            variant_type="INDEL",
+            event_class="insertion",
+            event_components="INS:30:+AAA",
+            event_reads="20",
+        ),
+    ],
+    expected_row_count=1,
+)
+
 # ---------------------------------------------------------------------------
 # 34. Eucariotas: GFF con features CDS pero SIN --gff-features -> auto-CDS.
 # ---------------------------------------------------------------------------
@@ -2506,6 +2544,7 @@ ALL_SCENARIOS = [
     scenario_fs_gate_no_declared_af,
     scenario_intergenic_indel_support,
     scenario_uncountable_flags,
+    scenario_right_anchored_insertion,
 ]
 
 

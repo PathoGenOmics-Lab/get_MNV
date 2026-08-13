@@ -58,19 +58,41 @@ fn indel_genomic(pos: usize, ref_allele: &str, alt_allele: &str) -> String {
 }
 
 fn substitution_genomic(variant: &VariantInfo) -> Option<String> {
-    let mut items: Vec<(usize, &str, &str)> = variant
+    // `>` describes exactly one nucleotide in HGVS. An annotated codon row
+    // already carries one entry per changed base, but a fallback row (intergenic,
+    // intron, splice site, a position inside a gene that could not be given a
+    // codon) carries the record's whole REF and ALT, and formatting those with
+    // `>` produced `g.28GC>GA`: not a valid descriptor, naming a base that did
+    // not change, at a coordinate the change did not happen at. Decompose such
+    // an entry into the bases that actually differ, which is what the row's own
+    // Event Components column says.
+    let mut items: Vec<(usize, String, String)> = Vec::new();
+    for ((&pos, r), a) in variant
         .positions
         .iter()
         .zip(variant.ref_bases.iter())
         .zip(variant.base_changes.iter())
-        .map(|((&pos, r), a)| (pos, r.as_str(), a.as_str()))
-        .collect();
+    {
+        if r.chars().count() == 1 && a.chars().count() == 1 {
+            items.push((pos, r.clone(), a.clone()));
+            continue;
+        }
+        for component in crate::variants::decompose_allele(pos, r, a).components {
+            if component.kind == crate::variants::AlleleComponentKind::Snp {
+                items.push((
+                    component.position,
+                    component.ref_allele,
+                    component.alt_allele,
+                ));
+            }
+        }
+    }
     if items.is_empty() {
         return None;
     }
-    items.sort_by_key(|&(pos, _, _)| pos);
+    items.sort_by_key(|(pos, _, _)| *pos);
     if items.len() == 1 {
-        let (pos, r, a) = items[0];
+        let (pos, r, a) = &items[0];
         Some(format!("g.{pos}{r}>{a}"))
     } else {
         let inner = items
@@ -215,5 +237,20 @@ mod tests {
             Some("c.[28G>A;90T>C]")
         );
         assert_eq!(coding_substitution(&[]), None);
+    }
+
+    /// `>` is a single-nucleotide form in HGVS. A fallback row (intergenic,
+    /// intron, splice site, or a position inside a gene with no codon) carries
+    /// the record's whole REF and ALT, and formatting those with `>` produced
+    /// `g.1250AA>AT`: not valid, naming an unchanged base at a coordinate the
+    /// change did not happen at, and contradicting the row's own components.
+    #[test]
+    fn a_multi_base_substitution_never_uses_the_single_base_form() {
+        let left_padded = variant(VariantType::Snp, vec![1250], &["AA"], &["AT"]);
+        assert_eq!(genomic(&left_padded).as_deref(), Some("g.1251A>T"));
+
+        // Two bases changed in one record: the allele bracket, one entry each.
+        let both = variant(VariantType::Mnv, vec![100], &["AC"], &["GT"]);
+        assert_eq!(genomic(&both).as_deref(), Some("g.[100A>G;101C>T]"));
     }
 }

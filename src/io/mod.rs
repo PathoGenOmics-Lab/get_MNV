@@ -14,7 +14,8 @@ pub use annotation::{
     preload_gff_genes, AnnotationFormat,
 };
 pub use fasta::{
-    load_references, reference_for_chrom, validate_vcf_reference_alleles, Reference, ReferenceMap,
+    left_anchor_insertions, load_references, reference_for_chrom, validate_vcf_reference_alleles,
+    Reference, ReferenceMap,
 };
 pub use validation::get_base_name;
 pub use vcf::{

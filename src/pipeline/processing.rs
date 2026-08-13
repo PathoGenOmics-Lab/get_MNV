@@ -288,6 +288,18 @@ pub(crate) fn process_contig(
     io::validate_vcf_reference_alleles(contig, snp_list, &reference)
         .map_err(reclassify_generic_as_validation)?;
 
+    // An insertion written against the base after it anchors before its own POS,
+    // which every observer here reads forward from. Re-anchor those records once
+    // so the rest of the pipeline sees the spelling it can count.
+    let (snp_list, re_anchored) = io::left_anchor_insertions(snp_list, &reference);
+    let snp_list = &snp_list;
+    if re_anchored > 0 {
+        info!(
+            "Contig '{contig}' -> {re_anchored} insertion(s) re-anchored onto the base they \
+             follow, so their read support can be counted"
+        );
+    }
+
     let genes = if let Some(gff_genes) = preloaded_gff {
         let all_contig_genes = gff_genes.get(contig).cloned().unwrap_or_default();
         let filtered = io::filter_genes_with_snps(&all_contig_genes, snp_list);

@@ -190,6 +190,56 @@ pub fn validate_vcf_reference_alleles(
     Ok(())
 }
 
+/// Rewrite a right-anchored insertion into the equivalent left-anchored record.
+///
+/// VCF allows an insertion to be written against the base after it, so
+/// `31 G>AAAG` and `30 T>TAAA` are the same inserted `AAA`. The first spells the
+/// anchor as base 30, which lies *before* the record's own POS, and every part
+/// of get_MNV that observes an allele reads forward from POS: the exact indel
+/// counter and local haplotype discovery could never see that junction, so such
+/// a record reported zero supporting reads over a full depth and dropped out of
+/// its own haplotype. Rather than teach each observer to reach backwards, the
+/// record is re-anchored here, once, to the spelling the rest of the pipeline
+/// already handles.
+///
+/// Returns the rewritten records and how many were changed.
+pub fn left_anchor_insertions(
+    snp_list: &[VcfPosition],
+    reference: &Reference<'_>,
+) -> (Vec<VcfPosition>, usize) {
+    let mut rewritten = 0usize;
+    let out = snp_list
+        .iter()
+        .map(|site| {
+            let event = crate::variants::decompose_allele(
+                site.position,
+                &site.ref_allele,
+                &site.alt_allele,
+            );
+            let [component] = event.components.as_slice() else {
+                return site.clone();
+            };
+            if component.kind != crate::variants::AlleleComponentKind::Insertion
+                || component.position >= site.position
+                // An insertion before the first base of the contig has no anchor
+                // to move onto; leave it exactly as the caller wrote it.
+                || component.position == 0
+                || component.position > reference.sequence.len()
+            {
+                return site.clone();
+            }
+            let anchor = &reference.sequence[component.position - 1..component.position];
+            let mut moved = site.clone();
+            moved.position = component.position;
+            moved.ref_allele = anchor.to_string();
+            moved.alt_allele = format!("{anchor}{}", component.alt_allele);
+            rewritten += 1;
+            moved
+        })
+        .collect();
+    (out, rewritten)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
