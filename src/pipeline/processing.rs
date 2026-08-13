@@ -171,6 +171,15 @@ fn intron_for_variant(genes: &[Gene], positions: &[usize]) -> Option<String> {
         .map(|gene| gene.name.clone())
 }
 
+/// How a single base that no gene annotated is accounted for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum FallbackClass {
+    Splice(String, crate::variants::SpliceConsequence),
+    Intron(String),
+    NonCoding(String),
+    Intergenic,
+}
+
 /// Whether the gene's coding span covers this single base.
 fn gene_contains_position(gene: &Gene, position: usize) -> bool {
     if gene.cds_segments.is_empty() {
@@ -192,6 +201,17 @@ fn retain_unannotated_entries(
     variant: &mut VariantInfo,
     annotated: &std::collections::HashSet<&str>,
 ) -> bool {
+    retain_entries(variant, |position, reference, alternate| {
+        !annotated.contains(format!("SNV:{position}:{reference}>{alternate}").as_str())
+    })
+}
+
+/// Keep only the entries of a row the predicate accepts, and say whether any
+/// survived.
+fn retain_entries(
+    variant: &mut VariantInfo,
+    keep_entry: impl Fn(usize, &str, &str) -> bool,
+) -> bool {
     if variant.positions.len() != variant.ref_bases.len()
         || variant.positions.len() != variant.base_changes.len()
         || variant.positions.len() < 2
@@ -200,11 +220,11 @@ fn retain_unannotated_entries(
     }
     let keep: Vec<bool> = (0..variant.positions.len())
         .map(|index| {
-            let label = format!(
-                "SNV:{}:{}>{}",
-                variant.positions[index], variant.ref_bases[index], variant.base_changes[index]
-            );
-            !annotated.contains(label.as_str())
+            keep_entry(
+                variant.positions[index],
+                &variant.ref_bases[index],
+                &variant.base_changes[index],
+            )
         })
         .collect();
     if keep.iter().all(|kept| *kept) {
@@ -231,9 +251,15 @@ fn retain_unannotated_entries(
     if variant.positions.len() == 1 {
         variant.variant_type = VariantType::Snp;
     }
-    variant
-        .event_components
-        .retain(|label| !annotated.contains(label.as_str()));
+    let kept: std::collections::BTreeSet<usize> = variant.positions.iter().copied().collect();
+    variant.event_components.retain(|label| {
+        label
+            .split(':')
+            .nth(1)
+            .and_then(|value| value.split('-').next())
+            .and_then(|value| value.parse::<usize>().ok())
+            .is_none_or(|position| kept.contains(&position))
+    });
     variant.snp_aa_changes = vec!["-".to_string(); variant.positions.len()];
     variant.snp_aa_changes_local = vec!["-".to_string(); variant.positions.len()];
     true
@@ -612,6 +638,77 @@ pub(crate) fn process_contig(
                         positions
                     }
                 };
+                // A record of substitutions can straddle a boundary, and each of
+                // its bases then belongs somewhere different: one inside the gene,
+                // the next past its end. Rebuilding the whole record under a
+                // single answer put a base outside the gene into that gene's row.
+                // Each base is accounted for on its own and the row is built per
+                // group. An indel is one indivisible change, so it keeps the
+                // single-row path below.
+                let all_substitutions =
+                    snp.event().components.iter().all(|component| {
+                        component.kind == crate::variants::AlleleComponentKind::Snp
+                    });
+                if all_substitutions && !unannotated.is_empty() {
+                    let mut groups: Vec<(FallbackClass, std::collections::BTreeSet<usize>)> =
+                        Vec::new();
+                    for &position in &unannotated {
+                        let class = if let Some((gene_name, splice)) =
+                            splice_site_for_variant(&genes, &[position])
+                        {
+                            FallbackClass::Splice(gene_name, splice)
+                        } else if let Some(gene_name) = intron_for_variant(&genes, &[position]) {
+                            FallbackClass::Intron(gene_name)
+                        } else if let Some(gene) = genes
+                            .iter()
+                            .find(|gene| gene_contains_position(gene, position))
+                        {
+                            FallbackClass::NonCoding(gene.name.clone())
+                        } else {
+                            FallbackClass::Intergenic
+                        };
+                        match groups.iter_mut().find(|(existing, _)| *existing == class) {
+                            Some((_, members)) => {
+                                members.insert(position);
+                            }
+                            None => {
+                                groups.push((class, std::collections::BTreeSet::from([position])))
+                            }
+                        }
+                    }
+                    for (class, members) in groups {
+                        if matches!(class, FallbackClass::Intergenic) && args.exclude_intergenic {
+                            continue;
+                        }
+                        let mut variant = match &class {
+                            FallbackClass::Splice(gene_name, splice) => {
+                                variants::build_splice_variant(contig, snp, gene_name, *splice)
+                            }
+                            FallbackClass::Intron(gene_name) => {
+                                variants::build_intron_variant(contig, snp, gene_name)
+                            }
+                            FallbackClass::NonCoding(gene_name) => {
+                                variants::build_non_coding_variant(
+                                    contig,
+                                    snp,
+                                    gene_name,
+                                    variants::NonCodingReason::IncompleteCodon,
+                                )
+                            }
+                            FallbackClass::Intergenic => {
+                                variants::build_intergenic_variant(contig, snp)
+                            }
+                        };
+                        if !retain_entries(&mut variant, |position, _, _| {
+                            members.contains(&position)
+                        }) {
+                            continue;
+                        }
+                        intergenic.push(variant);
+                    }
+                    continue;
+                }
+
                 let fully_unannotated = unannotated.len() == snp.changed_positions().len();
                 let variant = match splice_site_for_variant(&genes, &unannotated) {
                     Some((gene_name, splice)) => {

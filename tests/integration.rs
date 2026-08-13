@@ -3408,3 +3408,86 @@ c1\tsyn\tCDS\t60\t90\t.\t+\t0\tID=b2;Parent=t2;Name=cds-g2\n",
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// Each base of a substitution record is accounted for where it actually lies.
+///
+/// A gene's last coding base and the base after it can arrive in one record. The
+/// fallback rebuilt the whole record under a single answer, so a row named the
+/// gene and listed a base past its end, which is the same misattribution the
+/// gene path was fixed for. The property suite found this one: each base is now
+/// classified on its own and the row is built per group.
+#[test]
+fn test_e2e_substitution_record_split_at_the_gene_end() {
+    let tmp = temp_dir("e2e_split_at_gene_end");
+    let vcf_path = tmp.join("edge.vcf");
+    let ref_path = tmp.join("ref.fasta");
+    let gff_path = tmp.join("genes.gff3");
+
+    // A two-exon transcript whose last coding base is 400.
+    let mut bases = vec!['A'; 600];
+    for (index, base) in [(250, 'G'), (251, 'T'), (348, 'A'), (349, 'G')] {
+        bases[index] = base;
+    }
+    let sequence: String = bases.into_iter().collect();
+    fs::write(&ref_path, format!(">chr1\n{sequence}\n")).unwrap();
+    fs::write(
+        &gff_path,
+        "##gff-version 3\n\
+chr1\tsyn\tgene\t101\t400\t.\t+\t.\tID=g2;Name=geneB\n\
+chr1\tsyn\tmRNA\t101\t400\t.\t+\t.\tID=m2;Parent=g2;Name=geneB\n\
+chr1\tsyn\tCDS\t101\t250\t.\t+\t0\tID=e1;Parent=m2;Name=geneB\n\
+chr1\tsyn\tCDS\t351\t400\t.\t+\t0\tID=e2;Parent=m2;Name=geneB\n",
+    )
+    .unwrap();
+    // One record changing 400 (the last coding base) and 401 (past the gene).
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=600>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t400\t.\tAA\tCC\t100\tPASS\tDP=30\n",
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = None;
+    args.gff_file = Some(gff_path.to_string_lossy().into());
+    args.gff_features_raw = Some("CDS".to_string());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("edge".to_string());
+    args.both = true;
+
+    pipeline::run(&args).expect("pipeline should annotate the straddling record");
+
+    let rows = read_tsv_rows(&tmp.join("edge.MNV.tsv"));
+    let described: Vec<(String, String)> = rows
+        .iter()
+        .map(|row| {
+            (
+                row.get("Positions").cloned().unwrap_or_default(),
+                row.get("Gene").cloned().unwrap_or_default(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        described,
+        vec![
+            ("400".to_string(), "geneB".to_string()),
+            ("401".to_string(), "intergenic".to_string()),
+        ],
+        "the base past the gene must not be reported as that gene's"
+    );
+
+    // And both bases reach the VCF of the same run.
+    let vcf_body = fs::read_to_string(tmp.join("edge.MNV.vcf")).expect("VCF written");
+    let positions: Vec<&str> = vcf_body
+        .lines()
+        .filter(|line| !line.starts_with('#') && !line.trim().is_empty())
+        .filter_map(|line| line.split('\t').nth(1))
+        .collect();
+    assert_eq!(positions, vec!["400", "401"]);
+
+    fs::remove_dir_all(&tmp).ok();
+}
