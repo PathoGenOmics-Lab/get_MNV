@@ -90,8 +90,8 @@ get_mnv \
 ```
 
 The report is a single self-contained HTML file, so it opens with no server and
-travels as one attachment. It needs the TSV output, which is the default; if you
-add `--convert`, ask for `--both` as well.
+travels as one attachment. It needs the TSV output, which is the default. `--convert` writes the VCF
+*instead* of the TSV, so reach for `--both` when you want a report and a VCF.
 
 For a cohort already processed one sample per run, build the report from the
 existing outputs instead of running the pipeline again:

@@ -217,8 +217,10 @@ pub struct Args {
     pub run_manifest: Option<String>,
 
     /// Write a self-contained interactive HTML report of the called variants.
-    /// Requires TSV output (the default; not available with --convert unless
-    /// --both is also given). With --sample all the report covers every sample.
+    /// Requires TSV output, which is the default. --convert writes the VCF
+    /// *instead* of the TSV, so use --both rather than --convert when you want
+    /// a report alongside VCF output. With --sample all the report covers
+    /// every sample.
     #[arg(long = "report", value_name = "HTML_FILE")]
     pub report: Option<String>,
 

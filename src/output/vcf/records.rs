@@ -88,7 +88,15 @@ impl VcfWriter {
         reference_sequence: &str,
     ) -> AppResult<()> {
         validate_variant_shape(variant)?;
-        if self.bam_provided {
+        // A multi-base substitution that falls inside a gene but outside every
+        // codon (an intron, a splice region, a non-coding transcript) is never
+        // read-counted, so its depth is absent even when `--bam` was given.
+        // Demanding it here aborted the entire run and left no output files at
+        // all, losing every other variant in the file with it. Key on whether
+        // the counts exist rather than on whether a BAM was supplied, and such
+        // a row is emitted the way the no-BAM path emits it. This is the VCF
+        // twin of the same guard in the TSV writer.
+        if self.bam_provided && variant.total_reads.is_some() {
             let total_reads = variant.total_reads.as_ref().ok_or_else(|| {
                 format!("Missing total read depth for {}", variant_context(variant))
             })?;

@@ -189,7 +189,9 @@ Por defecto, get_MNV escribe:
 <input_name>.MNV.tsv
 ```
 
-Con `--convert` o `--both`, también escribe:
+`--both` añade el VCF; `--convert` lo escribe *en lugar* del TSV, y los dos
+flags no se pueden combinar. Con `--sample all` se escribe un par de salidas por
+muestra, con el nombre `<input_name>.sample_<MUESTRA>.MNV.tsv` (y `.vcf`):
 
 ```text
 <input_name>.MNV.vcf

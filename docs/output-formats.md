@@ -10,6 +10,16 @@ Default file name:
 <input_name>.MNV.tsv
 ```
 
+With `--sample all`, one file is written per sample instead, carrying the sample
+in its name:
+
+```text
+<input_name>.sample_<SAMPLE>.MNV.tsv
+```
+
+Characters that cannot appear in a file name are replaced, so a sample called
+`sample/1:bad` becomes `sample_1_bad`.
+
 Use this format for spreadsheets, downstream parsing, and quick inspection.
 
 Main columns:

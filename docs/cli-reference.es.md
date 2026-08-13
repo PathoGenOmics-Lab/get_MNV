@@ -49,7 +49,7 @@ Estas solo aplican cuando se proporciona `--bam`.
 | `--min-mnv-frequency <F>` | `0.0` | Frecuencia mínima del haplotipo MNV derivada del BAM (0.0–1.0). |
 | `--min-snp-strand <N>` | `0` | Lecturas mínimas que soportan el SNP en cada hebra. |
 | `--min-mnv-strand <N>` | `0` | Lecturas mínimas que soportan el MNV en cada hebra. |
-| `--min-strand-bias-p <F>` | `0.0` | Valor p mínimo del test exacto de Fisher aceptado para las métricas de sesgo de hebra. |
+| `--min-strand-bias-p <F>` | `0.0` | Valor p mínimo del test exacto de Fisher aceptado para las métricas de sesgo de hebra. **Solo afecta a la salida VCF**: el escritor de TSV no tiene umbral de sesgo, así que esto nunca quita una fila del TSV. |
 
 !!! note "Cómo se combinan los umbrales de SNP y MNV"
     Los filtros de frecuencia y recuento de lecturas usan el soporte recalculado
@@ -106,7 +106,7 @@ Estas solo aplican cuando se proporciona `--bam`.
 
 | Opción | Descripción |
 |---|---|
-| `--report <HTML_FILE>` | Escribe un informe HTML interactivo y autocontenido de las variantes llamadas. Necesita la salida TSV (la de por defecto; con `--convert` añade `--both`). Con `--sample all` el informe cubre todas las muestras. |
+| `--report <HTML_FILE>` | Escribe un informe HTML interactivo y autocontenido de las variantes llamadas. Necesita la salida TSV, que es la de por defecto. `--convert` escribe el VCF *en lugar* del TSV, y los dos flags son mutuamente excluyentes, así que usa `--both` en vez de `--convert` cuando quieras un informe junto a la salida VCF. Con `--sample all` el informe cubre todas las muestras. |
 | `--report-from <TSV>...` | Construye el informe a partir de TSV de get_MNV ya existentes, sin ejecutar el pipeline, para cohortes procesadas muestra a muestra. Cada fichero es una muestra, etiquetada con su nombre de archivo. Requiere `--report` para la ruta de salida. |
 
 Consulta [Formatos de salida](output-formats.es.md#informe-html-interactivo) para saber qué contiene el informe.

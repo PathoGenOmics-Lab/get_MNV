@@ -189,11 +189,15 @@ By default, get_MNV writes:
 <input_name>.MNV.tsv
 ```
 
-With `--convert` or `--both`, it also writes:
+`--both` adds the VCF; `--convert` writes it *instead* of the TSV, and the two
+flags cannot be combined:
 
 ```text
 <input_name>.MNV.vcf
 ```
+
+With `--sample all`, one pair of outputs is written per sample, named
+`<input_name>.sample_<SAMPLE>.MNV.tsv` (and `.vcf`).
 
 The most important output fields are:
 

@@ -49,7 +49,7 @@ These apply only when `--bam` is provided.
 | `--min-mnv-frequency <F>` | `0.0` | Minimum BAM-derived MNV haplotype frequency (0.0–1.0). |
 | `--min-snp-strand <N>` | `0` | Minimum SNP-supporting reads on each strand. |
 | `--min-mnv-strand <N>` | `0` | Minimum MNV-supporting reads on each strand. |
-| `--min-strand-bias-p <F>` | `0.0` | Minimum Fisher exact p-value accepted for strand-bias metrics. |
+| `--min-strand-bias-p <F>` | `0.0` | Minimum Fisher exact p-value accepted for strand-bias metrics. **VCF output only**: the TSV writer has no strand-bias threshold, so this never removes a TSV row. |
 
 !!! note "How the SNP and MNV thresholds combine"
     Frequency and read-count filters use support recalculated from `--bam`, not
@@ -105,7 +105,7 @@ These apply only when `--bam` is provided.
 
 | Option | Description |
 |---|---|
-| `--report <HTML_FILE>` | Write a self-contained interactive HTML report of the called variants. Needs the TSV output (the default; with `--convert` add `--both`). With `--sample all` the report covers every sample. |
+| `--report <HTML_FILE>` | Write a self-contained interactive HTML report of the called variants. Needs the TSV output, which is the default. `--convert` writes the VCF *instead* of the TSV, and the two flags are mutually exclusive, so use `--both` rather than `--convert` when you want a report alongside VCF output. With `--sample all` the report covers every sample. |
 | `--report-from <TSV>...` | Build the report from existing get_MNV TSV files instead of running the pipeline, for cohorts processed one sample per run. Each file becomes one sample, labelled by its file name. Requires `--report` for the output path. |
 
 See [Output formats](output-formats.md#interactive-html-report) for what the report contains.

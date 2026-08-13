@@ -10,6 +10,16 @@ Nombre de archivo por defecto:
 <input_name>.MNV.tsv
 ```
 
+Con `--sample all` se escribe un archivo por muestra, con la muestra en el
+nombre:
+
+```text
+<input_name>.sample_<MUESTRA>.MNV.tsv
+```
+
+Los caracteres que no pueden aparecer en un nombre de archivo se sustituyen, así
+que una muestra llamada `sample/1:bad` pasa a ser `sample_1_bad`.
+
 Usa este formato para hojas de cálculo, análisis posteriores e inspección rápida.
 
 Columnas principales:

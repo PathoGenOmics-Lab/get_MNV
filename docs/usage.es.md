@@ -91,8 +91,9 @@ get_mnv \
 ```
 
 El informe es un único archivo HTML autocontenido, así que se abre sin servidor y
-viaja como un solo adjunto. Necesita la salida TSV, que es la de por defecto; si
-añades `--convert`, pide también `--both`.
+viaja como un solo adjunto. Necesita la salida TSV, que es la de por defecto.
+`--convert` escribe el VCF *en lugar* del TSV, así que usa `--both` cuando
+quieras informe y VCF a la vez.
 
 Para una cohorte ya procesada con una muestra por ejecución, genera el informe a
 partir de las salidas existentes en vez de volver a ejecutar el pipeline:

@@ -272,7 +272,7 @@ fn run_single(
                     .unwrap_or_else(|| "sample".to_string())
             });
             let tsv_path = summary.output_tsv.as_deref().ok_or_else(|| {
-                AppError::config("--report needs the TSV output; drop --convert or add --both")
+                AppError::config("--report needs the TSV output; use --both instead of --convert, or drop --convert")
             })?;
             let mut builder = output::ReportBuilder::new();
             builder.add_tsv(tsv_path, Some(&sample_label))?;
@@ -385,7 +385,7 @@ pub fn run_with_progress(
         }
         if args.convert && !args.both {
             return Err(AppError::config(
-                "--report needs the TSV output; drop --convert or add --both",
+                "--report needs the TSV output; use --both instead of --convert, or drop --convert",
             ));
         }
     }
@@ -515,7 +515,7 @@ pub fn run_with_progress(
         let mut builder = output::ReportBuilder::new();
         for (sample, sample_summary) in sample_names.iter().zip(sample_summaries.iter()) {
             let tsv_path = sample_summary.output_tsv.as_deref().ok_or_else(|| {
-                AppError::config("--report needs the TSV output; drop --convert or add --both")
+                AppError::config("--report needs the TSV output; use --both instead of --convert, or drop --convert")
             })?;
             builder.add_tsv(tsv_path, Some(sample))?;
         }
