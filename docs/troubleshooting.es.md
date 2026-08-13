@@ -110,6 +110,28 @@ Solución:
 - Usa `--gff` para datos de múltiples contigs.
 - O restringe la ejecución a un solo contig con `--chrom`.
 
+## Salen menos filas que registros tiene el VCF
+
+Ejemplo:
+
+```text
+Skipped 148 ALT alleles the selected sample's genotype does not carry
+```
+
+Causa: un registro VCF enumera todos los ALT vistos en ese sitio en el conjunto
+de muestras, así que el `GT` de la muestra seleccionada decide cuáles le
+corresponden. Un genotipo `0/0` no lleva ninguno y, en un registro multialélico,
+`1/1` lleva solo el primer ALT.
+
+Solución:
+
+- Ninguna, si los genotipos son correctos: la ejecución anotó lo que tiene esa
+  muestra.
+- Elige la muestra que quieres con `--sample`, o escribe un archivo por muestra
+  con `--sample all`.
+- Si las llamadas no tienen un genotipo con sentido, quita el campo `GT` o ponlo
+  a `./.`, que conserva todos los alelos porque desconocido no es ausente.
+
 ## No se encuentra el nombre de la muestra
 
 Ejemplo:

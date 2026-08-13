@@ -109,6 +109,26 @@ Fix:
 - Use `--gff` for multi-contig data.
 - Or restrict the run to one contig with `--chrom`.
 
+## Fewer Rows Than Records in the VCF
+
+Example:
+
+```text
+Skipped 148 ALT alleles the selected sample's genotype does not carry
+```
+
+Cause: a VCF record lists every ALT seen at that site across every sample, so the
+selected sample's `GT` decides which of them belong to it. A genotype of `0/0`
+carries none, and on a multiallelic record `1/1` carries only the first ALT.
+
+Fix:
+
+- Nothing, if the genotypes are right: the run annotated what the sample has.
+- Pick the intended sample with `--sample`, or write one file per sample with
+  `--sample all`.
+- If the calls have no meaningful genotype, remove the `GT` field or set it to
+  `./.`, which keeps every allele because unknown is not absence.
+
 ## Sample Name Not Found
 
 Example:
