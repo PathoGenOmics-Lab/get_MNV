@@ -2672,6 +2672,55 @@ scenario_intergenic_keeps_declared_phase = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 68: una hebra solo cuenta para un haplotipo si una lectura de esa hebra vio
+# todas sus variantes. El mate directo cubre la insercion y el reverso empieza
+# pasado el ancla, asi que el haplotipo lo establece la hebra directa sola;
+# acreditar las dos dejaba pasar la fila compuesta con --min-mnv-strand sobre
+# lecturas reversas que nunca vieron la insercion, mientras la fila de la
+# insercion sola, contada con esa misma regla, se caia por no tener ninguna.
+scenario_haplotype_strand_needs_full_view = Scenario(
+    name="68_haplotype_strand_needs_a_read_that_saw_it_all",
+    description="Insercion 30 + SNV 32 en 20 fragmentos cuyo mate reverso empieza en 32: el haplotipo no acredita la hebra reversa",
+    variants=[
+        VcfRecord(pos=30, ref="T", alt="TGCT"),
+        VcfRecord(pos=32, ref="C", alt="A"),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_hap",
+            start=1,
+            length=57,
+            ops=[Op(kind="ins", pos=30, seq="GCT"), Op(kind="snv", pos=32, seq="A")],
+            count=20,
+            mate_start=32,
+            mate_length=50,
+            mate_ops=[Op(kind="snv", pos=32, seq="A")],
+        ),
+        ReadGroup(name_prefix="r_ref", start=1, length=57, ops=[], count=20),
+    ],
+    gff_content=GFF_GENE_ONLY,
+    expected=[
+        # La insercion sola, contada por registro, ya lo hacia bien.
+        ExpectedRow(
+            positions="30",
+            event_components="INS:30:+GCT",
+            event_reads="20",
+            event_forward_reads="20",
+            event_reverse_reads="0",
+        ),
+        # Y el haplotipo que la contiene tiene que decir lo mismo.
+        ExpectedRow(
+            positions="30",
+            event_components="INS:30:+GCT | SNV:32:C>A",
+            event_reads="20",
+            event_forward_reads="20",
+            event_reverse_reads="0",
+        ),
+    ],
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -2750,6 +2799,7 @@ ALL_SCENARIOS = [
     scenario_intergenic_indel_threshold,
     scenario_insertion_does_not_lend_phase,
     scenario_intergenic_keeps_declared_phase,
+    scenario_haplotype_strand_needs_full_view,
 ]
 
 

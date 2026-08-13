@@ -164,8 +164,18 @@ pub fn observe_local_haplotypes(
                 from_forward: false,
                 from_reverse: false,
             });
-        view.from_forward |= !flags.is_reverse_complemented();
-        view.from_reverse |= flags.is_reverse_complemented();
+        // A strand counts for this haplotype only when a read on that strand saw
+        // every one of its variants. A fragment whose forward mate covers the
+        // insertion and whose reverse mate starts past it establishes the
+        // haplotype from the forward side alone, and crediting both strands let a
+        // composite row pass --min-mnv-strand on 20 reverse reads that never
+        // observed the insertion, while the plain insertion row, counted per
+        // record under the same rule, was dropped for having none.
+        let saw_every_variant = per_variant.iter().all(Option::is_some);
+        if saw_every_variant {
+            view.from_forward |= !flags.is_reverse_complemented();
+            view.from_reverse |= flags.is_reverse_complemented();
+        }
         for (index, support) in per_variant.into_iter().enumerate() {
             if let Some(carries) = support {
                 if view.observed[index] && view.carried[index] != carries {

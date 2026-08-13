@@ -245,6 +245,8 @@ class ExpectedRow:
     snp_frequencies: str | None = None
     mnv_frequencies: str | None = None
     event_reads: str | None = None
+    event_forward_reads: str | None = None
+    event_reverse_reads: str | None = None
     event_frequency: str | None = None
     mnv_phasing_support: str | None = None
     mnv_phasing_reads: str | None = None
@@ -538,6 +540,8 @@ _FIELD_BY_ATTR = {
     "snp_frequencies": "SNP Frequencies",
     "mnv_frequencies": "MNV Frequencies",
     "event_reads": "Event Reads",
+    "event_forward_reads": "Event Forward Reads",
+    "event_reverse_reads": "Event Reverse Reads",
     "event_frequency": "Event Frequency",
     "mnv_phasing_support": "MNV Phasing Support",
     "mnv_phasing_reads": "MNV Phasing Reads",
