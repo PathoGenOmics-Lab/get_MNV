@@ -151,6 +151,11 @@ mod tests {
             (200, 1, 1, 200, 1.967060e-115),
             (5, 5, 5, 5, 1.0),
             (50, 2, 3, 45, 3.031762e-22),
+            // The pair that made --min-strand-bias-p contradict itself: the
+            // stronger bias was floored to 1.57e-13 and passed a 1e-13
+            // threshold that the weaker one, at 1.58e-14, was tagged by.
+            (25, 0, 0, 25, 1.582146e-14),
+            (40, 0, 0, 40, 1.860340e-23),
             (400, 0, 0, 400, 1.063590e-239),
         ];
         for &(a, b, c, d, expected) in cases {
@@ -167,8 +172,14 @@ mod tests {
     /// never report a larger p-value than a less extreme one.
     #[test]
     fn a_stronger_bias_never_reports_a_weaker_p_value() {
-        let weak = fisher_exact_two_tailed(12, 1, 10, 10);
-        let strong = fisher_exact_two_tailed(200, 1, 1, 200);
+        let weak = fisher_exact_two_tailed(25, 0, 0, 25);
+        let strong = fisher_exact_two_tailed(40, 0, 0, 40);
+        // Both sit below a 1e-13 strand-bias threshold, so both must be tagged;
+        // the floor let the stronger one through.
+        assert!(
+            weak < 1e-13 && strong < 1e-13,
+            "weak={weak:e} strong={strong:e}"
+        );
         assert!(
             strong < weak,
             "stronger bias gave p={strong:e} against p={weak:e} for the weaker one"

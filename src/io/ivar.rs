@@ -175,6 +175,7 @@ fn normalize_ivar_allele(
             return Err(format!("iVar record {record_idx}: empty insertion ALT").into());
         }
         validate_vcf_allele(inserted, record_idx, chrom, pos, "ALT")?;
+        check_ref_column(references, chrom, pos, ref_allele, record_idx)?;
         let anchor = reference_base(references, chrom, pos, record_idx)?;
         return Ok(Some((pos, anchor.clone(), format!("{anchor}{inserted}"))));
     }
@@ -184,6 +185,7 @@ fn normalize_ivar_allele(
             return Err(format!("iVar record {record_idx}: empty deletion ALT").into());
         }
         validate_vcf_allele(deleted_raw, record_idx, chrom, pos, "ALT")?;
+        check_ref_column(references, chrom, pos, ref_allele, record_idx)?;
         let deleted_len = deleted_raw.chars().count();
         // iVar reports a deletion at the anchor base immediately BEFORE the gap:
         // POS is that anchor, REF is the base at POS, and ALT='-<bases>' lists the
@@ -212,6 +214,36 @@ fn normalize_ivar_allele(
     }
 
     Ok(Some((pos, ref_allele.to_string(), alt_allele.to_string())))
+}
+
+/// The TSV's own REF column must agree with the FASTA at that position.
+///
+/// The indel branches take the anchor base from the reference and never looked
+/// at this column, so a FASTA that does not belong to the iVar run was rejected
+/// on a substitution row and quietly accepted on an indel row of the same file,
+/// which then annotated against a reference the caller never saw. The
+/// substitution path gets the same check downstream; this makes the guard the
+/// same wherever the row came from.
+fn check_ref_column(
+    references: &crate::io::ReferenceMap,
+    chrom: &str,
+    pos: usize,
+    ref_allele: &str,
+    record_idx: usize,
+) -> AppResult<()> {
+    if ref_allele.is_empty() {
+        return Ok(());
+    }
+    let expected = reference_base(references, chrom, pos, record_idx)?;
+    let declared: String = ref_allele.chars().take(1).collect();
+    if !declared.eq_ignore_ascii_case(&expected) {
+        return Err(format!(
+            "iVar record {record_idx}: REF column reads '{ref_allele}' at {chrom}:{pos} but the \
+             reference has '{expected}'. Check that the FASTA matches the iVar run."
+        )
+        .into());
+    }
+    Ok(())
 }
 
 fn open_reader(path: &str) -> AppResult<BufReader<std::fs::File>> {

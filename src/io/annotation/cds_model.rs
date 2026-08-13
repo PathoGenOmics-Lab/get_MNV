@@ -74,28 +74,49 @@ pub(crate) fn parse_gff_gene_records_from_reader<R: BufRead>(
         let attrs = parse_gff_attributes(fields[8]);
         let gene_name = gene_name_from_gff(&attrs);
         let feature_type = fields[2].to_string();
-        let transcript_id = attrs
-            .get("transcript_id")
-            .or_else(|| attrs.get("Parent"))
-            .cloned();
+        // `Parent` is a comma-separated list in GFF3: one CDS row can belong to
+        // several transcripts. Taking the raw value invented a transcript
+        // literally named `t1,t2`, which removed that exon from both real ones,
+        // so a variant in a different exon was translated against a shortened
+        // CDS and reported the wrong codon and the wrong amino acid. Emit the
+        // row once per parent instead.
+        let transcript_ids: Vec<Option<String>> =
+            match attrs.get("transcript_id").or_else(|| attrs.get("Parent")) {
+                Some(raw) => {
+                    let ids: Vec<String> = raw
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|id| !id.is_empty())
+                        .map(String::from)
+                        .collect();
+                    if ids.is_empty() {
+                        vec![None]
+                    } else {
+                        ids.into_iter().map(Some).collect()
+                    }
+                }
+                None => vec![None],
+            };
 
-        records.push(GffGeneRecord {
-            contig: fields[0].to_string(),
-            gene: Gene {
-                name: gene_name,
-                start,
-                end,
-                strand,
-                phase,
-                protein_offset: 0,
-                transcript_id: transcript_id.clone(),
-                cds_segments: Vec::new(),
-                // The GFF path selects CDS features, so it is coding by construction.
-                biotype: crate::variants::Biotype::ProteinCoding,
-            },
-            feature_type,
-            transcript_id,
-        });
+        for transcript_id in transcript_ids {
+            records.push(GffGeneRecord {
+                contig: fields[0].to_string(),
+                gene: Gene {
+                    name: gene_name.clone(),
+                    start,
+                    end,
+                    strand,
+                    phase,
+                    protein_offset: 0,
+                    transcript_id: transcript_id.clone(),
+                    cds_segments: Vec::new(),
+                    // The GFF path selects CDS features, so it is coding by construction.
+                    biotype: crate::variants::Biotype::ProteinCoding,
+                },
+                feature_type: feature_type.clone(),
+                transcript_id,
+            });
+        }
     }
 
     Ok(records)
@@ -332,4 +353,38 @@ pub(crate) fn build_transcript_cds_records(records: Vec<GffGeneRecord>) -> Vec<G
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    /// GFF3 says `Parent` is a comma-separated list, so a CDS row may belong to
+    /// several transcripts. Keeping the raw value invented a transcript named
+    /// `t1,t2` and removed that exon from both real ones, which shortened the
+    /// coding sequence and gave a variant in another exon the wrong reference
+    /// codon.
+    #[test]
+    fn a_multi_valued_parent_belongs_to_every_transcript_it_names() {
+        let gff = "##gff-version 3\n\
+                   c1\tsyn\tCDS\t101\t158\t.\t+\t0\tID=cds-a;Parent=t1;Name=g\n\
+                   c1\tsyn\tCDS\t171\t200\t.\t+\t2\tID=cds-b;Parent=t1,t2;Name=g\n";
+        let records = parse_gff_gene_records_from_reader(Cursor::new(gff), &["CDS".to_string()])
+            .expect("the GFF should parse");
+
+        let ids: Vec<&str> = records
+            .iter()
+            .filter_map(|record| record.transcript_id.as_deref())
+            .collect();
+        assert_eq!(
+            ids,
+            vec!["t1", "t1", "t2"],
+            "the shared exon must appear under both parents, and never as 't1,t2'"
+        );
+        assert!(
+            !ids.iter().any(|id| id.contains(',')),
+            "no transcript may be named after a comma-separated list"
+        );
+    }
 }
