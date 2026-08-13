@@ -421,9 +421,22 @@ pub(crate) fn process_contig(
             .iter()
             .flat_map(|variant| variant.positions.iter().copied())
             .collect();
+        // A record is annotated when any position it could have produced turned
+        // into a row, not only its own POS. A legal left-padded record such as
+        // `28 GC>GA` changes base 29 and produces its row there, so testing the
+        // anchor alone declared the record unannotated and emitted a second,
+        // duplicate row for it.
+        let produced_a_row = |snp: &crate::io::VcfPosition| {
+            if annotated.contains(&snp.position) {
+                return true;
+            }
+            snp.substitution_components()
+                .iter()
+                .any(|component| annotated.contains(&component.position))
+        };
         let mut intergenic: Vec<VariantInfo> = Vec::new();
         for snp in snp_list.iter() {
-            if !annotated.contains(&snp.position) {
+            if !produced_a_row(snp) {
                 // A variant not in any CDS may still sit inside a gene: at a
                 // splice site, or deeper in the intron. Both are annotated
                 // against their gene rather than called intergenic, which a

@@ -71,6 +71,9 @@ All notable changes to this project are documented in this file.
 - Indel locus depth (the `EDP`/`EFREQ` denominator) is now counted from reads observing the anchor base by default, removing the depth under-counting and `EFREQ` bias for multi-base deletions. Pass `--legacy-indel-depth` to restrict the denominator to reads that fully span the REF allele.
 
 ### Fixed
+- **A record whose POS base does not change no longer produces two rows.** `28 GC>GA` changes base 29 and is annotated there, but the check for "did the gene path produce a row for this record" compared the record's own POS against the positions that did, so the record was judged unannotated and a second, contradictory row was emitted for it: one row said `g.29C>A` and the other `g.28GC>GA` for the same change. The check now considers every position the record could have produced. Introduced by the partial-codon fix earlier in this release.
+
+### Fixed
 - **A read marked as failing vendor QC is no longer counted as evidence.** Duplicate, secondary and supplementary records were excluded everywhere reads are counted, but the QC-fail flag (`0x200`) was not, so such reads inflated support, depth, frequency and everything downstream of them. `samtools mpileup` excludes it by default, which means get_MNV disagreed with the very oracle its own test suite compares against: on a BAM where half the reads carry the flag, mpileup reported a depth of 10 and get_MNV reported 20. The suite never caught it because none of its alignments carried the flag; a scenario now covers all four flags at once.
 
 ### Fixed
