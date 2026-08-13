@@ -1543,6 +1543,41 @@ scenario_intergenic_indel_support = Scenario(
     expected_row_count=1,
 )
 
+
+# ---------------------------------------------------------------------------
+# 60. Lecturas que no deben contarse: duplicado, secundaria, suplementaria y QC fail.
+# ---------------------------------------------------------------------------
+# 10 lecturas limpias llevan el ALT, y otras 40 lo llevan tambien pero marcadas
+# con uno de los cuatro flags que un contador debe ignorar. El soporte tiene que
+# ser 10, no 50. QC fail (0x200) era el unico de los cuatro que no se miraba, asi
+# que get_MNV contaba lecturas que su propio oraculo, bcftools mpileup, descarta.
+scenario_uncountable_flags = Scenario(
+    name="60_flagged_reads_are_not_counted",
+    description="Lecturas duplicadas, secundarias, suplementarias y QC-fail que llevan el ALT no cuentan como soporte: 10 limpias -> 10, no 50",
+    variants=[VcfRecord(pos=28, ref="G", alt="T")],
+    reads=[
+        ReadGroup(name_prefix="r_clean", start=1, length=100,
+                  ops=[Op(kind="snv", pos=28, seq="T")], count=10),
+        ReadGroup(name_prefix="r_dup", start=1, length=100,
+                  ops=[Op(kind="snv", pos=28, seq="T")], count=10, extra_flags=0x400),
+        ReadGroup(name_prefix="r_secondary", start=1, length=100,
+                  ops=[Op(kind="snv", pos=28, seq="T")], count=10, extra_flags=0x100),
+        ReadGroup(name_prefix="r_supplementary", start=1, length=100,
+                  ops=[Op(kind="snv", pos=28, seq="T")], count=10, extra_flags=0x800),
+        ReadGroup(name_prefix="r_qcfail", start=1, length=100,
+                  ops=[Op(kind="snv", pos=28, seq="T")], count=10, extra_flags=0x200),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="28",
+            variant_type="SNP",
+            snp_reads="10",
+            total_reads="10",
+        ),
+    ],
+    expected_row_count=1,
+)
+
 # ---------------------------------------------------------------------------
 # 34. Eucariotas: GFF con features CDS pero SIN --gff-features -> auto-CDS.
 # ---------------------------------------------------------------------------
@@ -2469,6 +2504,7 @@ ALL_SCENARIOS = [
     scenario_indel_haplotype_by_chance,
     scenario_fs_gate_no_declared_af,
     scenario_intergenic_indel_support,
+    scenario_uncountable_flags,
 ]
 
 

@@ -185,6 +185,10 @@ class ReadGroup:
     mate_ops: list[Op] = field(default_factory=list)
     mapq: int = 60          # calidad de mapeo emitida en el SAM
     base_quality: str = "I" # caracter de calidad por base ('I' = Q40)
+    # Bits extra para el FLAG del SAM, para probar que se descartan las lecturas
+    # que no deben contarse: 0x400 duplicado, 0x100 secundaria, 0x800
+    # suplementaria, 0x200 QC fail.
+    extra_flags: int = 0
 
 
 @dataclass
@@ -414,9 +418,11 @@ def write_bam(path: Path, work_dir: Path, reads: list[ReadGroup]) -> None:
                 segments = [
                     (0 if grp.strand == "+" else 16, grp.start, cigar, seq, qual, None)
                 ]
+            extra = getattr(grp, "extra_flags", 0)
             for i in range(grp.count):
                 name = f"{grp.name_prefix}_{i:03d}"
                 for flag, start, cig, sq, ql, mate_pos in segments:
+                    flag |= extra
                     fh.write(
                         "\t".join(
                             [

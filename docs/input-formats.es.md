@@ -211,7 +211,7 @@ Requisitos:
 - El BAM debe estar indexado (`.bai`).
 - Los nombres de contig del BAM deben coincidir con los del archivo de variantes
   y los del FASTA.
-- Las lecturas duplicadas, secundarias y suplementarias se ignoran.
+- Las lecturas duplicadas, secundarias, suplementarias y marcadas como QC-fail se ignoran, igual que las descarta `samtools mpileup` por defecto.
 
 ## Nombres de contig
 

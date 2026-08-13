@@ -204,7 +204,7 @@ Requirements:
 - BAM must be sorted.
 - BAM must be indexed (`.bai`).
 - BAM contig names must match the variant file and FASTA.
-- Duplicate, secondary, and supplementary reads are ignored.
+- Duplicate, secondary, supplementary and QC-fail reads are ignored, matching what `samtools mpileup` excludes by default.
 
 ## Contig Names
 

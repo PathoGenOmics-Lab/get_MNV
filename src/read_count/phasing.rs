@@ -121,7 +121,11 @@ pub fn indel_snv_linkage(
     {
         record_index += 1;
         let flags = record.flags();
-        if flags.is_duplicate() || flags.is_secondary() || flags.is_supplementary() {
+        if flags.is_duplicate()
+            || flags.is_secondary()
+            || flags.is_supplementary()
+            || flags.is_qc_fail()
+        {
             continue;
         }
         let mapq = record
