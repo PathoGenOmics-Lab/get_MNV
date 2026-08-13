@@ -152,11 +152,17 @@ impl VcfWriter {
 
         if self.bam_provided && variant.snp_reads.is_some() {
             let bam_vectors = snp_bam_vectors(variant)?;
+            // Zero supporting reads is the absence of evidence, not evidence of
+            // absence: it is what a BAM that does not reach this locus reports,
+            // which is normal for a targeted panel or a subset alignment. These
+            // alleles used to be skipped here, before `build_*_entry` could
+            // weigh them, so a run with `--bam` silently dropped calls the TSV
+            // still wrote and `--emit-filtered` could not bring them back. Let
+            // them through: with no thresholds set they are emitted with their
+            // zero counts, exactly as the run without a BAM emits them, and a
+            // threshold marks or skips them through the one gate that decides.
             for i in 0..variant.positions.len() {
                 let metrics = self.snp_metrics_at(variant, &bam_vectors, i)?;
-                if metrics.support_reads == 0 {
-                    continue;
-                }
                 let aa = snp_aa_for_index(variant, i);
                 if let Some(entry) = self.build_snp_entry(variant, i, &aa, metrics)? {
                     entries.push(entry);
@@ -164,13 +170,11 @@ impl VcfWriter {
             }
 
             let mnv_metrics = self.mnv_metrics(variant, bam_vectors.total_reads)?;
-            if mnv_metrics.support_reads > 0 {
-                let aa = variant.aa_changes.join(",");
-                if let Some(entry) =
-                    self.build_mnv_entry(variant, reference_sequence, &aa, mnv_metrics)?
-                {
-                    entries.push(entry);
-                }
+            let aa = variant.aa_changes.join(",");
+            if let Some(entry) =
+                self.build_mnv_entry(variant, reference_sequence, &aa, mnv_metrics)?
+            {
+                entries.push(entry);
             }
         } else {
             for (i, &pos) in variant.positions.iter().enumerate() {
