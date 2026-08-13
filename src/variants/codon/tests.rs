@@ -117,7 +117,7 @@ fn test_vcf_mnv_record_is_decomposed_into_codon_haplotype() {
     let variants = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 4,
+            record_start: 4,
             ref_allele: "AA".to_string(),
             alt_allele: "CC".to_string(),
             original_dp: None,
@@ -149,7 +149,7 @@ fn test_transcript_model_groups_mnv_across_exon_junction() {
         &gene,
         &[
             crate::io::VcfPosition {
-                position: 4,
+                record_start: 4,
                 ref_allele: "A".to_string(),
                 alt_allele: "C".to_string(),
                 original_dp: None,
@@ -158,7 +158,7 @@ fn test_transcript_model_groups_mnv_across_exon_junction() {
                 declared_phase: None,
             },
             crate::io::VcfPosition {
-                position: 10,
+                record_start: 10,
                 ref_allele: "A".to_string(),
                 alt_allele: "G".to_string(),
                 original_dp: None,
@@ -197,7 +197,7 @@ fn test_transcript_synonymous_snp_is_synonymous() {
     let variants = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 6, // 3rd base of codon 2: AAA -> AAG, both Lys
+            record_start: 6, // 3rd base of codon 2: AAA -> AAG, both Lys
             ref_allele: "A".to_string(),
             alt_allele: "G".to_string(),
             original_dp: None,
@@ -225,7 +225,7 @@ fn test_transcript_start_lost_snp_is_start_lost() {
     let variants = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 2, // ATG -> ACG: Met1 -> Thr (start lost)
+            record_start: 2, // ATG -> ACG: Met1 -> Thr (start lost)
             ref_allele: "T".to_string(),
             alt_allele: "C".to_string(),
             original_dp: None,
@@ -252,7 +252,7 @@ fn test_transcript_model_restored_frame_does_not_mark_downstream_snp_frameshift(
         &gene,
         &[
             crate::io::VcfPosition {
-                position: 3,
+                record_start: 3,
                 ref_allele: "G".to_string(),
                 alt_allele: "GA".to_string(),
                 original_dp: None,
@@ -261,7 +261,7 @@ fn test_transcript_model_restored_frame_does_not_mark_downstream_snp_frameshift(
                 declared_phase: None,
             },
             crate::io::VcfPosition {
-                position: 20,
+                record_start: 20,
                 ref_allele: "TT".to_string(),
                 alt_allele: "T".to_string(),
                 original_dp: None,
@@ -270,7 +270,7 @@ fn test_transcript_model_restored_frame_does_not_mark_downstream_snp_frameshift(
                 declared_phase: None,
             },
             crate::io::VcfPosition {
-                position: 23,
+                record_start: 23,
                 ref_allele: "C".to_string(),
                 alt_allele: "A".to_string(),
                 original_dp: None,
@@ -308,7 +308,7 @@ fn test_indel_reports_event_components_and_frameshift_protein_effect() {
     let variants = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 6,
+            record_start: 6,
             ref_allele: "A".to_string(),
             alt_allele: "AT".to_string(),
             original_dp: None,
@@ -341,7 +341,7 @@ fn test_minus_strand_inframe_insertion_is_inframe() {
     let variants = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 4,
+            record_start: 4,
             ref_allele: "T".to_string(),
             alt_allele: "TGGG".to_string(),
             original_dp: None,
@@ -376,7 +376,7 @@ fn test_minus_strand_legacy_deletion_reports_consistent_codons() {
     let variants = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 3,
+            record_start: 3,
             ref_allele: "CAAA".to_string(),
             alt_allele: "C".to_string(),
             original_dp: None,
@@ -410,7 +410,7 @@ fn test_plus_strand_insertion_at_internal_exon_junction_is_coding() {
     let variants = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 3,
+            record_start: 3,
             ref_allele: "G".to_string(),
             alt_allele: "GGGG".to_string(),
             original_dp: None,
@@ -443,7 +443,7 @@ fn test_minus_strand_insertion_at_internal_exon_junction_is_coding() {
     let variants = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 3,
+            record_start: 3,
             ref_allele: "A".to_string(),
             alt_allele: "AGGG".to_string(),
             original_dp: None,
@@ -474,7 +474,7 @@ fn test_inframe_insertion_creating_stop_is_stop_gained() {
     let variants = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 3,
+            record_start: 3,
             ref_allele: "G".to_string(),
             alt_allele: "GTAA".to_string(),
             original_dp: None,
@@ -505,7 +505,7 @@ fn test_frameshift_frequency_gate_skips_low_freq_upstream_indel() {
     // (pos 11, high freq).
     let variants_in = [
         crate::io::VcfPosition {
-            position: 3,
+            record_start: 3,
             ref_allele: "GA".to_string(),
             alt_allele: "G".to_string(),
             original_dp: None,
@@ -514,7 +514,7 @@ fn test_frameshift_frequency_gate_skips_low_freq_upstream_indel() {
             declared_phase: None,
         },
         crate::io::VcfPosition {
-            position: 11,
+            record_start: 11,
             ref_allele: "G".to_string(),
             alt_allele: "A".to_string(),
             original_dp: None,
@@ -571,7 +571,7 @@ fn test_frameshift_frequency_gate_skips_low_freq_upstream_indel() {
     // in trans suppresses propagation even with the default (0.0) frequency gate.
     let trans =
         crate::variants::FrameshiftPhasing::from_pairs(std::collections::HashMap::from([(
-            (3usize, 11usize, 'A'),
+            (3usize, "GA".to_string(), "G".to_string(), 11usize, 'A'),
             crate::variants::PairLinkage {
                 verdict: crate::variants::LinkageVerdict::Trans,
                 cis_reads: 0,
@@ -614,7 +614,7 @@ fn test_deletion_anchored_before_cds_keeps_protein_effect() {
     let variants = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 1,
+            record_start: 1,
             ref_allele: "CA".to_string(),
             alt_allele: "C".to_string(),
             original_dp: None,
@@ -645,7 +645,7 @@ fn test_insertion_after_cds_end_is_not_coding() {
     let variants = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 9,
+            record_start: 9,
             ref_allele: "T".to_string(),
             alt_allele: "TA".to_string(),
             original_dp: None,
@@ -671,7 +671,7 @@ fn test_insertion_after_codon_end_does_not_mask_that_codon_snp() {
         &gene,
         &[
             crate::io::VcfPosition {
-                position: 7,
+                record_start: 7,
                 ref_allele: "T".to_string(),
                 alt_allele: "C".to_string(),
                 original_dp: None,
@@ -680,7 +680,7 @@ fn test_insertion_after_codon_end_does_not_mask_that_codon_snp() {
                 declared_phase: None,
             },
             crate::io::VcfPosition {
-                position: 9,
+                record_start: 9,
                 ref_allele: "T".to_string(),
                 alt_allele: "TA".to_string(),
                 original_dp: None,
@@ -710,7 +710,7 @@ fn test_build_phased_indel_haplotype_combines_nearby_snv() {
     };
     let variants = vec![
         crate::io::VcfPosition {
-            position: 4,
+            record_start: 4,
             ref_allele: "A".to_string(),
             alt_allele: "C".to_string(),
             original_dp: None,
@@ -719,7 +719,7 @@ fn test_build_phased_indel_haplotype_combines_nearby_snv() {
             declared_phase: None,
         },
         crate::io::VcfPosition {
-            position: 6,
+            record_start: 6,
             ref_allele: "A".to_string(),
             alt_allele: "AT".to_string(),
             original_dp: None,
@@ -763,7 +763,7 @@ fn test_build_phased_indel_haplotype_preserves_deletion_component_coordinate() {
     };
     let variants = vec![
         crate::io::VcfPosition {
-            position: 4,
+            record_start: 4,
             ref_allele: "A".to_string(),
             alt_allele: "C".to_string(),
             original_dp: None,
@@ -772,7 +772,7 @@ fn test_build_phased_indel_haplotype_preserves_deletion_component_coordinate() {
             declared_phase: None,
         },
         crate::io::VcfPosition {
-            position: 5,
+            record_start: 5,
             ref_allele: "AA".to_string(),
             alt_allele: "A".to_string(),
             original_dp: None,
@@ -815,7 +815,7 @@ fn test_build_phased_indel_haplotype_combines_two_indels() {
     };
     let variants = vec![
         crate::io::VcfPosition {
-            position: 4,
+            record_start: 4,
             ref_allele: "A".to_string(),
             alt_allele: "AG".to_string(),
             original_dp: None,
@@ -824,7 +824,7 @@ fn test_build_phased_indel_haplotype_combines_two_indels() {
             declared_phase: None,
         },
         crate::io::VcfPosition {
-            position: 5,
+            record_start: 5,
             ref_allele: "AA".to_string(),
             alt_allele: "A".to_string(),
             original_dp: None,
@@ -868,7 +868,7 @@ fn test_local_haplotype_components_group_without_enumerating_subsets() {
     let gene = single_exon_gene("cds", 1, 9, Strand::Plus);
     let variants = vec![
         crate::io::VcfPosition {
-            position: 4,
+            record_start: 4,
             ref_allele: "A".to_string(),
             alt_allele: "C".to_string(),
             original_dp: None,
@@ -877,7 +877,7 @@ fn test_local_haplotype_components_group_without_enumerating_subsets() {
             declared_phase: None,
         },
         crate::io::VcfPosition {
-            position: 5,
+            record_start: 5,
             ref_allele: "A".to_string(),
             alt_allele: "AT".to_string(),
             original_dp: None,
@@ -886,7 +886,7 @@ fn test_local_haplotype_components_group_without_enumerating_subsets() {
             declared_phase: None,
         },
         crate::io::VcfPosition {
-            position: 6,
+            record_start: 6,
             ref_allele: "A".to_string(),
             alt_allele: "G".to_string(),
             original_dp: None,
@@ -901,7 +901,7 @@ fn test_local_haplotype_components_group_without_enumerating_subsets() {
     assert_eq!(
         components[0]
             .iter()
-            .map(|variant| variant.position)
+            .map(|variant| variant.record_start)
             .collect::<Vec<_>>(),
         vec![4, 5, 6],
         "the window is returned whole and in genomic order"
@@ -916,7 +916,7 @@ fn test_build_phased_indel_haplotype_ignores_distant_snv() {
     };
     let variants = vec![
         crate::io::VcfPosition {
-            position: 10,
+            record_start: 10,
             ref_allele: "C".to_string(),
             alt_allele: "G".to_string(),
             original_dp: None,
@@ -925,7 +925,7 @@ fn test_build_phased_indel_haplotype_ignores_distant_snv() {
             declared_phase: None,
         },
         crate::io::VcfPosition {
-            position: 6,
+            record_start: 6,
             ref_allele: "A".to_string(),
             alt_allele: "AT".to_string(),
             original_dp: None,
@@ -1021,7 +1021,7 @@ fn test_get_mnv_variants_for_gene_mixed_snps_and_indels() {
 
     let snps = vec![
         VcfPosition {
-            position: 2,
+            record_start: 2,
             ref_allele: "T".to_string(),
             alt_allele: "C".to_string(),
             original_dp: None,
@@ -1030,7 +1030,7 @@ fn test_get_mnv_variants_for_gene_mixed_snps_and_indels() {
             declared_phase: None,
         },
         VcfPosition {
-            position: 5,
+            record_start: 5,
             ref_allele: "TG".to_string(),
             alt_allele: "T".to_string(),
             original_dp: None,
@@ -1066,7 +1066,7 @@ fn test_build_intergenic_variant_snp() {
     use crate::io::VcfPosition;
 
     let pos = VcfPosition {
-        position: 42,
+        record_start: 42,
         ref_allele: "A".to_string(),
         alt_allele: "G".to_string(),
         original_dp: Some(30),
@@ -1087,7 +1087,7 @@ fn test_build_intergenic_variant_indel() {
     use crate::io::VcfPosition;
 
     let pos = VcfPosition {
-        position: 10,
+        record_start: 10,
         ref_allele: "AT".to_string(),
         alt_allele: "A".to_string(),
         original_dp: None,
@@ -1227,7 +1227,7 @@ fn test_multiallelic_position_emits_one_row_per_alt() {
     // Two VCF records at position 101 with different ALTs (T and G)
     let snps = vec![
         VcfPosition {
-            position: 101,
+            record_start: 101,
             ref_allele: "A".to_string(),
             alt_allele: "T".to_string(),
             original_dp: None,
@@ -1236,7 +1236,7 @@ fn test_multiallelic_position_emits_one_row_per_alt() {
             declared_phase: None,
         },
         VcfPosition {
-            position: 101,
+            record_start: 101,
             ref_allele: "A".to_string(),
             alt_allele: "G".to_string(),
             original_dp: None,
@@ -1274,7 +1274,7 @@ fn test_true_duplicate_position_still_dedup() {
     let gene = single_exon_gene("geneA", 100, 111, Strand::Plus);
     let snps = vec![
         VcfPosition {
-            position: 101,
+            record_start: 101,
             ref_allele: "A".to_string(),
             alt_allele: "T".to_string(),
             original_dp: None,
@@ -1283,7 +1283,7 @@ fn test_true_duplicate_position_still_dedup() {
             declared_phase: None,
         },
         VcfPosition {
-            position: 101,
+            record_start: 101,
             ref_allele: "A".to_string(),
             alt_allele: "T".to_string(),
             original_dp: None,
@@ -1329,7 +1329,7 @@ fn test_nonsense_snv_far_upstream_of_last_junction_is_nmd_triggering() {
     let variants = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 31,
+            record_start: 31,
             ref_allele: "C".to_string(),
             alt_allele: "T".to_string(),
             original_dp: None,
@@ -1368,7 +1368,7 @@ fn test_hgvs_coding_descriptor_plus_and_minus_strand() {
     };
     let mnv = [
         crate::io::VcfPosition {
-            position: 1,
+            record_start: 1,
             ref_allele: "C".to_string(),
             alt_allele: "T".to_string(),
             original_dp: None,
@@ -1377,7 +1377,7 @@ fn test_hgvs_coding_descriptor_plus_and_minus_strand() {
             declared_phase: None,
         },
         crate::io::VcfPosition {
-            position: 2,
+            record_start: 2,
             ref_allele: "C".to_string(),
             alt_allele: "T".to_string(),
             original_dp: None,
@@ -1400,7 +1400,7 @@ fn test_hgvs_coding_descriptor_plus_and_minus_strand() {
         sequence: "TTTAAACAT",
     };
     let snv = [crate::io::VcfPosition {
-        position: 9,
+        record_start: 9,
         ref_allele: "T".to_string(),
         alt_allele: "A".to_string(),
         original_dp: None,
@@ -1434,7 +1434,7 @@ fn test_exonic_variant_near_junction_is_splice_region() {
     let near = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 120,
+            record_start: 120,
             ref_allele: "T".to_string(),
             alt_allele: "A".to_string(),
             original_dp: None,
@@ -1456,7 +1456,7 @@ fn test_exonic_variant_near_junction_is_splice_region() {
     let deep = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 60,
+            record_start: 60,
             ref_allele: "T".to_string(),
             alt_allele: "A".to_string(),
             original_dp: None,
@@ -1494,7 +1494,7 @@ fn spliced_indel_fixture() -> (crate::variants::Gene, String) {
 
 fn indel(position: usize, reference: &str, alternate: &str) -> crate::io::VcfPosition {
     crate::io::VcfPosition {
-        position,
+        record_start: position,
         ref_allele: reference.to_string(),
         alt_allele: alternate.to_string(),
         original_dp: None,
@@ -1652,7 +1652,7 @@ fn test_both_codon_paths_describe_a_minus_strand_mnv_identically() {
     // Two SNVs in the same codon, given to the annotator in genomic order.
     let variants = [
         crate::io::VcfPosition {
-            position: 4,
+            record_start: 4,
             ref_allele: "A".to_string(),
             alt_allele: "C".to_string(),
             original_dp: None,
@@ -1661,7 +1661,7 @@ fn test_both_codon_paths_describe_a_minus_strand_mnv_identically() {
             declared_phase: None,
         },
         crate::io::VcfPosition {
-            position: 6,
+            record_start: 6,
             ref_allele: "C".to_string(),
             alt_allele: "A".to_string(),
             original_dp: None,
@@ -1732,7 +1732,7 @@ fn test_minus_strand_insertion_is_complemented_and_placed_between_the_right_resi
     let variants = crate::variants::get_mnv_variants_for_gene(
         &gene,
         &[crate::io::VcfPosition {
-            position: 9,
+            record_start: 9,
             ref_allele: "T".to_string(),
             alt_allele: "TCCC".to_string(),
             original_dp: None,
@@ -1772,7 +1772,7 @@ fn test_insertion_above_the_gene_is_not_coding_on_either_strand() {
         crate::variants::get_mnv_variants_for_gene(
             &gene,
             &[crate::io::VcfPosition {
-                position: 12,
+                record_start: 12,
                 ref_allele: "C".to_string(),
                 alt_allele: "CAAA".to_string(),
                 original_dp: None,

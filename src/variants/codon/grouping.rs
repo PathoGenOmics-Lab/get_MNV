@@ -98,7 +98,11 @@ pub(super) fn event_metadata(
 }
 
 pub(super) fn variant_event_metadata(variant: &crate::io::VcfPosition) -> (String, Vec<String>) {
-    event_metadata(variant.position, &variant.ref_allele, &variant.alt_allele)
+    event_metadata(
+        variant.record_start,
+        &variant.ref_allele,
+        &variant.alt_allele,
+    )
 }
 
 #[cfg(test)]

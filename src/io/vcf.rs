@@ -19,7 +19,12 @@ const GET_MNV_INFO_TAGS: &[&str] = &[
 
 #[derive(Debug, Clone)]
 pub struct VcfPosition {
-    pub position: usize,
+    /// The record's POS: where the record begins, which is not always where it
+    /// acts. A record may be padded with reference bases on its left, and a
+    /// left-anchored indel names the base before the change. Anything asking
+    /// where this variant *acts* wants [`VcfPosition::changed_positions`]; this
+    /// field is for writing the record back out, sorting, and messages.
+    pub record_start: usize,
     pub ref_allele: String,
     pub alt_allele: String,
     pub original_dp: Option<usize>,
@@ -139,7 +144,7 @@ pub fn sample_carries_alt(genotype: Option<&str>, alt_index: usize) -> bool {
 
 impl VcfPosition {
     pub fn event(&self) -> AlleleEvent {
-        decompose_allele(self.position, &self.ref_allele, &self.alt_allele)
+        decompose_allele(self.record_start, &self.ref_allele, &self.alt_allele)
     }
 
     /// Every genomic base this record's own components change.
@@ -166,7 +171,7 @@ impl VcfPosition {
             }
         }
         if positions.is_empty() {
-            positions.push(self.position);
+            positions.push(self.record_start);
         }
         positions.sort_unstable();
         positions.dedup();
@@ -174,7 +179,7 @@ impl VcfPosition {
     }
 
     pub fn substitution_components(&self) -> Vec<AlleleComponent> {
-        substitution_components(self.position, &self.ref_allele, &self.alt_allele)
+        substitution_components(self.record_start, &self.ref_allele, &self.alt_allele)
     }
 
     pub fn is_single_nucleotide_substitution(&self) -> bool {
@@ -808,7 +813,7 @@ pub fn load_vcf_positions_by_contig(
                 .entry(chrom.to_string())
                 .or_default()
                 .push(VcfPosition {
-                    position: normalized_pos,
+                    record_start: normalized_pos,
                     ref_allele: normalized_ref,
                     alt_allele: normalized_alt,
                     original_dp,
@@ -826,7 +831,7 @@ pub fn load_vcf_positions_by_contig(
     }
 
     for values in positions_by_contig.values_mut() {
-        values.sort_by_key(|v| v.position);
+        values.sort_by_key(|v| v.record_start);
     }
 
     if split_multiallelic && split_count > 0 {
@@ -850,7 +855,7 @@ mod tests {
 
     fn variant(position: usize, ref_allele: &str, alt_allele: &str) -> VcfPosition {
         VcfPosition {
-            position,
+            record_start: position,
             ref_allele: ref_allele.to_string(),
             alt_allele: alt_allele.to_string(),
             original_dp: None,
@@ -921,7 +926,7 @@ mod tests {
             super::load_vcf_positions_by_contig(path.to_str().unwrap(), None, false, false, false)
                 .unwrap();
         assert_eq!(by_contig.get("chr1").map(std::vec::Vec::len), Some(1));
-        assert_eq!(by_contig["chr1"][0].position, 5);
+        assert_eq!(by_contig["chr1"][0].record_start, 5);
         let _ = std::fs::remove_file(path);
     }
 

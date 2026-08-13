@@ -159,20 +159,20 @@ pub fn validate_vcf_reference_alleles(
     reference: &Reference<'_>,
 ) -> AppResult<()> {
     for site in snp_list {
-        if site.position == 0 {
+        if site.record_start == 0 {
             return Err(format!(
                 "Invalid VCF position 0 found at contig '{chrom}' (positions must be 1-based)"
             )
             .into());
         }
         let ref_len = site.ref_allele.len();
-        let start = site.position - 1;
+        let start = site.record_start - 1;
         let end = start + ref_len;
         if end > reference.sequence.len() {
             return Err(format!(
                 "VCF REF out of FASTA bounds at {}:{} (REF='{}', FASTA length={})",
                 chrom,
-                site.position,
+                site.record_start,
                 site.ref_allele,
                 reference.sequence.len()
             )
@@ -182,7 +182,7 @@ pub fn validate_vcf_reference_alleles(
         if !fasta_ref.eq_ignore_ascii_case(&site.ref_allele) {
             return Err(format!(
                 "VCF REF/FASTA mismatch at {}:{}: VCF REF='{}' FASTA='{}'",
-                chrom, site.position, site.ref_allele, fasta_ref
+                chrom, site.record_start, site.ref_allele, fasta_ref
             )
             .into());
         }
@@ -207,7 +207,7 @@ pub fn drop_reference_calls(snp_list: Vec<VcfPosition>) -> (Vec<VcfPosition>, us
     let kept: Vec<VcfPosition> = snp_list
         .into_iter()
         .filter(|site| {
-            crate::variants::decompose_allele(site.position, &site.ref_allele, &site.alt_allele)
+            crate::variants::decompose_allele(site.record_start, &site.ref_allele, &site.alt_allele)
                 .class
                 != crate::variants::AlleleEventClass::Reference
         })
@@ -238,7 +238,7 @@ pub fn left_anchor_insertions(
         .iter()
         .map(|site| {
             let event = crate::variants::decompose_allele(
-                site.position,
+                site.record_start,
                 &site.ref_allele,
                 &site.alt_allele,
             );
@@ -246,7 +246,7 @@ pub fn left_anchor_insertions(
                 return site.clone();
             };
             if component.kind != crate::variants::AlleleComponentKind::Insertion
-                || component.position >= site.position
+                || component.position >= site.record_start
                 // An insertion before the first base of the contig has no anchor
                 // to move onto; leave it exactly as the caller wrote it.
                 || component.position == 0
@@ -256,7 +256,7 @@ pub fn left_anchor_insertions(
             }
             let anchor = &reference.sequence[component.position - 1..component.position];
             let mut moved = site.clone();
-            moved.position = component.position;
+            moved.record_start = component.position;
             moved.ref_allele = anchor.to_string();
             moved.alt_allele = format!("{anchor}{}", component.alt_allele);
             rewritten += 1;
@@ -384,7 +384,7 @@ mod tests {
         let refs = ReferenceMap::from([("c".to_string(), "ACGT".to_string())]);
         let r = reference_for_chrom(&refs, "c").unwrap();
         let snps = vec![VcfPosition {
-            position: 1,
+            record_start: 1,
             ref_allele: "A".into(),
             alt_allele: "T".into(),
             original_dp: None,
@@ -400,7 +400,7 @@ mod tests {
         let refs = ReferenceMap::from([("c".to_string(), "ACGT".to_string())]);
         let r = reference_for_chrom(&refs, "c").unwrap();
         let snps = vec![VcfPosition {
-            position: 1,
+            record_start: 1,
             ref_allele: "T".into(),
             alt_allele: "A".into(),
             original_dp: None,
@@ -416,7 +416,7 @@ mod tests {
         let refs = ReferenceMap::from([("c".to_string(), "AC".to_string())]);
         let r = reference_for_chrom(&refs, "c").unwrap();
         let snps = vec![VcfPosition {
-            position: 2,
+            record_start: 2,
             ref_allele: "CG".into(),
             alt_allele: "TT".into(),
             original_dp: None,
@@ -435,7 +435,7 @@ mod tests {
     fn a_reference_call_is_not_a_variant() {
         let calls = vec![
             VcfPosition {
-                position: 28,
+                record_start: 28,
                 ref_allele: "G".to_string(),
                 alt_allele: "G".to_string(),
                 original_dp: None,
@@ -444,7 +444,7 @@ mod tests {
                 declared_phase: None,
             },
             VcfPosition {
-                position: 30,
+                record_start: 30,
                 ref_allele: "T".to_string(),
                 alt_allele: "C".to_string(),
                 original_dp: None,
@@ -456,6 +456,6 @@ mod tests {
         let (kept, dropped) = super::drop_reference_calls(calls);
         assert_eq!(dropped, 1);
         assert_eq!(kept.len(), 1);
-        assert_eq!(kept[0].position, 30, "the real variant must survive");
+        assert_eq!(kept[0].record_start, 30, "the real variant must survive");
     }
 }

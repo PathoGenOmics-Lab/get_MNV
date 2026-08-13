@@ -151,7 +151,7 @@ fn run_synthetic(
     let snp_positions: Vec<VcfPosition> = (10..=(gene_end - 10))
         .step_by(10)
         .map(|pos| VcfPosition {
-            position: pos,
+            record_start: pos,
             ref_allele: "A".to_string(),
             alt_allele: "G".to_string(),
             original_dp: Some(30),

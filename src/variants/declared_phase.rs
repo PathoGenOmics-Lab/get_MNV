@@ -141,7 +141,7 @@ mod tests {
 
     fn phased(position: usize, alt: &str, genotype: &str, phase_set: Option<&str>) -> VcfPosition {
         VcfPosition {
-            position,
+            record_start: position,
             ref_allele: "A".to_string(),
             alt_allele: alt.to_string(),
             original_dp: None,

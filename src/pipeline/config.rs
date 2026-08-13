@@ -168,7 +168,7 @@ pub(crate) fn validate_strict_original_metrics(
                     examples.push(format!(
                         "{}:{}({})",
                         contig,
-                        site.position,
+                        site.record_start,
                         missing_fields.join(",")
                     ));
                 }
@@ -381,7 +381,7 @@ mod tests {
         let snps: HashMap<String, Vec<VcfPosition>> = [(
             "chr1".into(),
             vec![VcfPosition {
-                position: 10,
+                record_start: 10,
                 ref_allele: "A".to_string(),
                 alt_allele: "T".to_string(),
                 original_dp: None,
@@ -403,7 +403,7 @@ mod tests {
         let snps: HashMap<String, Vec<VcfPosition>> = [(
             "chr1".into(),
             vec![VcfPosition {
-                position: 10,
+                record_start: 10,
                 ref_allele: "A".to_string(),
                 alt_allele: "T".to_string(),
                 original_dp: None,

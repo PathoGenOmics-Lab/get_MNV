@@ -345,7 +345,7 @@ pub fn load_ivar_tsv(
             .entry(chrom.to_string())
             .or_default()
             .push(VcfPosition {
-                position: vcf_pos,
+                record_start: vcf_pos,
                 ref_allele: vcf_ref,
                 alt_allele: vcf_alt,
                 original_dp,
@@ -365,7 +365,7 @@ pub fn load_ivar_tsv(
     }
 
     for values in positions_by_contig.values_mut() {
-        values.sort_by_key(|v| v.position);
+        values.sort_by_key(|v| v.record_start);
     }
 
     log::info!(
@@ -418,12 +418,12 @@ chr1\t5\tA\tA\t5\t5\t0.5\t10\tTRUE\n",
         let parsed = load_ivar_tsv(&path, &references).unwrap();
         let chr1 = parsed.get("chr1").unwrap();
         assert_eq!(chr1.len(), 2);
-        assert_eq!(chr1[0].position, 2);
+        assert_eq!(chr1[0].record_start, 2);
         assert_eq!(chr1[0].ref_allele, "C");
         assert_eq!(chr1[0].alt_allele, "T");
         assert_eq!(chr1[0].original_dp, Some(10));
         assert_eq!(chr1[0].original_freq, Some(0.5));
-        assert_eq!(chr1[1].position, 3);
+        assert_eq!(chr1[1].record_start, 3);
         assert_eq!(chr1[1].ref_allele, "G");
         assert_eq!(chr1[1].alt_allele, "GA");
         let _ = std::fs::remove_file(path);
@@ -442,7 +442,7 @@ chr1\t3\tG\t-TA\t5\t5\t0.5\t10\tTRUE\n",
         let parsed = load_ivar_tsv(&path, &references).unwrap();
         let chr1 = parsed.get("chr1").unwrap();
         assert_eq!(chr1.len(), 1);
-        assert_eq!(chr1[0].position, 3);
+        assert_eq!(chr1[0].record_start, 3);
         assert_eq!(chr1[0].ref_allele, "GTA");
         assert_eq!(chr1[0].alt_allele, "G");
         let _ = std::fs::remove_file(path);

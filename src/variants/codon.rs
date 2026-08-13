@@ -18,7 +18,9 @@ mod transcript_path;
 #[cfg(test)]
 mod tests;
 
-pub use config::{FrameshiftPhasing, IndelAnnotationConfig, PairLinkage};
+pub use config::{
+    pair_key, FrameshiftPairKey, FrameshiftPhasing, IndelAnnotationConfig, PairLinkage,
+};
 pub use gene_path::process_codon;
 pub use phased::{local_haplotype_components, phased_haplotype_variant};
 
@@ -155,10 +157,10 @@ fn get_mnv_variants_for_transcript(
                     // with the codon's SNV: the codon's molecule does not carry it.
                     // Record what the reads said either way, so the label the row
                     // ends up with can be traced back to the evidence for it.
-                    if let Some(linkage) = phasing.linkage_for(indel.position, &codon_positions) {
+                    if let Some(linkage) = phasing.linkage_for(indel, &codon_positions) {
                         frameshift_linkage.push(linkage);
                     }
-                    if phasing.indel_in_trans_with(indel.position, &codon_positions) {
+                    if phasing.indel_in_trans_with(indel, &codon_positions) {
                         continue;
                     }
                     if indel.alt_allele.starts_with('<') {
@@ -214,7 +216,7 @@ fn get_mnv_variants_for_transcript(
         variants.push(VariantInfo {
             chrom: chrom.to_string(),
             gene: gene.name.clone(),
-            positions: vec![indel.position],
+            positions: vec![indel.record_start],
             ref_bases: vec![indel.ref_allele.clone()],
             base_changes: vec![indel.alt_allele.clone()],
             aa_changes,
@@ -387,8 +389,8 @@ pub fn get_mnv_variants_for_gene_with_config(
 
             for indel in &indels {
                 let is_upstream = match gene.strand {
-                    Strand::Plus => indel.position < codon_start,
-                    Strand::Minus => indel.position > codon_end,
+                    Strand::Plus => indel.record_start < codon_start,
+                    Strand::Minus => indel.record_start > codon_end,
                 };
 
                 if is_upstream {
@@ -401,10 +403,10 @@ pub fn get_mnv_variants_for_gene_with_config(
                     // with the codon's SNV: the codon's molecule does not carry it.
                     // Record what the reads said either way, so the label the row
                     // ends up with can be traced back to the evidence for it.
-                    if let Some(linkage) = phasing.linkage_for(indel.position, &codon_positions) {
+                    if let Some(linkage) = phasing.linkage_for(indel, &codon_positions) {
                         frameshift_linkage.push(linkage);
                     }
-                    if phasing.indel_in_trans_with(indel.position, &codon_positions) {
+                    if phasing.indel_in_trans_with(indel, &codon_positions) {
                         continue;
                     }
                     if indel.alt_allele.starts_with('<') {
@@ -463,7 +465,7 @@ pub fn get_mnv_variants_for_gene_with_config(
         variants.push(VariantInfo {
             chrom: chrom.to_string(),
             gene: gene.name.clone(),
-            positions: vec![indel.position],
+            positions: vec![indel.record_start],
             ref_bases: vec![indel.ref_allele.clone()],
             base_changes: vec![indel.alt_allele.clone()],
             aa_changes,
@@ -581,7 +583,7 @@ pub fn build_intergenic_variant(chrom: &str, vcf_pos: &crate::io::VcfPosition) -
         )
     } else {
         (
-            vec![vcf_pos.position],
+            vec![vcf_pos.record_start],
             vec![vcf_pos.ref_allele.clone()],
             vec![vcf_pos.alt_allele.clone()],
         )

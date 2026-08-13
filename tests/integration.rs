@@ -1795,7 +1795,7 @@ fn test_fast_parser_matches_htslib() {
             .enumerate()
         {
             assert_eq!(
-                fp.position, hp.position,
+                fp.record_start, hp.record_start,
                 "contig '{}' pos {}: position mismatch",
                 contig, i
             );
@@ -1812,7 +1812,7 @@ fn test_fast_parser_matches_htslib() {
             assert_eq!(
                 fp.original_dp, hp.original_dp,
                 "contig '{}' pos {} ({}): DP mismatch (fast={:?}, htslib={:?})",
-                contig, i, fp.position, fp.original_dp, hp.original_dp
+                contig, i, fp.record_start, fp.original_dp, hp.original_dp
             );
             // Compare freq with tolerance for float rounding
             match (fp.original_freq, hp.original_freq) {
@@ -1822,7 +1822,7 @@ fn test_fast_parser_matches_htslib() {
                         "contig '{}' pos {} ({}): FREQ mismatch (fast={}, htslib={})",
                         contig,
                         i,
-                        fp.position,
+                        fp.record_start,
                         f,
                         h
                     );
@@ -1830,7 +1830,7 @@ fn test_fast_parser_matches_htslib() {
                 (None, None) => {}
                 _ => panic!(
                     "contig '{}' pos {} ({}): FREQ presence mismatch (fast={:?}, htslib={:?})",
-                    contig, i, fp.position, fp.original_freq, hp.original_freq
+                    contig, i, fp.record_start, fp.original_freq, hp.original_freq
                 ),
             }
         }
@@ -1868,7 +1868,7 @@ fn test_fast_parser_keep_info_matches_htslib() {
                 "contig '{}' pos {} ({}): original_info presence mismatch",
                 contig,
                 i,
-                fp.position
+                fp.record_start
             );
         }
     }

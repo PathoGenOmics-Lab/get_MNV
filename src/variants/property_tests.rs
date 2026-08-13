@@ -23,7 +23,7 @@ fn complement(base: char) -> char {
 
 fn snp(position: usize, reference: char, alternate: char) -> VcfPosition {
     VcfPosition {
-        position,
+        record_start: position,
         ref_allele: reference.to_string(),
         alt_allele: alternate.to_string(),
         original_dp: None,

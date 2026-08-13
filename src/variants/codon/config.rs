@@ -24,7 +24,31 @@ pub struct PairLinkage {
 /// would not.
 #[derive(Debug, Clone, Default)]
 pub struct FrameshiftPhasing {
-    pairs: HashMap<(usize, usize, char), PairLinkage>,
+    pairs: HashMap<FrameshiftPairKey, PairLinkage>,
+}
+
+/// Identifies one consulted pair: which indel, and which SNV allele.
+///
+/// The indel is named by its alleles as well as its coordinate. Two indel
+/// records can share a POS, an insertion and a deletion anchored on the same
+/// base or two ALTs of one multiallelic site, and a coordinate-only key let the
+/// last one processed answer for the other, which is the same trap the SNV side
+/// of this key already documents one paragraph down.
+pub type FrameshiftPairKey = (usize, String, String, usize, char);
+
+/// The key under which a pair's answer is stored and looked up.
+pub fn pair_key(
+    indel: &crate::io::VcfPosition,
+    snv_position: usize,
+    snv_alt: char,
+) -> FrameshiftPairKey {
+    (
+        indel.record_start,
+        indel.ref_allele.to_ascii_uppercase(),
+        indel.alt_allele.to_ascii_uppercase(),
+        snv_position,
+        snv_alt.to_ascii_uppercase(),
+    )
 }
 
 impl FrameshiftPhasing {
@@ -32,7 +56,7 @@ impl FrameshiftPhasing {
     /// answer, for every pair they were consulted about. The ALT belongs in the
     /// key: the linkage is queried per allele, and at a multi-allelic site a
     /// position-only key let the last ALT processed decide the other's codon.
-    pub fn from_pairs(pairs: HashMap<(usize, usize, char), PairLinkage>) -> Self {
+    pub fn from_pairs(pairs: HashMap<FrameshiftPairKey, PairLinkage>) -> Self {
         Self { pairs }
     }
 
@@ -40,12 +64,12 @@ impl FrameshiftPhasing {
     /// codon's SNV positions, so its frame shift must not propagate to that codon.
     pub(super) fn indel_in_trans_with(
         &self,
-        indel_position: usize,
+        indel: &crate::io::VcfPosition,
         snv_alleles: &[(usize, char)],
     ) -> bool {
         snv_alleles.iter().any(|(position, alt)| {
             self.pairs
-                .get(&(indel_position, *position, *alt))
+                .get(&pair_key(indel, *position, *alt))
                 .is_some_and(|linkage| linkage.verdict == LinkageVerdict::Trans)
         })
     }
@@ -57,17 +81,17 @@ impl FrameshiftPhasing {
     /// nothing.
     pub(super) fn linkage_for(
         &self,
-        indel_position: usize,
+        indel: &crate::io::VcfPosition,
         snv_alleles: &[(usize, char)],
     ) -> Option<FrameshiftLinkage> {
         snv_alleles
             .iter()
             .filter_map(|(position, alt)| {
-                self.pairs.get(&(indel_position, *position, *alt)).copied()
+                self.pairs.get(&pair_key(indel, *position, *alt)).copied()
             })
             .min_by_key(|linkage| (linkage.verdict, linkage.cis_reads))
             .map(|linkage| FrameshiftLinkage {
-                indel_position,
+                indel_position: indel.record_start,
                 cis_reads: linkage.cis_reads,
                 informative_reads: linkage.informative_reads,
                 verdict: linkage.verdict,
@@ -104,7 +128,7 @@ impl IndelAnnotationConfig {
     pub(super) fn observed_freq(&self, indel: &VcfPosition) -> Option<f64> {
         self.observed_indel_freq
             .get(&(
-                indel.position,
+                indel.record_start,
                 indel.ref_allele.clone(),
                 indel.alt_allele.clone(),
             ))

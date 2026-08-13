@@ -189,7 +189,7 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                 .entry(chrom.to_string())
                 .or_default()
                 .push(VcfPosition {
-                    position: norm_pos,
+                    record_start: norm_pos,
                     ref_allele: norm_ref,
                     alt_allele: norm_alt,
                     original_dp,
@@ -209,7 +209,7 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
     }
 
     for values in positions_by_contig.values_mut() {
-        values.sort_by_key(|v| v.position);
+        values.sort_by_key(|v| v.record_start);
     }
 
     if split_multiallelic && split_count > 0 {

@@ -82,10 +82,10 @@ pub(super) fn compute_frameshift_phasing(
         .as_ref()
         .ok_or_else(|| AppError::validation("BAM header unavailable in worker thread"))?;
 
-    let mut pairs: HashMap<(usize, usize, char), variants::PairLinkage> = HashMap::new();
+    let mut pairs: HashMap<variants::FrameshiftPairKey, variants::PairLinkage> = HashMap::new();
     for indel in &indels {
         for &(snv_position, snv_alt) in &snvs {
-            let span = indel.position.abs_diff(snv_position);
+            let span = indel.record_start.abs_diff(snv_position);
             if span > MAX_PHASING_SPAN {
                 continue;
             }
@@ -93,7 +93,7 @@ pub(super) fn compute_frameshift_phasing(
                 bam,
                 header,
                 contig,
-                indel.position,
+                indel.record_start,
                 &indel.ref_allele,
                 &indel.alt_allele,
                 snv_position,
@@ -112,7 +112,7 @@ pub(super) fn compute_frameshift_phasing(
                 variants::LinkageVerdict::Cis
             };
             pairs.insert(
-                (indel.position, snv_position, snv_alt.to_ascii_uppercase()),
+                variants::pair_key(indel, snv_position, snv_alt),
                 variants::PairLinkage {
                     verdict,
                     cis_reads: linkage.cis_reads,
@@ -129,11 +129,11 @@ pub(super) fn compute_frameshift_phasing(
     let mut observed_indel_freq = HashMap::new();
     for indel in &indels {
         let components =
-            variants::decompose_allele(indel.position, &indel.ref_allele, &indel.alt_allele)
+            variants::decompose_allele(indel.record_start, &indel.ref_allele, &indel.alt_allele)
                 .components;
         let request = read_count::IndelReadCountRequest {
             chrom: contig,
-            position: indel.position,
+            position: indel.record_start,
             ref_allele: &indel.ref_allele,
             alt_allele: &indel.alt_allele,
             required_components: &components,
@@ -149,7 +149,7 @@ pub(super) fn compute_frameshift_phasing(
         if summary.mnv_total_reads > 0 {
             observed_indel_freq.insert(
                 (
-                    indel.position,
+                    indel.record_start,
                     indel.ref_allele.clone(),
                     indel.alt_allele.clone(),
                 ),
@@ -479,12 +479,12 @@ fn observe_component_haplotypes(
 ) -> AppResult<read_count::LocalHaplotypeObservations> {
     let start = component
         .iter()
-        .map(|variant| variant.position)
+        .map(|variant| variant.record_start)
         .min()
         .unwrap_or(0);
     let end = component
         .iter()
-        .map(|variant| variant.position + variant.ref_allele.len().saturating_sub(1))
+        .map(|variant| variant.record_start + variant.ref_allele.len().saturating_sub(1))
         .max()
         .unwrap_or(0);
     let component_variants = component
@@ -492,7 +492,7 @@ fn observe_component_haplotypes(
         .map(|variant| {
             let components = variant.event().components;
             read_count::LocalVariant {
-                start: variant.position,
+                start: variant.record_start,
                 ref_len: variants::observation_ref_len(&variant.ref_allele, &components),
                 components,
             }

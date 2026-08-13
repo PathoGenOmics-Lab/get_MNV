@@ -19,7 +19,11 @@ pub(super) fn phased_indel_window(gene: &Gene, variant: &VcfPosition) -> Option<
     }
 
     let mut windows = Vec::new();
-    for pos in [variant.position, event.affected_start, event.affected_end] {
+    for pos in [
+        variant.record_start,
+        event.affected_start,
+        event.affected_end,
+    ] {
         if pos >= eff_start && pos <= eff_end {
             if let Some(bounds) = codon_bounds_for_position(gene, pos) {
                 windows.push(bounds);
@@ -112,10 +116,10 @@ pub(super) fn compound_allele_from_variants(
     for variant in variants {
         let event = variant.event();
         has_indel |= event.class.has_indel_component();
-        start = start.min(event.affected_start).min(variant.position);
+        start = start.min(event.affected_start).min(variant.record_start);
         end = end
             .max(event.affected_end)
-            .max(variant.position + variant.ref_allele.len().saturating_sub(1));
+            .max(variant.record_start + variant.ref_allele.len().saturating_sub(1));
 
         for component in event.components {
             match component.kind {
@@ -186,7 +190,7 @@ pub(super) fn compound_allele_from_variants(
     }
 
     Some(VcfPosition {
-        position: start,
+        record_start: start,
         ref_allele,
         alt_allele,
         original_dp: None,
@@ -256,7 +260,7 @@ pub(super) fn phased_variant_from_group(
     Some(VariantInfo {
         chrom: chrom.to_string(),
         gene: gene.name.clone(),
-        positions: vec![compound.position],
+        positions: vec![compound.record_start],
         ref_bases: vec![compound.ref_allele],
         base_changes: vec![compound.alt_allele],
         aa_changes,
@@ -311,8 +315,15 @@ pub fn local_haplotype_components<'a>(
             // In a spliced transcript model the gene span includes introns; only
             // exonic (coding) variants may join a phased coding haplotype, so an
             // intronic indel near an exon boundary is not merged with exonic SNVs.
+            // Asked of the bases the record changes, not of the base it starts
+            // on: a record padded with reference bases can begin in an intron
+            // and change an exonic base, and testing POS dropped it from the
+            // coding haplotype it belongs to.
             !has_transcript_cds_model(gene)
-                || transcript_offset_for_position(gene, variant.position).is_some()
+                || variant
+                    .changed_positions()
+                    .iter()
+                    .any(|&position| transcript_offset_for_position(gene, position).is_some())
         })
         .filter(|variant| {
             variant_has_indel_component(variant) || !variant.substitution_components().is_empty()
@@ -365,7 +376,7 @@ pub fn local_haplotype_components<'a>(
             continue;
         }
 
-        component.sort_by_key(|idx| local_variants[*idx].0.position);
+        component.sort_by_key(|idx| local_variants[*idx].0.record_start);
         components.push(
             component
                 .into_iter()

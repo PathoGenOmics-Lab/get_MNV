@@ -89,7 +89,7 @@ fn test_parse_gff_percent_encoded() {
 fn test_has_snp_in_interval_found() {
     let snps = vec![
         VcfPosition {
-            position: 100,
+            record_start: 100,
             ref_allele: "A".into(),
             alt_allele: "T".into(),
             original_dp: None,
@@ -98,7 +98,7 @@ fn test_has_snp_in_interval_found() {
             declared_phase: None,
         },
         VcfPosition {
-            position: 200,
+            record_start: 200,
             ref_allele: "G".into(),
             alt_allele: "C".into(),
             original_dp: None,
@@ -115,7 +115,7 @@ fn test_has_snp_in_interval_found() {
 #[test]
 fn test_has_snp_in_interval_not_found() {
     let snps = vec![VcfPosition {
-        position: 100,
+        record_start: 100,
         ref_allele: "A".into(),
         alt_allele: "T".into(),
         original_dp: None,
@@ -490,7 +490,7 @@ fn test_filter_genes_with_snps() {
         single_exon_gene("gene2", 500, 600, crate::variants::Strand::Minus),
     ];
     let snps = vec![VcfPosition {
-        position: 150,
+        record_start: 150,
         ref_allele: "A".into(),
         alt_allele: "T".into(),
         original_dp: None,
@@ -512,7 +512,7 @@ fn test_transcript_gene_filter_keeps_intronic_variants() {
         &[(1, 100), (150, 200)],
     )];
     let snp = |position: usize| VcfPosition {
-        position,
+        record_start: position,
         ref_allele: "A".to_string(),
         alt_allele: "G".to_string(),
         original_dp: None,
