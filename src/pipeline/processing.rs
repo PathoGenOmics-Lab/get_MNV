@@ -655,6 +655,54 @@ pub(crate) fn process_contig(
                 intergenic.push(variant);
             }
         }
+        // A base can be coding in one gene and a splice site of another that
+        // overlaps it. The fallback above only runs for a record no gene
+        // annotated at all, so once any gene emitted a codon row the splice
+        // consequence of every other gene at that base was lost: a HIGH
+        // splice_donor_variant disappeared because an unrelated overlapping gene
+        // happened to cover the base. Each gene answers for itself.
+        {
+            let named: std::collections::HashSet<(&str, &str)> = all_variants
+                .iter()
+                .chain(intergenic.iter())
+                .flat_map(|variant| {
+                    variant
+                        .event_components
+                        .iter()
+                        .map(move |label| (variant.gene.as_str(), label.as_str()))
+                })
+                .collect();
+            let mut missed = Vec::new();
+            for snp in snp_list.iter() {
+                let positions = snp.changed_positions();
+                let labels = snp.event().component_labels();
+                for gene in &genes {
+                    let Some(consequence) = positions
+                        .iter()
+                        .filter_map(|&position| {
+                            variants::splice::splice_consequence_for_position(gene, position)
+                        })
+                        .max_by_key(|consequence| consequence.severity())
+                    else {
+                        continue;
+                    };
+                    if labels
+                        .iter()
+                        .any(|label| named.contains(&(gene.name.as_str(), label.as_str())))
+                    {
+                        continue;
+                    }
+                    missed.push(variants::build_splice_variant(
+                        contig,
+                        snp,
+                        &gene.name,
+                        consequence,
+                    ));
+                }
+            }
+            intergenic.extend(missed);
+        }
+
         if !intergenic.is_empty() {
             let intergenic_count = intergenic.len();
             // These rows carry a declared phase like any other. The claim was

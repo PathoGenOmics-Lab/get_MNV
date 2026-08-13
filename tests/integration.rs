@@ -3313,3 +3313,98 @@ chr_test\t803\t.\tG\tGGGG\t100\tPASS\tDP=30\n",
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// Each overlapping gene reports its own consequence for the same base.
+///
+/// A base can be coding in one gene and a splice donor of another that overlaps
+/// it. The splice fallback only ran for a record no gene annotated at all, so
+/// once any gene emitted a codon row the splice consequence of every other gene
+/// at that base was lost: a HIGH splice_donor_variant disappeared because an
+/// unrelated overlapping gene happened to cover the base.
+#[test]
+fn test_e2e_overlapping_gene_keeps_its_splice_call() {
+    let tmp = temp_dir("e2e_overlapping_splice");
+    let vcf_path = tmp.join("overlap.vcf");
+    let ref_path = tmp.join("ref.fasta");
+    let gff_path = tmp.join("genes.gff3");
+
+    // cds-g2's intron is 21..59, so 21 and 22 are its donor +1 and +2, while
+    // cds-g1 codes over 10..45 and covers the same two bases.
+    let cds1 = format!("ATG{}", "GCT".repeat(11));
+    let intron = format!("GT{}AG", "A".repeat(21));
+    let cds2 = format!("{}TAA", "AAA".repeat(9));
+    let sequence = format!(
+        "{}{cds1}{intron}{cds2}{}",
+        "T".repeat(9),
+        "CCCGGG".repeat(10)
+    );
+    fs::write(&ref_path, format!(">c1\n{sequence}\n")).unwrap();
+    fs::write(
+        &gff_path,
+        "##gff-version 3\n\
+c1\tsyn\tCDS\t10\t45\t.\t+\t0\tID=a1;Parent=t1;Name=cds-g1\n\
+c1\tsyn\tCDS\t71\t100\t.\t+\t0\tID=a2;Parent=t1;Name=cds-g1\n\
+c1\tsyn\tCDS\t5\t20\t.\t+\t0\tID=b1;Parent=t2;Name=cds-g2\n\
+c1\tsyn\tCDS\t60\t90\t.\t+\t0\tID=b2;Parent=t2;Name=cds-g2\n",
+    )
+    .unwrap();
+
+    let base_at = |position: usize| sequence.as_bytes()[position - 1] as char;
+    let swapped = |base: char| match base {
+        'A' => 'C',
+        'C' => 'A',
+        'G' => 'T',
+        _ => 'G',
+    };
+    let mut records = String::new();
+    for position in [21usize, 22] {
+        let reference = base_at(position);
+        records.push_str(&format!(
+            "c1\t{position}\t.\t{reference}\t{}\t100\tPASS\tDP=30\n",
+            swapped(reference)
+        ));
+    }
+    fs::write(
+        &vcf_path,
+        format!(
+            "##fileformat=VCFv4.2\n\
+##contig=<ID=c1,length={}>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n{records}",
+            sequence.len()
+        ),
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = None;
+    args.gff_file = Some(gff_path.to_string_lossy().into());
+    args.gff_features_raw = Some("CDS".to_string());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("overlap".to_string());
+
+    pipeline::run(&args).expect("pipeline should annotate both genes");
+
+    let rows = read_tsv_rows(&tmp.join("overlap.MNV.tsv"));
+    let call = |gene: &str, position: &str| -> String {
+        rows.iter()
+            .find(|row| {
+                row.get("Gene").map(String::as_str) == Some(gene)
+                    && row.get("Positions").map(String::as_str) == Some(position)
+            })
+            .unwrap_or_else(|| panic!("no row for {gene} at {position}: {rows:?}"))
+            .get("SO Term")
+            .cloned()
+            .unwrap_or_default()
+    };
+
+    // The coding gene keeps its call...
+    assert_eq!(call("cds-g1", "21"), "synonymous_variant");
+    assert_eq!(call("cds-g1", "22"), "missense_variant");
+    // ...and the gene whose donor these bases are keeps its own.
+    assert_eq!(call("cds-g2", "21"), "splice_donor_variant");
+    assert_eq!(call("cds-g2", "22"), "splice_donor_variant");
+
+    fs::remove_dir_all(&tmp).ok();
+}
