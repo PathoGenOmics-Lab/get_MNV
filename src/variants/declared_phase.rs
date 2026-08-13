@@ -8,6 +8,7 @@
 //! than folded into it.
 
 use crate::io::{DeclaredPhase, VcfPosition};
+use crate::variants::event::AlleleComponentKind;
 
 use super::types::{DeclaredPhaseCall, LinkageVerdict};
 
@@ -83,6 +84,14 @@ pub fn declared_phase_for_row(
 /// The record is matched by an allele component that agrees on both the
 /// coordinate and the base, which also covers an MNP decomposed across several
 /// row positions.
+///
+/// The component must also be a substitution. An insertion is anchored at the
+/// base it follows and its component carries the *inserted* sequence, so the
+/// record `28 G>GT` yields the component `(28, "T")`, byte for byte the one the
+/// SNV `28 G>T` yields. Without the kind test the insertion's `GT`/`PS` was
+/// published as the SNV's declared phase, so a row claimed a haplotype the input
+/// never placed it on, and which of the two records came first in the file
+/// decided the answer.
 fn declared_phase_at<'a>(
     position: usize,
     alternate: &str,
@@ -93,7 +102,8 @@ fn declared_phase_at<'a>(
         .find(|variant| {
             variant.declared_phase.is_some()
                 && variant.event().components.iter().any(|component| {
-                    component.position == position
+                    matches!(component.kind, AlleleComponentKind::Snp)
+                        && component.position == position
                         && component.alt_allele.eq_ignore_ascii_case(alternate)
                 })
         })

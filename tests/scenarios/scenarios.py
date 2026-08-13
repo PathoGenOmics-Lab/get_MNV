@@ -2611,6 +2611,67 @@ scenario_intergenic_indel_threshold = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 66: una insercion no le presta su fase declarada a una sustitucion que
+# empieza en la misma coordenada. La insercion 28 G>GT se ancla en la base que
+# sigue y su componente lleva la secuencia insertada, asi que sale (28, "T"),
+# byte a byte el componente de la SNV 28 G>T. Sin mirar el tipo, la fila de la
+# SNV publicaba el GT/PS de la insercion y avisaba de una contradiccion con las
+# lecturas sobre algo que el VCF nunca dijo.
+scenario_insertion_does_not_lend_phase = Scenario(
+    name="66_insertion_does_not_lend_declared_phase",
+    description="Insercion 28 G>GT con 0|1:1000 junto a la SNV 28 G>T sin fase: la fila de codon no hereda la fase de la insercion",
+    variants=[
+        VcfRecord(pos=28, ref="G", alt="GT", genotype="0|1", phase_set=1000),
+        VcfRecord(pos=28, ref="G", alt="T", genotype="1/1"),
+        VcfRecord(pos=30, ref="T", alt="A", genotype="1|0", phase_set=1000),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_both",
+            start=1,
+            length=100,
+            ops=[Op(kind="snv", pos=28, seq="T"), Op(kind="snv", pos=30, seq="A")],
+            count=20,
+        ),
+    ],
+    expected=[
+        ExpectedRow(positions="28", variant_type="INDEL", declared_phase="-"),
+        ExpectedRow(positions="28, 30", declared_phase="-"),
+    ],
+)
+
+
+# ---------------------------------------------------------------------------
+# 67: un MNP fuera de todo gen conserva la fase que declara el VCF. La lectura
+# de la afirmacion vivia solo en el camino por gen, asi que la misma pareja
+# GT/PS salia cis dentro del gen y vacia una base mas alla.
+scenario_intergenic_keeps_declared_phase = Scenario(
+    name="67_intergenic_row_keeps_declared_phase",
+    description="MNP intergenico con 1|0:1000: la fila conserva cis:1000 igual que la de dentro del gen",
+    variants=[
+        VcfRecord(pos=750, ref="AA", alt="TG", genotype="1|0", phase_set=1000),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_hap",
+            start=700,
+            length=100,
+            ops=[Op(kind="snv", pos=750, seq="T"), Op(kind="snv", pos=751, seq="G")],
+            count=20,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            gene="intergenic",
+            positions="750, 751",
+            declared_phase="cis:1000",
+        ),
+    ],
+    expected_row_count=1,
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -2687,6 +2748,8 @@ ALL_SCENARIOS = [
     scenario_slippage_shared_base,
     scenario_intergenic_mnv_threshold,
     scenario_intergenic_indel_threshold,
+    scenario_insertion_does_not_lend_phase,
+    scenario_intergenic_keeps_declared_phase,
 ]
 
 

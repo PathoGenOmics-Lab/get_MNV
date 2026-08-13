@@ -542,6 +542,12 @@ pub(crate) fn process_contig(
         }
         if !intergenic.is_empty() {
             let intergenic_count = intergenic.len();
+            // These rows carry a declared phase like any other. The claim was
+            // only read inside the per-gene fold, so an MNP with the same
+            // `GT`/`PS` reported cis inside a gene and nothing at all one base
+            // outside it: the same input claim, kept or lost by which code path
+            // happened to build the row.
+            annotate_declared_phase(&mut intergenic, snp_list);
             if should_count_reads {
                 count_intergenic_variant_reads(args, contig, &mut intergenic)?;
             }
