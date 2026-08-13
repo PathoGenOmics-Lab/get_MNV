@@ -43,7 +43,13 @@ pub(super) fn protein_effect_for_indel(
         );
     };
 
-    let frameshift = (alt_cds.len() as isize - ref_cds.len() as isize) % 3 != 0;
+    // Whether the frame shifts is a property of the whole feature, so it is
+    // measured there rather than on the phase-trimmed sequences translated
+    // below: those omit the leading coding bases and undercounted a deletion
+    // that reached into them.
+    let frameshift = coding_delta_for_variant(gene, reference, variant)
+        .map(|delta| delta % 3 != 0)
+        .unwrap_or((alt_cds.len() as isize - ref_cds.len() as isize) % 3 != 0);
     let ref_protein = translate_cds(&ref_cds, genetic_code);
     let alt_protein = translate_cds(&alt_cds, genetic_code);
 
@@ -57,8 +63,11 @@ pub(super) fn protein_effect_for_indel(
         base_change_type,
     );
 
-    let (protein_change, local_change) =
-        describe_protein_change(&ref_protein, &alt_protein, gene.protein_offset, frameshift);
+    let (protein_change, local_change) = if touches_phase_skipped_bases(gene, variant) {
+        ("Unknown".to_string(), "Unknown".to_string())
+    } else {
+        describe_protein_change(&ref_protein, &alt_protein, gene.protein_offset, frameshift)
+    };
 
     let transcript_codon = first_touched_transcript_offset(gene, variant).and_then(|offset| {
         let codon_start = (offset / 3) * 3;
@@ -115,13 +124,46 @@ pub(super) fn protein_effect_for_indel(
     )
 }
 
+/// Whether the variant reaches into the bases the declared phase skips.
+///
+/// Those bases code, but their codon began in a neighbouring exon, so a single
+/// CDS row cannot rebuild it. An indel that reaches into them changes the length
+/// of a codon this row cannot see, and translating the phase-trimmed window then
+/// describes a protein change that never happened: a three-base deletion came out
+/// as a five-residue delins because the window lost two bases rather than three.
+/// The length change is still known, so the row keeps its in-frame or frameshift
+/// classification and says the residues themselves are unknown.
+fn touches_phase_skipped_bases(gene: &Gene, variant: &VcfPosition) -> bool {
+    if gene.phase == 0 || !gene.cds_segments.is_empty() {
+        return false;
+    }
+    let phase = gene.phase as usize;
+    let (skip_start, skip_end) = match gene.strand {
+        crate::variants::Strand::Plus => (gene.start, gene.start + phase - 1),
+        crate::variants::Strand::Minus => (gene.end.saturating_sub(phase - 1), gene.end),
+    };
+    variant.overlaps_interval(skip_start, skip_end + 1)
+}
+
+/// How many coding bases the variant adds to or removes from the feature.
+///
+/// Measured over the whole feature, phase included. The phase-trimmed window
+/// exists because the codon those leading bases belong to began in a neighbouring
+/// exon and cannot be rebuilt from this row, which is a reason not to translate
+/// them, not a reason to call them non-coding: the declared phase is precisely
+/// the statement that they code. Measuring the delta over the trimmed window
+/// counted a deletion of three coding bases as two whenever it reached into that
+/// region, so an in-frame deletion was reported as a frameshift and dragged
+/// `(fs)` onto every downstream codon of the feature.
 pub(super) fn coding_delta_for_variant(
     gene: &Gene,
     reference: &crate::io::Reference<'_>,
     variant: &VcfPosition,
 ) -> Option<isize> {
-    let ref_cds = coding_sequence_for_gene(gene, reference)?;
-    let alt_cds = apply_allele_to_feature(gene, reference, variant)?;
+    let mut whole_feature = gene.clone();
+    whole_feature.phase = 0;
+    let ref_cds = coding_sequence_for_gene(&whole_feature, reference)?;
+    let alt_cds = apply_allele_to_feature(&whole_feature, reference, variant)?;
     Some(alt_cds.len() as isize - ref_cds.len() as isize)
 }
 

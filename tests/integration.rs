@@ -2997,3 +2997,73 @@ chr1\t30\t.\tAGCA\tA\t100\tPASS\t.\n"
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// The bases a declared phase skips still count towards an indel's length.
+///
+/// A phase of 2 means the first two bases of the CDS row belong to a codon that
+/// began in a neighbouring exon: they code, they just cannot be translated from
+/// this row alone. Measuring the indel's length change over the phase-trimmed
+/// window counted a deletion of three coding bases as two, so an in-frame
+/// deletion was reported as a frameshift and dragged "(fs)" onto every downstream
+/// codon of the feature, where bcftools csq reports plain missense.
+#[test]
+fn test_e2e_phase_skipped_bases_count_towards_indel_length() {
+    let tmp = temp_dir("e2e_phase_skipped_delta");
+    let vcf_path = tmp.join("phase.vcf");
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+
+    fs::write(
+        &ref_path,
+        ">chr1\nTTTTTTTTTAAGCTGCAGCTGCAGCTGCATTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT\n",
+    )
+    .unwrap();
+    // CDS 10-29 on the plus strand with phase 2: genomic 10 and 11 are skipped.
+    fs::write(&genes_path, "gA\t10\t29\t+\t2\n").unwrap();
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=60>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t10\t.\tAAGC\tA\t100\tPASS\tDP=30\n\
+chr1\t18\t.\tG\tC\t100\tPASS\tDP=30\n",
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("phase".to_string());
+
+    pipeline::run(&args).expect("pipeline should annotate the deletion and the substitution");
+
+    let rows = read_tsv_rows(&tmp.join("phase.MNV.tsv"));
+    let field = |position: &str, column: &str| -> String {
+        rows.iter()
+            .find(|row| row.get("Positions").map(String::as_str) == Some(position))
+            .unwrap_or_else(|| panic!("no row at {position}: {rows:?}"))
+            .get(column)
+            .cloned()
+            .unwrap_or_default()
+    };
+
+    // Three coding bases removed: the frame downstream is unchanged.
+    assert_eq!(field("10", "SO Term"), "inframe_deletion");
+    assert_eq!(field("10", "Change Type"), "In-frame Indel");
+    // The affected codon began in a neighbouring exon, so the residues that
+    // changed cannot be named from this row.
+    assert_eq!(field("10", "AA Changes"), "Unknown");
+
+    // The substitution downstream is a plain missense, not a frameshifted codon.
+    assert_eq!(field("18", "SO Term"), "missense_variant");
+    assert_eq!(field("18", "Change Type"), "Non-synonymous");
+    let downstream_aa = field("18", "AA Changes");
+    assert!(
+        !downstream_aa.contains("fs"),
+        "no frameshift to propagate: {downstream_aa}"
+    );
+
+    fs::remove_dir_all(&tmp).ok();
+}
