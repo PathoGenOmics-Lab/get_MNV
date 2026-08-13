@@ -258,29 +258,47 @@ impl VcfWriter {
 
     pub(super) fn write_intergenic(&mut self, variant: &VariantInfo) -> AppResult<()> {
         validate_variant_shape(variant)?;
-        let ref_base = get_required(&variant.ref_bases, 0, "ref_bases", variant)?;
-        let alt_base = get_required(&variant.base_changes, 0, "base_changes", variant)?;
-        let pos = *get_required(&variant.positions, 0, "positions", variant)?;
+        // One record per base that changes. These rows carry an entry per
+        // changed base, as the gene path's do, and writing only the first left
+        // the second base of a multi-base substitution in the TSV and out of the
+        // VCF: two outputs of one run disagreeing about what was called. An
+        // indel row has a single entry, so this loop runs once for it.
+        for index in 0..variant.positions.len() {
+            self.write_intergenic_entry(variant, index)?;
+        }
+        Ok(())
+    }
+
+    fn write_intergenic_entry(&mut self, variant: &VariantInfo, index: usize) -> AppResult<()> {
+        let ref_base = get_required(&variant.ref_bases, index, "ref_bases", variant)?;
+        let alt_base = get_required(&variant.base_changes, index, "base_changes", variant)?;
+        let pos = *get_required(&variant.positions, index, "positions", variant)?;
 
         // Intergenic SNPs are read-counted at their position, so they are
         // filtered by their real support exactly like any SNP. Intergenic
         // indels carry no read counts and are always emitted.
-        let snp_support = if self.bam_provided && variant.variant_type == VariantType::Snp {
-            let support = variant.snp_reads.as_ref().and_then(|c| c.first()).copied();
+        let counted_substitution =
+            matches!(variant.variant_type, VariantType::Snp | VariantType::Mnv);
+        let snp_support = if self.bam_provided && counted_substitution {
+            let support = variant
+                .snp_reads
+                .as_ref()
+                .and_then(|c| c.get(index))
+                .copied();
             let forward = variant
                 .snp_forward_reads
                 .as_ref()
-                .and_then(|c| c.first())
+                .and_then(|c| c.get(index))
                 .copied();
             let reverse = variant
                 .snp_reverse_reads
                 .as_ref()
-                .and_then(|c| c.first())
+                .and_then(|c| c.get(index))
                 .copied();
             let depth = variant
                 .total_reads
                 .as_ref()
-                .and_then(|c| c.first())
+                .and_then(|c| c.get(index))
                 .copied();
             match (support, forward, reverse, depth) {
                 (Some(s), Some(f), Some(r), Some(d)) => Some((s, f, r, d)),
@@ -294,7 +312,7 @@ impl VcfWriter {
         // --min-strand-bias-p filter and the SBP INFO field apply to intergenic
         // SNPs too (the strand read counts are populated for them).
         let strand_bias_p = if snp_support.is_some() {
-            self.snp_strand_bias(variant, 0)
+            self.snp_strand_bias(variant, index)
         } else {
             None
         };
@@ -311,7 +329,7 @@ impl VcfWriter {
                     strand_bias_p,
                 })
             }
-            None if self.bam_provided && variant.variant_type != VariantType::Snp => {
+            None if self.bam_provided && !counted_substitution => {
                 // Intergenic indels carry no recomputed read support, so they
                 // cannot satisfy a read-based filter; drop them when the relevant
                 // MNV filters are active, matching the TSV output (support = 0).
@@ -338,7 +356,7 @@ impl VcfWriter {
             variant.variant_type.as_str(),
             snp_support.map(|(s, f, r, _)| (s, f, r)),
             None,
-            Some(0),
+            Some(index),
             snp_support.map(|(_, _, _, d)| d),
             snp_support.map(|(s, _, _, _)| s),
             if self.include_strand_bias_info {

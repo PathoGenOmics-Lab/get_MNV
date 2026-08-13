@@ -2657,3 +2657,68 @@ fn test_sample_all_manifest_records_a_checksum_for_every_sample() {
 
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+/// An intergenic substitution spanning two bases must reach the VCF whole.
+///
+/// The TSV row for one of these carries an entry per changed base. The VCF
+/// writer read only the first entry, so the second base appeared in the TSV and
+/// nowhere in the VCF: two outputs of a single run disagreeing about what had
+/// been called. Reference: a row with two positions writes two records.
+#[test]
+fn test_e2e_intergenic_multibase_writes_every_base_to_vcf() {
+    let tmp = temp_dir("e2e_intergenic_multibase_vcf");
+    let vcf_path = tmp.join("interg.vcf");
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.3\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t2\t.\tAT\tCG\t60\tPASS\tDP=12;AF=0.5\n",
+    )
+    .unwrap();
+    fs::write(&ref_path, ">chr1\nCATGAAATTTGGGCCC\n").unwrap();
+    // El gen queda lejos: las dos bases son intergenicas.
+    fs::write(&genes_path, "gene1\t10\t16\t+\n").unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("interg".to_string());
+    args.both = true;
+
+    let summary = pipeline::run(&args).expect("pipeline should annotate intergenic substitution");
+    assert_eq!(summary.global.intergenic_variants, 1);
+
+    let rows = read_tsv_rows(&tmp.join("interg.MNV.tsv"));
+    assert_eq!(rows.len(), 1, "one TSV row for the intergenic substitution");
+    let tsv_positions = rows[0]
+        .get("Positions")
+        .expect("Positions column")
+        .split(", ")
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    assert_eq!(tsv_positions, vec!["2".to_string(), "3".to_string()]);
+
+    let vcf_body = fs::read_to_string(tmp.join("interg.MNV.vcf")).expect("VCF written");
+    let records: Vec<&str> = vcf_body
+        .lines()
+        .filter(|line| !line.starts_with('#') && !line.trim().is_empty())
+        .collect();
+    let vcf_positions: Vec<String> = records
+        .iter()
+        .map(|line| line.split('\t').nth(1).unwrap_or_default().to_string())
+        .collect();
+    assert_eq!(
+        vcf_positions, tsv_positions,
+        "every base of the TSV row must have a VCF record: {records:?}"
+    );
+    let alts: Vec<&str> = records
+        .iter()
+        .map(|line| line.split('\t').nth(4).unwrap_or_default())
+        .collect();
+    assert_eq!(alts, vec!["C", "G"], "each record carries its own base");
+}
