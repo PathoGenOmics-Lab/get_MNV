@@ -2913,3 +2913,87 @@ chr1\t170\t.\tT\tA\t100\tPASS\tDP=30\n",
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// An NMD verdict needs a stop that is actually premature.
+///
+/// The alternate protein's first stop was compared with the reference's by index,
+/// in two proteins of different length. Deleting one codon moves the same natural
+/// stop one index down, so every in-frame deletion was called premature and got an
+/// NMD verdict; adding codons moves it up, so a stop an insertion genuinely
+/// introduced got none. Both rows come from one run of the same two-exon
+/// transcript.
+#[test]
+fn test_e2e_nmd_verdict_needs_a_premature_stop() {
+    let tmp = temp_dir("e2e_nmd_premature_stop");
+    let vcf_path = tmp.join("nmd.vcf");
+    let ref_path = tmp.join("ref.fasta");
+    let gff_path = tmp.join("genes.gff3");
+
+    // Exon 1 = 1..90, intron 91..190, exon 2 = 191..280. Spliced CDS is
+    // ATG + 58 Ala + stop, so the last exon-exon junction sits at CDS offset 90.
+    let exon1 = format!("ATG{}", "GCA".repeat(29));
+    let intron = format!("GT{}AG", "T".repeat(96));
+    let exon2 = format!("{}TAA", "GCA".repeat(29));
+    fs::write(&ref_path, format!(">chr1\n{exon1}{intron}{exon2}\n")).unwrap();
+    fs::write(
+        &gff_path,
+        "##gff-version 3\n\
+chr1\tsyn\tgene\t1\t280\t.\t+\t.\tID=gene-g1;Name=g1\n\
+chr1\tsyn\tmRNA\t1\t280\t.\t+\t.\tID=mrna-g1;Parent=gene-g1;Name=g1\n\
+chr1\tsyn\tCDS\t1\t90\t.\t+\t0\tID=c1;Parent=mrna-g1;Name=g1\n\
+chr1\tsyn\tCDS\t191\t280\t.\t+\t0\tID=c2;Parent=mrna-g1;Name=g1\n",
+    )
+    .unwrap();
+
+    // An in-frame insertion of 59 codons plus a stop, and a plain 3 nt deletion.
+    let insertion = format!("A{}TAA", "GCA".repeat(59));
+    fs::write(
+        &vcf_path,
+        format!(
+            "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=280>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t21\t.\tA\t{insertion}\t100\tPASS\t.\n\
+chr1\t30\t.\tAGCA\tA\t100\tPASS\t.\n"
+        ),
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = None;
+    args.gff_file = Some(gff_path.to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("nmd".to_string());
+
+    pipeline::run(&args).expect("pipeline should annotate both indels");
+
+    let rows = read_tsv_rows(&tmp.join("nmd.MNV.tsv"));
+    let field = |position: &str, column: &str| -> String {
+        rows.iter()
+            .find(|row| row.get("Positions").map(String::as_str) == Some(position))
+            .unwrap_or_else(|| panic!("no row at {position}: {rows:?}"))
+            .get(column)
+            .cloned()
+            .unwrap_or_default()
+    };
+
+    // The insertion carries its own stop, 59 codons before the natural one.
+    assert_eq!(field("21", "SO Term"), "stop_gained");
+    assert_eq!(
+        field("21", "NMD Prediction"),
+        "NMD-triggering",
+        "a stop the insertion introduced is premature"
+    );
+
+    // The deletion removes one codon and gains no stop at all.
+    assert_eq!(field("30", "SO Term"), "inframe_deletion");
+    assert_eq!(
+        field("30", "NMD Prediction"),
+        "-",
+        "the natural stop simply moved one index down"
+    );
+
+    fs::remove_dir_all(&tmp).ok();
+}

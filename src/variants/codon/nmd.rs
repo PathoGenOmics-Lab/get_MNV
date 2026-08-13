@@ -84,13 +84,29 @@ pub(super) fn indel_nmd_prediction(
     let alt_protein = translate_cds(&alt_cds, genetic_code);
 
     // The premature stop is the alternate protein's first stop, and only when it
-    // truncates earlier than the reference's natural stop.
-    let ref_stop = ref_protein.find('*').unwrap_or(ref_protein.len());
+    // sits earlier in the transcript than the reference's natural stop. Both
+    // positions have to be read on the same ruler: comparing their indices in two
+    // proteins of different length made every in-frame deletion look premature,
+    // because deleting a codon moves the same natural stop one index down, and it
+    // hid a real premature stop created by an insertion, because adding codons
+    // moves it up. The alternate stop is mapped back through the indel's length
+    // change, which leaves the in-frame deletion's stop exactly where it was.
+    let ref_stop_offset = ref_protein.find('*').unwrap_or(ref_protein.len()) * 3;
     let alt_stop = alt_protein.find('*')?;
-    if alt_stop >= ref_stop {
+    let ptc_cds_offset = alt_stop * 3;
+    let delta = alt_cds.len() as isize - ref_cds.len() as isize;
+    let indel_offset = first_touched_transcript_offset(gene, variant);
+    let stop_is_downstream_of_indel = indel_offset.is_some_and(|offset| ptc_cds_offset >= offset);
+    let stop_in_reference_coordinates = if stop_is_downstream_of_indel {
+        ptc_cds_offset as isize - delta
+    } else {
+        ptc_cds_offset as isize
+    };
+    if stop_in_reference_coordinates < 0
+        || stop_in_reference_coordinates as usize >= ref_stop_offset
+    {
         return None;
     }
-    let ptc_cds_offset = alt_stop * 3;
 
     // Place the last junction in alternate-CDS coordinates: the terminal region's
     // length is unchanged unless the indel lands inside it, so an indel upstream
