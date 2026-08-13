@@ -2722,3 +2722,69 @@ chr1\t2\t.\tAT\tCG\t60\tPASS\tDP=12;AF=0.5\n",
         .collect();
     assert_eq!(alts, vec!["C", "G"], "each record carries its own base");
 }
+
+/// Each sample of a cohort is annotated for the alleles its genotype carries.
+///
+/// A VCF record lists every ALT seen at that site across the cohort. Annotating
+/// all of them for every sample made each sample carry every variant, so the
+/// cohort matrix of `--sample all` claimed a call for a sample whose genotype
+/// reads 0/0, and two adjacent sites merged into an MNV for a sample that had
+/// only one of them. A sample carrying nothing must also leave the rest of the
+/// cohort alone instead of aborting the run.
+#[test]
+fn test_e2e_sample_all_respects_each_genotype() {
+    let tmp = temp_dir("e2e_sample_all_genotypes");
+    let vcf_path = tmp.join("cohort.vcf");
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+
+    // S1 lleva solo la 11, S2 lleva la 10 y la 11 (un MNV), S3 no lleva nada.
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1>\n\
+##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\tS2\tS3\n\
+chr1\t10\t.\tA\tC\t60\tPASS\tDP=30\tGT\t0/0\t1/1\t0/0\n\
+chr1\t11\t.\tA\tC\t60\tPASS\tDP=30\tGT\t1/1\t1/1\t0/0\n",
+    )
+    .unwrap();
+    fs::write(&ref_path, ">chr1\nATGCCTAAAAAGGGTTTCCCATGCCTAAAG\n").unwrap();
+    fs::write(&genes_path, "gene1\t1\t30\t+\n").unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("cohort".to_string());
+    args.sample = Some("all".to_string());
+
+    pipeline::run(&args).expect("a sample carrying nothing must not abort the cohort");
+
+    let positions = |sample: &str| -> Vec<String> {
+        let path = tmp.join(format!("cohort.sample_{sample}.MNV.tsv"));
+        assert!(path.exists(), "{sample} should get an output file");
+        read_tsv_rows(&path)
+            .iter()
+            .map(|row| row.get("Positions").cloned().unwrap_or_default())
+            .collect()
+    };
+
+    assert_eq!(
+        positions("S1"),
+        vec!["11".to_string()],
+        "S1 carries only 11"
+    );
+    assert_eq!(
+        positions("S2"),
+        vec!["10, 11".to_string()],
+        "S2 carries both, so they merge into one MNV row"
+    );
+    assert!(
+        positions("S3").is_empty(),
+        "S3 carries nothing and gets an empty file, not a row"
+    );
+
+    fs::remove_dir_all(&tmp).ok();
+}

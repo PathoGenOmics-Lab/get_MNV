@@ -190,6 +190,14 @@ fn expected_output_paths(config: &AnalysisConfig) -> Result<Vec<String>, String>
 
     let base_name = get_mnv::io::get_base_name(args.variant_file()).map_err(|e| e.to_string())?;
     let stem_name = args.output_prefix.clone().unwrap_or(base_name);
+    // With --sample all the run writes one file set per sample, each carrying the
+    // sample in its name, so a single stem would name a file that is never
+    // written. Listing per-sample names needs the sample list, which this preview
+    // does not read, so say the outputs are per sample instead of naming one that
+    // will not exist.
+    if args.sample.as_deref() == Some("all") {
+        return Ok(vec![format!("{stem_name}.sample_<SAMPLE>.MNV.*")]);
+    }
     let output_stem = match &args.output_dir {
         Some(dir) => std::path::Path::new(dir)
             .join(&stem_name)

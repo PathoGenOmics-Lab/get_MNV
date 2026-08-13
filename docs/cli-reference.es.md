@@ -22,7 +22,7 @@ TSV ya existentes y no necesita ninguna de las tres.
 | `--tsv <FILE>` | Entrada `variants.tsv` de iVar. |
 | `-b, --bam <FILE>` | Lecturas alineadas opcionales para soporte de lecturas. Debe estar ordenado por coordenadas e indexado. |
 | `-f, --fasta <FILE>` | FASTA de referencia (requerido). |
-| `--sample <NAME>` | Muestra para las métricas FORMAT originales en un VCF multimuestra (por defecto: primera muestra; `all` para todas). |
+| `--sample <NAME>` | Muestra que se anota en un VCF multimuestra (por defecto: primera muestra; `all` para todas). Sus métricas FORMAT pasan a ser la profundidad y la frecuencia originales, y su genotipo decide qué alelos ALT lleva. |
 | `--chrom <NAME>` | Restringe el procesamiento a un solo contig (por defecto: todos los contigs de la entrada). |
 
 ## Anotación

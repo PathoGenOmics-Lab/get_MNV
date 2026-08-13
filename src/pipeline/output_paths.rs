@@ -13,10 +13,13 @@ pub(crate) struct OutputPaths {
 impl OutputPaths {
     /// Resolve output paths from CLI args, base name, and optional sample suffix.
     pub fn resolve(args: &Args, base_name: &str, sample_suffix: Option<&str>) -> Self {
-        let base_stem = super::config::append_sample_suffix(base_name, sample_suffix);
+        // The sample suffix applies to a caller-supplied prefix too. Without it
+        // every sample of a `--sample all` run wrote to the same file name and
+        // overwrote the one before, so a cohort of ten produced one file holding
+        // the last sample, with nothing to say the other nine had been lost.
         let stem_name = match &args.output_prefix {
-            Some(prefix) => prefix.clone(),
-            None => base_stem,
+            Some(prefix) => super::config::append_sample_suffix(prefix, sample_suffix),
+            None => super::config::append_sample_suffix(base_name, sample_suffix),
         };
         let output_stem = match &args.output_dir {
             Some(dir) => {
@@ -58,5 +61,32 @@ impl OutputPaths {
             vcf,
             bcf,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OutputPaths;
+    use clap::Parser;
+
+    #[test]
+    fn test_output_prefix_keeps_the_sample_suffix() {
+        let mut args = crate::cli::Args::parse_from([
+            "get_mnv", "--vcf", "v.vcf", "--fasta", "r.fasta", "--genes", "g.txt",
+        ]);
+        args.output_prefix = Some("custom".to_string());
+
+        let one = OutputPaths::resolve(&args, "cohort", Some("S1"));
+        let two = OutputPaths::resolve(&args, "cohort", Some("S2"));
+        assert_eq!(one.tsv.as_deref(), Some("custom.sample_S1.MNV.tsv"));
+        assert_eq!(two.tsv.as_deref(), Some("custom.sample_S2.MNV.tsv"));
+        assert_ne!(
+            one.tsv, two.tsv,
+            "two samples must not write to the same file"
+        );
+
+        // Sin muestra el prefijo se usa tal cual.
+        let plain = OutputPaths::resolve(&args, "cohort", None);
+        assert_eq!(plain.tsv.as_deref(), Some("custom.MNV.tsv"));
     }
 }

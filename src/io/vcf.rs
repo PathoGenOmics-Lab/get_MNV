@@ -106,6 +106,37 @@ pub fn parse_declared_phase(
     })
 }
 
+/// Whether the selected sample's genotype carries ALT number `alt_index`.
+///
+/// A VCF record lists every ALT seen at that site across the whole cohort, so a
+/// multi-sample file names alleles a given sample does not have. Annotating all
+/// of them for every sample made each sample carry every variant: the cohort
+/// matrix of `--sample all` showed a variant for a sample whose genotype reads
+/// `0/0`. A genotype that is absent, empty or partly a no-call says nothing
+/// about carriage and keeps the allele, since unknown is not absence, and so
+/// does one this parser cannot read.
+pub fn sample_carries_alt(genotype: Option<&str>, alt_index: usize) -> bool {
+    let Some(genotype) = genotype else {
+        return true;
+    };
+    let genotype = genotype.trim();
+    if genotype.is_empty() || genotype == "." {
+        return true;
+    }
+    let wanted = (alt_index + 1).to_string();
+    let mut fully_called = false;
+    for allele in genotype.split(['/', '|']) {
+        if allele == wanted {
+            return true;
+        }
+        if allele == "." || allele.parse::<usize>().is_err() {
+            return true;
+        }
+        fully_called = true;
+    }
+    !fully_called
+}
+
 impl VcfPosition {
     pub fn event(&self) -> AlleleEvent {
         decompose_allele(self.position, &self.ref_allele, &self.alt_allele)
@@ -632,6 +663,7 @@ pub fn load_vcf_positions_by_contig(
 
     let mut positions_by_contig: HashMap<String, Vec<VcfPosition>> = HashMap::new();
     let mut split_count = 0usize;
+    let mut not_carried = 0usize;
     let mut record_idx = 0usize;
     let mut header_seen = false;
 
@@ -700,6 +732,7 @@ pub fn load_vcf_positions_by_contig(
         let phase_set =
             sample_field.and_then(|sample| get_format_value(&format_keys, sample, "PS"));
 
+        let mut pushed_here = 0usize;
         for (alt_idx, alt_allele) in alts.iter().enumerate() {
             if alt_allele.is_empty() || *alt_allele == "." {
                 return Err(format!(
@@ -707,6 +740,10 @@ pub fn load_vcf_positions_by_contig(
                     record_idx, pos, ref_allele, alt_allele
                 )
                 .into());
+            }
+            if !sample_carries_alt(genotype, alt_idx) {
+                not_carried += 1;
+                continue;
             }
             let (normalized_pos, normalized_ref, normalized_alt) = if normalize_alleles {
                 normalize_ref_alt(pos, ref_allele, alt_allele)
@@ -741,10 +778,9 @@ pub fn load_vcf_positions_by_contig(
                     original_info,
                     declared_phase: parse_declared_phase(genotype, phase_set, alt_idx),
                 });
+            pushed_here += 1;
         }
-        if alts.len() > 1 {
-            split_count += alts.len() - 1;
-        }
+        split_count += pushed_here.saturating_sub(1);
     }
 
     if !header_seen {
@@ -757,6 +793,11 @@ pub fn load_vcf_positions_by_contig(
 
     if split_multiallelic && split_count > 0 {
         log::info!("Split {split_count} additional ALT alleles from multiallelic VCF records");
+    }
+    if not_carried > 0 {
+        log::info!(
+            "Skipped {not_carried} ALT alleles the selected sample's genotype does not carry"
+        );
     }
 
     Ok(positions_by_contig)
@@ -779,6 +820,33 @@ mod tests {
             original_info: None,
             declared_phase: None,
         }
+    }
+
+    #[test]
+    fn test_sample_carries_alt_reads_the_genotype() {
+        use super::sample_carries_alt;
+        // Sin genotipo no se sabe nada, asi que se conserva el alelo.
+        assert!(sample_carries_alt(None, 0));
+        assert!(sample_carries_alt(Some("./."), 0));
+        assert!(sample_carries_alt(Some("."), 0));
+        assert!(sample_carries_alt(Some(""), 0));
+        // Una llamada completa sin ALT dice que la muestra no lo lleva.
+        assert!(!sample_carries_alt(Some("0/0"), 0));
+        assert!(!sample_carries_alt(Some("0|0"), 0));
+        assert!(!sample_carries_alt(Some("0"), 0));
+        // Y una que si lo lleva.
+        assert!(sample_carries_alt(Some("0/1"), 0));
+        assert!(sample_carries_alt(Some("1|1"), 0));
+        assert!(sample_carries_alt(Some("1"), 0));
+        // Multialelico: 1/2 lleva los dos, 1/1 solo el primero.
+        assert!(sample_carries_alt(Some("1/2"), 0));
+        assert!(sample_carries_alt(Some("1/2"), 1));
+        assert!(sample_carries_alt(Some("1/1"), 0));
+        assert!(!sample_carries_alt(Some("1/1"), 1));
+        // Un genotipo a medias no descarta nada.
+        assert!(sample_carries_alt(Some("./1"), 1));
+        assert!(sample_carries_alt(Some("0/."), 0));
+        assert!(sample_carries_alt(Some("raro"), 0));
     }
 
     #[test]

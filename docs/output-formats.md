@@ -20,6 +20,14 @@ in its name:
 Characters that cannot appear in a file name are replaced, so a sample called
 `sample/1:bad` becomes `sample_1_bad`.
 
+Each file holds the variants that sample carries, not every variant in the
+cohort. A record lists every ALT seen at that site across all samples, so the
+sample's `GT` decides which of them belong to it: a genotype of `0/0` carries
+none, `1/2` carries both alleles of a multiallelic record, and a genotype that is
+absent or a no-call (`./.`) keeps the allele, since unknown is not absence. A
+sample carrying nothing gets a file with only the header. Two adjacent
+substitutions merge into an MNV only for the samples that carry both.
+
 Use this format for spreadsheets, downstream parsing, and quick inspection.
 
 Main columns:
@@ -344,5 +352,5 @@ so a cohort of tens of thousands of variants stays in the low megabytes.
 - SNP and MNV frequency filters are independent, so a strong MNV haplotype is
   not removed by a stricter SNP-frequency threshold.
 - SNP and MNV read-support and strand-support filters are also independent.
-- `--sample all` writes one output set per VCF sample.
+- `--sample all` writes one output set per VCF sample, each holding the variants that sample's genotype carries.
 - `--keep-original-info` preserves non-get_MNV INFO fields from the input VCF.

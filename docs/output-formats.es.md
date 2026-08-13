@@ -20,6 +20,15 @@ nombre:
 Los caracteres que no pueden aparecer en un nombre de archivo se sustituyen, así
 que una muestra llamada `sample/1:bad` pasa a ser `sample_1_bad`.
 
+Cada archivo contiene las variantes que lleva esa muestra, no todas las de la
+cohorte. Un registro enumera todos los ALT vistos en ese sitio en el conjunto de
+muestras, así que el `GT` de la muestra decide cuáles le corresponden: un
+genotipo `0/0` no lleva ninguno, `1/2` lleva los dos alelos de un registro
+multialélico, y un genotipo ausente o sin llamada (`./.`) conserva el alelo,
+porque desconocido no es lo mismo que ausente. Una muestra que no lleva nada
+recibe un archivo solo con la cabecera. Dos sustituciones contiguas se juntan en
+un MNV únicamente para las muestras que llevan las dos.
+
 Usa este formato para hojas de cálculo, análisis posteriores e inspección rápida.
 
 Columnas principales:
@@ -351,5 +360,5 @@ megabytes.
 - Los filtros de frecuencia de SNP y MNV son independientes, de modo que un haplotipo MNV fuerte
   no se elimina por un umbral de frecuencia de SNP más estricto.
 - Los filtros de soporte de lecturas y de soporte de hebra de SNP y MNV también son independientes.
-- `--sample all` escribe un conjunto de salida por cada muestra del VCF.
+- `--sample all` escribe un conjunto de salida por cada muestra del VCF, con las variantes que lleva el genotipo de esa muestra.
 - `--keep-original-info` conserva los campos INFO del VCF de entrada que no son de get_MNV.

@@ -22,7 +22,7 @@ and needs none of them.
 | `--tsv <FILE>` | iVar `variants.tsv` input. |
 | `-b, --bam <FILE>` | Optional aligned reads for read support. Must be coordinate-sorted and indexed. |
 | `-f, --fasta <FILE>` | Reference FASTA (required). |
-| `--sample <NAME>` | Sample for original FORMAT metrics in a multi-sample VCF (default: first sample; `all` for all). |
+| `--sample <NAME>` | Sample to annotate in a multi-sample VCF (default: first sample; `all` for all). Its FORMAT metrics become the original depth and frequency, and its genotype decides which ALT alleles it carries. |
 | `--chrom <NAME>` | Restrict processing to one contig (default: all contigs in the input). |
 
 ## Annotation

@@ -37,6 +37,7 @@ pub fn load_vcf_text(
     let mut header_seen = false;
     let mut positions_by_contig: HashMap<String, Vec<VcfPosition>> = HashMap::new();
     let mut split_count = 0usize;
+    let mut not_carried = 0usize;
     let mut record_idx = 0usize;
 
     // INFO tags to preserve when keep_original_info is active
@@ -139,6 +140,7 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
         let genotype = gt_idx.and_then(|idx| sample_values.get(idx).copied());
         let phase_set = ps_idx.and_then(|idx| sample_values.get(idx).copied());
 
+        let mut pushed_here = 0usize;
         for (alt_idx, alt_allele) in alt_alleles.iter().enumerate() {
             if alt_allele.is_empty() || *alt_allele == "." {
                 return Err(format!(
@@ -147,6 +149,10 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                 .into());
             }
 
+            if !crate::io::vcf::sample_carries_alt(genotype, alt_idx) {
+                not_carried += 1;
+                continue;
+            }
             let (norm_pos, norm_ref, norm_alt) = if normalize_alleles {
                 normalize_ref_alt(pos, ref_allele, alt_allele)
             } else {
@@ -186,10 +192,9 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                         genotype, phase_set, alt_idx,
                     ),
                 });
+            pushed_here += 1;
         }
-        if alt_alleles.len() > 1 {
-            split_count += alt_alleles.len() - 1;
-        }
+        split_count += pushed_here.saturating_sub(1);
     }
 
     if !header_seen {
@@ -202,6 +207,11 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
 
     if split_multiallelic && split_count > 0 {
         log::info!("Split {split_count} additional ALT alleles from multiallelic VCF records");
+    }
+    if not_carried > 0 {
+        log::info!(
+            "Skipped {not_carried} ALT alleles the selected sample's genotype does not carry"
+        );
     }
 
     Ok(positions_by_contig)
