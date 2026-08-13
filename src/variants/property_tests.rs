@@ -166,3 +166,34 @@ proptest! {
         }
     }
 }
+
+// Trimming shared context must not change the event.
+//
+// `--normalize-alleles` is described as trimming, and trimming is only safe
+// while the allele still describes the same substitution or the same
+// insertion/deletion at the same place. Suffix-trimming a length-changing
+// allele broke that: `29 CT>CTGCT` became `29 C>CTGC`, the same insertion
+// re-anchored one base earlier, which stopped matching the alignment and
+// zeroed a row's read support. This holds the invariant over every shape the
+// generator produces rather than the one case that was noticed.
+proptest! {
+    #[test]
+    fn normalising_preserves_the_decomposed_event(
+        position in 5usize..50,
+        ref_allele in "[ACGT]{1,6}",
+        alt_allele in "[ACGT]{1,6}",
+    ) {
+        let before = crate::variants::decompose_allele(position, &ref_allele, &alt_allele);
+        let (norm_pos, norm_ref, norm_alt) =
+            crate::io::vcf::normalize_ref_alt(position, &ref_allele, &alt_allele);
+        let after = crate::variants::decompose_allele(norm_pos, &norm_ref, &norm_alt);
+
+        prop_assert_eq!(
+            &before.components,
+            &after.components,
+            "normalising {}:{}>{} into {}:{}>{} changed the event",
+            position, ref_allele, alt_allele, norm_pos, norm_ref, norm_alt
+        );
+        prop_assert_eq!(before.class, after.class);
+    }
+}

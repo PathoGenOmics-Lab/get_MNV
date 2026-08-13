@@ -204,24 +204,49 @@ pub(crate) fn normalize_ref_alt(
         return (pos, ref_allele.to_string(), alt_allele.to_string());
     }
 
+    let untouched = || (pos, ref_allele.to_string(), alt_allele.to_string());
+    let before = crate::variants::decompose_allele(pos, ref_allele, alt_allele);
+
+    // Trimming shared context must not move the event. Inside a repeat it can:
+    // `29 CT>CTGCT` trims canonically to `29 C>CTGC`, the same insertion
+    // anchored one base earlier. get_MNV matches indel support against the exact
+    // CIGAR the aligner used, so the relocated allele found none of its own
+    // reads and a row with 20 of 20 supporting reads was reported at 0, under a
+    // warning that blamed the input for a move this flag had made. Placing an
+    // indel canonically would need reference-aware left-alignment of both sides,
+    // which this flag does not promise and cannot do from the alleles alone.
+    //
+    // So: take the most trimming that leaves the event where it was. The
+    // canonical suffix-then-prefix trim first, since that is the form other
+    // tools expect; the prefix alone when the suffix step is what moved it; and
+    // the allele untouched when neither is safe.
+    for trim_suffix in [true, false] {
+        if let Some(result) = trimmed(pos, ref_allele, alt_allele, trim_suffix) {
+            let after = crate::variants::decompose_allele(result.0, &result.1, &result.2);
+            if after.components == before.components {
+                return result;
+            }
+        }
+    }
+    untouched()
+}
+
+/// One trimming attempt: the shared suffix (optionally) then the shared prefix,
+/// always leaving at least one base in each allele. `None` when there is nothing
+/// left to describe.
+fn trimmed(
+    pos: usize,
+    ref_allele: &str,
+    alt_allele: &str,
+    trim_suffix: bool,
+) -> Option<(usize, String, String)> {
     let ref_chars: Vec<char> = ref_allele.chars().collect();
     let alt_chars: Vec<char> = alt_allele.chars().collect();
     let mut start = 0usize;
     let mut ref_end = ref_chars.len();
     let mut alt_end = alt_chars.len();
 
-    // Trimming the shared suffix is the canonical first step, but on an allele
-    // that changes length it can re-anchor the event: `29 CT>CTGCT` becomes
-    // `29 C>CTGC`, which describes the same insertion inside a repeat at a
-    // different placement. get_MNV matches indel support against the exact CIGAR
-    // the aligner used, so the relocated allele found none of its own reads and
-    // a row with full support was reported at 0, with a warning blaming the
-    // input. Completing the normalisation would need reference-aware
-    // left-alignment, which this flag does not promise and cannot do from the
-    // alleles alone, so length-changing alleles keep their anchor and only lose
-    // the shared prefix.
-    let length_preserving = ref_chars.len() == alt_chars.len();
-    if length_preserving {
+    if trim_suffix {
         while ref_end - start > 1
             && alt_end - start > 1
             && ref_chars[ref_end - 1] == alt_chars[alt_end - 1]
@@ -236,12 +261,10 @@ pub(crate) fn normalize_ref_alt(
 
     let norm_ref: String = ref_chars[start..ref_end].iter().collect();
     let norm_alt: String = alt_chars[start..alt_end].iter().collect();
-
     if norm_ref.is_empty() || norm_alt.is_empty() {
-        return (pos, ref_allele.to_string(), alt_allele.to_string());
+        return None;
     }
-
-    (pos + start, norm_ref, norm_alt)
+    Some((pos + start, norm_ref, norm_alt))
 }
 
 /// Parse a VCF line into fields. Returns None if the line is a header or empty.
@@ -871,6 +894,17 @@ mod tests {
         assert_eq!(
             (pos, ref_allele.as_str(), alt_allele.as_str()),
             (30, "TGCT", "T")
+        );
+
+        // Found by `normalising_preserves_the_decomposed_event`: here the
+        // canonical suffix-then-prefix trim IS safe, and refusing it would leave
+        // a longer allele than it needs to be. The rule is not "never trim an
+        // indel", it is "keep the trim that leaves the event where it was".
+        let (pos, ref_allele, alt_allele) = super::normalize_ref_alt(5, "CG", "CTG");
+        assert_eq!(
+            (pos, ref_allele.as_str(), alt_allele.as_str()),
+            (5, "C", "CT"),
+            "an unambiguous insertion should reach its minimal anchored form"
         );
     }
 
