@@ -144,9 +144,8 @@ fn annotate_variants_for_gene(
 /// annotations never match.
 fn splice_site_for_variant(
     genes: &[Gene],
-    snp: &VcfPosition,
+    positions: &[usize],
 ) -> Option<(String, crate::variants::SpliceConsequence)> {
-    let positions = snp.changed_positions();
     genes.iter().find_map(|gene| {
         positions
             .iter()
@@ -161,8 +160,7 @@ fn splice_site_for_variant(
 /// First gene with a real intron containing this variant. Only reached when the
 /// variant is not in any CDS and not at a splice site, so it describes a variant
 /// sitting deep inside an intron.
-fn intron_for_variant(genes: &[Gene], snp: &VcfPosition) -> Option<String> {
-    let positions = snp.changed_positions();
+fn intron_for_variant(genes: &[Gene], positions: &[usize]) -> Option<String> {
     genes
         .iter()
         .find(|gene| {
@@ -171,6 +169,74 @@ fn intron_for_variant(genes: &[Gene], snp: &VcfPosition) -> Option<String> {
                 .any(|&position| variants::splice::is_intronic_position(gene, position))
         })
         .map(|gene| gene.name.clone())
+}
+
+/// Whether the gene's coding span covers this single base.
+fn gene_contains_position(gene: &Gene, position: usize) -> bool {
+    if gene.cds_segments.is_empty() {
+        return position >= gene.start && position <= gene.end;
+    }
+    gene.cds_segments
+        .iter()
+        .any(|segment| position >= segment.start && position <= segment.end)
+}
+
+/// Drop the entries of a fallback row whose change some gene already annotated.
+///
+/// The fallback runs for a record no gene fully covered, and it used to rebuild
+/// the whole record. A record straddling a gene's edge, `74 AAC>GGT` on a gene
+/// ending at 75, then produced a second row repeating 74 and 75 with a
+/// contradictory "Unknown" call and claiming base 76 for a gene that ends before
+/// it. Only the parts nobody annotated belong in this row.
+fn retain_unannotated_entries(
+    variant: &mut VariantInfo,
+    annotated: &std::collections::HashSet<&str>,
+) -> bool {
+    if variant.positions.len() != variant.ref_bases.len()
+        || variant.positions.len() != variant.base_changes.len()
+        || variant.positions.len() < 2
+    {
+        return true;
+    }
+    let keep: Vec<bool> = (0..variant.positions.len())
+        .map(|index| {
+            let label = format!(
+                "SNV:{}:{}>{}",
+                variant.positions[index], variant.ref_bases[index], variant.base_changes[index]
+            );
+            !annotated.contains(label.as_str())
+        })
+        .collect();
+    if keep.iter().all(|kept| *kept) {
+        return true;
+    }
+    if keep.iter().all(|kept| !*kept) {
+        return false;
+    }
+    let mut index = 0;
+    variant.positions.retain(|_| {
+        index += 1;
+        keep[index - 1]
+    });
+    let mut index = 0;
+    variant.ref_bases.retain(|_| {
+        index += 1;
+        keep[index - 1]
+    });
+    let mut index = 0;
+    variant.base_changes.retain(|_| {
+        index += 1;
+        keep[index - 1]
+    });
+    if variant.positions.len() == 1 {
+        variant.variant_type = VariantType::Snp;
+    }
+    variant
+        .event_components
+        .retain(|label| !annotated.contains(label.as_str()));
+    variant.snp_aa_changes = vec!["-".to_string(); variant.positions.len()];
+    variant.snp_aa_changes_local = vec!["-".to_string(); variant.positions.len()];
+    true
 }
 
 fn count_intergenic_variant_reads(
@@ -518,16 +584,50 @@ pub(crate) fn process_contig(
                 // first because they are the more specific consequence. These
                 // stay in this vector so their read support is counted with the
                 // intergenic SNPs.
-                let variant = match splice_site_for_variant(&genes, snp) {
+                // The bases of this record nobody annotated. When that is the
+                // whole record the tests below see all of it, as before; when a
+                // gene covered part of it, they see only the rest, so a record
+                // straddling a gene's edge no longer claims that gene for the
+                // bases lying outside it.
+                let unannotated: Vec<usize> = {
+                    let mut positions = Vec::new();
+                    for component in snp.event().components {
+                        if annotated.contains(component.label().as_str()) {
+                            continue;
+                        }
+                        let end = component.position + component.ref_allele.len().saturating_sub(1);
+                        match component.kind {
+                            crate::variants::AlleleComponentKind::Snp
+                            | crate::variants::AlleleComponentKind::Insertion => {
+                                positions.push(component.position)
+                            }
+                            _ => positions.extend(component.position..=end),
+                        }
+                    }
+                    positions.sort_unstable();
+                    positions.dedup();
+                    if positions.is_empty() {
+                        snp.changed_positions()
+                    } else {
+                        positions
+                    }
+                };
+                let fully_unannotated = unannotated.len() == snp.changed_positions().len();
+                let variant = match splice_site_for_variant(&genes, &unannotated) {
                     Some((gene_name, splice)) => {
                         variants::build_splice_variant(contig, snp, &gene_name, splice)
                     }
-                    None => match intron_for_variant(&genes, snp) {
+                    None => match intron_for_variant(&genes, &unannotated) {
                         Some(gene_name) => variants::build_intron_variant(contig, snp, &gene_name),
-                        None => match genes
-                            .iter()
-                            .find(|gene| io::gene_overlaps_variant(gene, snp))
-                        {
+                        None => match genes.iter().find(|gene| {
+                            if fully_unannotated {
+                                io::gene_overlaps_variant(gene, snp)
+                            } else {
+                                unannotated
+                                    .iter()
+                                    .any(|&position| gene_contains_position(gene, position))
+                            }
+                        }) {
                             // Inside a gene, but the gene path could not build a
                             // codon around it. Keep the row, name the gene, and
                             // say the amino-acid effect is unknown.
@@ -548,6 +648,10 @@ pub(crate) fn process_contig(
                         },
                     },
                 };
+                let mut variant = variant;
+                if !retain_unannotated_entries(&mut variant, &annotated) {
+                    continue;
+                }
                 intergenic.push(variant);
             }
         }

@@ -3155,3 +3155,76 @@ c1\tsyn\tCDS\t146\t190\t.\t+\t0\tID=cds-g1b;Parent=m1;Name=g1\n",
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// A record straddling a gene's edge is annotated once, and only where it is.
+///
+/// The fallback ran for any record no gene fully covered and rebuilt the whole
+/// record, so `74 AAC>GGT` on a gene ending at 75 produced a second row repeating
+/// 74 and 75 with a contradictory "Unknown" call, and claimed base 76 for a gene
+/// that ends before it. Only the bases nobody annotated belong in that row.
+#[test]
+fn test_e2e_record_straddling_a_gene_edge_is_not_duplicated() {
+    let tmp = temp_dir("e2e_straddling_record");
+    let vcf_path = tmp.join("straddle.vcf");
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+
+    let coding = format!("ATG{}{}TAA", "GCT".repeat(10), "AAA".repeat(10));
+    fs::write(
+        &ref_path,
+        format!(">c1\n{}{coding}CCCGGGTTT\n", "T".repeat(9)),
+    )
+    .unwrap();
+    fs::write(&genes_path, "geneA\t10\t75\t+\n").unwrap();
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=c1,length=84>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+c1\t74\t.\tAAC\tGGT\t100\tPASS\tDP=30\n",
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("straddle".to_string());
+
+    pipeline::run(&args).expect("pipeline should annotate the straddling record");
+
+    let rows = read_tsv_rows(&tmp.join("straddle.MNV.tsv"));
+    let described: Vec<(String, String)> = rows
+        .iter()
+        .map(|row| {
+            (
+                row.get("Positions").cloned().unwrap_or_default(),
+                row.get("Gene").cloned().unwrap_or_default(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        described,
+        vec![
+            ("74, 75".to_string(), "geneA".to_string()),
+            ("76".to_string(), "intergenic".to_string()),
+        ],
+        "the coding bases belong to the gene, the one past its end does not"
+    );
+    assert_eq!(
+        rows[0].get("SO Term").map(String::as_str),
+        Some("stop_lost")
+    );
+
+    // The gene's own row must survive the flag that removes only what lies
+    // outside every feature.
+    args.exclude_intergenic = true;
+    args.output_prefix = Some("straddle_excluded".to_string());
+    pipeline::run(&args).expect("pipeline should run with the flag");
+    let kept = read_tsv_rows(&tmp.join("straddle_excluded.MNV.tsv"));
+    assert_eq!(kept.len(), 1, "only the intergenic base is removed");
+    assert_eq!(kept[0].get("Gene").map(String::as_str), Some("geneA"));
+
+    fs::remove_dir_all(&tmp).ok();
+}
