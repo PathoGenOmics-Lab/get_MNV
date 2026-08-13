@@ -116,10 +116,16 @@ indel locus depth is counted from the anchor base.
 - `--frameshift-min-freq <0.0-1.0>` (default `0.5`): minimum allele frequency an
   *upstream* indel must reach before it shifts the reading frame of downstream
   SNV/MNV codons (the `(fs)` marker and frameshift change types). The default
-  propagates from every indel regardless of frequency. For intra-host / mixed
-  populations, raising this avoids relabelling a high-frequency downstream
-  substitution as frameshifted because of a low-frequency upstream indel that is
-  almost certainly on a different molecule.
+  propagates only from a majority upstream indel; set `0.0` to propagate from
+  every one. For intra-host / mixed populations, this avoids relabelling a
+  high-frequency downstream substitution as frameshifted because of a
+  low-frequency upstream indel that is almost certainly on a different molecule.
+
+  The frequency compared against the threshold is the one **the reads give**
+  when a BAM is provided, which is the same number reported as `EFREQ`. Only
+  without a BAM does the caller's declared `AF` stand in for it. This matters
+  because many callers write no `AF` at all: while the gate consulted the
+  declared value alone, such an input passed every indel at every threshold.
   When a BAM is provided, propagation is additionally **read-phased**: for each
   upstream indel and a downstream SNV within a read's reach, reads spanning both
   loci are inspected, and the frame shift is *not* propagated to that codon when

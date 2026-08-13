@@ -79,7 +79,7 @@ impl FrameshiftPhasing {
 /// `Default` impl reproduces the historical behaviour exactly, so callers that
 /// do not opt in (tests, benchmarks, the public `get_mnv_variants_for_gene`
 /// wrapper) see no change.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Default)]
 pub struct IndelAnnotationConfig {
     /// Minimum allele frequency an *upstream* indel must reach to contribute to
     /// downstream frameshift propagation. `0.0` (default) propagates from every
@@ -88,24 +88,42 @@ pub struct IndelAnnotationConfig {
     /// frameshifted because of a low-frequency upstream indel that is almost
     /// certainly on a different molecule (relevant for intra-host data).
     pub frameshift_min_freq: f64,
+    /// What the reads say each upstream indel's frequency is, keyed by
+    /// `(position, REF, ALT)`, filled in when a BAM was given.
+    ///
+    /// The gate used to consult only the frequency the *caller* declared, so on
+    /// a VCF without `AF` it passed every indel no matter the threshold, even
+    /// though get_MNV had just counted the reads itself and published the answer
+    /// as `EFREQ`. Many callers write no `AF`, which left the gate inert exactly
+    /// where read evidence existed.
+    pub observed_indel_freq: HashMap<(usize, String, String), f64>,
 }
 
-impl Default for IndelAnnotationConfig {
-    fn default() -> Self {
-        Self {
-            frameshift_min_freq: 0.0,
-        }
+impl IndelAnnotationConfig {
+    /// The indel's frequency as the reads measured it, if they were consulted.
+    pub(super) fn observed_freq(&self, indel: &VcfPosition) -> Option<f64> {
+        self.observed_indel_freq
+            .get(&(
+                indel.position,
+                indel.ref_allele.clone(),
+                indel.alt_allele.clone(),
+            ))
+            .copied()
     }
 }
 
 /// Whether an upstream indel is allowed to contribute to downstream frameshift
-/// propagation under the configured frequency gate. Indels without a known
-/// frequency always pass (we cannot filter what we cannot measure).
+/// propagation under the configured frequency gate.
+///
+/// The reads decide when they were consulted, and the caller's declared
+/// frequency is the fallback for when they were not: no `--bam`, a dry run, or a
+/// symbolic ALT that no read can reproduce. An indel whose frequency is unknown
+/// on both counts always passes, since we cannot filter what we cannot measure.
 pub(super) fn indel_passes_frameshift_gate(
     indel: &VcfPosition,
     config: &IndelAnnotationConfig,
 ) -> bool {
-    match indel.original_freq {
+    match config.observed_freq(indel).or(indel.original_freq) {
         Some(freq) => freq >= config.frameshift_min_freq,
         None => true,
     }

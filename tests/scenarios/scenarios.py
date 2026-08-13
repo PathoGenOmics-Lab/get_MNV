@@ -1330,15 +1330,30 @@ scenario_fs_gate_default = Scenario(
         VcfRecord(pos=39, ref="T", alt="A", af=0.95),
     ],
     reads=[
+        # La del esta en 4 de 20 lecturas: un 20% real, coherente con el AF=0.20
+        # que declara el VCF. Antes las 20 lecturas la llevaban, asi que el BAM
+        # decia 100% mientras el VCF decia 20% y el escenario se contradecia.
+        # Las 4 llevan tambien el SNV: con 4 lecturas cis de 20 informativas la
+        # regla de trans (cis <= 10%) no se dispara, asi que lo que se prueba
+        # aqui sigue siendo la puerta de frecuencia y no la evidencia de trans.
         ReadGroup(
-            name_prefix="r_gate_def",
+            name_prefix="r_gate_def_with_del",
             start=1,
             length=151,
             ops=[
                 Op(kind="del", pos=31, length=1),
                 Op(kind="snv", pos=39, seq="A"),
             ],
-            count=20,
+            count=4,
+        ),
+        ReadGroup(
+            name_prefix="r_gate_def_no_del",
+            start=1,
+            length=151,
+            ops=[
+                Op(kind="snv", pos=39, seq="A"),
+            ],
+            count=16,
         ),
     ],
     expected=[
@@ -1376,15 +1391,30 @@ scenario_fs_gate_suppressed = Scenario(
         VcfRecord(pos=39, ref="T", alt="A", af=0.95),
     ],
     reads=[
+        # La del esta en 4 de 20 lecturas: un 20% real, coherente con el AF=0.20
+        # que declara el VCF. Antes las 20 lecturas la llevaban, asi que el BAM
+        # decia 100% mientras el VCF decia 20% y el escenario se contradecia.
+        # Las 4 llevan tambien el SNV: con 4 lecturas cis de 20 informativas la
+        # regla de trans (cis <= 10%) no se dispara, asi que lo que se prueba
+        # aqui sigue siendo la puerta de frecuencia y no la evidencia de trans.
         ReadGroup(
-            name_prefix="r_gate_sup",
+            name_prefix="r_gate_sup_with_del",
             start=1,
             length=151,
             ops=[
                 Op(kind="del", pos=31, length=1),
                 Op(kind="snv", pos=39, seq="A"),
             ],
-            count=20,
+            count=4,
+        ),
+        ReadGroup(
+            name_prefix="r_gate_sup_no_del",
+            start=1,
+            length=151,
+            ops=[
+                Op(kind="snv", pos=39, seq="A"),
+            ],
+            count=16,
         ),
     ],
     expected=[
@@ -1408,6 +1438,65 @@ scenario_fs_gate_suppressed = Scenario(
     extra_cli_args=["--frameshift-min-freq", "0.5"],
 )
 
+
+
+# ---------------------------------------------------------------------------
+# 58. Gate de frameshift SIN AF declarada en el VCF: manda la frecuencia del BAM.
+# ---------------------------------------------------------------------------
+# Muchos llamadores no escriben AF (el propio VCF de ejemplo del repo, estilo
+# VarScan, no lo hace). El gate solo miraba la frecuencia declarada, asi que con
+# un VCF sin AF pasaba cualquier indel a cualquier umbral y --frameshift-min-freq
+# quedaba inerte justo donde habia evidencia de lecturas. Mismos datos que el 33
+# pero sin AF: la del esta en 4 de 20 lecturas (0.20 < 0.5), y el gate debe
+# suprimir la propagacion leyendo eso del BAM.
+scenario_fs_gate_no_declared_af = Scenario(
+    name="58_fs_gate_reads_decide_without_af",
+    description="Del fs upstream en 4/20 lecturas y VCF SIN AF, con --frameshift-min-freq 0.5: el gate usa la frecuencia del BAM (0.20) -> SNV downstream SIN '(fs)'",
+    variants=[
+        VcfRecord(pos=30, ref="TG", alt="T"),
+        VcfRecord(pos=39, ref="T", alt="A"),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_gate_noaf_with_del",
+            start=1,
+            length=151,
+            ops=[
+                Op(kind="del", pos=31, length=1),
+                Op(kind="snv", pos=39, seq="A"),
+            ],
+            count=4,
+        ),
+        ReadGroup(
+            name_prefix="r_gate_noaf_no_del",
+            start=1,
+            length=151,
+            ops=[
+                Op(kind="snv", pos=39, seq="A"),
+            ],
+            count=16,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="30",
+            variant_type="INDEL",
+            change_type="Frameshift Indel",
+            event_class="deletion",
+            event_components="DEL:31:G",
+        ),
+        ExpectedRow(
+            positions="39",
+            variant_type="SNP",
+            change_type="Synonymous",
+            aa_changes="Ala13Ala",
+            reference_codon="GCT",
+            snp_codon="GCA",
+        ),
+    ],
+    expected_row_count=2,
+    extra_cli_args=["--frameshift-min-freq", "0.5"],
+)
 
 # ---------------------------------------------------------------------------
 # 34. Eucariotas: GFF con features CDS pero SIN --gff-features -> auto-CDS.
@@ -2333,6 +2422,7 @@ ALL_SCENARIOS = [
     scenario_longer_deletion_is_not_support,
     scenario_nested_haplotype_counts,
     scenario_indel_haplotype_by_chance,
+    scenario_fs_gate_no_declared_af,
 ]
 
 

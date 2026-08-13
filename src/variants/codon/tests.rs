@@ -556,6 +556,7 @@ fn test_frameshift_frequency_gate_skips_low_freq_upstream_indel() {
         crate::genetic_code::GeneticCode::default(),
         &crate::variants::IndelAnnotationConfig {
             frameshift_min_freq: 0.5,
+            ..Default::default()
         },
         &crate::variants::FrameshiftPhasing::default(),
     );
@@ -1612,6 +1613,7 @@ fn test_spliced_frameshift_gate_suppresses_a_low_frequency_indel() {
     low_frequency.original_freq = Some(0.10);
     let config = crate::variants::IndelAnnotationConfig {
         frameshift_min_freq: 0.5,
+        ..Default::default()
     };
     let variants = crate::variants::get_mnv_variants_for_gene_with_config(
         &gene,

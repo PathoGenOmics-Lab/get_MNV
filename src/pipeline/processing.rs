@@ -331,12 +331,16 @@ pub(crate) fn process_contig(
                 let state = state_result
                     .as_mut()
                     .map_err(|err| AppError::validation(err.to_string()))?;
+                // BAM-derived cis/trans phasing so an upstream indel does not
+                // frameshift a downstream codon it is not on the same molecule
+                // as, and the frequency the reads give each upstream indel,
+                // which is what the frameshift gate weighs when a BAM was given.
+                let evidence = compute_frameshift_phasing(state, args, contig, gene, snp_list)?;
                 let indel_config = variants::IndelAnnotationConfig {
                     frameshift_min_freq: args.frameshift_min_freq,
+                    observed_indel_freq: evidence.observed_indel_freq,
                 };
-                // BAM-derived cis/trans phasing so an upstream indel does not
-                // frameshift a downstream codon it is not on the same molecule as.
-                let phasing = compute_frameshift_phasing(state, args, contig, gene, snp_list)?;
+                let phasing = evidence.phasing;
                 let mut variants = annotate_variants_for_gene(
                     gene,
                     snp_list,

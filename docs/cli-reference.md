@@ -80,7 +80,7 @@ These apply only when `--bam` is provided.
 
 | Option | Default | Description |
 |---|---|---|
-| `--frameshift-min-freq <F>` | `0.5` | Minimum frequency an upstream indel must reach to mark downstream SNV/MNV codons as frameshifted. The default propagates only from a majority upstream indel; set `0.0` to propagate from every one. Indels with no known frequency always propagate. |
+| `--frameshift-min-freq <F>` | `0.5` | Minimum frequency an upstream indel must reach to mark downstream SNV/MNV codons as frameshifted. The default propagates only from a majority upstream indel; set `0.0` to propagate from every one. With `--bam` the frequency is the one get_MNV counts from the reads (the same number it reports as `EFREQ`), not the `AF` the caller declared; without a BAM it falls back to the declared `AF`. An indel whose frequency is unknown either way always propagates, since there is nothing to compare. |
 | `--legacy-indel-depth` | off | Restrict indel-locus depth (the `EFREQ` denominator) to reads spanning the whole REF allele. By default it is counted from reads observing the anchor base, which avoids under-counting depth on multi-base deletions; this flag restores the older, narrower denominator. |
 | `--phased-indel-min-reads <N>` | `2` | Minimum BAM-supporting reads to emit a phased indel/complex haplotype row. One read is not evidence of a haplotype. |
 | `--count-mates-separately` | off | Count the two mates of a paired-end fragment as two observations instead of one molecule. |

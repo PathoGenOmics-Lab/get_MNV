@@ -19,19 +19,28 @@ const MAX_PHASING_SPAN: usize = 600;
 /// turn one window into thousands of rows.
 const MAX_LOCAL_HAPLOTYPES_PER_WINDOW: usize = 64;
 
-/// BAM-derived phasing for frameshift propagation: the set of `(indel, SNV)`
-/// pairs the reads show are in trans. Computed before annotation so it can be
-/// threaded into the frameshift gate. Empty without a BAM (or in dry-run), which
-/// preserves the pure frequency-gated behaviour.
+/// What the reads said about the upstream indels of a gene: how each one is
+/// phased with the downstream SNVs, and what frequency it is actually at.
+///
+/// The frequency travels with the phasing because both answer the same
+/// question, whether this indel has any business shifting the frame of a
+/// downstream codon, and both are read from the same BAM pass over the gene.
+#[derive(Default)]
+pub(super) struct FrameshiftEvidence {
+    pub phasing: variants::FrameshiftPhasing,
+    /// Keyed by `(position, REF, ALT)`, as the annotation config expects.
+    pub observed_indel_freq: HashMap<(usize, String, String), f64>,
+}
+
 pub(super) fn compute_frameshift_phasing(
     state: &mut WorkerState,
     args: &Args,
     contig: &str,
     gene: &Gene,
     snp_list: &[VcfPosition],
-) -> AppResult<variants::FrameshiftPhasing> {
+) -> AppResult<FrameshiftEvidence> {
     if args.dry_run || state.bam.is_none() {
-        return Ok(variants::FrameshiftPhasing::default());
+        return Ok(FrameshiftEvidence::default());
     }
 
     let mut indels: Vec<&VcfPosition> = Vec::new();
@@ -58,7 +67,7 @@ pub(super) fn compute_frameshift_phasing(
         }
     }
     if indels.is_empty() || snvs.is_empty() {
-        return Ok(variants::FrameshiftPhasing::default());
+        return Ok(FrameshiftEvidence::default());
     }
     snvs.sort_unstable();
     snvs.dedup();
@@ -112,7 +121,46 @@ pub(super) fn compute_frameshift_phasing(
         }
     }
 
-    Ok(variants::FrameshiftPhasing::from_pairs(pairs))
+    // The frequency the reads give this indel, which is what the frameshift gate
+    // should weigh. Counted here because the gate runs during annotation, before
+    // the per-variant read counting, and this is already the pass that opens the
+    // BAM for these same indels.
+    let mut observed_indel_freq = HashMap::new();
+    for indel in &indels {
+        let components =
+            variants::decompose_allele(indel.position, &indel.ref_allele, &indel.alt_allele)
+                .components;
+        let request = read_count::IndelReadCountRequest {
+            chrom: contig,
+            position: indel.position,
+            ref_allele: &indel.ref_allele,
+            alt_allele: &indel.alt_allele,
+            required_components: &components,
+            min_phred_quality: args.min_quality,
+            min_mapq: args.min_mapq,
+            anchor_depth: args.indel_anchor_depth,
+            pair_aware: !args.count_mates_separately,
+        };
+        let summary = read_count::count_indel_reads(bam, header, request)?;
+        // No depth is no measurement. Leaving the entry out lets the gate fall
+        // back to what the caller declared instead of reading it as 0.0, which
+        // would suppress every propagation from an uncovered indel.
+        if summary.mnv_total_reads > 0 {
+            observed_indel_freq.insert(
+                (
+                    indel.position,
+                    indel.ref_allele.clone(),
+                    indel.alt_allele.clone(),
+                ),
+                summary.mnv_count as f64 / summary.mnv_total_reads as f64,
+            );
+        }
+    }
+
+    Ok(FrameshiftEvidence {
+        phasing: variants::FrameshiftPhasing::from_pairs(pairs),
+        observed_indel_freq,
+    })
 }
 
 /// Carry the input caller's own phase claim onto the multi-position rows, and

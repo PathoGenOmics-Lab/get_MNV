@@ -131,11 +131,17 @@ del locus del indel se cuenta desde la base ancla.
 - `--frameshift-min-freq <0.0-1.0>` (por defecto `0.5`): frecuencia alélica
   mínima que un indel *aguas arriba* debe alcanzar para desplazar el marco de
   lectura de los codones SNV/MNV aguas abajo (el marcador `(fs)` y los tipos de
-  cambio de frameshift). El valor por defecto propaga el efecto desde cualquier
-  indel sin importar su frecuencia. En poblaciones intrahospedador o mixtas,
-  elevar este umbral evita reetiquetar como frameshifted una sustitución de alta
-  frecuencia aguas abajo a causa de un indel de baja frecuencia aguas arriba que
-  casi con seguridad reside en otra molécula.
+  cambio de frameshift). El valor por defecto propaga solo desde un indel
+  mayoritario; pon `0.0` para propagar desde cualquiera. En poblaciones
+  intrahospedador o mixtas, esto evita reetiquetar como frameshifted una
+  sustitución de alta frecuencia aguas abajo a causa de un indel de baja
+  frecuencia aguas arriba que casi con seguridad reside en otra molécula.
+
+  La frecuencia que se compara con el umbral es la que **dan las lecturas**
+  cuando hay un BAM, que es el mismo número que se reporta como `EFREQ`. Solo sin
+  BAM ocupa su lugar el `AF` declarado por el llamador. Importa porque muchos
+  llamadores no escriben `AF`: mientras la puerta consultaba solo el valor
+  declarado, una entrada así dejaba pasar todos los indels a cualquier umbral.
   Cuando se proporciona un BAM, la propagación además se **fasea por lecturas**:
   para cada indel aguas arriba y un SNV aguas abajo dentro del alcance de un read,
   se inspeccionan las lecturas que abarcan ambos loci, y el corrimiento de marco

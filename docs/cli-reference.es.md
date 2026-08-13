@@ -81,7 +81,7 @@ Estas solo aplican cuando se proporciona `--bam`.
 
 | Opción | Por defecto | Descripción |
 |---|---|---|
-| `--frameshift-min-freq <F>` | `0.5` | Frecuencia mínima que debe alcanzar un indel aguas arriba para marcar con frameshift los codones de SNV/MNV aguas abajo. Por defecto solo propaga desde un indel aguas arriba mayoritario; pon `0.0` para propagar desde cualquiera. Los indels sin frecuencia conocida siempre propagan. |
+| `--frameshift-min-freq <F>` | `0.5` | Frecuencia mínima que debe alcanzar un indel aguas arriba para marcar con frameshift los codones de SNV/MNV aguas abajo. Por defecto solo propaga desde un indel aguas arriba mayoritario; pon `0.0` para propagar desde cualquiera. Con `--bam` la frecuencia es la que get_MNV cuenta de las lecturas (el mismo número que reporta como `EFREQ`), no el `AF` que declaró el llamador; sin BAM se cae al `AF` declarado. Un indel cuya frecuencia no se conoce por ninguna de las dos vías siempre propaga, porque no hay nada que comparar. |
 | `--legacy-indel-depth` | desactivado | Restringe la profundidad del locus del indel (el denominador de `EFREQ`) a las lecturas que abarcan el alelo REF entero. Por defecto se cuenta desde las que observan la base de anclaje, lo que evita subcontar profundidad en deleciones multibase; este flag recupera el denominador antiguo, más estrecho. |
 | `--phased-indel-min-reads <N>` | `2` | Lecturas mínimas que soportan en el BAM para emitir una fila de haplotipo indel/complejo en fase. Una sola lectura no es evidencia de un haplotipo. |
 | `--count-mates-separately` | apagado | Cuenta los dos mates de un fragmento como dos observaciones en vez de una molécula. |
