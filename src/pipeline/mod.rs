@@ -14,7 +14,9 @@ pub use summary::{
 };
 
 use config::{configure_threads, log_run_configuration, sanitized_command_line};
-use manifest::{build_input_metadata, build_run_manifest_value, write_json_value};
+use manifest::{
+    build_input_metadata, build_run_manifest_value, output_checksums_for, write_json_value,
+};
 use processing::{
     emit_contig_variants, parse_inputs, process_contig, reclassify_generic_as_validation,
     resolve_variant_input_format,
@@ -541,6 +543,21 @@ pub fn run_with_progress(
     }
     if let Some(run_manifest_path) = args.run_manifest.as_deref() {
         let timestamp_unix = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+        // Each sample carries the checksums of the files it wrote. Listing the
+        // paths without them, as this payload used to, left `--run-manifest`
+        // promising checksums and delivering none in the one mode that writes
+        // more than one output pair.
+        let mut samples = Vec::with_capacity(sample_summaries.len());
+        for sample_summary in &sample_summaries {
+            let mut value = serde_json::to_value(sample_summary)?;
+            if let Some(object) = value.as_object_mut() {
+                object.insert(
+                    "output_checksums".to_string(),
+                    output_checksums_for(sample_summary)?,
+                );
+            }
+            samples.push(value);
+        }
         let payload = json!({
             "schema_version": "1.0.0",
             "mode": "sample_all",
@@ -549,7 +566,7 @@ pub fn run_with_progress(
             "command_line": sanitized_command_line(),
             "sample_names": sample_names,
             "aggregate": aggregate,
-            "samples": sample_summaries
+            "samples": samples
         });
         write_json_value(run_manifest_path, &payload)?;
         info!("Run manifest written to {run_manifest_path}");

@@ -1498,6 +1498,51 @@ scenario_fs_gate_no_declared_af = Scenario(
     extra_cli_args=["--frameshift-min-freq", "0.5"],
 )
 
+
+# ---------------------------------------------------------------------------
+# 59. Un indel FUERA de todo feature conserva su soporte de lecturas.
+# ---------------------------------------------------------------------------
+# El contador intergenico solo trataba sustituciones de una posicion, asi que un
+# indel fuera de cualquier gen no llegaba a ningun contador y la fila salia
+# afirmando "Event Reads = 0" a "Event Depth = 0" para un alelo que llevaban
+# todas las lecturas. Misma insercion que el escenario 04 y las mismas lecturas;
+# lo unico que cambia es que el gen esta lejos, asi que el locus queda
+# intergenico. El soporte tiene que ser identico: 20 de 20.
+GFF_GENE_FAR_AWAY = (
+    "##gff-version 3\n"
+    "chr_test\tsynth\tgene\t400\t700\t.\t+\t.\tID=gene-geneZ;Name=geneZ\n"
+)
+
+scenario_intergenic_indel_support = Scenario(
+    name="59_intergenic_indel_keeps_read_support",
+    description="Insercion fuera de todo gen con 20 lecturas que la llevan: el soporte de evento se cuenta igual que dentro de un gen (20/20), no se reporta 0 sobre profundidad 0",
+    variants=[
+        VcfRecord(pos=30, ref="T", alt="TGCT"),
+    ],
+    reads=[
+        ReadGroup(
+            name_prefix="r_interg_ins",
+            start=1,
+            length=151,
+            ops=[Op(kind="ins", pos=30, seq="GCT")],
+            count=20,
+        ),
+    ],
+    gff_content=GFF_GENE_FAR_AWAY,
+    expected=[
+        ExpectedRow(
+            positions="30",
+            gene="intergenic",
+            variant_type="INDEL",
+            event_class="insertion",
+            event_components="INS:30:+GCT",
+            event_reads="20",
+            event_frequency="1.0000",
+        ),
+    ],
+    expected_row_count=1,
+)
+
 # ---------------------------------------------------------------------------
 # 34. Eucariotas: GFF con features CDS pero SIN --gff-features -> auto-CDS.
 # ---------------------------------------------------------------------------
@@ -2423,6 +2468,7 @@ ALL_SCENARIOS = [
     scenario_nested_haplotype_counts,
     scenario_indel_haplotype_by_chance,
     scenario_fs_gate_no_declared_af,
+    scenario_intergenic_indel_support,
 ]
 
 

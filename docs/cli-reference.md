@@ -71,10 +71,18 @@ These apply only when `--bam` is provided.
     | `MNV`, `SNP/MNV` | either side, as above |
     | `INDEL` | the **MNV** thresholds, measured against the indel's own event support (`Event Reads`, `Event Forward/Reverse Reads`, `Event Depth`), not against any SNP column |
 
+    A TSV row is kept or dropped whole, and a codon-level row clears the SNP
+    side only when **every** one of its substitutions does. A VCF record is one
+    allele, filtered on its own. So a `--both` run under a threshold that one
+    substitution meets and another does not writes that allele to the VCF while
+    no TSV row carries it: the row failed, the allele did not. Neither output is
+    wrong; they are different units.
+
     So an indel is filtered with `--mnv`, `--min-mnv-frequency` and
-    `--min-mnv-strand`; `--snp` never touches it. An intergenic indel carries no
-    recomputed support at all, so it cannot satisfy a read-based filter and is
-    dropped whenever any MNV threshold is active.
+    `--min-mnv-strand`; `--snp` never touches it. That holds outside genes too: an
+    intergenic indel is counted and judged on its own support like any other. Only
+    a row that reached no counter at all is exempt, since a threshold cannot be
+    applied to a measurement nobody took.
 
 ## Indel tuning
 

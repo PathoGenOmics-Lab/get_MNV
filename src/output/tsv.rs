@@ -192,21 +192,23 @@ fn passes_filters(variant: &VariantInfo, filters: TsvFilterConfig) -> AppResult<
     if !filters.has_active_filters() {
         return Ok(true);
     }
-    // Intergenic variants carry no recomputed read support, so they cannot
-    // satisfy a read-based filter. Drop them when the filters relevant to their
-    // variant type are active (indels/MNV use the MNV filters, SNPs the SNP
-    // filters); keep them otherwise. Checked before the indel branch so an
-    // intergenic indel is filtered consistently with an intergenic SNP.
+    // An intergenic row is judged on its own support, like any other. Both kinds
+    // are now counted: SNPs through the window cache, indels one at a time. Only
+    // a row that reached no counter at all is exempt, since a filter cannot be
+    // applied to a measurement nobody took, and dropping it would read as a
+    // verdict on evidence that was never gathered.
     if is_intergenic(variant) {
-        // Intergenic SNPs are read-counted at their position, so filter them by
-        // their real support exactly like any SNP.
         if variant.variant_type == VariantType::Snp {
             let bam_vectors = snp_bam_vectors(variant)?;
             return Ok(snp_component_passes_filters(&bam_vectors, filters));
         }
-        // Intergenic indels carry no recomputed read support, so they cannot
-        // satisfy a read-based filter; drop them when the relevant (MNV) filters
-        // are active, keep them otherwise.
+        if variant.mnv_reads.is_some() || variant.mnv_total_reads.is_some() {
+            return Ok(mnv_component_passes_filters(
+                variant,
+                &[variant.mnv_total_reads.unwrap_or(0)],
+                filters,
+            ));
+        }
         return Ok(!filters.has_active_mnv_filters());
     }
     if variant.variant_type == VariantType::Indel {

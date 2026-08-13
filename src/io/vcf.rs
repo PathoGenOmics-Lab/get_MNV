@@ -210,12 +210,25 @@ pub(crate) fn normalize_ref_alt(
     let mut ref_end = ref_chars.len();
     let mut alt_end = alt_chars.len();
 
-    while ref_end - start > 1
-        && alt_end - start > 1
-        && ref_chars[ref_end - 1] == alt_chars[alt_end - 1]
-    {
-        ref_end -= 1;
-        alt_end -= 1;
+    // Trimming the shared suffix is the canonical first step, but on an allele
+    // that changes length it can re-anchor the event: `29 CT>CTGCT` becomes
+    // `29 C>CTGC`, which describes the same insertion inside a repeat at a
+    // different placement. get_MNV matches indel support against the exact CIGAR
+    // the aligner used, so the relocated allele found none of its own reads and
+    // a row with full support was reported at 0, with a warning blaming the
+    // input. Completing the normalisation would need reference-aware
+    // left-alignment, which this flag does not promise and cannot do from the
+    // alleles alone, so length-changing alleles keep their anchor and only lose
+    // the shared prefix.
+    let length_preserving = ref_chars.len() == alt_chars.len();
+    if length_preserving {
+        while ref_end - start > 1
+            && alt_end - start > 1
+            && ref_chars[ref_end - 1] == alt_chars[alt_end - 1]
+        {
+            ref_end -= 1;
+            alt_end -= 1;
+        }
     }
     while ref_end - start > 1 && alt_end - start > 1 && ref_chars[start] == alt_chars[start] {
         start += 1;
@@ -837,5 +850,38 @@ mod tests {
         assert!(deletion.overlaps_interval(11, 11));
         assert!(deletion.overlaps_interval(10, 11));
         assert!(!deletion.overlaps_interval(10, 10));
+    }
+
+    /// Trimming must not move an indel. Suffix trimming on a length-changing
+    /// allele re-anchors it: `29 CT>CTGCT` became `29 C>CTGC`, the same
+    /// insertion at a different placement inside a repeat, which no longer
+    /// matched the CIGAR the aligner used. A row with 20 of 20 supporting reads
+    /// was then reported at 0, with a warning blaming the input file.
+    #[test]
+    fn normalising_an_indel_keeps_its_anchor() {
+        let (pos, ref_allele, alt_allele) = super::normalize_ref_alt(29, "CT", "CTGCT");
+        assert_eq!(
+            (pos, ref_allele.as_str(), alt_allele.as_str()),
+            (30, "T", "TGCT"),
+            "the insertion must stay anchored after position 30"
+        );
+
+        // A deletion written with trailing shared context, same rule.
+        let (pos, ref_allele, alt_allele) = super::normalize_ref_alt(29, "CTGCT", "CT");
+        assert_eq!(
+            (pos, ref_allele.as_str(), alt_allele.as_str()),
+            (30, "TGCT", "T")
+        );
+    }
+
+    /// A substitution has no anchor to lose, so it is trimmed from both ends as
+    /// the canonical form requires.
+    #[test]
+    fn normalising_a_substitution_trims_both_ends() {
+        let (pos, ref_allele, alt_allele) = super::normalize_ref_alt(10, "CTA", "CGA");
+        assert_eq!(
+            (pos, ref_allele.as_str(), alt_allele.as_str()),
+            (11, "T", "G")
+        );
     }
 }

@@ -72,10 +72,19 @@ Estas solo aplican cuando se proporciona `--bam`.
     | `MNV`, `SNP/MNV` | cualquiera de los dos lados, como arriba |
     | `INDEL` | los umbrales de **MNV**, medidos contra el soporte de evento del propio indel (`Event Reads`, `Event Forward/Reverse Reads`, `Event Depth`), no contra ninguna columna SNP |
 
+    Una fila del TSV se conserva o se descarta entera, y una fila a nivel de
+    codón supera el lado SNP solo cuando lo superan **todas** sus sustituciones.
+    Un registro del VCF es un alelo, y se filtra por su cuenta. Así que una
+    ejecución con `--both` bajo un umbral que una sustitución cumple y otra no
+    escribe ese alelo en el VCF sin que ninguna fila del TSV lo lleve: falló la
+    fila, no el alelo. Ninguna de las dos salidas está mal; son unidades
+    distintas.
+
     Así que un indel se filtra con `--mnv`, `--min-mnv-frequency` y
-    `--min-mnv-strand`; `--snp` no lo toca nunca. Un indel intergénico no lleva
-    soporte recalculado, así que no puede satisfacer un filtro basado en lecturas
-    y se descarta en cuanto hay algún umbral MNV activo.
+    `--min-mnv-strand`; `--snp` no lo toca nunca. Eso vale también fuera de los
+    genes: un indel intergénico se cuenta y se juzga por su propio soporte como
+    cualquier otro. Solo queda exenta una fila que no llegó a ningún contador,
+    porque no se puede aplicar un umbral a una medición que nadie tomó.
 
 ## Ajuste de indels
 

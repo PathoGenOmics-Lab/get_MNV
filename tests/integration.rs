@@ -2596,3 +2596,64 @@ fn test_intron_skip_is_not_counted_as_deletion_support() {
 
     let _ = fs::remove_dir_all(&tmp);
 }
+
+/// `--run-manifest` promises "inputs, outputs, checksums". With `--sample all`
+/// it listed the per-sample output paths and no checksum beside them, because
+/// that mode builds its own payload and skipped the block that computes them.
+/// A manifest without them cannot serve the purpose it exists for.
+#[test]
+fn test_sample_all_manifest_records_a_checksum_for_every_sample() {
+    use std::io::Write;
+
+    let tmp = temp_dir("manifest_sample_all");
+    let ex = example_dir();
+
+    // A two-sample VCF built from the first few example records.
+    let source = std::fs::read_to_string(ex.join("G35894.var.snp.vcf")).expect("example VCF");
+    let multi = tmp.join("multi.vcf");
+    let mut out = std::fs::File::create(&multi).expect("create multi-sample VCF");
+    let mut written = 0;
+    for line in source.lines() {
+        if line.starts_with("##") {
+            writeln!(out, "{line}").unwrap();
+        } else if line.starts_with("#CHROM") {
+            let fields: Vec<&str> = line.split('\t').take(8).collect();
+            writeln!(out, "{}\tFORMAT\tSAMPA\tSAMPB", fields.join("\t")).unwrap();
+        } else if written < 20 {
+            let fields: Vec<&str> = line.split('\t').take(8).collect();
+            writeln!(out, "{}\tGT\t1/1\t1/1", fields.join("\t")).unwrap();
+            written += 1;
+        }
+    }
+    drop(out);
+
+    let manifest_path = tmp.join("run.manifest.json");
+    let mut args = base_args();
+    args.vcf_file = Some(multi.to_string_lossy().into());
+    args.sample = Some("all".to_string());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.run_manifest = Some(manifest_path.to_string_lossy().into());
+
+    pipeline::run(&args).expect("pipeline should succeed");
+
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&manifest_path).expect("manifest written"))
+            .expect("manifest is JSON");
+    let samples = manifest["samples"].as_array().expect("samples array");
+    assert_eq!(samples.len(), 2, "one entry per sample");
+
+    for sample in samples {
+        let checksums = sample
+            .get("output_checksums")
+            .unwrap_or_else(|| panic!("no output_checksums for {sample:?}"));
+        let recorded = checksums["output_tsv_sha256"]
+            .as_str()
+            .expect("a TSV checksum");
+        let path = sample["output_tsv"].as_str().expect("a TSV path");
+        let bytes = std::fs::read(path).expect("the TSV the manifest names");
+        let actual = format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(&bytes));
+        assert_eq!(recorded, actual, "checksum must match the file written");
+    }
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}

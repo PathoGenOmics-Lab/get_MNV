@@ -26,7 +26,7 @@ mod read_support;
 pub(crate) use inputs::{parse_inputs, resolve_variant_input_format};
 use read_support::{
     annotate_declared_phase, append_supported_phased_indel_haplotypes, apply_read_summary,
-    compute_frameshift_phasing, count_gene_variant_reads,
+    compute_frameshift_phasing, count_gene_variant_reads, count_indel_reads_into,
 };
 
 #[derive(Debug)]
@@ -182,7 +182,17 @@ fn count_intergenic_variant_reads(
         .filter(|(_, v)| v.variant_type == VariantType::Snp && !v.positions.is_empty())
         .map(|(i, _)| i)
         .collect();
-    if snp_indices.is_empty() {
+    // Indels outside every feature reached no counter at all, so the row went
+    // out claiming `Event Reads = 0` at `Event Depth = 0` for an allele every
+    // read might carry. They are counted here, one at a time, because the
+    // window cache only understands single-position substitutions.
+    let indel_indices: Vec<usize> = variants
+        .iter()
+        .enumerate()
+        .filter(|(_, v)| v.variant_type == VariantType::Indel && !v.positions.is_empty())
+        .map(|(i, _)| i)
+        .collect();
+    if snp_indices.is_empty() && indel_indices.is_empty() {
         return Ok(());
     }
     snp_indices.sort_by_key(|&i| variants[i].positions[0]);
@@ -247,6 +257,17 @@ fn count_intergenic_variant_reads(
         }
 
         start = end;
+    }
+
+    for &i in &indel_indices {
+        count_indel_reads_into(
+            &mut reader,
+            &header,
+            args,
+            contig,
+            "outside any annotated feature",
+            &mut variants[i],
+        )?;
     }
     Ok(())
 }
