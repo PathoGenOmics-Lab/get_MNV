@@ -38,6 +38,35 @@ pub(super) fn transcript_sequence_for_gene(
     Some(cds)
 }
 
+/// Every transcript offset a genomic position occupies.
+///
+/// Normally exactly one. A ribosomal-slippage join, the `join(a..b, b..c)` shape
+/// this model supports for ORF1ab and friends, has two CDS rows that share a
+/// base, and that base is read twice by the ribosome: it sits at two different
+/// offsets in the spliced coding sequence. Taking only the first left the second
+/// codon holding the reference base, so a substitution there was annotated with
+/// the wrong residue, or produced no row at all when nothing else fell in that
+/// codon. The indel path already walked every segment; this is the same walk for
+/// a substitution.
+pub(super) fn transcript_offsets_for_position(gene: &Gene, position: usize) -> Vec<usize> {
+    if !has_transcript_cds_model(gene) {
+        return Vec::new();
+    }
+
+    let mut offsets = Vec::new();
+    let mut offset = 0usize;
+    for segment in &gene.cds_segments {
+        if position >= segment.start && position <= segment.end {
+            offsets.push(match gene.strand {
+                Strand::Plus => offset + position.saturating_sub(segment.start),
+                Strand::Minus => offset + segment.end.saturating_sub(position),
+            });
+        }
+        offset += segment.end.saturating_sub(segment.start) + 1;
+    }
+    offsets
+}
+
 pub(super) fn transcript_offset_for_position(gene: &Gene, position: usize) -> Option<usize> {
     if !has_transcript_cds_model(gene) {
         return None;
@@ -102,9 +131,7 @@ pub(super) fn variant_touched_transcript_offsets(gene: &Gene, variant: &VcfPosit
     for component in variant.event().components {
         match component.kind {
             AlleleComponentKind::Snp => {
-                if let Some(offset) = transcript_offset_for_position(gene, component.position) {
-                    offsets.insert(offset);
-                }
+                offsets.extend(transcript_offsets_for_position(gene, component.position));
             }
             AlleleComponentKind::Insertion => {
                 for segment in &gene.cds_segments {

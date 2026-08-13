@@ -1617,6 +1617,74 @@ scenario_right_anchored_insertion = Scenario(
     expected_row_count=1,
 )
 
+
+# ---------------------------------------------------------------------------
+# 62. Sustitucion multibase FUERA de todo gen: tambien se cuenta.
+# ---------------------------------------------------------------------------
+# El contador intergenico solo trataba filas SNP e INDEL, asi que una fila MNV
+# fuera de un CDS no llegaba a ningun contador: salia sin recuentos, y un umbral
+# leia esa ausencia como cero y borraba la fila. Aqui las 20 lecturas llevan las
+# dos bases, asi que la fila tiene que reportar 20 y sobrevivir a --mnv 5.
+GFF_GENE_ELSEWHERE = (
+    "##gff-version 3\n"
+    "chr_test\tsynth\tgene\t400\t700\t.\t+\t.\tID=gene-geneZ;Name=geneZ\n"
+)
+
+scenario_intergenic_mnv_counted = Scenario(
+    name="62_intergenic_mnv_is_counted",
+    description="Sustitucion multibase fuera de todo gen con 20 lecturas que la llevan entera: se cuenta (MNV Reads 20) y sobrevive a --mnv 5",
+    variants=[VcfRecord(pos=28, ref="GC", alt="TA")],
+    reads=[
+        ReadGroup(
+            name_prefix="r_interg_mnv",
+            start=1,
+            length=100,
+            ops=[Op(kind="snv", pos=28, seq="T"), Op(kind="snv", pos=29, seq="A")],
+            count=20,
+        ),
+    ],
+    gff_content=GFF_GENE_ELSEWHERE,
+    expected=[
+        ExpectedRow(
+            positions="28, 29",
+            gene="intergenic",
+            variant_type="MNV",
+            mnv_reads="20",
+            total_reads="20",
+        ),
+    ],
+    expected_row_count=1,
+    extra_cli_args=["--mnv", "5"],
+)
+
+
+# ---------------------------------------------------------------------------
+# 63. Union por deslizamiento ribosomal: la base compartida pertenece a 2 codones.
+# ---------------------------------------------------------------------------
+# En un join(a..b, b..c) (la forma de ORF1ab de SARS-CoV-2, que el modelo admite)
+# dos filas CDS comparten una base y el ribosoma la lee dos veces: ocupa dos
+# posiciones del transcrito. Se tomaba solo la primera, asi que el segundo codon
+# se quedaba con la base de referencia y su consecuencia no se reportaba. Aqui la
+# segunda es una perdida de codon de parada, que es justo lo que se perdia.
+GFF_SLIPPAGE_JOIN = (
+    "##gff-version 3\n"
+    "chr_test\tsynth\tCDS\t1\t30\t.\t+\t0\tID=cds-a;Parent=t1;Name=orfSlip\n"
+    "chr_test\tsynth\tCDS\t30\t60\t.\t+\t0\tID=cds-b;Parent=t1;Name=orfSlip\n"
+)
+
+scenario_slippage_shared_base = Scenario(
+    name="63_slippage_shared_base_hits_both_codons",
+    description="CDS join(1..30, 30..60): una sustitucion en la base compartida se anota en los dos codones que ocupa, no solo en el primero",
+    variants=[VcfRecord(pos=30, ref="T", alt="A")],
+    reads=[],
+    gff_content=GFF_SLIPPAGE_JOIN,
+    gff_features="CDS",
+    expected=[
+        ExpectedRow(positions="30", reference_codon="GCT", snp_codon="GCA"),
+    ],
+    expected_row_count=2,
+)
+
 # ---------------------------------------------------------------------------
 # 34. Eucariotas: GFF con features CDS pero SIN --gff-features -> auto-CDS.
 # ---------------------------------------------------------------------------
@@ -2545,6 +2613,8 @@ ALL_SCENARIOS = [
     scenario_intergenic_indel_support,
     scenario_uncountable_flags,
     scenario_right_anchored_insertion,
+    scenario_intergenic_mnv_counted,
+    scenario_slippage_shared_base,
 ]
 
 

@@ -185,7 +185,7 @@ fn count_intergenic_variant_reads(
     let substitution_sites: Vec<(usize, Vec<usize>, Vec<String>)> = variants
         .iter()
         .enumerate()
-        .filter(|(_, v)| v.variant_type == VariantType::Snp)
+        .filter(|(_, v)| matches!(v.variant_type, VariantType::Snp | VariantType::Mnv))
         .filter_map(|(i, v)| {
             let components: Vec<_> = v
                 .event_components
@@ -193,15 +193,18 @@ fn count_intergenic_variant_reads(
                 .filter_map(|label| variants::parse_component_label(label))
                 .filter(|c| c.kind == variants::AlleleComponentKind::Snp)
                 .collect();
-            // Only rows whose shape still matches the counts we are about to
-            // attach: one substitution, one position, one allele.
-            if components.len() != 1 || v.positions.len() != 1 {
+            // A multi-base substitution outside a CDS used to match neither this
+            // selector nor the indel one, so it reached no counter at all and a
+            // threshold then read its absent counts as zero and deleted the row.
+            // Guard on the shape the counts will be attached to rather than on
+            // how many bases changed.
+            if components.is_empty() || components.len() != v.positions.len() {
                 return None;
             }
             Some((
                 i,
-                vec![components[0].position],
-                vec![components[0].alt_allele.clone()],
+                components.iter().map(|c| c.position).collect(),
+                components.iter().map(|c| c.alt_allele.clone()).collect(),
             ))
         })
         .collect();
@@ -248,8 +251,16 @@ fn count_intergenic_variant_reads(
         }
 
         let window = &snp_indices[start..end];
-        let region_end_pos = site_of[&window[window.len() - 1]].0[0];
-        let positions: Vec<usize> = window.iter().map(|i| site_of[i].0[0]).collect();
+        // Every position the window's rows will be counted at, not just the one
+        // each row starts on: a multi-base substitution needs all of its bases
+        // in the cache or the count fails outright.
+        let mut positions: Vec<usize> = window
+            .iter()
+            .flat_map(|i| site_of[i].0.iter().copied())
+            .collect();
+        positions.sort_unstable();
+        positions.dedup();
+        let region_end_pos = positions.last().copied().unwrap_or(window_start_pos);
 
         let cache = read_count::build_region_observation_cache(
             &mut reader,

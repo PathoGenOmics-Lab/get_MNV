@@ -35,7 +35,7 @@ pub(crate) use gene_path::codon_bounds_for_position as codon_bounds;
 use grouping::{merge_snp_into_groups, variant_event_metadata};
 use indel_effect::{coding_delta_for_variant, protein_effect_for_indel};
 use transcript_model::{
-    first_touched_transcript_offset, has_transcript_cds_model, transcript_offset_for_position,
+    first_touched_transcript_offset, has_transcript_cds_model, transcript_offsets_for_position,
     transcript_sequence_for_gene, variant_overlaps_coding_model,
     variant_touched_transcript_offsets,
 };
@@ -70,30 +70,32 @@ fn get_mnv_variants_for_transcript(
         let substitutions = variant.substitution_components();
         if !substitutions.is_empty() {
             for component in substitutions {
-                let Some(offset) = transcript_offset_for_position(gene, component.position) else {
-                    continue;
-                };
-                let Some(transcript_alt_base) =
-                    transcript_oriented_base(&component.alt_allele, gene.strand)
-                else {
-                    continue;
-                };
-                let codon_start = (offset / 3) * 3;
-                let new_snp = TranscriptSnp {
-                    snp: Snp {
-                        index: component.position,
-                        position: component.position,
-                        ref_base: component.ref_allele,
-                        base: component.alt_allele,
-                        original_dp: variant.original_dp,
-                        original_freq: variant.original_freq,
-                        original_info: variant.original_info.clone(),
-                    },
-                    transcript_offset: offset,
-                    transcript_alt_base,
-                };
-                let groups = codon_to_groups.entry(codon_start).or_default();
-                merge_transcript_snp_into_groups(groups, new_snp);
+                // A base shared by two overlapping CDS rows (a ribosomal-slippage
+                // join) is read twice, so it belongs to two codons and must be
+                // applied to both. Ordinary models yield exactly one offset here.
+                for offset in transcript_offsets_for_position(gene, component.position) {
+                    let Some(transcript_alt_base) =
+                        transcript_oriented_base(&component.alt_allele, gene.strand)
+                    else {
+                        continue;
+                    };
+                    let codon_start = (offset / 3) * 3;
+                    let new_snp = TranscriptSnp {
+                        snp: Snp {
+                            index: component.position,
+                            position: component.position,
+                            ref_base: component.ref_allele.clone(),
+                            base: component.alt_allele.clone(),
+                            original_dp: variant.original_dp,
+                            original_freq: variant.original_freq,
+                            original_info: variant.original_info.clone(),
+                        },
+                        transcript_offset: offset,
+                        transcript_alt_base,
+                    };
+                    let groups = codon_to_groups.entry(codon_start).or_default();
+                    merge_transcript_snp_into_groups(groups, new_snp);
+                }
             }
         } else {
             indels.push(variant.clone());
@@ -560,12 +562,41 @@ pub fn build_intergenic_variant(chrom: &str, vcf_pos: &crate::io::VcfPosition) -
         _ => VariantType::Indel,
     };
 
+    // A substitution row carries one entry per base that changes, the same shape
+    // the gene path builds. Keeping the record's raw REF and ALT here left the
+    // read counter with a multi-base "allele" it could not use: a row outside a
+    // CDS got no counts at all, and a threshold then read the absent counts as
+    // zero and deleted it. The event already says which bases change.
+    let substitutions: Vec<&crate::variants::AlleleComponent> = event
+        .components
+        .iter()
+        .filter(|c| c.kind == crate::variants::AlleleComponentKind::Snp)
+        .collect();
+    let (positions, ref_bases, base_changes) = if matches!(
+        event.class,
+        crate::variants::AlleleEventClass::Snp | crate::variants::AlleleEventClass::Mnv
+    ) && !substitutions.is_empty()
+    {
+        (
+            substitutions.iter().map(|c| c.position).collect(),
+            substitutions.iter().map(|c| c.ref_allele.clone()).collect(),
+            substitutions.iter().map(|c| c.alt_allele.clone()).collect(),
+        )
+    } else {
+        (
+            vec![vcf_pos.position],
+            vec![vcf_pos.ref_allele.clone()],
+            vec![vcf_pos.alt_allele.clone()],
+        )
+    };
+    let entries = positions.len();
+
     VariantInfo {
         chrom: chrom.to_string(),
         gene: "intergenic".to_string(),
-        positions: vec![vcf_pos.position],
-        ref_bases: vec![vcf_pos.ref_allele.clone()],
-        base_changes: vec![vcf_pos.alt_allele.clone()],
+        positions,
+        ref_bases,
+        base_changes,
         aa_changes: vec!["-".to_string()],
         snp_aa_changes: vec!["-".to_string()],
         aa_changes_local: vec!["-".to_string()],
@@ -588,8 +619,8 @@ pub fn build_intergenic_variant(chrom: &str, vcf_pos: &crate::io::VcfPosition) -
         mnv_total_forward_reads: None,
         mnv_total_reverse_reads: None,
         mnv_phasing_reads: None,
-        original_dp: vcf_pos.original_dp.map(|dp| vec![dp]),
-        original_freq: vcf_pos.original_freq.map(|freq| vec![freq]),
+        original_dp: vcf_pos.original_dp.map(|dp| vec![dp; entries]),
+        original_freq: vcf_pos.original_freq.map(|freq| vec![freq; entries]),
         original_info: vcf_pos.original_info.clone(),
         event_class: Some(event.class.as_str().to_string()),
         event_components: event.component_labels(),
