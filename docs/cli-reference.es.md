@@ -61,7 +61,20 @@ Estas solo aplican cuando se proporciona `--bam`.
     soportado cuyos SNV individuales son débiles, y funciona también en el otro
     sentido: con los umbrales de SNP en su valor por defecto de `0`, el lado SNP
     pasa siempre, así que subir `--mnv` a solas no quita nada. Sube los dos, o
-    ninguno. Las filas `SNP` simples se juzgan solo con los umbrales de SNP.
+    ninguno.
+
+    Qué umbrales gobiernan cada fila:
+
+    | Fila | La juzgan |
+    |---|---|
+    | `SNP` | los umbrales de SNP |
+    | `MNV`, `SNP/MNV` | cualquiera de los dos lados, como arriba |
+    | `INDEL` | los umbrales de **MNV**, medidos contra el soporte de evento del propio indel (`Event Reads`, `Event Forward/Reverse Reads`, `Event Depth`), no contra ninguna columna SNP |
+
+    Así que un indel se filtra con `--mnv`, `--min-mnv-frequency` y
+    `--min-mnv-strand`; `--snp` no lo toca nunca. Un indel intergénico no lleva
+    soporte recalculado, así que no puede satisfacer un filtro basado en lecturas
+    y se descarta en cuanto hay algún umbral MNV activo.
 
 ## Ajuste de indels
 

@@ -60,8 +60,20 @@ These apply only when `--bam` is provided.
     MNV thresholds. That keeps a well-supported haplotype whose individual SNVs
     are weak, and it also works the other way: with the SNP thresholds left at
     their default of `0` the SNP side always passes, so raising `--mnv` alone
-    removes nothing. Raise both, or neither. Plain `SNP` rows are judged by the
-    SNP thresholds only.
+    removes nothing. Raise both, or neither.
+
+    Which thresholds govern which row:
+
+    | Row | Judged by |
+    |---|---|
+    | `SNP` | the SNP thresholds |
+    | `MNV`, `SNP/MNV` | either side, as above |
+    | `INDEL` | the **MNV** thresholds, measured against the indel's own event support (`Event Reads`, `Event Forward/Reverse Reads`, `Event Depth`), not against any SNP column |
+
+    So an indel is filtered with `--mnv`, `--min-mnv-frequency` and
+    `--min-mnv-strand`; `--snp` never touches it. An intergenic indel carries no
+    recomputed support at all, so it cannot satisfy a read-based filter and is
+    dropped whenever any MNV threshold is active.
 
 ## Indel tuning
 
