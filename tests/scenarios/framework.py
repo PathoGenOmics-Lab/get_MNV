@@ -253,6 +253,8 @@ class ExpectedRow:
     frameshift_phasing: str | None = None
     declared_phase: str | None = None
     codon_ld: str | None = None
+    so_term: str | None = None
+    impact: str | None = None
 
 
 @dataclass
@@ -504,6 +506,43 @@ def run_get_mnv(
     return out
 
 
+def compare_tsv_and_vcf(rows: list[dict[str, str]], vcf_path: Path) -> list[str]:
+    """Las dos salidas de una ejecucion describen los mismos cambios.
+
+    Un registro puede representar varias bases a la vez (`301 AA>CC` para un
+    MNP), asi que el VCF cubre una base cuando el REF de algun registro la
+    abarca. Lo que tiene que cumplirse es que ninguna salida lleve una base que
+    la otra deje fuera.
+    """
+    tsv_positions: set[int] = set()
+    for row in rows:
+        for value in (row.get("Positions") or "").split(","):
+            value = value.strip()
+            if value.isdigit():
+                tsv_positions.add(int(value))
+
+    covered: set[int] = set()
+    starts: set[int] = set()
+    for line in vcf_path.read_text().splitlines():
+        if not line or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        if len(fields) < 4 or not fields[1].isdigit():
+            continue
+        start = int(fields[1])
+        starts.add(start)
+        covered.update(range(start, start + max(len(fields[3]), 1)))
+
+    errors = []
+    missing = sorted(tsv_positions - covered)
+    if missing:
+        errors.append(f"  el TSV informa {missing} y el VCF no las lleva")
+    invented = sorted(starts - tsv_positions)
+    if invented:
+        errors.append(f"  el VCF tiene registros en {invented} que ninguna fila del TSV informa")
+    return errors
+
+
 def parse_tsv(path: Path) -> tuple[list[str], list[dict[str, str]]]:
     with path.open() as fh:
         lines = [l.rstrip("\n") for l in fh if l.strip()]
@@ -548,6 +587,8 @@ _FIELD_BY_ATTR = {
     "frameshift_phasing": "Frameshift Phasing",
     "declared_phase": "Declared Phase",
     "codon_ld": "Haplotype LD",
+    "so_term": "SO Term",
+    "impact": "Impact",
 }
 
 
@@ -605,8 +646,11 @@ def run_scenario(scenario: Scenario, base_work: Path) -> tuple[bool, list[str], 
         write_vcf(variant_input, scenario.variants)
         input_flag = "--vcf"
 
+    # Todos los escenarios escriben tambien el VCF, y se comprueba en todos que
+    # las dos salidas de la misma ejecucion no se pierden bases la una a la otra.
+    # Declarar las posiciones exactas sigue siendo opcional; el invariante no.
     extra_args = list(scenario.extra_cli_args or [])
-    if scenario.expected_vcf_positions is not None and "--both" not in extra_args:
+    if "--convert" not in extra_args and "--both" not in extra_args:
         extra_args.append("--both")
 
     out = run_get_mnv(
@@ -617,20 +661,22 @@ def run_scenario(scenario: Scenario, base_work: Path) -> tuple[bool, list[str], 
     )
     _, rows = parse_tsv(out)
     errors = compare(scenario.expected, rows)
-    if scenario.expected_vcf_positions is not None:
-        vcf_path = out.parent / (out.name[: -len(".tsv")] + ".vcf")
+    vcf_path = out.parent / (out.name[: -len(".tsv")] + ".vcf")
+    if "--convert" not in extra_args:
         if not vcf_path.exists():
-            errors.append(f"  no se escribio el VCF esperado: {vcf_path.name}")
+            errors.append(f"  no se escribio el VCF: {vcf_path.name}")
         else:
-            got = [
-                int(line.split("\t")[1])
-                for line in vcf_path.read_text().splitlines()
-                if line and not line.startswith("#")
-            ]
-            if got != scenario.expected_vcf_positions:
-                errors.append(
-                    f"  posiciones del VCF: esperado {scenario.expected_vcf_positions}, obtenido {got}"
-                )
+            errors.extend(compare_tsv_and_vcf(rows, vcf_path))
+            if scenario.expected_vcf_positions is not None:
+                got = [
+                    int(line.split("\t")[1])
+                    for line in vcf_path.read_text().splitlines()
+                    if line and not line.startswith("#")
+                ]
+                if got != scenario.expected_vcf_positions:
+                    errors.append(
+                        f"  posiciones del VCF: esperado {scenario.expected_vcf_positions}, obtenido {got}"
+                    )
     if scenario.expected_row_count is not None and len(rows) != scenario.expected_row_count:
         errors.append(
             f"  numero de filas: esperado {scenario.expected_row_count}, obtenido {len(rows)}"

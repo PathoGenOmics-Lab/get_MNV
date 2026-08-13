@@ -2754,6 +2754,113 @@ scenario_insertion_in_terminal_stop = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 70-74: los sitios de splice del transcrito multiexonico geneC (exon 801-900,
+# intron 901-1000, exon 1001-1200). No habia ni un escenario que comprobara un
+# termino de splice, y dos de los defectos de mayor impacto vivian justo ahi.
+scenario_splice_donor = Scenario(
+    name="70_splice_donor_is_high",
+    description="SNV en la primera base del intron (901): splice_donor_variant, impacto HIGH",
+    variants=[VcfRecord(pos=901, ref="T", alt="A")],
+    reads=[],
+    gff_content=GFF_CDS_MULTIEXON,
+    gff_features="CDS",
+    expected=[
+        ExpectedRow(positions="901", gene="geneC", so_term="splice_donor_variant", impact="HIGH"),
+    ],
+    expected_row_count=1,
+)
+
+
+scenario_splice_acceptor = Scenario(
+    name="71_splice_acceptor_is_high",
+    description="SNV en la ultima base del intron (1000): splice_acceptor_variant, impacto HIGH",
+    variants=[VcfRecord(pos=1000, ref="T", alt="A")],
+    reads=[],
+    gff_content=GFF_CDS_MULTIEXON,
+    gff_features="CDS",
+    expected=[
+        ExpectedRow(positions="1000", gene="geneC", so_term="splice_acceptor_variant", impact="HIGH"),
+    ],
+    expected_row_count=1,
+)
+
+
+scenario_splice_region = Scenario(
+    name="72_splice_region_is_low",
+    description="SNV en la tercera base del intron (903): splice_region_variant, impacto LOW",
+    variants=[VcfRecord(pos=903, ref="T", alt="A")],
+    reads=[],
+    gff_content=GFF_CDS_MULTIEXON,
+    gff_features="CDS",
+    expected=[
+        ExpectedRow(positions="903", gene="geneC", so_term="splice_region_variant", impact="LOW"),
+    ],
+    expected_row_count=1,
+)
+
+
+# Borrar el dinucleotido donante entero es mas dano que sustituir cualquiera de
+# sus dos bases, y salia splice_region_variant/LOW porque la llamada miraba el
+# ancla del registro, que es la ultima base exonica.
+scenario_splice_donor_deleted = Scenario(
+    name="73_deleting_the_donor_pair_is_high",
+    description="Delecion de las dos bases del donante (901-902) anclada en 900: splice_donor_variant, no splice_region",
+    variants=[VcfRecord(pos=900, ref="GTT", alt="G")],
+    reads=[],
+    gff_content=GFF_CDS_MULTIEXON,
+    gff_features="CDS",
+    expected=[
+        ExpectedRow(positions="900", gene="geneC", so_term="splice_donor_variant", impact="HIGH"),
+    ],
+    expected_row_count=1,
+)
+
+
+# El mismo cambio SNV:901 escrito con relleno a la izquierda. Salia intergenico,
+# y con --exclude-intergenic desaparecia una llamada de impacto HIGH.
+scenario_padded_splice_donor = Scenario(
+    name="74_padded_record_keeps_the_donor_call",
+    description="Registro 899 TGT>TGA, que solo cambia la 901: misma llamada que el registro escueto y sobrevive a --exclude-intergenic",
+    variants=[VcfRecord(pos=899, ref="TGT", alt="TGA")],
+    reads=[],
+    gff_content=GFF_CDS_MULTIEXON,
+    gff_features="CDS",
+    extra_cli_args=["--exclude-intergenic"],
+    expected=[
+        ExpectedRow(
+            positions="901",
+            gene="geneC",
+            event_components="SNV:901:T>A",
+            so_term="splice_donor_variant",
+            impact="HIGH",
+        ),
+    ],
+    expected_row_count=1,
+)
+
+
+# ---------------------------------------------------------------------------
+# 75: la bandera quita solo lo que esta fuera de toda feature. Ninguna otra fila
+# la ejercitaba, y uno de los defectos de mayor impacto era justo una llamada de
+# splice que la bandera borraba por haber salido clasificada como intergenica.
+scenario_exclude_intergenic_scope = Scenario(
+    name="75_exclude_intergenic_removes_only_what_is_outside",
+    description="Con --exclude-intergenic: la SNV de geneA se queda y la de la posicion 350, fuera de todo gen, se va",
+    variants=[
+        VcfRecord(pos=28, ref="G", alt="A"),
+        VcfRecord(pos=350, ref="A", alt="C"),
+    ],
+    reads=[],
+    gff_content=GFF_GENE_ONLY,
+    extra_cli_args=["--exclude-intergenic"],
+    expected=[
+        ExpectedRow(positions="28", gene="geneA"),
+    ],
+    expected_row_count=1,
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -2834,6 +2941,12 @@ ALL_SCENARIOS = [
     scenario_intergenic_keeps_declared_phase,
     scenario_haplotype_strand_needs_full_view,
     scenario_insertion_in_terminal_stop,
+    scenario_splice_donor,
+    scenario_splice_acceptor,
+    scenario_splice_region,
+    scenario_splice_donor_deleted,
+    scenario_padded_splice_donor,
+    scenario_exclude_intergenic_scope,
 ]
 
 
