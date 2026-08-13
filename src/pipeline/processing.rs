@@ -175,12 +175,40 @@ fn count_intergenic_variant_reads(
         None => return Ok(()),
     };
 
-    // Indices of the intergenic SNPs, ordered by position so neighbours batch.
-    let mut snp_indices: Vec<usize> = variants
+    // Where each substitution row's change actually happens, which is not always
+    // where its record starts. A left-padded record such as `350 AA>AG` changes
+    // base 351, and counting at 350 with the raw ALT took the padding base as
+    // the alternate: that base is the reference, so every read scored as support
+    // and the row reported full frequency for a change most reads do not carry.
+    // The gene path never had this because its positions come from the
+    // decomposed components; these rows now use the same source.
+    let substitution_sites: Vec<(usize, Vec<usize>, Vec<String>)> = variants
         .iter()
         .enumerate()
-        .filter(|(_, v)| v.variant_type == VariantType::Snp && !v.positions.is_empty())
-        .map(|(i, _)| i)
+        .filter(|(_, v)| v.variant_type == VariantType::Snp)
+        .filter_map(|(i, v)| {
+            let components: Vec<_> = v
+                .event_components
+                .iter()
+                .filter_map(|label| variants::parse_component_label(label))
+                .filter(|c| c.kind == variants::AlleleComponentKind::Snp)
+                .collect();
+            // Only rows whose shape still matches the counts we are about to
+            // attach: one substitution, one position, one allele.
+            if components.len() != 1 || v.positions.len() != 1 {
+                return None;
+            }
+            Some((
+                i,
+                vec![components[0].position],
+                vec![components[0].alt_allele.clone()],
+            ))
+        })
+        .collect();
+    let mut snp_indices: Vec<usize> = substitution_sites.iter().map(|(i, _, _)| *i).collect();
+    let site_of: std::collections::HashMap<usize, (Vec<usize>, Vec<String>)> = substitution_sites
+        .into_iter()
+        .map(|(i, positions, alts)| (i, (positions, alts)))
         .collect();
     // Indels outside every feature reached no counter at all, so the row went
     // out claiming `Event Reads = 0` at `Event Depth = 0` for an allele every
@@ -195,7 +223,7 @@ fn count_intergenic_variant_reads(
     if snp_indices.is_empty() && indel_indices.is_empty() {
         return Ok(());
     }
-    snp_indices.sort_by_key(|&i| variants[i].positions[0]);
+    snp_indices.sort_by_key(|i| site_of[i].0[0]);
 
     let mut reader = bam::io::indexed_reader::Builder::default()
         .build_from_path(bam_path)
@@ -210,19 +238,18 @@ fn count_intergenic_variant_reads(
 
     let mut start = 0usize;
     while start < snp_indices.len() {
-        let window_start_pos = variants[snp_indices[start]].positions[0];
+        let window_start_pos = site_of[&snp_indices[start]].0[0];
         let mut end = start + 1;
         while end < snp_indices.len()
             && end - start < MAX_WINDOW_POSITIONS
-            && variants[snp_indices[end]].positions[0].saturating_sub(window_start_pos)
-                <= MAX_WINDOW_SPAN
+            && site_of[&snp_indices[end]].0[0].saturating_sub(window_start_pos) <= MAX_WINDOW_SPAN
         {
             end += 1;
         }
 
         let window = &snp_indices[start..end];
-        let region_end_pos = variants[window[window.len() - 1]].positions[0];
-        let positions: Vec<usize> = window.iter().map(|&i| variants[i].positions[0]).collect();
+        let region_end_pos = site_of[&window[window.len() - 1]].0[0];
+        let positions: Vec<usize> = window.iter().map(|i| site_of[i].0[0]).collect();
 
         let cache = read_count::build_region_observation_cache(
             &mut reader,
@@ -240,10 +267,11 @@ fn count_intergenic_variant_reads(
         })?;
 
         for &i in window {
+            let (site_positions, site_alts) = &site_of[&i];
             let summary = read_count::count_reads_from_cache(
                 &cache,
-                &variants[i].positions,
-                &variants[i].base_changes,
+                site_positions,
+                site_alts,
                 args.min_quality,
                 !args.count_mates_separately,
             )
@@ -436,22 +464,27 @@ pub(crate) fn process_contig(
     // as "this was annotated" removed such a variant from every output with no
     // warning at all. Ask the rows that were actually produced instead.
     {
-        let annotated: std::collections::HashSet<usize> = all_variants
+        // Keyed by the event each row describes, not by the coordinate it sits
+        // at. Two records can share a position, and a position-keyed test then
+        // reads "some row exists here" as "this record was annotated": a
+        // substitution at 1524 made an insertion anchored on 1524 vanish from
+        // every output. The component label identifies the change itself.
+        let annotated: std::collections::HashSet<&str> = all_variants
             .iter()
-            .flat_map(|variant| variant.positions.iter().copied())
+            .flat_map(|variant| variant.event_components.iter().map(String::as_str))
             .collect();
-        // A record is annotated when any position it could have produced turned
-        // into a row, not only its own POS. A legal left-padded record such as
-        // `28 GC>GA` changes base 29 and produces its row there, so testing the
-        // anchor alone declared the record unannotated and emitted a second,
-        // duplicate row for it.
+        // A record was annotated when every part of the change it describes
+        // appears among the rows that were produced. Asking about its POS alone
+        // got this wrong twice: a left-padded record such as `28 GC>GA` is
+        // annotated at 29, and an insertion re-anchored onto a coordinate a
+        // substitution already occupies is not the substitution.
         let produced_a_row = |snp: &crate::io::VcfPosition| {
-            if annotated.contains(&snp.position) {
-                return true;
-            }
-            snp.substitution_components()
-                .iter()
-                .any(|component| annotated.contains(&component.position))
+            let labels = snp.event().component_labels();
+            // Nothing to annotate means nothing is missing.
+            labels.is_empty()
+                || labels
+                    .iter()
+                    .all(|label| annotated.contains(label.as_str()))
         };
         let mut intergenic: Vec<VariantInfo> = Vec::new();
         for snp in snp_list.iter() {
