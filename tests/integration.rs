@@ -3228,3 +3228,88 @@ c1\t74\t.\tAAC\tGGT\t100\tPASS\tDP=30\n",
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// The boundary rule for insertions is the same in both annotation models.
+///
+/// An insertion places its bases after its anchor, so anchored at a codon's last
+/// base it sits between that codon and the next and leaves both intact. The
+/// documented rule and the genomic path say so; the spliced-transcript path used
+/// the anchor's own offset, blanked the codon's substitution row to "Indel
+/// overlap" and demoted a HIGH start_lost to MODIFIER. The same reference and the
+/// same variants then gave two answers depending only on whether the CDS row
+/// carried a Parent attribute.
+#[test]
+fn test_e2e_insertion_at_codon_end_does_not_blank_the_codon() {
+    let tmp = temp_dir("e2e_insertion_codon_boundary");
+    let vcf_path = tmp.join("ins.vcf");
+    let ref_path = tmp.join("ref.fasta");
+
+    // CDS 801-900, phase 0, so codon 1 is 801-803 = ATG.
+    let filler = "TTTTTTTTTT".repeat(80);
+    let coding = format!("ATG{}", &"GCT".repeat(33)[..97]);
+    fs::write(&ref_path, format!(">chr_test\n{filler}{coding}\n")).unwrap();
+
+    let with_parent = tmp.join("tx.gff3");
+    fs::write(
+        &with_parent,
+        "##gff-version 3\n\
+chr_test\tsynth\tgene\t801\t900\t.\t+\t.\tID=g1;Name=geneX\n\
+chr_test\tsynth\tmRNA\t801\t900\t.\t+\t.\tID=m1;Parent=g1;Name=geneX\n\
+chr_test\tsynth\tCDS\t801\t900\t.\t+\t0\tID=c1;Parent=m1;Name=geneX\n",
+    )
+    .unwrap();
+    let without_parent = tmp.join("plain.gff3");
+    fs::write(
+        &without_parent,
+        "##gff-version 3\n\
+chr_test\tsynth\tCDS\t801\t900\t.\t+\t0\tID=c2;Name=geneX\n",
+    )
+    .unwrap();
+
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr_test>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr_test\t801\t.\tA\tC\t100\tPASS\tDP=30\n\
+chr_test\t802\t.\tT\tC\t100\tPASS\tDP=30\n\
+chr_test\t803\t.\tG\tGGGG\t100\tPASS\tDP=30\n",
+    )
+    .unwrap();
+
+    for (name, gff) in [("tx", &with_parent), ("plain", &without_parent)] {
+        let mut args = base_args();
+        args.vcf_file = Some(vcf_path.to_string_lossy().into());
+        args.fasta_file = ref_path.to_string_lossy().into();
+        args.genes_file_tsv = None;
+        args.gff_file = Some(gff.to_string_lossy().into());
+        args.gff_features_raw = Some("CDS".to_string());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+
+        pipeline::run(&args).unwrap_or_else(|e| panic!("{name} should annotate: {e}"));
+
+        let rows = read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")));
+        let codon = rows
+            .iter()
+            .find(|row| row.get("Positions").map(String::as_str) == Some("801, 802"))
+            .unwrap_or_else(|| panic!("{name}: no codon row: {rows:?}"));
+        assert_eq!(
+            codon.get("SO Term").map(String::as_str),
+            Some("start_lost"),
+            "{name}: the insertion sits between codons and leaves this one intact"
+        );
+        assert_eq!(
+            codon.get("Impact").map(String::as_str),
+            Some("HIGH"),
+            "{name}"
+        );
+        assert_eq!(
+            codon.get("AA Changes").map(String::as_str),
+            Some("Met1Pro"),
+            "{name}"
+        );
+    }
+
+    fs::remove_dir_all(&tmp).ok();
+}

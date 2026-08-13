@@ -167,6 +167,72 @@ pub(super) fn variant_touched_transcript_offsets(gene: &Gene, variant: &VcfPosit
     offsets.into_iter().collect()
 }
 
+/// Whether the indel disturbs the codon spanning `[codon_start, codon_end)` in
+/// transcript coordinates.
+///
+/// An insertion places its bases after its anchor, so it falls inside the codon
+/// only when the anchor is not the codon's last base: anchored there, the
+/// inserted sequence sits between this codon and the next and leaves this
+/// codon's three bases intact. That is the boundary rule the documentation
+/// states and the genomic path applies through `VcfPosition::overlaps_interval`.
+/// Using the anchor's own offset blanked the codon's substitution row to
+/// "Indel overlap" and demoted a HIGH start_lost to MODIFIER, so the same
+/// reference and the same variants gave two different answers depending only on
+/// whether the CDS row carried a Parent attribute.
+pub(super) fn indel_disturbs_codon(
+    gene: &Gene,
+    indel: &VcfPosition,
+    codon_start: usize,
+    codon_end: usize,
+) -> bool {
+    let inside = |offset: usize| offset >= codon_start && offset < codon_end;
+    for component in indel.event().components {
+        match component.kind {
+            AlleleComponentKind::Snp => {
+                if transcript_offsets_for_position(gene, component.position)
+                    .into_iter()
+                    .any(inside)
+                {
+                    return true;
+                }
+            }
+            AlleleComponentKind::Insertion => {
+                let anchored = gene
+                    .cds_segments
+                    .iter()
+                    .any(|segment| insertion_anchor_in_segment(gene, segment, component.position));
+                if !anchored {
+                    continue;
+                }
+                if let Some(offset) = transcript_offset_for_position(gene, component.position) {
+                    if inside(offset) && offset + 1 < codon_end {
+                        return true;
+                    }
+                }
+            }
+            AlleleComponentKind::Deletion
+            | AlleleComponentKind::Delins
+            | AlleleComponentKind::Symbolic => {
+                let component_end =
+                    component.position + component.ref_allele.len().saturating_sub(1);
+                for segment in &gene.cds_segments {
+                    let overlap_start = component.position.max(segment.start);
+                    let overlap_end = component_end.min(segment.end);
+                    if overlap_start > overlap_end {
+                        continue;
+                    }
+                    for position in overlap_start..=overlap_end {
+                        if transcript_offset_for_position(gene, position).is_some_and(inside) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
 pub(super) fn first_touched_transcript_offset(gene: &Gene, variant: &VcfPosition) -> Option<usize> {
     variant_touched_transcript_offsets(gene, variant)
         .into_iter()

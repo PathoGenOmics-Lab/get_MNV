@@ -35,9 +35,8 @@ pub(crate) use gene_path::codon_bounds_for_position as codon_bounds;
 use grouping::{merge_snp_into_groups, variant_event_metadata};
 use indel_effect::{coding_delta_for_variant, protein_effect_for_indel};
 use transcript_model::{
-    first_touched_transcript_offset, has_transcript_cds_model, transcript_offsets_for_position,
-    transcript_sequence_for_gene, variant_overlaps_coding_model,
-    variant_touched_transcript_offsets,
+    first_touched_transcript_offset, has_transcript_cds_model, indel_disturbs_codon,
+    transcript_offsets_for_position, transcript_sequence_for_gene, variant_overlaps_coding_model,
 };
 use transcript_path::{
     apply_frameshift_labeling, frameshift_ptc_protein_pos, merge_transcript_snp_into_groups,
@@ -122,11 +121,9 @@ fn get_mnv_variants_for_transcript(
             let mut codon_snps = codon_snps;
             codon_snps.sort_by_key(|s| s.transcript_offset);
 
-            let overlaps_indel = indels.iter().any(|indel| {
-                variant_touched_transcript_offsets(gene, indel)
-                    .into_iter()
-                    .any(|offset| offset >= codon_start && offset < codon_end)
-            });
+            let overlaps_indel = indels
+                .iter()
+                .any(|indel| indel_disturbs_codon(gene, indel, codon_start, codon_end));
 
             // Position and ALT together: the read phasing was queried per
             // allele, so a position alone cannot pick the right answer at a
