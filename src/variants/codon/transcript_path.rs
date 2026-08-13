@@ -189,10 +189,21 @@ pub(super) fn process_transcript_codon(
     }
 }
 
-/// Protein position (1-based) of the first premature stop introduced by a single
-/// upstream frameshift indel, when it truncates the protein earlier than the
-/// natural stop. Returns `None` for the multi-indel case or when the frameshift
-/// does not introduce an earlier stop (frameshift propagation is then unchanged).
+/// Codon number (1-based, in REFERENCE numbering) of the first premature stop a
+/// single upstream frameshift indel introduces, when it truncates the protein
+/// earlier than the natural stop. Returns `None` for the multi-indel case or when
+/// the frameshift does not introduce an earlier stop (frameshift propagation is
+/// then unchanged).
+///
+/// The stop is found by translating the alternate CDS, so it arrives as a residue
+/// of the mutant protein, and it is mapped back through the indel's length change
+/// before being returned. Its caller compares it with the codon number of a row,
+/// which is a reference codon number: handing back the mutant residue compared
+/// two different coordinate systems, so a substitution the mutant protein still
+/// translates was reported as untranslated, and one past the premature stop was
+/// reported as translated frameshift missense. A 61 nt deletion put the stop at
+/// mutant residue 14 while the row it had to be compared with was reference codon
+/// 32, and the mapping puts that stop at reference codon 34.
 pub(super) fn frameshift_ptc_protein_pos(
     gene: &Gene,
     reference: &crate::io::Reference<'_>,
@@ -219,7 +230,18 @@ pub(super) fn frameshift_ptc_protein_pos(
     let ref_protein = translate_cds(&ref_cds, genetic_code);
     let alt_stop = alt_protein.find('*')?;
     let ref_stop = ref_protein.find('*').unwrap_or(ref_protein.len());
-    (alt_stop < ref_stop).then_some(alt_stop + 1)
+    if alt_stop >= ref_stop {
+        return None;
+    }
+    // The premature stop lies downstream of the frameshift that created it, so
+    // its reference offset is its alternate offset less the length the indel
+    // added or removed.
+    let delta = coding_delta_for_variant(gene, reference, fs_indels[0])?;
+    let reference_offset = (alt_stop * 3) as isize - delta;
+    if reference_offset < 0 {
+        return None;
+    }
+    Some(reference_offset as usize / 3 + 1)
 }
 
 /// Annotate a frameshifted downstream codon. If it lies past the premature stop
@@ -229,13 +251,24 @@ pub(super) fn apply_frameshift_labeling(
     var_info: &mut VariantInfo,
     ptc_protein_pos: Option<usize>,
 ) {
-    let codon_pos = var_info.aa_changes.first().and_then(|aa| {
-        aa.chars()
-            .filter(char::is_ascii_digit)
-            .collect::<String>()
-            .parse::<usize>()
-            .ok()
-    });
+    // The row's codon number must be read in the same coordinates as the stop.
+    // `frameshift_ptc_protein_pos` translates this feature's coding sequence, so
+    // its answer is a residue of this feature; `aa_changes` carries the global
+    // number, `protein_offset` residues higher for a transcript whose first CDS
+    // row declares a phase. Comparing those two placed the stop `protein_offset`
+    // residues too early, so a codon the mutant protein still translates was
+    // reported as untranslated. `aa_changes_local` is the number the stop shares.
+    let codon_pos = var_info
+        .aa_changes_local
+        .first()
+        .or_else(|| var_info.aa_changes.first())
+        .and_then(|aa| {
+            aa.chars()
+                .filter(char::is_ascii_digit)
+                .collect::<String>()
+                .parse::<usize>()
+                .ok()
+        });
     let past_ptc = matches!((ptc_protein_pos, codon_pos), (Some(ptc), Some(pos)) if pos > ptc);
     if past_ptc {
         const LABEL: &str = "downstream of premature stop";

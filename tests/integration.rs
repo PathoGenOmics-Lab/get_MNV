@@ -2837,3 +2837,79 @@ chr1\t10\t.\tA\tC\t60\tPASS\tDP=30\tGT\t1/1\t1/1\n",
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// A frameshift's premature stop is compared in the numbering of the rows it judges.
+///
+/// The stop is found by translating the alternate CDS, so it arrives as a residue
+/// of the mutant protein, while the rows it is compared against carry reference
+/// codon numbers. A 31 nt deletion puts the stop at mutant residue 9 and reference
+/// codon 19, and every substitution between those two numbers was reported as
+/// untranslated although the mutant protein still translates it. Translating the
+/// deletion + substitution haplotype by hand shows residue 16 changing, so the row
+/// must keep an amino-acid change; a row past the stop must keep the label.
+#[test]
+fn test_e2e_frameshift_stop_compared_in_reference_numbering() {
+    let tmp = temp_dir("e2e_frameshift_ptc_numbering");
+    let vcf_path = tmp.join("fs.vcf");
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+
+    fs::write(&ref_path, ">chr1\nGTGCTTCAGAGTATGTATACCACTGGGTAGGATACGGCGGAGGGCACGTCAATACGGTTCAATGCCCTACTGCATGCTCTTGTGGTTCATCTGCATGGAGATGAAACTGGTACACGCCAGGGGGGATGTAAGTGGAACTTTCGATATTGCTGGGCTAAGTTTGGGTTGTTCGCAAATCGAACTACAGACCTCAACGCTATTTGTCCTTCGCCCTTGCGGCGAAGCTCAGTGTGTGGCATCTTATAAAAAACGGTATTATTTTGAATTTCTTGCTCTTTGTGAATGTCCCCCGTGGACCGAGAGAAAGCTTTGCGGGAGGTGGGGTCAGCCATTCCAACGCTGTGGATACCTGTCTCATCCAGCGAACAATTTTAACAGAGTTCATTCTCCACACTAATGTGTTACCCAGTTCGAGCGCAT\n").unwrap();
+    fs::write(&genes_path, "geneA\t101\t400\t+\n").unwrap();
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t112\t.\tACACGCCAGGGGGGATGTAAGTGGAACTTTCG\tA\t100\tPASS\tDP=30\n\
+chr1\t146\t.\tA\tC\t100\tPASS\tDP=30\n\
+chr1\t170\t.\tT\tA\t100\tPASS\tDP=30\n",
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("fs".to_string());
+
+    pipeline::run(&args).expect("pipeline should annotate the frameshift");
+
+    let rows = read_tsv_rows(&tmp.join("fs.MNV.tsv"));
+    let by_position = |position: &str| -> (String, String) {
+        let row = rows
+            .iter()
+            .find(|row| row.get("Positions").map(String::as_str) == Some(position))
+            .unwrap_or_else(|| panic!("no row at {position}: {rows:?}"));
+        (
+            row.get("AA Changes").cloned().unwrap_or_default(),
+            row.get("Impact").cloned().unwrap_or_default(),
+        )
+    };
+
+    const UNTRANSLATED: &str = "downstream of premature stop";
+
+    let (deletion_aa, _) = by_position("112");
+    assert!(
+        deletion_aa.ends_with("fs"),
+        "the deletion itself is the frameshift: {deletion_aa}"
+    );
+
+    // Reference codon 16: after the stop in mutant numbering (9), before it in
+    // reference numbering (19), and the mutant protein still translates it.
+    let (inside_aa, inside_impact) = by_position("146");
+    assert_ne!(inside_aa, UNTRANSLATED, "the mutant protein translates it");
+    assert!(
+        inside_aa.ends_with("(fs)"),
+        "it is a frameshifted codon: {inside_aa}"
+    );
+    assert_eq!(inside_impact, "HIGH");
+
+    // Reference codon 24: past the stop in both numberings.
+    let (past_aa, past_impact) = by_position("170");
+    assert_eq!(past_aa, UNTRANSLATED);
+    assert_eq!(past_impact, "MODIFIER");
+
+    fs::remove_dir_all(&tmp).ok();
+}
