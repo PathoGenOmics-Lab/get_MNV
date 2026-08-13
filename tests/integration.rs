@@ -2788,3 +2788,52 @@ chr1\t11\t.\tA\tC\t60\tPASS\tDP=30\tGT\t1/1\t1/1\t0/0\n",
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// Two samples whose output files would share a name stop the run.
+///
+/// The per-sample file is named after the sample with the characters a file name
+/// cannot hold replaced, so `a/b` and `a_b` both become `sample_a_b`. Writing
+/// them in turn left one file holding the second sample and nothing to say the
+/// first had been overwritten, which is a cohort silently short one member.
+#[test]
+fn test_e2e_sample_all_rejects_colliding_output_names() {
+    let tmp = temp_dir("e2e_sample_name_collision");
+    let vcf_path = tmp.join("collide.vcf");
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1>\n\
+##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\ta/b\ta_b\n\
+chr1\t10\t.\tA\tC\t60\tPASS\tDP=30\tGT\t1/1\t1/1\n",
+    )
+    .unwrap();
+    fs::write(&ref_path, ">chr1\nATGCCTAAAAAGGGTTTCCCATGCCTAAAG\n").unwrap();
+    fs::write(&genes_path, "gene1\t1\t30\t+\n").unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.sample = Some("all".to_string());
+
+    let error = pipeline::run(&args).expect_err("colliding sample names must stop the run");
+    let message = error.to_string();
+    assert!(
+        message.contains("sample_a_b"),
+        "the error should name the file both samples want: {message}"
+    );
+
+    let outputs = fs::read_dir(&tmp)
+        .unwrap()
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.file_name().to_string_lossy().contains(".MNV."))
+        .count();
+    assert_eq!(outputs, 0, "nothing should be written before the run stops");
+
+    fs::remove_dir_all(&tmp).ok();
+}

@@ -13,7 +13,9 @@ pub use summary::{
     RunSummary, RunTimings,
 };
 
-use config::{configure_threads, log_run_configuration, sanitized_command_line};
+use config::{
+    configure_threads, log_run_configuration, sanitize_sample_for_path, sanitized_command_line,
+};
 use manifest::{
     build_input_metadata, build_run_manifest_value, output_checksums_for, write_json_value,
 };
@@ -467,6 +469,23 @@ pub fn run_with_progress(
         return Err(AppError::validation(
             "Requested --sample all but input VCF has no sample columns",
         ));
+    }
+
+    // Every sample writes to a file named after it, with the characters a file
+    // name cannot hold replaced. Two samples that come out the same, whether the
+    // header repeats a name or `a/b` and `a_b` both sanitize to `a_b`, would
+    // write to one file and the second would overwrite the first, leaving a
+    // cohort short one sample with nothing said about it.
+    let mut stems: std::collections::HashMap<String, &String> = std::collections::HashMap::new();
+    for sample in &sample_names {
+        let stem = sanitize_sample_for_path(sample);
+        if let Some(previous) = stems.insert(stem.clone(), sample) {
+            return Err(AppError::validation(format!(
+                "Samples '{previous}' and '{sample}' both name their output 'sample_{stem}', so one \
+                 would overwrite the other. Rename one of them in the VCF header, or process them \
+                 one at a time with --sample."
+            )));
+        }
     }
 
     let mut sample_summaries = Vec::new();

@@ -18,7 +18,9 @@ in its name:
 ```
 
 Characters that cannot appear in a file name are replaced, so a sample called
-`sample/1:bad` becomes `sample_1_bad`.
+`sample/1:bad` becomes `sample_1_bad`. Two samples whose names come out the same
+after that replacement would write to one file, so the run stops and names them
+instead of letting one overwrite the other.
 
 Each file holds the variants that sample carries, not every variant in the
 cohort. A record lists every ALT seen at that site across all samples, so the

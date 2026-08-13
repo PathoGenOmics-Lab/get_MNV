@@ -18,7 +18,10 @@ nombre:
 ```
 
 Los caracteres que no pueden aparecer en un nombre de archivo se sustituyen, así
-que una muestra llamada `sample/1:bad` pasa a ser `sample_1_bad`.
+que una muestra llamada `sample/1:bad` pasa a ser `sample_1_bad`. Si dos muestras
+quedan con el mismo nombre tras esa sustitución escribirían en un solo archivo,
+así que la ejecución se detiene y las nombra en vez de dejar que una sobrescriba
+a la otra.
 
 Cada archivo contiene las variantes que lleva esa muestra, no todas las de la
 cohorte. Un registro enumera todos los ALT vistos en ese sitio en el conjunto de
