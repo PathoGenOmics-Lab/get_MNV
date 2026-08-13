@@ -142,6 +142,37 @@ impl VcfPosition {
         decompose_allele(self.position, &self.ref_allele, &self.alt_allele)
     }
 
+    /// Every genomic base this record's own components change.
+    ///
+    /// A record may start on a base it does not touch: `40 GCTGCTG>GCTGCTA`
+    /// changes base 46 and nothing else, and a left-anchored deletion
+    /// `90 AGT>A` removes 91 and 92 while starting at 90. Anything that asks
+    /// where a record acts, rather than where it begins, asks this.
+    pub fn changed_positions(&self) -> Vec<usize> {
+        use crate::variants::AlleleComponentKind;
+
+        let mut positions = Vec::new();
+        for component in self.event().components {
+            match component.kind {
+                AlleleComponentKind::Snp | AlleleComponentKind::Insertion => {
+                    positions.push(component.position);
+                }
+                AlleleComponentKind::Deletion
+                | AlleleComponentKind::Delins
+                | AlleleComponentKind::Symbolic => {
+                    let end = component.position + component.ref_allele.len().saturating_sub(1);
+                    positions.extend(component.position..=end);
+                }
+            }
+        }
+        if positions.is_empty() {
+            positions.push(self.position);
+        }
+        positions.sort_unstable();
+        positions.dedup();
+        positions
+    }
+
     pub fn substitution_components(&self) -> Vec<AlleleComponent> {
         substitution_components(self.position, &self.ref_allele, &self.alt_allele)
     }

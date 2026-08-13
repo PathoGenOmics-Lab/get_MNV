@@ -3067,3 +3067,91 @@ chr1\t18\t.\tG\tC\t100\tPASS\tDP=30\n",
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// A splice call follows the bases a record changes, not the base it starts on.
+///
+/// The same change, `SNV:46:G>A` on a splice donor, can be written three ways: as
+/// itself, padded with reference bases on its left, or as a deletion that removes
+/// the whole GT donor. Keying the splice and intron tests on the record's POS
+/// asked about a base the record leaves alone, so the padded encoding was called
+/// intergenic and `--exclude-intergenic` deleted a HIGH-impact call, while the
+/// deletion of both essential bases was reported as a low-impact splice region.
+#[test]
+fn test_e2e_splice_call_follows_the_changed_bases() {
+    let tmp = temp_dir("e2e_splice_changed_bases");
+    let ref_path = tmp.join("ref.fasta");
+    let gff_path = tmp.join("genes.gff3");
+
+    // Exon 1 = 1..45, intron 46..145 opening with the GT donor, exon 2 = 146..190.
+    let exon1 = format!("ATG{}", "GCT".repeat(14));
+    let intron = format!("GT{}AG", "T".repeat(96));
+    let exon2 = format!("{}TAA", "GCT".repeat(14));
+    fs::write(&ref_path, format!(">c1\n{exon1}{intron}{exon2}\n")).unwrap();
+    fs::write(
+        &gff_path,
+        "##gff-version 3\n\
+c1\tsyn\tgene\t1\t190\t.\t+\t.\tID=gene-g1;Name=g1\n\
+c1\tsyn\tmRNA\t1\t190\t.\t+\t.\tID=m1;Parent=gene-g1;Name=g1\n\
+c1\tsyn\tCDS\t1\t45\t.\t+\t0\tID=cds-g1a;Parent=m1;Name=g1\n\
+c1\tsyn\tCDS\t146\t190\t.\t+\t0\tID=cds-g1b;Parent=m1;Name=g1\n",
+    )
+    .unwrap();
+
+    let encodings = [
+        ("plain", "c1\t46\t.\tG\tA\t100\tPASS\tDP=30\n"),
+        ("padded", "c1\t40\t.\tGCTGCTG\tGCTGCTA\t100\tPASS\tDP=30\n"),
+        ("donor_deleted", "c1\t45\t.\tTGT\tT\t100\tPASS\tDP=30\n"),
+    ];
+
+    for (name, record) in encodings {
+        let vcf_path = tmp.join(format!("{name}.vcf"));
+        fs::write(
+            &vcf_path,
+            format!(
+                "##fileformat=VCFv4.2\n\
+##contig=<ID=c1,length=190>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n{record}"
+            ),
+        )
+        .unwrap();
+
+        let mut args = base_args();
+        args.vcf_file = Some(vcf_path.to_string_lossy().into());
+        args.fasta_file = ref_path.to_string_lossy().into();
+        args.genes_file_tsv = None;
+        args.gff_file = Some(gff_path.to_string_lossy().into());
+        args.gff_features_raw = Some("CDS".to_string());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+
+        pipeline::run(&args).unwrap_or_else(|e| panic!("{name} should annotate: {e}"));
+
+        let rows = read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")));
+        assert_eq!(rows.len(), 1, "{name} should produce one row");
+        assert_eq!(
+            rows[0].get("SO Term").map(String::as_str),
+            Some("splice_donor_variant"),
+            "{name} destroys the donor"
+        );
+        assert_eq!(rows[0].get("Impact").map(String::as_str), Some("HIGH"));
+        assert_eq!(
+            rows[0].get("Gene").map(String::as_str),
+            Some("g1"),
+            "{name} belongs to the gene whose donor it destroys"
+        );
+
+        // The call must survive the flag that only removes variants outside
+        // every feature.
+        args.exclude_intergenic = true;
+        args.output_prefix = Some(format!("{name}_excluded"));
+        pipeline::run(&args).unwrap_or_else(|e| panic!("{name} with the flag: {e}"));
+        let kept = read_tsv_rows(&tmp.join(format!("{name}_excluded.MNV.tsv")));
+        assert_eq!(
+            kept.len(),
+            1,
+            "--exclude-intergenic must not remove {name}: it is not intergenic"
+        );
+    }
+
+    fs::remove_dir_all(&tmp).ok();
+}

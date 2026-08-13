@@ -78,9 +78,15 @@ fn gene_has_variant(gene: &Gene, snp_list: &[VcfPosition]) -> bool {
             // against its gene instead of being dropped to intergenic.
             // `gene_overlaps_variant` (used for intergenic coverage) is
             // deliberately left CDS-only.
-            || crate::variants::splice::splice_consequence_for_position(gene, variant.position)
-                .is_some()
-            || crate::variants::splice::is_intronic_position(gene, variant.position)
+            // Asked of the bases the record changes, not of the base it starts
+            // on: a padded record such as `40 GCTGCTG>GCTGCTA` begins on an
+            // exonic base it leaves alone and destroys a splice donor at 46, and
+            // testing POS dropped the gene here, so the fallback downstream had
+            // no gene left to name and called the variant intergenic.
+            || variant.changed_positions().iter().any(|&position| {
+                crate::variants::splice::splice_consequence_for_position(gene, position).is_some()
+                    || crate::variants::splice::is_intronic_position(gene, position)
+            })
     })
 }
 

@@ -146,8 +146,14 @@ fn splice_site_for_variant(
     genes: &[Gene],
     snp: &VcfPosition,
 ) -> Option<(String, crate::variants::SpliceConsequence)> {
+    let positions = snp.changed_positions();
     genes.iter().find_map(|gene| {
-        variants::splice::splice_consequence_for_position(gene, snp.position)
+        positions
+            .iter()
+            .filter_map(|&position| {
+                variants::splice::splice_consequence_for_position(gene, position)
+            })
+            .max_by_key(|consequence| consequence.severity())
             .map(|consequence| (gene.name.clone(), consequence))
     })
 }
@@ -156,9 +162,14 @@ fn splice_site_for_variant(
 /// variant is not in any CDS and not at a splice site, so it describes a variant
 /// sitting deep inside an intron.
 fn intron_for_variant(genes: &[Gene], snp: &VcfPosition) -> Option<String> {
+    let positions = snp.changed_positions();
     genes
         .iter()
-        .find(|gene| variants::splice::is_intronic_position(gene, snp.position))
+        .find(|gene| {
+            positions
+                .iter()
+                .any(|&position| variants::splice::is_intronic_position(gene, position))
+        })
         .map(|gene| gene.name.clone())
 }
 
