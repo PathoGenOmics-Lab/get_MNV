@@ -61,7 +61,8 @@ Estas solo aplican cuando se proporciona `--bam`.
     soportado cuyos SNV individuales son débiles, y funciona también en el otro
     sentido: con los umbrales de SNP en su valor por defecto de `0`, el lado SNP
     pasa siempre, así que subir `--mnv` a solas no quita nada. Sube los dos, o
-    ninguno.
+    ninguno. La ejecución avisa cuando has pedido un umbral MNV que no puede
+    llegar a una fila a nivel de codón.
 
     Qué umbrales gobiernan cada fila:
 

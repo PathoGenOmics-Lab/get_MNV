@@ -60,7 +60,8 @@ These apply only when `--bam` is provided.
     MNV thresholds. That keeps a well-supported haplotype whose individual SNVs
     are weak, and it also works the other way: with the SNP thresholds left at
     their default of `0` the SNP side always passes, so raising `--mnv` alone
-    removes nothing. Raise both, or neither.
+    removes nothing. Raise both, or neither. The run warns when you have asked
+    for an MNV threshold that cannot reach a codon-level row.
 
     Which thresholds govern which row:
 
