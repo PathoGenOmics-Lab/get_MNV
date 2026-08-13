@@ -35,13 +35,22 @@ pub(crate) fn fisher_exact_two_tailed(a: usize, b: usize, c: usize, d: usize) ->
         .exp()
     };
 
+    /// Slack for the "as extreme as" comparison, in units of the observed
+    /// probability, so it stays meaningful however small that probability is.
+    const RELATIVE_TOLERANCE: f64 = 1e-7;
+
     let observed = probability(a);
     let min_a = col1.saturating_sub(row2);
     let max_a = row1.min(col1);
     let mut p_value = 0.0f64;
     for candidate in min_a..=max_a {
         let p = probability(candidate);
-        if p <= observed + 1e-12 {
+        // "At least as extreme as the observed table" has to be judged
+        // relatively. An absolute slack swallows every candidate once the
+        // observed probability itself drops below it, so any p-value under
+        // roughly 1e-12 was floored rather than computed, and two records could
+        // come out with the stronger strand bias carrying the larger p-value.
+        if p <= observed * (1.0 + RELATIVE_TOLERANCE) {
             p_value += p;
         }
     }
@@ -122,5 +131,47 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Against scipy's `fisher_exact`, including tables extreme enough that the
+    /// p-value falls far below any absolute slack.
+    ///
+    /// The "at least as extreme" test used an absolute tolerance, so once the
+    /// observed probability dropped under it every candidate table qualified and
+    /// the p-value was floored near 1e-12 instead of computed. A 400/0/0/400
+    /// split came out ~1e-12 where the answer is ~1e-239.
+    #[test]
+    fn fisher_matches_an_independent_implementation_on_extreme_tables() {
+        // (a, b, c, d, scipy's two-tailed p)
+        let cases: &[(usize, usize, usize, usize, f64)] = &[
+            (12, 1, 10, 10, 2.159082e-02),
+            (30, 0, 0, 30, 1.691123e-17),
+            (60, 0, 0, 60, 2.070074e-35),
+            (100, 0, 0, 100, 2.208761e-59),
+            (200, 1, 1, 200, 1.967060e-115),
+            (5, 5, 5, 5, 1.0),
+            (50, 2, 3, 45, 3.031762e-22),
+            (400, 0, 0, 400, 1.063590e-239),
+        ];
+        for &(a, b, c, d, expected) in cases {
+            let got = fisher_exact_two_tailed(a, b, c, d);
+            let relative = (got - expected).abs() / expected;
+            assert!(
+                relative < 1e-4,
+                "fisher({a},{b},{c},{d}) = {got:e}, expected {expected:e} (relative error {relative:e})"
+            );
+        }
+    }
+
+    /// The ordering the strand-bias filter depends on: a more extreme table must
+    /// never report a larger p-value than a less extreme one.
+    #[test]
+    fn a_stronger_bias_never_reports_a_weaker_p_value() {
+        let weak = fisher_exact_two_tailed(12, 1, 10, 10);
+        let strong = fisher_exact_two_tailed(200, 1, 1, 200);
+        assert!(
+            strong < weak,
+            "stronger bias gave p={strong:e} against p={weak:e} for the weaker one"
+        );
     }
 }

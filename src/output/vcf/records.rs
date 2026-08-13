@@ -53,8 +53,8 @@ impl VcfWriter {
             for i in 0..variant.positions.len() {
                 let metrics = self.snp_metrics_at(variant, &bam_vectors, i)?;
                 let aa = variant.aa_changes.join(",");
-                if let Some((_, line)) = self.build_snp_entry(variant, i, &aa, metrics)? {
-                    writeln!(self.writer, "{line}")?;
+                if let Some(entry) = self.build_snp_entry(variant, i, &aa, metrics)? {
+                    self.pending.push(entry);
                 }
             }
             Ok(())
@@ -102,10 +102,8 @@ impl VcfWriter {
             })?;
             let metrics = self.mnv_metrics(variant, total_reads)?;
             let aa = variant.aa_changes.join(",");
-            if let Some((_, line)) =
-                self.build_mnv_entry(variant, reference_sequence, &aa, metrics)?
-            {
-                writeln!(self.writer, "{line}")?;
+            if let Some(entry) = self.build_mnv_entry(variant, reference_sequence, &aa, metrics)? {
+                self.pending.push(entry);
             }
             Ok(())
         } else {
@@ -252,7 +250,10 @@ impl VcfWriter {
             ));
         }
 
-        write_sorted_vcf_entries(&mut self.writer, entries)
+        // Into the contig-wide buffer: sorting a variant's own records is not
+        // enough when another variant sits between them.
+        self.pending.extend(entries);
+        Ok(())
     }
 
     pub(super) fn write_intergenic(&mut self, variant: &VariantInfo) -> AppResult<()> {

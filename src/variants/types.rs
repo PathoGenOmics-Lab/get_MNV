@@ -353,6 +353,15 @@ pub enum NonCodingReason {
     /// Inside a transcript that is not translated at all (a non-coding RNA gene
     /// or a pseudogene).
     NonCodingTranscript,
+    /// Inside coding sequence, but no whole codon could be built around it: the
+    /// annotated feature's length is not a multiple of three, or its end runs
+    /// past the contig, so the position falls in a trailing partial codon.
+    ///
+    /// Such a variant used to be dropped from every output with no warning,
+    /// because the gene path could not annotate it and the intergenic fallback
+    /// considered it covered by the gene. It is real and it is inside a gene;
+    /// only its amino-acid effect is unknown.
+    IncompleteCodon,
 }
 
 impl NonCodingReason {
@@ -361,6 +370,7 @@ impl NonCodingReason {
         match self {
             NonCodingReason::Intron => "intron_variant",
             NonCodingReason::NonCodingTranscript => "non_coding_transcript_exon_variant",
+            NonCodingReason::IncompleteCodon => "coding_sequence_variant",
         }
     }
 }

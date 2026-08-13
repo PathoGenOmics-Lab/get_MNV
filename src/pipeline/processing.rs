@@ -409,19 +409,21 @@ pub(crate) fn process_contig(
         all_variants.extend(result.variants);
     }
 
-    // Collect intergenic variants (positions not covered by any gene).
-    if !args.exclude_intergenic {
-        let mut covered = vec![false; snp_list.len()];
-        for gene in &genes {
-            for (idx, snp) in snp_list.iter().enumerate() {
-                if io::gene_overlaps_variant(gene, snp) {
-                    covered[idx] = true;
-                }
-            }
-        }
+    // Anything the gene path did not turn into a row.
+    //
+    // Overlapping a gene is not the same as having been annotated by it: a
+    // substitution in a trailing partial codon (a feature whose length is not a
+    // multiple of three) is dropped there, and treating "a gene overlaps this"
+    // as "this was annotated" removed such a variant from every output with no
+    // warning at all. Ask the rows that were actually produced instead.
+    {
+        let annotated: std::collections::HashSet<usize> = all_variants
+            .iter()
+            .flat_map(|variant| variant.positions.iter().copied())
+            .collect();
         let mut intergenic: Vec<VariantInfo> = Vec::new();
-        for (idx, snp) in snp_list.iter().enumerate() {
-            if !covered[idx] {
+        for snp in snp_list.iter() {
+            if !annotated.contains(&snp.position) {
                 // A variant not in any CDS may still sit inside a gene: at a
                 // splice site, or deeper in the intron. Both are annotated
                 // against their gene rather than called intergenic, which a
@@ -435,7 +437,28 @@ pub(crate) fn process_contig(
                     }
                     None => match intron_for_variant(&genes, snp) {
                         Some(gene_name) => variants::build_intron_variant(contig, snp, &gene_name),
-                        None => variants::build_intergenic_variant(contig, snp),
+                        None => match genes
+                            .iter()
+                            .find(|gene| io::gene_overlaps_variant(gene, snp))
+                        {
+                            // Inside a gene, but the gene path could not build a
+                            // codon around it. Keep the row, name the gene, and
+                            // say the amino-acid effect is unknown.
+                            Some(gene) => variants::build_non_coding_variant(
+                                contig,
+                                snp,
+                                &gene.name,
+                                variants::NonCodingReason::IncompleteCodon,
+                            ),
+                            None => {
+                                // Genuinely outside every feature: this is the
+                                // only kind `--exclude-intergenic` removes.
+                                if args.exclude_intergenic {
+                                    continue;
+                                }
+                                variants::build_intergenic_variant(contig, snp)
+                            }
+                        },
                     },
                 };
                 intergenic.push(variant);

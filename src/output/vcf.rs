@@ -44,6 +44,17 @@ pub struct VcfWriterConfig<'a> {
 
 pub struct VcfWriter {
     writer: Box<dyn Write>,
+    /// Records for the contig being written, held until they can go out in
+    /// coordinate order.
+    ///
+    /// A multi-position variant emits one record per constituent position, so a
+    /// variant sitting between those positions was written after them: the file
+    /// came out unsorted, `tabix` refused it, and because indexing runs after
+    /// the VCF is already on disk the run then died before writing the BCF, the
+    /// summary JSON, the manifest or the report. Buffering one contig costs the
+    /// same order of memory as the variants it came from, which the caller is
+    /// already holding.
+    pending: Vec<(usize, String)>,
     bam_provided: bool,
     min_snp_reads: usize,
     min_snp_frequency: f64,
@@ -167,6 +178,7 @@ impl VcfWriter {
         writeln!(writer, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")?;
 
         Ok(Self {
+            pending: Vec::new(),
             writer,
             bam_provided,
             min_snp_reads,
@@ -197,11 +209,17 @@ impl VcfWriter {
         filter: &str,
         info: &str,
     ) -> AppResult<()> {
-        writeln!(
-            self.writer,
-            "{chrom}\t{pos}\t.\t{ref_allele}\t{alt_allele}\t.\t{filter}\t{info}"
-        )?;
+        self.pending.push((
+            pos,
+            format!("{chrom}\t{pos}\t.\t{ref_allele}\t{alt_allele}\t.\t{filter}\t{info}"),
+        ));
         Ok(())
+    }
+
+    /// Write the buffered records in coordinate order and clear the buffer.
+    fn flush_pending(&mut self) -> AppResult<()> {
+        let entries = std::mem::take(&mut self.pending);
+        write_sorted_vcf_entries(&mut self.writer, entries)
     }
 
     pub(super) fn reference_sequence_for_variant<'a>(
@@ -223,6 +241,15 @@ impl VcfWriter {
     }
 
     pub fn write_variants(
+        &mut self,
+        variants: &[VariantInfo],
+        references: &ReferenceMap,
+    ) -> AppResult<()> {
+        self.write_variants_buffered(variants, references)?;
+        self.flush_pending()
+    }
+
+    fn write_variants_buffered(
         &mut self,
         variants: &[VariantInfo],
         references: &ReferenceMap,
