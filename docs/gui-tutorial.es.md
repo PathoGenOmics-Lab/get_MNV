@@ -7,7 +7,7 @@ llamada.
 
 Si aún no has instalado la app, mira [GUI de escritorio](gui.es.md#instalacion).
 El mismo recorrido en línea de comandos está en
-[Primeros pasos](getting-started.es.md).
+[Tutorial de línea de comandos](getting-started.es.md).
 
 !!! note "De dónde salen estas capturas"
     Están tomadas del demo de navegador que vive en `frontend/demo/`, que
@@ -65,9 +65,9 @@ de preset de arriba los cambian en bloque. En cuanto tocas uno, el chip pasa a
     umbrales solo actúan cuando hay un BAM cargado. `G35894.demo.bam` es un
     archivo de demostración diminuto que cubre un único locus, así que con el
     valor de por defecto todas las demás filas se quedan sin soporte y la salida
-    baja de 941 filas a 1. Por eso aquí están los dos en `0`. Es la misma razón
-    por la que el recorrido de línea de comandos pasa `--mnv 1`. Con un
-    alineamiento real, déjalos como están.
+    baja de 941 filas a 1. Por eso aquí están los dos en `0`. Con un alineamiento
+    real, déjalos como están. El [tutorial de línea de comandos](getting-started.es.md#5-filtra-por-ese-soporte)
+    explica cómo se combinan los dos umbrales, que no es evidente.
 
 Cinco de los valores por defecto del formulario son a propósito más estrictos que
 los de la CLI; están listados en
@@ -114,7 +114,7 @@ archivos.
 ## 5. Mira las lecturas
 
 Busca `Rv2036` en la lista de loci y ábrelo. Es el codón que recorre
-[Primeros pasos](getting-started.es.md).
+[Tutorial de línea de comandos](getting-started.es.md).
 
 ![El visor de tracks genómicos: regla, cobertura, referencia, tracks de codón y el pileup de lecturas](assets/gui-06-reads.png)
 

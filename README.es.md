@@ -177,7 +177,9 @@ MNV en fase. En las llamadas mixtas `SNP/MNV`, un haplotipo MNV sólido no se el
 solo porque las observaciones individuales de SNP queden por debajo del umbral de SNP.
 Los filtros de conteo de lecturas y de soporte por hebra son independientes del mismo modo:
 `--snp` y `--min-snp-strand` se aplican a las observaciones de SNP, mientras que `--mnv` y
-`--min-mnv-strand` se aplican al haplotipo MNV.
+`--min-mnv-strand` se aplican al haplotipo MNV. Una fila `SNP/MNV` sobrevive cuando
+cualquiera de los dos lados supera su listón, así que con los umbrales de SNP en `0`
+el lado SNP pasa siempre y subir `--mnv` a solas no quita nada: sube los dos, o ninguno.
 
 ## Salidas
 
@@ -264,7 +266,7 @@ español. Las mismas páginas, agrupadas igual, están en [`docs/`](docs/).
 
 | Documento | Descripción |
 |---|---|
-| [Primeros pasos](docs/getting-started.es.md) | Una primera ejecución de principio a fin con los datos de ejemplo |
+| [Tutorial de línea de comandos](docs/getting-started.es.md) | Una primera ejecución completa con los datos de ejemplo, y cómo leer lo que devuelve |
 | [Recetas habituales](docs/usage.es.md) | Comandos listos para ejecutar de las tareas más frecuentes |
 | [GUI de escritorio](docs/gui.es.md) | La aplicación de escritorio y su visor de tracks genómicos |
 

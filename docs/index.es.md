@@ -77,7 +77,7 @@ VCF y un BAM de demostración minúsculo para el visor de lecturas) en la carpet
 del repositorio.
 
 !!! tip "Siguientes pasos"
-    - [Primeros pasos](getting-started.es.md): una primera ejecución completa con los datos de ejemplo.
+    - [Tutorial de línea de comandos](getting-started.es.md): una primera ejecución completa con los datos de ejemplo.
     - [Recetas habituales](usage.es.md): comandos listos para ejecutar de las tareas más frecuentes.
     - [Referencia de CLI](cli-reference.es.md): cada opción, con su valor por defecto.
     - [Formatos de salida](output-formats.es.md): qué significa cada columna y cada campo.

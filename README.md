@@ -177,7 +177,9 @@ MNV haplotype. In mixed `SNP/MNV` calls, a strong MNV haplotype is not removed
 just because the individual SNP observations are below the SNP threshold.
 The read-count and strand-support filters are independent in the same way:
 `--snp` and `--min-snp-strand` apply to SNP observations, while `--mnv` and
-`--min-mnv-strand` apply to the MNV haplotype.
+`--min-mnv-strand` apply to the MNV haplotype. A `SNP/MNV` row survives when
+either side clears its bar, so with the SNP thresholds left at `0` the SNP side
+always passes and raising `--mnv` alone removes nothing: raise both, or neither.
 
 ## Outputs
 
@@ -264,7 +266,7 @@ Spanish. The same pages, grouped the same way, are under [`docs/`](docs/).
 
 | Document | Description |
 |---|---|
-| [Getting started](docs/getting-started.md) | A first run end to end on the bundled example data |
+| [Command line tutorial](docs/getting-started.md) | A first run end to end on the bundled example data, and how to read what comes back |
 | [Common recipes](docs/usage.md) | Ready-to-run commands for the usual jobs |
 | [Desktop GUI](docs/gui.md) | The desktop app and its genomic track viewer |
 

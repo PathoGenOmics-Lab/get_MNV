@@ -51,11 +51,17 @@ These apply only when `--bam` is provided.
 | `--min-mnv-strand <N>` | `0` | Minimum MNV-supporting reads on each strand. |
 | `--min-strand-bias-p <F>` | `0.0` | Minimum Fisher exact p-value accepted for strand-bias metrics. |
 
-!!! note
+!!! note "How the SNP and MNV thresholds combine"
     Frequency and read-count filters use support recalculated from `--bam`, not
-    the original `OFREQ`/`ODP` from the input. SNP and MNV filters are
-    independent: a strong MNV haplotype is kept even when its individual SNVs
-    fall below the SNP threshold.
+    the original `OFREQ`/`ODP` from the input.
+
+    A codon-level (`SNP/MNV`) row is kept when **either** side clears its bar:
+    its individual SNVs pass the SNP thresholds, **or** its haplotype passes the
+    MNV thresholds. That keeps a well-supported haplotype whose individual SNVs
+    are weak, and it also works the other way: with the SNP thresholds left at
+    their default of `0` the SNP side always passes, so raising `--mnv` alone
+    removes nothing. Raise both, or neither. Plain `SNP` rows are judged by the
+    SNP thresholds only.
 
 ## Indel tuning
 

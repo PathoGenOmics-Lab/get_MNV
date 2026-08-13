@@ -5,7 +5,7 @@ screen: loading the files, what the parameters change, how to read the summary,
 and how to look at the reads behind a call.
 
 If you have not installed the app yet, see [Desktop GUI](gui.md#install). The
-same walkthrough on the command line is [Getting Started](getting-started.md).
+same walkthrough on the command line is [Command Line Tutorial](getting-started.md).
 
 !!! note "Where these screenshots come from"
     They are captured from the browser demo in `frontend/demo/`, which renders
@@ -61,9 +61,9 @@ top set them in bulk. The moment you change one, the preset chip switches to
     thresholds only apply when a BAM is loaded. `G35894.demo.bam` is a tiny
     demonstration file that covers a single locus, so with the default floor
     every other row loses its support and the output drops from 941 rows to 1.
-    Both are set to `0` here for that reason. It is the same reason the
-    command-line walkthrough passes `--mnv 1`. On a real alignment, leave them
-    alone.
+    Both are set to `0` here for that reason; on a real alignment, leave them
+    alone. The [Command Line Tutorial](getting-started.md#5-filter-on-that-support)
+    explains how the two thresholds combine, which is not obvious.
 
 Five of the form's defaults are deliberately stricter than the CLI's; they are
 listed in [Desktop GUI](gui.md#where-the-form-differs-from-the-cli). Everything
@@ -106,7 +106,7 @@ files** shows what was written, with a button to reveal it in your file manager.
 ## 5. Look at the reads
 
 Search the locus list for `Rv2036` and open it. This is the codon that
-[Getting Started](getting-started.md) walks through.
+[Command Line Tutorial](getting-started.md) walks through.
 
 ![The genomic track viewer: ruler, coverage, reference, codon tracks and the read pileup](assets/gui-06-reads.png)
 

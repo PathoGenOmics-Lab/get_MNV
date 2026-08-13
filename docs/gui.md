@@ -67,7 +67,7 @@ This makes it easy to confirm visually that the reads carry the combined codon
 change, not just the individual SNVs.
 
 !!! tip "Try it with the example"
-    Follow the [Getting Started](getting-started.md) tutorial and load the
+    Follow the [Command Line Tutorial](getting-started.md) tutorial and load the
     bundled `example/G35894.demo.bam`. Opening the `Rv2036` row shows all 24
     reads carrying both ALT bases of the `GTT → GCC` (Val93Ala) codon.
 

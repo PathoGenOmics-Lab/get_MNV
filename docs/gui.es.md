@@ -69,7 +69,7 @@ Esto facilita confirmar visualmente que las lecturas portan el cambio de codón 
 y no solo los SNV individuales.
 
 !!! tip "Pruébalo con el ejemplo"
-    Sigue el tutorial de [Primeros pasos](getting-started.es.md) y carga el
+    Sigue el [tutorial de línea de comandos](getting-started.es.md) y carga el
     `example/G35894.demo.bam` incluido. Al abrir la fila de `Rv2036` se muestran las 24
     lecturas que portan ambas bases ALT del codón `GTT → GCC` (Val93Ala).
 

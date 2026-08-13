@@ -76,7 +76,7 @@ BAM for the read viewer) lives in the
 folder of the repository.
 
 !!! tip "Next steps"
-    - [Getting Started](getting-started.md): a first run end to end on the example data.
+    - [Command Line Tutorial](getting-started.md): a first run end to end on the example data.
     - [Common Recipes](usage.md): ready-to-run commands for the usual jobs.
     - [CLI Reference](cli-reference.md): every option, with its default.
     - [Output Formats](output-formats.md): what each column and field means.

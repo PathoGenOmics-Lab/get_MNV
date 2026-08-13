@@ -51,11 +51,17 @@ Estas solo aplican cuando se proporciona `--bam`.
 | `--min-mnv-strand <N>` | `0` | Lecturas mínimas que soportan el MNV en cada hebra. |
 | `--min-strand-bias-p <F>` | `0.0` | Valor p mínimo del test exacto de Fisher aceptado para las métricas de sesgo de hebra. |
 
-!!! note
-    Los filtros de frecuencia y recuento de lecturas usan el soporte recalculado a partir de `--bam`, no
-    los `OFREQ`/`ODP` originales de la entrada. Los filtros de SNP y MNV son
-    independientes: un haplotipo MNV fuerte se conserva incluso cuando sus SNV individuales
-    quedan por debajo del umbral de SNP.
+!!! note "Cómo se combinan los umbrales de SNP y MNV"
+    Los filtros de frecuencia y recuento de lecturas usan el soporte recalculado
+    a partir de `--bam`, no los `OFREQ`/`ODP` originales de la entrada.
+
+    Una fila a nivel de codón (`SNP/MNV`) se conserva cuando **cualquiera** de
+    los dos lados supera su listón: sus SNV individuales pasan los umbrales de
+    SNP, **o** su haplotipo pasa los de MNV. Eso conserva un haplotipo bien
+    soportado cuyos SNV individuales son débiles, y funciona también en el otro
+    sentido: con los umbrales de SNP en su valor por defecto de `0`, el lado SNP
+    pasa siempre, así que subir `--mnv` a solas no quita nada. Sube los dos, o
+    ninguno. Las filas `SNP` simples se juzgan solo con los umbrales de SNP.
 
 ## Ajuste de indels
 

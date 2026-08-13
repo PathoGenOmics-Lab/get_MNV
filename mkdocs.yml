@@ -8,7 +8,7 @@ site_url: https://pathogenomics-lab.github.io/get_MNV/
 
 repo_url: https://github.com/PathoGenOmics-Lab/get_MNV
 repo_name: PathoGenOmics-Lab/get_MNV
-edit_uri: edit/indels/docs/
+edit_uri: edit/main/docs/
 copyright: >-
   Copyright &copy; Paula Ruiz-Rodriguez & Mireia Coscolla —
   I&sup2;SysBio, University of Valencia-CSIC
@@ -73,7 +73,7 @@ plugins:
             How it works: Cómo funciona
             Help: Ayuda
             # Pages
-            Getting Started: Primeros pasos
+            Command Line Tutorial: Tutorial de línea de comandos
             Common Recipes: Recetas habituales
             Desktop GUI: GUI de escritorio
             Desktop GUI Tutorial: Tutorial de la GUI
@@ -133,7 +133,7 @@ validation:
 nav:
   - Home: index.md
   - Get started:
-      - Getting Started: getting-started.md
+      - Command Line Tutorial: getting-started.md
       - Common Recipes: usage.md
       - Desktop GUI: gui.md
       - Desktop GUI Tutorial: gui-tutorial.md
