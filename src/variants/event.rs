@@ -272,7 +272,15 @@ pub fn decompose_allele(position: usize, ref_allele: &str, alt_allele: &str) -> 
             class: AlleleEventClass::Insertion,
             components: vec![AlleleComponent {
                 kind: AlleleComponentKind::Insertion,
-                position: event_pos.saturating_sub(1).max(position),
+                // The anchor is the base the insertion follows, which is the one
+                // before the first base that differs. A record anchored on its
+                // right, `30 T>AT`, shares no prefix, so that base sits at
+                // `position - 1` and lies outside the record's own span. Clamping
+                // the anchor back into the span put the inserted sequence on the
+                // far side of the reference base: the same insertion written
+                // `29 C>CA` and `30 T>AT` came out as `INS:29:+A` and
+                // `INS:30:+A`, and annotated as two different frameshifts.
+                position: event_pos.saturating_sub(1),
                 ref_allele: String::new(),
                 alt_allele: alt_core,
             }],
@@ -424,5 +432,26 @@ mod tests {
             let component = parse_component_label(label).expect("component label");
             assert_eq!(component.label(), label);
         }
+    }
+
+    /// VCF allows an insertion to be anchored on the base after it as well as
+    /// the base before it, and both spellings mean the same event. Clamping the
+    /// anchor into the record's own span put the inserted sequence on the wrong
+    /// side of the reference base, and the two spellings then annotated as
+    /// different frameshifts: `Ala11Cysfs` against `Ala11Serfs`.
+    #[test]
+    fn a_right_anchored_insertion_anchors_on_the_base_before_it() {
+        let left = decompose_allele(29, "C", "CA");
+        let right = decompose_allele(30, "T", "AT");
+        assert_eq!(
+            left.component_labels(),
+            vec!["INS:29:+A".to_string()],
+            "left-anchored spelling"
+        );
+        assert_eq!(
+            right.component_labels(),
+            left.component_labels(),
+            "the same insertion written the other way must give the same event"
+        );
     }
 }

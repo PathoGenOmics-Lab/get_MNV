@@ -197,3 +197,79 @@ proptest! {
         prop_assert_eq!(before.class, after.class);
     }
 }
+
+// The event components must add up to the allele they came from.
+//
+// `Event Components` is published in the TSV and in the VCF `COMP` field, and
+// downstream code (the exact indel counter, the local haplotype matcher) treats
+// it as the authoritative description of what a read has to show. If applying
+// the components to REF does not reproduce ALT, then something in the pipeline
+// is matching reads against an event the record does not actually describe.
+proptest! {
+    #[test]
+    fn components_rebuild_the_alternate_allele(
+        position in 5usize..50,
+        ref_allele in "[ACGT]{1,6}",
+        alt_allele in "[ACGT]{1,6}",
+    ) {
+        use crate::variants::AlleleComponentKind;
+
+        let event = crate::variants::decompose_allele(position, &ref_allele, &alt_allele);
+        // Symbolic and reference-only alleles describe nothing to rebuild.
+        prop_assume!(!event.components.is_empty());
+
+        // One slot per reference base, each holding what that base becomes, plus
+        // a slot in front for a sequence inserted before the record's own span
+        // (a right-anchored insertion such as `5 T>AT` anchors on base 4).
+        let mut leading = String::new();
+        let mut slots: Vec<String> = ref_allele.chars().map(|c| c.to_string()).collect();
+
+        for component in &event.components {
+            if component.kind == AlleleComponentKind::Insertion
+                && component.position + 1 == position
+            {
+                leading.push_str(&component.alt_allele);
+                continue;
+            }
+            let Some(idx) = component.position.checked_sub(position) else { continue };
+            match component.kind {
+                AlleleComponentKind::Snp => {
+                    prop_assert!(idx < slots.len());
+                    slots[idx] = component.alt_allele.clone();
+                }
+                AlleleComponentKind::Deletion => {
+                    for offset in 0..component.ref_allele.chars().count() {
+                        if let Some(slot) = slots.get_mut(idx + offset) {
+                            slot.clear();
+                        }
+                    }
+                }
+                AlleleComponentKind::Insertion => {
+                    prop_assert!(idx < slots.len());
+                    slots[idx].push_str(&component.alt_allele);
+                }
+                // A delins replaces its reference span outright; a symbolic ALT
+                // has no sequence to rebuild from.
+                AlleleComponentKind::Delins => {
+                    prop_assert!(idx < slots.len());
+                    for offset in 0..component.ref_allele.chars().count() {
+                        if let Some(slot) = slots.get_mut(idx + offset) {
+                            slot.clear();
+                        }
+                    }
+                    slots[idx] = component.alt_allele.clone();
+                }
+                AlleleComponentKind::Symbolic => return Ok(()),
+            }
+        }
+
+        let rebuilt: String = format!("{leading}{}", slots.concat());
+        prop_assert_eq!(
+            &rebuilt,
+            &alt_allele,
+            "{}:{}>{} decomposed to {:?} which rebuilds as {}",
+            position, ref_allele, alt_allele,
+            event.component_labels(), rebuilt
+        );
+    }
+}

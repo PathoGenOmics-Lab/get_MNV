@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc a03a85ccb677487e820c7e814f85d72b6fbba1e7d82830a08941a98e4b127bba # shrinks to sequence = "CGGCGAGGTTCGAGTTCAACC", prefix_len = 0, codons = 2, variant_offset = 0, alt_choice = 0
 cc 3571b8510b1024b0e99fef2df0fea05484da6f72c9807bb86051aeb2ace414f9 # shrinks to position = 5, ref_allele = "CG", alt_allele = "CTG"
+cc 6f37cb3d871ddb980ac2094834cdfa015312fb70e15cfc7914f7c1a76fd1f719 # shrinks to position = 5, ref_allele = "T", alt_allele = "AT"
