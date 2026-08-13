@@ -2544,6 +2544,73 @@ scenario_indel_haplotype_by_chance = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 64: un MNV intergenico que las lecturas llevan entero sobrevive a un umbral
+# de SNP. Sus lecturas de SNP son 0 por construccion, porque ninguna lectura
+# lleva una base sola, asi que juzgarlo por ese lado lo borraba del VCF mientras
+# el TSV lo conservaba con sus lecturas de haplotipo.
+scenario_intergenic_mnv_threshold = Scenario(
+    name="64_intergenic_mnv_survives_snp_threshold",
+    description="MNV intergenico 750-751 con 12/20 lecturas ligadas y --snp 5: TSV y VCF lo conservan los dos",
+    variants=[VcfRecord(pos=750, ref="AA", alt="TG")],
+    reads=[
+        ReadGroup(
+            name_prefix="r_hap",
+            start=700,
+            length=100,
+            ops=[Op(kind="snv", pos=750, seq="T"), Op(kind="snv", pos=751, seq="G")],
+            count=12,
+        ),
+        ReadGroup(name_prefix="r_ref", start=700, length=100, ops=[], count=8),
+    ],
+    extra_cli_args=["--snp", "5"],
+    expected=[
+        ExpectedRow(
+            gene="intergenic",
+            positions="750, 751",
+            variant_type="MNV",
+            mnv_reads="12",
+        ),
+    ],
+    expected_row_count=1,
+    expected_vcf_positions=[750, 751],
+)
+
+
+# ---------------------------------------------------------------------------
+# 65: un indel intergenico que 20 de 20 lecturas llevan sobrevive a un umbral
+# de MNV. El VCF lo juzgaba con soporte 0 sobre profundidad 0 aunque la misma
+# linea escribia ER=20 y EFREQ=1.0000, asi que el TSV lo conservaba y el VCF lo
+# tiraba en cuanto habia un umbral activo.
+scenario_intergenic_indel_threshold = Scenario(
+    name="65_intergenic_indel_survives_mnv_threshold",
+    description="Insercion fuera de todo gen con 20/20 lecturas y --mnv 5: TSV y VCF la conservan los dos",
+    variants=[VcfRecord(pos=30, ref="T", alt="TGCT")],
+    reads=[
+        ReadGroup(
+            name_prefix="r_interg_ins",
+            start=1,
+            length=151,
+            ops=[Op(kind="ins", pos=30, seq="GCT")],
+            count=20,
+        ),
+    ],
+    gff_content=GFF_GENE_FAR_AWAY,
+    extra_cli_args=["--mnv", "5"],
+    expected=[
+        ExpectedRow(
+            positions="30",
+            gene="intergenic",
+            variant_type="INDEL",
+            event_reads="20",
+            event_frequency="1.0000",
+        ),
+    ],
+    expected_row_count=1,
+    expected_vcf_positions=[30],
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -2618,6 +2685,8 @@ ALL_SCENARIOS = [
     scenario_right_anchored_insertion,
     scenario_intergenic_mnv_counted,
     scenario_slippage_shared_base,
+    scenario_intergenic_mnv_threshold,
+    scenario_intergenic_indel_threshold,
 ]
 
 

@@ -265,6 +265,11 @@ class Scenario:
     gff_features: str | None = None         # --gff-features VALUE
     extra_cli_args: list[str] | None = None # flags extra para get_mnv
     ivar_records: list[IvarRecord] | None = None  # si presente, usa --tsv en vez de --vcf
+    # Posiciones que debe llevar el VCF de la misma ejecucion, en orden. Cuando
+    # se rellena, el escenario se corre con --both y se comprueba que las dos
+    # salidas cuentan lo mismo: una fila que el TSV conserva y el VCF tira (o al
+    # reves) es un desacuerdo entre dos salidas de una sola ejecucion.
+    expected_vcf_positions: list[int] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -596,14 +601,32 @@ def run_scenario(scenario: Scenario, base_work: Path) -> tuple[bool, list[str], 
         write_vcf(variant_input, scenario.variants)
         input_flag = "--vcf"
 
+    extra_args = list(scenario.extra_cli_args or [])
+    if scenario.expected_vcf_positions is not None and "--both" not in extra_args:
+        extra_args.append("--both")
+
     out = run_get_mnv(
         work, variant_input, fasta, gff, bam,
         gff_features=scenario.gff_features,
-        extra_args=scenario.extra_cli_args,
+        extra_args=extra_args or None,
         input_flag=input_flag,
     )
     _, rows = parse_tsv(out)
     errors = compare(scenario.expected, rows)
+    if scenario.expected_vcf_positions is not None:
+        vcf_path = out.parent / (out.name[: -len(".tsv")] + ".vcf")
+        if not vcf_path.exists():
+            errors.append(f"  no se escribio el VCF esperado: {vcf_path.name}")
+        else:
+            got = [
+                int(line.split("\t")[1])
+                for line in vcf_path.read_text().splitlines()
+                if line and not line.startswith("#")
+            ]
+            if got != scenario.expected_vcf_positions:
+                errors.append(
+                    f"  posiciones del VCF: esperado {scenario.expected_vcf_positions}, obtenido {got}"
+                )
     if scenario.expected_row_count is not None and len(rows) != scenario.expected_row_count:
         errors.append(
             f"  numero de filas: esperado {scenario.expected_row_count}, obtenido {len(rows)}"

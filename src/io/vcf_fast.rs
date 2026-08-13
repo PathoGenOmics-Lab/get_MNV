@@ -140,6 +140,13 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
         let genotype = gt_idx.and_then(|idx| sample_values.get(idx).copied());
         let phase_set = ps_idx.and_then(|idx| sample_values.get(idx).copied());
 
+        // Register the contig as soon as a record for it is read, before any
+        // allele is kept or skipped. An input whose every allele is skipped, a
+        // cohort sample that carries none of them, then still reports the contig
+        // it covered, which is what separates "this run has nothing to annotate"
+        // from "this file holds no records at all". Only the second is an error.
+        positions_by_contig.entry(chrom.to_string()).or_default();
+
         let mut pushed_here = 0usize;
         for (alt_idx, alt_allele) in alt_alleles.iter().enumerate() {
             if alt_allele.is_empty() || *alt_allele == "." {

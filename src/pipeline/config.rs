@@ -38,13 +38,12 @@ pub(crate) fn selected_contigs(
     contigs.sort();
     contigs.dedup();
 
-    // An explicit --chrom that resolves to nothing is a misconfiguration and
-    // still fails. No contigs because the input holds no variants for this run
-    // is not: a VCF whose every call was filtered out, or a cohort sample whose
-    // genotype carries none of the cohort's alleles, has nothing to annotate and
-    // gets an empty output. Failing there aborted a whole `--sample all` run on
-    // the first clean sample, so the samples after it were never written.
-    if contigs.is_empty() && args.chrom.is_some() {
+    // Empty here means the input named no contig at all: a file with no records.
+    // A run whose records were all skipped, a cohort sample carrying none of the
+    // cohort's alleles, still names the contigs it read and gets an empty output
+    // rather than an error, because there is a difference between nothing to
+    // annotate and nothing to read.
+    if contigs.is_empty() {
         return Err(AppError::validation("No contigs selected for processing"));
     }
 

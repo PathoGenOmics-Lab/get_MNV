@@ -274,12 +274,16 @@ impl VcfWriter {
         let alt_base = get_required(&variant.base_changes, index, "base_changes", variant)?;
         let pos = *get_required(&variant.positions, index, "positions", variant)?;
 
-        // Intergenic SNPs are read-counted at their position, so they are
-        // filtered by their real support exactly like any SNP. Intergenic
-        // indels carry no read counts and are always emitted.
-        let counted_substitution =
-            matches!(variant.variant_type, VariantType::Snp | VariantType::Mnv);
-        let snp_support = if self.bam_provided && counted_substitution {
+        // A single-base intergenic substitution is judged on its own read
+        // support, base by base, exactly as the TSV judges it. Every other
+        // intergenic row, a multi-base substitution or an indel, is judged on its
+        // haplotype support, which is also what the TSV uses: the reads carrying
+        // the whole change. Judging a multi-base row on the SNP side deleted it
+        // from the VCF while the TSV kept it, because a haplotype every read
+        // carries whole has no reads carrying one base alone, so its SNP support
+        // is zero by construction.
+        let judged_per_base = variant.variant_type == VariantType::Snp;
+        let snp_support = if self.bam_provided && judged_per_base {
             let support = variant
                 .snp_reads
                 .as_ref()
@@ -308,6 +312,21 @@ impl VcfWriter {
             None
         };
 
+        // The haplotype counts, when a counter reached this row.
+        let mnv_support = if self.bam_provided && !judged_per_base {
+            match (variant.mnv_reads, variant.mnv_total_reads) {
+                (None, None) => None,
+                _ => Some((
+                    variant.mnv_reads.unwrap_or(0),
+                    variant.mnv_forward_reads.unwrap_or(0),
+                    variant.mnv_reverse_reads.unwrap_or(0),
+                    variant.mnv_total_reads.unwrap_or(0),
+                )),
+            }
+        } else {
+            None
+        };
+
         // Strand-bias p-value, computed like the genic SNP path so the
         // --min-strand-bias-p filter and the SBP INFO field apply to intergenic
         // SNPs too (the strand read counts are populated for them).
@@ -329,10 +348,21 @@ impl VcfWriter {
                     strand_bias_p,
                 })
             }
-            None if self.bam_provided && !counted_substitution => {
-                // Intergenic indels carry no recomputed read support, so they
-                // cannot satisfy a read-based filter; drop them when the relevant
-                // MNV filters are active, matching the TSV output (support = 0).
+            None if self.bam_provided && !judged_per_base && mnv_support.is_some() => self
+                .build_support_filters(SupportFilterInput {
+                    support_reads: variant.mnv_reads.unwrap_or(0),
+                    min_reads: self.min_mnv_reads,
+                    depth: variant.mnv_total_reads.unwrap_or(0),
+                    min_frequency: self.min_mnv_frequency,
+                    forward_reads: variant.mnv_forward_reads.unwrap_or(0),
+                    reverse_reads: variant.mnv_reverse_reads.unwrap_or(0),
+                    min_strand_reads: self.min_mnv_strand_reads,
+                    strand_bias_p: None,
+                }),
+            None if self.bam_provided && !judged_per_base => {
+                // Nobody counted this row. A filter cannot be met by a
+                // measurement that was never taken, so it is held to the same
+                // verdict the TSV reaches: out while an MNV filter is active.
                 self.build_support_filters(SupportFilterInput {
                     support_reads: 0,
                     min_reads: self.min_mnv_reads,
@@ -355,10 +385,14 @@ impl VcfWriter {
             None,
             variant.variant_type.as_str(),
             snp_support.map(|(s, f, r, _)| (s, f, r)),
-            None,
+            mnv_support.map(|(s, f, r, _)| (s, f, r)),
             Some(index),
-            snp_support.map(|(_, _, _, d)| d),
-            snp_support.map(|(s, _, _, _)| s),
+            snp_support
+                .map(|(_, _, _, d)| d)
+                .or(mnv_support.map(|(_, _, _, d)| d)),
+            snp_support
+                .map(|(s, _, _, _)| s)
+                .or(mnv_support.map(|(s, _, _, _)| s)),
             if self.include_strand_bias_info {
                 strand_bias_p
             } else {
