@@ -92,8 +92,8 @@ Example:
 
 ```text
 Chromosome	Gene	Positions	Base Changes	AA Changes	Variant Type	Change Type
-MTB_anc	Rv0095c	104838	T	Asp126Glu	SNP	Non-synonymous
-MTB_anc	Rv0095c	104941,104942	T,G	Gly92Gln	SNP/MNV	Non-synonymous
+MTB_anc	Rv0095c_Rv0095c	104838	T	Asp126Glu	SNP	Non-synonymous
+MTB_anc	Rv0095c_Rv0095c	104941, 104942	T, G	Gly92Gln	SNP/MNV	Non-synonymous
 ```
 
 ## VCF Output
@@ -197,6 +197,14 @@ Includes:
 - Global variant counts
 - Runtime timings
 - Output paths
+
+!!! warning "These counts are what get_MNV produced, before the output filters"
+    `produced_variants` and the per-type counts beside it are taken after
+    annotation and before the read-support, frequency and strand filters that
+    decide what reaches the TSV. On a filtered run the two disagree on purpose:
+    the same command can log `produced variants=941` and write a one-row TSV,
+    and the HTML report, which counts rows, will say `1`. Read the summary as
+    what the annotation found and the TSV as what passed.
 
 ### Run Manifest
 

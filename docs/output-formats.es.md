@@ -92,8 +92,8 @@ Ejemplo:
 
 ```text
 Chromosome	Gene	Positions	Base Changes	AA Changes	Variant Type	Change Type
-MTB_anc	Rv0095c	104838	T	Asp126Glu	SNP	Non-synonymous
-MTB_anc	Rv0095c	104941,104942	T,G	Gly92Gln	SNP/MNV	Non-synonymous
+MTB_anc	Rv0095c_Rv0095c	104838	T	Asp126Glu	SNP	Non-synonymous
+MTB_anc	Rv0095c_Rv0095c	104941, 104942	T, G	Gly92Gln	SNP/MNV	Non-synonymous
 ```
 
 ## Salida VCF
@@ -196,6 +196,15 @@ Incluye:
 - Recuentos globales de variantes
 - Tiempos de ejecución
 - Rutas de salida
+
+!!! warning "Estos recuentos son lo que produjo get_MNV, antes de los filtros de salida"
+    `produced_variants` y los recuentos por tipo que lo acompañan se toman
+    después de la anotación y antes de los filtros de soporte de lecturas,
+    frecuencia y hebra que deciden qué llega al TSV. En una ejecución filtrada
+    los dos discrepan a propósito: el mismo comando puede registrar
+    `produced variants=941` y escribir un TSV de una sola fila, y el informe
+    HTML, que cuenta filas, dirá `1`. Lee el resumen como lo que encontró la
+    anotación y el TSV como lo que pasó los filtros.
 
 ### Manifiesto de la ejecución
 
