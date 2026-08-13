@@ -2721,6 +2721,39 @@ scenario_haplotype_strand_needs_full_view = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 69: una insercion dentro del codon de parada terminal que deja una parada en
+# su sitio no cambia la proteina. Se reportaba como un residuo insertado una
+# posicion mas alla del ultimo de la proteina, con impacto MODERATE, en una fila
+# cuyo propio codon de referencia y codon alterado eran los dos una parada,
+# mientras la sustitucion que produce ese mismo codon salia sinonima.
+scenario_insertion_in_terminal_stop = Scenario(
+    name="69_insertion_in_terminal_stop_changes_no_protein",
+    description="Insercion GGG dentro del stop terminal TAA (298-300) que deja TAG: sin cambio de proteina, no un residuo insertado tras el ultimo",
+    variants=[VcfRecord(pos=299, ref="A", alt="AGGG")],
+    reads=[
+        ReadGroup(
+            name_prefix="r_stop_ins",
+            start=250,
+            length=100,
+            ops=[Op(kind="ins", pos=299, seq="GGG")],
+            count=20,
+        ),
+    ],
+    expected=[
+        ExpectedRow(
+            positions="299",
+            gene="geneA",
+            variant_type="INDEL",
+            event_components="INS:299:+GGG",
+            change_type="Synonymous",
+            aa_changes="Synonymous",
+        ),
+    ],
+    expected_row_count=1,
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -2800,6 +2833,7 @@ ALL_SCENARIOS = [
     scenario_insertion_does_not_lend_phase,
     scenario_intergenic_keeps_declared_phase,
     scenario_haplotype_strand_needs_full_view,
+    scenario_insertion_in_terminal_stop,
 ]
 
 

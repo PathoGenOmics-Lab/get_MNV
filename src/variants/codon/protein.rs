@@ -15,6 +15,22 @@ pub(super) fn translate_cds(seq: &str, genetic_code: crate::genetic_code::Geneti
     protein
 }
 
+/// The part of a translation that is actually made: everything up to and
+/// including the first stop.
+///
+/// `translate_cds` renders every codon of the sequence it is given, stop codons
+/// included, which is what the stop-position searches want. Comparing two such
+/// translations base for base compares residues downstream of the stop, which no
+/// ribosome ever reaches: an insertion inside a gene's terminal stop codon that
+/// leaves a stop in place came out as an inserted residue one past the protein's
+/// last one, on a row whose own reference and alternate codons were both TAA.
+pub(super) fn translated_part(protein: &str) -> &str {
+    match protein.find('*') {
+        Some(stop) => &protein[..=stop],
+        None => protein,
+    }
+}
+
 pub(super) fn aa_segment_three_letter(segment: &[char]) -> String {
     segment
         .iter()

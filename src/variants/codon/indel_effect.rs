@@ -52,18 +52,36 @@ pub(super) fn protein_effect_for_indel(
         .unwrap_or((alt_cds.len() as isize - ref_cds.len() as isize) % 3 != 0);
     let ref_protein = translate_cds(&ref_cds, genetic_code);
     let alt_protein = translate_cds(&alt_cds, genetic_code);
+    // What the ribosome actually makes, which stops at the first stop codon.
+    // Everything past it is translated by nobody, so two alternates that differ
+    // only there produce the same protein.
+    let protein_unchanged = super::protein::translated_part(&ref_protein)
+        == super::protein::translated_part(&alt_protein);
 
     // Refinement of the base label (initiator lost, stop gained/lost) lives with
     // the substitution rules in `variants::consequence`, so the two paths cannot
     // drift apart again.
-    let change_type = crate::variants::consequence::indel_change_type(
+    let mut change_type = crate::variants::consequence::indel_change_type(
         &ref_protein,
         &alt_protein,
         frameshift,
         base_change_type,
     );
+    // An in-frame indel that leaves the made protein byte for byte the same
+    // changed nothing. An insertion inside the terminal stop codon that keeps a
+    // stop there is the case: it was reported as a residue inserted one past the
+    // protein's last one, at MODERATE impact, on a row whose own reference and
+    // alternate codons were both a stop, while the substitution producing that
+    // very same stop codon was correctly called synonymous.
+    let protein_change_is_past_the_stop =
+        !frameshift && protein_unchanged && change_type == base_change_type;
+    if protein_change_is_past_the_stop {
+        change_type = ChangeType::Synonymous;
+    }
 
-    let (protein_change, local_change) = if touches_phase_skipped_bases(gene, variant) {
+    let (protein_change, local_change) = if protein_change_is_past_the_stop {
+        ("Synonymous".to_string(), "Synonymous".to_string())
+    } else if touches_phase_skipped_bases(gene, variant) {
         ("Unknown".to_string(), "Unknown".to_string())
     } else {
         describe_protein_change(&ref_protein, &alt_protein, gene.protein_offset, frameshift)
