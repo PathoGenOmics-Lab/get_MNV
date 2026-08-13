@@ -292,7 +292,14 @@ pub(crate) fn process_contig(
     // which every observer here reads forward from. Re-anchor those records once
     // so the rest of the pipeline sees the spelling it can count.
     let (snp_list, re_anchored) = io::left_anchor_insertions(snp_list, &reference);
+    let (snp_list, reference_calls) = io::drop_reference_calls(snp_list);
     let snp_list = &snp_list;
+    if reference_calls > 0 {
+        info!(
+            "Contig '{contig}' -> {reference_calls} record(s) whose ALT repeats REF describe no \
+             change and were skipped"
+        );
+    }
     if re_anchored > 0 {
         info!(
             "Contig '{contig}' -> {re_anchored} insertion(s) re-anchored onto the base they \

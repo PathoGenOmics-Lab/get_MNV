@@ -79,6 +79,9 @@ All notable changes to this project are documented in this file.
 - **`HGVS g.` no longer uses the single-nucleotide `>` form for a multi-base allele.** A fallback row (intergenic, intron, splice site, or a position inside a gene that could not be given a codon) carries the record's whole REF and ALT, so a left-padded record came out as `g.1250AA>AT`: not a valid descriptor, naming a base that did not change, at a coordinate where nothing happened, and contradicting the row's own `Event Components`. Such a row is now described by the bases that actually differ.
 
 ### Fixed
+- **A reference call is no longer annotated as a variant.** A record whose ALT repeats its REF describes no change, but it reached the annotator with nothing to decompose and came out as a row attributed to `intergenic` from inside a gene, typed `INDEL`, and carrying an `intergenic_variant` consequence: three claims about something that is not a variant. Callers do emit such rows into a variants file, so refusing the whole run would be unhelpful; they are skipped and the count is reported.
+
+### Fixed
 - **A record whose POS base does not change no longer produces two rows.** `28 GC>GA` changes base 29 and is annotated there, but the check for "did the gene path produce a row for this record" compared the record's own POS against the positions that did, so the record was judged unannotated and a second, contradictory row was emitted for it: one row said `g.29C>A` and the other `g.28GC>GA` for the same change. The check now considers every position the record could have produced. Introduced by the partial-codon fix earlier in this release.
 
 ### Fixed

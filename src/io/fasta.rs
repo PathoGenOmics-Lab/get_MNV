@@ -190,6 +190,32 @@ pub fn validate_vcf_reference_alleles(
     Ok(())
 }
 
+/// Drop records that describe no change, where ALT repeats REF.
+///
+/// Some callers emit reference calls into a variants file. Such a record has no
+/// components to decompose, so it reached the annotator as a variant with
+/// nothing in it and came out attributed to `intergenic` even from inside a
+/// gene, typed `INDEL`, and carrying an `intergenic_variant` consequence: three
+/// claims about something that is not a variant at all. A missing ALT (`.`) is
+/// already rejected at parse time; this one is common enough in real files that
+/// refusing the whole run would be unhelpful, so the records are skipped and
+/// counted.
+///
+/// Returns the surviving records and how many were dropped.
+pub fn drop_reference_calls(snp_list: Vec<VcfPosition>) -> (Vec<VcfPosition>, usize) {
+    let before = snp_list.len();
+    let kept: Vec<VcfPosition> = snp_list
+        .into_iter()
+        .filter(|site| {
+            crate::variants::decompose_allele(site.position, &site.ref_allele, &site.alt_allele)
+                .class
+                != crate::variants::AlleleEventClass::Reference
+        })
+        .collect();
+    let dropped = before - kept.len();
+    (kept, dropped)
+}
+
 /// Rewrite a right-anchored insertion into the equivalent left-anchored record.
 ///
 /// VCF allows an insertion to be written against the base after it, so
@@ -399,5 +425,37 @@ mod tests {
             declared_phase: None,
         }];
         assert!(validate_vcf_reference_alleles("c", &snps, &r).is_err());
+    }
+
+    /// A record whose ALT repeats REF describes no change. It used to reach the
+    /// annotator with nothing to decompose and come out attributed to
+    /// `intergenic` from inside a gene, typed INDEL, with an
+    /// `intergenic_variant` consequence attached to it.
+    #[test]
+    fn a_reference_call_is_not_a_variant() {
+        let calls = vec![
+            VcfPosition {
+                position: 28,
+                ref_allele: "G".to_string(),
+                alt_allele: "G".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+                declared_phase: None,
+            },
+            VcfPosition {
+                position: 30,
+                ref_allele: "T".to_string(),
+                alt_allele: "C".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+                declared_phase: None,
+            },
+        ];
+        let (kept, dropped) = super::drop_reference_calls(calls);
+        assert_eq!(dropped, 1);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].position, 30, "the real variant must survive");
     }
 }
