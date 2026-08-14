@@ -27,6 +27,29 @@ Download the latest build for your platform from the
 For a walkthrough with screenshots, see the
 [Desktop GUI tutorial](gui-tutorial.md).
 
+### How several samples are paired with their BAMs
+
+Dropping a set of variant files and a set of BAMs at once pairs them by name.
+Three rules are tried, strongest first, and the strongest match wins across the
+whole set rather than going file by file:
+
+| Rank | Rule | Example |
+|------|------|---------|
+| 1 | The file stems are the same | `sample1.vcf` and `sample1.bam` |
+| 2 | One stem starts with the other, at a dot | `G35894.var.snp.vcf` and `G35894.bam` |
+| 3 | The first dot-segment is the same | `MIP00022.MTB_anc.ann.vcf` and `MIP00022.MTB_anc.final.bam` |
+
+**A variant file with more than one equally good candidate is left unpaired on
+purpose.** The order files happen to arrive in says nothing about whose reads
+they are, and a sample counted against another sample's molecules is wrong in
+every read count, frequency, strand arm and phasing figure it reports, with
+nothing on screen to show it. Pair those by hand: select the sample and set its
+BAM. The sample list names the BAM each sample was given, so you can check the
+pairing before running.
+
+If exactly one BAM is dropped and nothing matched, it is used for every sample,
+which is the common case of one alignment and several callsets.
+
 ### Where the form differs from the CLI
 
 The app runs the same engine, and every knob it does not show falls back to the

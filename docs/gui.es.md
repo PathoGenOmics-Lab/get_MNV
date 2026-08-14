@@ -28,6 +28,29 @@ Descarga la última versión para tu plataforma desde la
 Para un recorrido con capturas, mira el
 [tutorial de la GUI de escritorio](gui-tutorial.es.md).
 
+### Cómo se emparejan varias muestras con sus BAM
+
+Si sueltas a la vez un conjunto de ficheros de variantes y un conjunto de BAM, se
+emparejan por nombre. Se prueban tres reglas, de más fuerte a más débil, y la más
+fuerte gana **sobre el conjunto entero**, no fichero a fichero:
+
+| Nivel | Regla | Ejemplo |
+|-------|-------|---------|
+| 1 | Los stems son idénticos | `sample1.vcf` y `sample1.bam` |
+| 2 | Un stem empieza por el otro, en un punto | `G35894.var.snp.vcf` y `G35894.bam` |
+| 3 | El primer segmento hasta el punto coincide | `MIP00022.MTB_anc.ann.vcf` y `MIP00022.MTB_anc.final.bam` |
+
+**Un fichero de variantes con más de un candidato igual de bueno se queda sin
+emparejar a propósito.** El orden en que llegan los ficheros no dice de quién son
+esos reads, y una muestra contada contra las moléculas de otra está mal en todos
+los recuentos, frecuencias, brazos de hebra y cifras de fasing que reporta, sin
+nada en pantalla que lo delate. Empareja esos a mano: selecciona la muestra y
+asígnale su BAM. La lista de muestras nombra el BAM que le tocó a cada una, así
+que puedes revisar el emparejado antes de ejecutar.
+
+Si sueltas exactamente un BAM y no casó con nada, se usa para todas las muestras,
+que es el caso habitual de un alineamiento y varios conjuntos de llamadas.
+
 ### En qué se aparta el formulario de la CLI
 
 La app ejecuta el mismo motor, y todo ajuste que no muestra cae en el valor por
