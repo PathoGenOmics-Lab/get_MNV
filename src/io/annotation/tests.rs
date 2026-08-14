@@ -603,3 +603,31 @@ fn test_single_strand_transcript_still_aggregates() {
     assert_eq!((segments[0].start, segments[1].start), (100, 300));
     assert_eq!(out[0].gene.introns().count(), 1);
 }
+
+#[test]
+fn test_a_quote_inside_a_value_does_not_swallow_the_column() {
+    // GFF3 reserves `%`, `;`, `=`, `&`, `,` and the control characters; a double
+    // quote is an ordinary character in an ordinary value. Treating it as a
+    // delimiter folded everything after it into one field, so `Parent` was lost,
+    // the exon left its transcript and the amino-acid numbering restarted at 1.
+    let fields = split_attribute_fields("ID=c1;Note=the 5\" half;Parent=tX;Name=myGene");
+    assert_eq!(
+        fields,
+        vec!["ID=c1", "Note=the 5\" half", "Parent=tX", "Name=myGene"]
+    );
+    let attrs = parse_gff_attributes("ID=c1;Note=the 5\" half;Parent=tX;Name=myGene");
+    assert_eq!(attrs.get("Parent"), Some(&"tX".to_string()));
+    assert_eq!(attrs.get("Name"), Some(&"myGene".to_string()));
+
+    // A value that genuinely opens with a quote still has its semicolons
+    // protected, which is the case the quoting rule was written for.
+    assert_eq!(
+        split_attribute_fields("Note=\"a;b\";ID=gene1"),
+        vec!["Note=\"a;b\"", "ID=gene1"]
+    );
+    // And so does the GTF spelling, where the quote follows a space.
+    assert_eq!(
+        split_attribute_fields("gene_id \"a;b\"; transcript_id \"t1\""),
+        vec!["gene_id \"a;b\"", "transcript_id \"t1\""]
+    );
+}

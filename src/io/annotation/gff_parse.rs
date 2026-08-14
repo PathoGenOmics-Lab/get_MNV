@@ -40,9 +40,22 @@ pub(crate) fn split_attribute_fields(attributes: &str) -> Vec<&str> {
     let mut start = 0usize;
     let mut in_quotes = false;
     let mut escaped = false;
+    // A quote delimits a value only where a value begins: right after the `=`
+    // of a GFF3 pair or the space of a GTF one. GFF3 reserves `%`, `;`, `=`,
+    // `&`, `,` and the control characters and nothing else, so a quote inside a
+    // value is an ordinary character, and treating it as a delimiter made every
+    // following `;` stop separating fields: the rest of the column became one
+    // field and every attribute after the quote was lost, `Parent` among them.
+    // The exon then left its transcript, was annotated on its own and restarted
+    // the amino-acid numbering at 1, so one character in a Note moved a residue
+    // by seventeen positions. A value that genuinely opens with a quote still
+    // has its semicolons protected.
+    let mut previous: Option<char> = None;
     for (idx, ch) in attributes.char_indices() {
         match ch {
-            '"' if !escaped => in_quotes = !in_quotes,
+            '"' if !escaped && (in_quotes || matches!(previous, Some('=') | Some(' '))) => {
+                in_quotes = !in_quotes;
+            }
             ';' if !in_quotes => {
                 let field = attributes[start..idx].trim();
                 if !field.is_empty() {
@@ -53,6 +66,7 @@ pub(crate) fn split_attribute_fields(attributes: &str) -> Vec<&str> {
             _ => {}
         }
         escaped = ch == '\\' && !escaped;
+        previous = Some(ch);
     }
     let trailing = attributes[start..].trim();
     if !trailing.is_empty() {
