@@ -2938,6 +2938,34 @@ scenario_splice_region_indel_is_one_row = Scenario(
 
 
 
+
+# ---------------------------------------------------------------------------
+# 79: FORMAT FREQ trae un valor por ALT. El lector de texto plano leia el campo
+# entero como un solo numero, asi que en un registro multialelico no parseaba
+# nada y la frecuencia se perdia; el lector de BGZF cogia el elemento de su ALT.
+# Los mismos bytes en .vcf y en .vcf.gz anotaban distinto. Este escenario existe
+# para que la comparacion plano/comprimido que corre en todos tenga esta forma.
+scenario_multiallelic_format_freq = Scenario(
+    name="79_multiallelic_format_freq_reads_its_own_alt",
+    description="Registro multialelico con FORMAT FREQ=30%,10%: el .vcf y el .vcf.gz del mismo contenido anotan igual",
+    variants=[
+        # La insercion al 30% esta por debajo de --frameshift-min-freq, asi que
+        # su cambio de marco NO debe arrastrar a la sustitucion de mas abajo.
+        # Si la frecuencia se pierde, el indel se trata como de frecuencia
+        # desconocida y si arrastra, que es lo que hacia el lector de texto.
+        VcfRecord(pos=28, ref="G", alt="GA,T", genotype="1/2", format_freq="30%,10%"),
+        VcfRecord(pos=40, ref="G", alt="A"),
+    ],
+    reads=[],
+    gff_content=GFF_GENE_ONLY,
+    extra_cli_args=["--split-multiallelic"],
+    expected=[
+        ExpectedRow(positions="40", gene="geneA", so_term="missense_variant", impact="MODERATE"),
+    ],
+)
+
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -3027,6 +3055,7 @@ ALL_SCENARIOS = [
     scenario_slippage_with_reads,
     scenario_slippage_indel_reaches_both,
     scenario_splice_region_indel_is_one_row,
+    scenario_multiallelic_format_freq,
 ]
 
 

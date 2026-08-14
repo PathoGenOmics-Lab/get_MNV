@@ -229,6 +229,9 @@ class VcfRecord:
     # Genotipo emitido en FORMAT. Con '|' declara fase; el default '1/1' no.
     genotype: str = "1/1"
     phase_set: int | None = None  # si se define, se emite PS en FORMAT
+    # FORMAT:FREQ literal, un valor por ALT. Es la forma que emiten VarScan y
+    # LoFreq, y la que los dos lectores de get_mnv leian distinto.
+    format_freq: str | None = None
 
 
 @dataclass
@@ -343,6 +346,7 @@ def write_vcf(path: Path, records: Iterable[VcfRecord]) -> None:
         '##INFO=<ID=AF,Number=A,Type=Float,Description="allele frequency">\n'
         '##FORMAT=<ID=GT,Number=1,Type=String,Description="genotype">\n'
         '##FORMAT=<ID=PS,Number=1,Type=Integer,Description="phase set">\n'
+        '##FORMAT=<ID=FREQ,Number=A,Type=String,Description="alt frequency">\n'
         "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n"
     )
     with path.open("w") as fh:
@@ -351,10 +355,14 @@ def write_vcf(path: Path, records: Iterable[VcfRecord]) -> None:
             info = "DP=30"
             if v.af is not None:
                 info += f";AF={v.af:.4f}"
-            if v.phase_set is None:
-                fmt, sample = "GT", v.genotype
-            else:
-                fmt, sample = "GT:PS", f"{v.genotype}:{v.phase_set}"
+            keys, values = ["GT"], [v.genotype]
+            if v.phase_set is not None:
+                keys.append("PS")
+                values.append(str(v.phase_set))
+            if v.format_freq is not None:
+                keys.append("FREQ")
+                values.append(v.format_freq)
+            fmt, sample = ":".join(keys), ":".join(values)
             fh.write(
                 f"{v.chrom}\t{v.pos}\t.\t{v.ref}\t{v.alt}\t100\tPASS\t{info}\t{fmt}\t{sample}\n"
             )
@@ -528,7 +536,13 @@ def run_get_mnv(
         raise RuntimeError(
             f"get_mnv failed (rc={proc.returncode}). See {log_path}\n{proc.stderr}"
         )
-    out = work_dir / (variant_input.stem + ".MNV.tsv")
+    # get_mnv strips the compression suffix as well as the format one, so a
+    # `.vcf.gz` input is named after what is left of it.
+    name = variant_input.name
+    for suffix in (".gz", ".bgz"):
+        if name.endswith(suffix):
+            name = name[: -len(suffix)]
+    out = work_dir / (Path(name).stem + ".MNV.tsv")
     if not out.exists():
         raise RuntimeError(f"get_mnv did not produce expected output {out}")
     return out
@@ -651,6 +665,57 @@ def compare(expected: list[ExpectedRow], rows: list[dict[str, str]]) -> list[str
     return errors
 
 
+def _check_bgzipped_input_agrees(
+    scenario, work, variant_input, fasta, gff, bam, extra_args, input_flag, plain_out
+) -> list[str]:
+    """The same bytes, plain and bgzipped, have to annotate identically.
+
+    get_MNV reads a plain `.vcf` with one parser and a `.vcf.gz` with another,
+    and the two drifted: FORMAT `FREQ` was read as a single number by one and
+    per ALT by the other, so a multiallelic record lost its frequency in the
+    plain file only. An indel with no known frequency propagates its frame
+    shift by design, so a synonymous substitution came out frameshift_variant
+    at HIGH from the plain file and synonymous_variant at LOW from the gzipped
+    one, on the same input. Nothing compared the two containers, so every
+    scenario now does.
+
+    Skipped, with no complaint, when bgzip is not installed: the suite already
+    needs samtools, which ships it, and a missing tool is not a failed check.
+    """
+    if input_flag != "--vcf":
+        return []
+    if shutil.which(BGZIP) is None:
+        return []
+    gz_input = work / "variants.gz.vcf.gz"
+    with open(gz_input, "wb") as handle:
+        proc = subprocess.run(
+            [BGZIP, "-c", str(variant_input)], stdout=handle, capture_output=False
+        )
+    if proc.returncode != 0:
+        return [f"  no se pudo comprimir la entrada con {BGZIP}"]
+    gz_out = run_get_mnv(
+        work, gz_input, fasta, gff, bam,
+        gff_features=scenario.gff_features,
+        extra_args=extra_args or None,
+        input_flag=input_flag,
+    )
+    plain_body = plain_out.read_text()
+    gz_body = gz_out.read_text()
+    if plain_body == gz_body:
+        return []
+    plain_lines = plain_body.split("\n")
+    gz_lines = gz_body.split("\n")
+    detalle = next(
+        (
+            f"      plano:      {a}\n      comprimido: {b}"
+            for a, b in zip(plain_lines, gz_lines)
+            if a != b
+        ),
+        f"      {len(plain_lines)} lineas planas vs {len(gz_lines)} comprimidas",
+    )
+    return ["  el .vcf y el .vcf.gz del mismo contenido anotan distinto:\n" + detalle]
+
+
 def run_scenario(scenario: Scenario, base_work: Path) -> tuple[bool, list[str], Path]:
     work = base_work / scenario.name
     if work.exists():
@@ -689,6 +754,8 @@ def run_scenario(scenario: Scenario, base_work: Path) -> tuple[bool, list[str], 
     )
     _, rows = parse_tsv(out)
     errors = compare(scenario.expected, rows)
+    errors.extend(_check_bgzipped_input_agrees(scenario, work, variant_input, fasta, gff, bam,
+                                               extra_args, input_flag, out))
     vcf_path = out.parent / (out.name[: -len(".tsv")] + ".vcf")
     if "--convert" not in extra_args:
         if not vcf_path.exists():

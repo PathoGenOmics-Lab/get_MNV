@@ -279,11 +279,19 @@ fn parse_text_metrics(
         }
     }
 
-    // Try FORMAT:FREQ
+    // Try FORMAT:FREQ, one value per ALT like every other per-allele tag. This
+    // parsed the whole field as a single number, so a multiallelic record's
+    // `30%,10%` parsed as nothing at all and the frequency was silently
+    // dropped: the reader used for `.vcf.gz` picks the element for this ALT and
+    // the one used for plain `.vcf` did not, so the same bytes in the two
+    // containers disagreed. An indel with no known frequency propagates its
+    // frame shift by design, so a synonymous substitution downstream came out
+    // frameshift_variant at HIGH from the plain file and synonymous_variant at
+    // LOW from the gzipped one. The AF branch below already did this.
     if original_freq.is_none() {
         if let Some(idx) = freq_idx {
             if let Some(val) = sample_values.get(idx) {
-                original_freq = parse_freq_token(val);
+                original_freq = parse_freq_indexed(val, alt_index);
             }
         }
     }
