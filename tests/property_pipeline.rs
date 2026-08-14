@@ -354,6 +354,44 @@ fn record_for(bases: &[char], site: usize, change: Change) -> String {
     }
 }
 
+/// The same change in iVar's notation, where an insertion is `+SEQ` and a
+/// deletion `-SEQ`, both anchored on the base before the change.
+fn ivar_row(bases: &[char], site: usize, change: Change) -> String {
+    let reference = bases[site - 1];
+    let alternate = match change {
+        Change::Substitution => other_base(reference).to_string(),
+        // An MNP has no iVar spelling; the generator maps it to its first base.
+        Change::Mnp => other_base(reference).to_string(),
+        Change::Insertion => format!(
+            "+{}{}",
+            other_base(reference),
+            other_base(other_base(reference))
+        ),
+        Change::Deletion => format!("-{}", bases[site..site + 2].iter().collect::<String>()),
+    };
+    format!("chr1\t{site}\t{reference}\t{alternate}\t12\t18\t0.6000\t30\tTRUE")
+}
+
+/// The VCF spelling that matches `ivar_row` for the same change.
+fn vcf_row_matching_ivar(bases: &[char], site: usize, change: Change) -> String {
+    let reference = bases[site - 1];
+    match change {
+        Change::Substitution | Change::Mnp => format!(
+            "chr1\t{site}\t.\t{reference}\t{}\t100\tPASS\tDP=30;AF=0.6000",
+            other_base(reference)
+        ),
+        Change::Insertion => format!(
+            "chr1\t{site}\t.\t{reference}\t{reference}{}{}\t100\tPASS\tDP=30;AF=0.6000",
+            other_base(reference),
+            other_base(other_base(reference))
+        ),
+        Change::Deletion => format!(
+            "chr1\t{site}\t.\t{reference}{}\t{reference}\t100\tPASS\tDP=30;AF=0.6000",
+            bases[site..site + 2].iter().collect::<String>()
+        ),
+    }
+}
+
 fn records_for(bases: &[char], sites: &[usize], kinds: &[Change]) -> Vec<String> {
     sites
         .iter()
@@ -705,6 +743,71 @@ proptest! {
                 sites
             );
         }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// An iVar table and the VCF that says the same thing annotate the same.
+    ///
+    /// iVar anchors an indel on the base before the change and spells it `+SEQ` or
+    /// `-SEQ`; a VCF carries the anchor inside the alleles. They are two notations
+    /// for one event, and the converter between them is the only place the two
+    /// inputs can drift apart, since everything downstream is shared.
+    #[test]
+    fn an_ivar_table_and_its_vcf_annotate_the_same(
+        sequence in reference_sequence(),
+        (sites, kinds) in spaced_sites().prop_flat_map(|sites| {
+            let len = sites.len();
+            (Just(sites), change_kinds(len))
+        }),
+    ) {
+        let dir = case_dir();
+        write_reference(&dir, &sequence);
+        let (genes, _) = write_annotations(&dir);
+        let bases = stored_sequence(&sequence);
+
+        let vcf = dir.join("variants.vcf");
+        write_vcf(
+            &vcf,
+            &sites
+                .iter()
+                .enumerate()
+                .map(|(index, &site)| {
+                    vcf_row_matching_ivar(&bases, site, kinds[index])
+                })
+                .collect::<Vec<_>>(),
+        );
+
+        let table = dir.join("variants.tsv");
+        let mut body =
+            String::from("REGION\tPOS\tREF\tALT\tREF_DP\tALT_DP\tALT_FREQ\tTOTAL_DP\tPASS\n");
+        for (index, &site) in sites.iter().enumerate() {
+            body.push_str(&ivar_row(&bases, site, kinds[index]));
+            body.push('\n');
+        }
+        fs::write(&table, body).expect("write ivar table");
+
+        let from_vcf = run_pipeline(&dir, &vcf, &genes, "from_vcf", false);
+
+        let mut args = Args::parse_from(vec![
+            "get_mnv".to_string(),
+            "--tsv".to_string(),
+            table.to_string_lossy().into_owned(),
+            "--fasta".to_string(),
+            dir.join("ref.fasta").to_string_lossy().into_owned(),
+            "--genes".to_string(),
+            genes.to_string_lossy().into_owned(),
+        ]);
+        args.output_dir = Some(dir.to_string_lossy().into_owned());
+        args.output_prefix = Some("from_ivar".to_string());
+        pipeline::run(&args).expect("pipeline should annotate the iVar table");
+        let from_ivar = dir.join("from_ivar.MNV.tsv");
+
+        prop_assert_eq!(
+            summaries(&from_vcf),
+            summaries(&from_ivar),
+            "the two notations disagree; sites {:?}",
+            sites
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 }
