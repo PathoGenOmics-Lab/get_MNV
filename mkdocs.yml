@@ -84,6 +84,7 @@ plugins:
             Indels and Local Haplotypes: Indels y haplotipos locales
             Linkage: Ligamiento
             Benchmarking: Rendimiento
+            Glossary: Glosario
             Troubleshooting: Resolución de problemas
             FAQ: Preguntas frecuentes
 
@@ -147,5 +148,6 @@ nav:
       - Linkage: linkage.md
       - Benchmarking: benchmarking.md
   - Help:
+      - Glossary: glossary.md
       - Troubleshooting: troubleshooting.md
       - FAQ: faq.md

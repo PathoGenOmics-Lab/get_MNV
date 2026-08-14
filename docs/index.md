@@ -11,6 +11,39 @@ acid effect than the individual SNVs alone.
 ![MNV amino acid reclassification](assets/get_mnv_aa.png){ width="620" }
 </div>
 
+### The problem, in one codon
+
+That is the figure above, in words. A codon reads `CGT` and codes arginine, and a
+caller reports two substitutions inside it:
+
+| Read as | Codon | Amino acid |
+|---|---|---|
+| Reference | `CGT` | Arg |
+| Position 1 alone, `C>T` | `TGT` | Cys |
+| Position 2 alone, `G>C` | `CCT` | Pro |
+| **Both together** | `TCT` | **Ser** |
+
+An annotator that takes each substitution on its own reports a cysteine and a
+proline. Neither happens. If the two changes sit on the same molecule, the protein
+carries a serine, which is the answer get_MNV gives.
+
+Whether they really do sit on the same molecule is a separate question, and with
+a BAM get_MNV counts the reads that carry both rather than assuming:
+see [Linkage](linkage.md).
+
+### What it does with them
+
+| Step | What it reads | What it produces |
+|---|---|---|
+| 1. Decompose | the `REF`/`ALT` pair of each record | the individual changes it holds: SNV, MNV, insertion, deletion, delins |
+| 2. Place | the reference and the gene annotation | which feature each change falls in, and which codon |
+| 3. Translate | the whole codon, not one base at a time | the amino acid the codon actually gives |
+| 4. Count *(with a BAM)* | the aligned reads | how many carry each change, and whether they travel together |
+| 5. Write | everything above | a TSV, a VCF, and a self-contained HTML report |
+
+Steps 1 to 3 need no reads. A BAM only adds step 4, which is what turns "these
+two changes are in one codon" into "these two changes are on one molecule".
+
 ## What it takes
 
 | Input | Format |
@@ -81,6 +114,7 @@ folder of the repository.
     - [CLI Reference](cli-reference.md): every option, with its default.
     - [Output Formats](output-formats.md): what each column and field means.
     - [Linkage](linkage.md): telling a real haplotype from a coincidence.
+    - [Glossary](glossary.md): what MNV, haplotype, linkage and the rest mean here.
     - [Troubleshooting](troubleshooting.md): fixes for common input mismatches.
 
 ## Citation
