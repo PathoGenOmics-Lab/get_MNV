@@ -13,4 +13,4 @@ mod vcf;
 
 pub use report::{sample_labels, ReportBuilder};
 pub use tsv::{TsvWriter, TsvWriterConfig};
-pub use vcf::{build_tabix_index, convert_vcf_to_bcf, VcfWriter, VcfWriterConfig};
+pub use vcf::{build_tabix_index, convert_vcf_to_bcf, ExternalStep, VcfWriter, VcfWriterConfig};

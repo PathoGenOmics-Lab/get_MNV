@@ -226,15 +226,23 @@ fn run_single(
 
     if args.index_vcf_gz {
         if let Some(vcf_path) = summary.output_vcf.as_deref() {
-            output::build_tabix_index(vcf_path)?;
-            info!("Built Tabix index for {vcf_path}");
+            if output::build_tabix_index(vcf_path)? == output::ExternalStep::Ran {
+                info!("Built Tabix index for {vcf_path}");
+            }
         }
     }
     if let (Some(vcf_path), Some(bcf_path)) =
-        (summary.output_vcf.as_deref(), summary.output_bcf.as_deref())
+        (summary.output_vcf.clone(), summary.output_bcf.clone())
     {
-        output::convert_vcf_to_bcf(vcf_path, bcf_path)?;
-        info!("Converted {vcf_path} to {bcf_path}");
+        if output::convert_vcf_to_bcf(&vcf_path, &bcf_path)? == output::ExternalStep::Ran {
+            info!("Converted {vcf_path} to {bcf_path}");
+        } else {
+            // bcftools was not there, so the file was never written. Anything
+            // downstream that trusts this path has to see the absence: the
+            // summary JSON would otherwise name a file that does not exist, and
+            // --run-manifest hashes every output the summary names.
+            summary.output_bcf = None;
+        }
     }
 
     info!(

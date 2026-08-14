@@ -4292,3 +4292,92 @@ fn test_e2e_an_insertion_in_the_terminal_stop_gets_no_nmd_call() {
         );
     }
 }
+
+/// A run whose optional external tool is missing must not claim its output.
+///
+/// `--bcf` and `--index-vcf-gz` shell out to `bcftools` and `tabix`. Both are
+/// optional, so a machine without them warns and carries on. The warning used
+/// to be followed, on the very next line, by "Converted run.MNV.vcf.gz to
+/// run.MNV.bcf" and "Built Tabix index for run.MNV.vcf.gz": the helpers said
+/// "did not happen" with the same `Ok(())` they said "done" with, so the caller
+/// could not tell the two apart. The summary JSON then recorded a path with no
+/// file behind it, and `--run-manifest`, which hashes every output the summary
+/// names, died on it with an I/O error that named the missing file but not the
+/// reason it was missing, after every real output had already been written.
+///
+/// Runs the built binary in a child process rather than `pipeline::run`,
+/// because emptying PATH is what makes the tools missing and PATH belongs to
+/// the whole process: doing it in-process would reach every other test.
+#[test]
+fn test_e2e_a_missing_external_tool_is_not_reported_as_a_written_file() {
+    let dir = temp_dir("missing_tool");
+    let ex = example_dir();
+    let empty_path = dir.join("empty_path");
+    fs::create_dir_all(&empty_path).expect("create empty PATH dir");
+
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_get_mnv"))
+        .current_dir(&dir)
+        .env("PATH", &empty_path)
+        .args([
+            "--vcf",
+            ex.join("G35894.var.snp.vcf").to_str().unwrap(),
+            "--fasta",
+            ex.join("MTB_ancestor.fas").to_str().unwrap(),
+            "--genes",
+            ex.join("anot_genes.txt").to_str().unwrap(),
+            "--both",
+            "--vcf-gz",
+            "--index-vcf-gz",
+            "--bcf",
+            "--summary-json",
+            "summary.json",
+            "--run-manifest",
+            "manifest.json",
+        ])
+        .output()
+        .expect("run get_mnv");
+
+    let log = String::from_utf8_lossy(&output.stderr).to_string();
+    assert!(
+        output.status.success(),
+        "a missing optional tool is not a failed run, but this exited {:?}:\n{log}",
+        output.status.code()
+    );
+    assert!(
+        log.contains("bcftools not found in PATH"),
+        "expected the warning that says what was skipped:\n{log}"
+    );
+    assert!(
+        !log.contains("Converted "),
+        "the run announced a conversion that never happened:\n{log}"
+    );
+    assert!(
+        !log.contains("Built Tabix index"),
+        "the run announced an index it had just said it was skipping:\n{log}"
+    );
+    assert!(
+        !dir.join("run.MNV.bcf").exists() && !dir.join("G35894.var.snp.MNV.bcf").exists(),
+        "no BCF should exist: bcftools was not there to write one"
+    );
+
+    let summary: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("summary.json")).expect("summary JSON"))
+            .expect("parse summary JSON");
+    assert!(
+        summary["output_bcf"].is_null(),
+        "the summary names a BCF that was never written: {}",
+        summary["output_bcf"]
+    );
+
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("manifest.json")).expect(
+            "the manifest has to be written at all: it used to die hashing the missing BCF",
+        ))
+        .expect("parse manifest JSON");
+    assert!(
+        manifest["output_checksums"]["output_bcf_sha256"].is_null(),
+        "the manifest carries a checksum for a file that does not exist"
+    );
+
+    fs::remove_dir_all(&dir).ok();
+}

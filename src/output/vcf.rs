@@ -278,7 +278,26 @@ impl VcfWriter {
     }
 }
 
-pub fn build_tabix_index(vcf_gz_path: &str) -> AppResult<()> {
+/// Whether a step that shells out to an external tool actually ran.
+///
+/// `tabix` and `bcftools` are optional: a machine without them still gets its
+/// TSV and its VCF, so a missing tool warns and carries on rather than failing
+/// the run. Saying "did not happen" in the return type is what stops the caller
+/// from announcing work that never took place. Returning `Ok(())` for both
+/// outcomes meant a run warned "Skipping BCF output" and then logged
+/// "Converted run.MNV.vcf.gz to run.MNV.bcf" on the very next line, recorded
+/// that path in the summary JSON, and finally died in `--run-manifest` with an
+/// I/O error that named the missing file but not the reason it was missing,
+/// after every real output had already been written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExternalStep {
+    /// The tool ran and reported success.
+    Ran,
+    /// The tool is not in PATH, so the step produced nothing.
+    SkippedToolMissing,
+}
+
+pub fn build_tabix_index(vcf_gz_path: &str) -> AppResult<ExternalStep> {
     if !vcf_gz_path.ends_with(".vcf.gz") {
         return Err(format!("Tabix indexing requires a .vcf.gz file, got '{vcf_gz_path}'").into());
     }
@@ -292,16 +311,16 @@ pub fn build_tabix_index(vcf_gz_path: &str) -> AppResult<()> {
         .args(["-p", "vcf", vcf_gz_path])
         .status();
     match status {
-        Ok(s) if s.success() => Ok(()),
+        Ok(s) if s.success() => Ok(ExternalStep::Ran),
         Ok(s) => Err(format!("tabix exited with status {s} for '{vcf_gz_path}'").into()),
         Err(_) => {
             log::warn!("tabix not found in PATH. Skipping .tbi index for '{vcf_gz_path}'. Install samtools/htslib for automatic indexing.");
-            Ok(())
+            Ok(ExternalStep::SkippedToolMissing)
         }
     }
 }
 
-pub fn convert_vcf_to_bcf(input_vcf_path: &str, output_bcf_path: &str) -> AppResult<()> {
+pub fn convert_vcf_to_bcf(input_vcf_path: &str, output_bcf_path: &str) -> AppResult<ExternalStep> {
     if !Path::new(input_vcf_path).exists() {
         return Err(
             format!("Cannot convert to BCF: input VCF '{input_vcf_path}' does not exist").into(),
@@ -312,11 +331,11 @@ pub fn convert_vcf_to_bcf(input_vcf_path: &str, output_bcf_path: &str) -> AppRes
         .args(["view", "-O", "b", "-o", output_bcf_path, input_vcf_path])
         .status();
     match status {
-        Ok(s) if s.success() => Ok(()),
+        Ok(s) if s.success() => Ok(ExternalStep::Ran),
         Ok(s) => Err(format!("bcftools exited with status {s} converting to BCF").into()),
         Err(_) => {
             log::warn!("bcftools not found in PATH. Skipping BCF output. Install bcftools for BCF conversion.");
-            Ok(())
+            Ok(ExternalStep::SkippedToolMissing)
         }
     }
 }
