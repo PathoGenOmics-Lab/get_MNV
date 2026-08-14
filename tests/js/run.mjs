@@ -540,6 +540,19 @@ function checkHaplotypes(work) {
   const contigs = new Set([...haps].map((k) => k.split("|")[0]));
 
   check("the fixture puts the same haplotype on two replicons", contigs.size, 2);
+
+  // The same gene name on two replicons is two genes, which is how the run's
+  // own log counts them: per contig, added up.
+  runInContext("drawKpis()", sandbox);
+  const kpis = sandbox.document.getElementById("kpis").innerHTML;
+  const geneTile = kpis.match(/<span>Genes<\/span><b>([^<]*)<\/b>/);
+  const byContigAndName = new Set(rows
+    .filter((r) => r.Gene && r.Gene !== "intergenic")
+    .map((r) => `${r.Chromosome}|${r.Gene}`));
+  check("the fixture repeats one gene name across the two replicons",
+    new Set([...byContigAndName].map((k) => k.split("|")[1])).size < byContigAndName.size, true);
+  check("kpis: the gene tile counts a gene per contig, as the log does",
+    geneTile && geneTile[1], String(byContigAndName.size));
   check("haplotypes: the panel lists one row per haplotype the TSV holds",
     (html.match(/class="hap"/g) || []).length, haps.size);
   for (const contig of [...contigs].sort()) {

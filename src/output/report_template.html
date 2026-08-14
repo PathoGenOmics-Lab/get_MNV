@@ -1675,8 +1675,11 @@ function drawKpis(){
     // `intergenic` is the placeholder get_MNV writes in the Gene column for a
     // variant outside every annotated gene, not the name of a gene. Counting it
     // made the report claim one gene more than the same run's log and summary.
+    // A gene is a feature on a contig, not a name: the run's own log counts them
+    // per contig and adds those up, so counting names alone made a report of a
+    // chromosome and its plasmid claim one gene where the same run logged two.
     var g = geneOf(r);
-    if(g && g !== "intergenic") genes[g] = 1;
+    if(g && g !== "intergenic") genes[chromOf(r)+"|"+g] = 1;
     samples[sampleOf(r)] = 1;
     if(impOf(r)==="HIGH") high++;
     var t = typeOf(r); if(t==="MNV"||t==="SNP/MNV") mnv++;
