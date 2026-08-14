@@ -127,6 +127,7 @@ plugins:
             CLI Reference: Referencia de CLI
             Input Formats: Formatos de entrada
             Output Formats: Formatos de salida
+            Example report: Informe de ejemplo
             Scope and Compatibility: Alcance y compatibilidad
             Indels and Local Haplotypes: Indels y haplotipos locales
             Linkage: Ligamiento
@@ -208,6 +209,7 @@ nav:
       - CLI Reference: cli-reference.md
       - Input Formats: input-formats.md
       - Output Formats: output-formats.md
+      - Example report: assets/example-report.html
   - How it works:
       - Scope and Compatibility: indel-mnv-semantics.md
       - Indels and Local Haplotypes: indel-haplotypes.md
