@@ -217,9 +217,16 @@ pub(super) fn indel_change_type_for_variant(
     reference: &crate::io::Reference<'_>,
     variant: &VcfPosition,
 ) -> ChangeType {
-    let frameshift = if variant.alt_allele.starts_with('<') {
-        true
-    } else if let Some(delta) = coding_delta_for_variant(gene, reference, variant) {
+    // A symbolic allele names a structural event without spelling out its
+    // sequence, and get_MNV does not read SVTYPE, END or SVLEN, so how many
+    // coding bases it adds or removes is not known here. Answering "the frame
+    // shifts" turned that absence into a positive claim: an <INV>, which
+    // preserves length exactly and can never shift a frame, was reported as
+    // frameshift_variant at HIGH, and a <DEL> was too whatever its SVLEN said.
+    if variant.alt_allele.starts_with('<') {
+        return ChangeType::Unknown;
+    }
+    let frameshift = if let Some(delta) = coding_delta_for_variant(gene, reference, variant) {
         delta % 3 != 0
     } else {
         (variant.ref_allele.len() as isize - variant.alt_allele.len() as isize) % 3 != 0

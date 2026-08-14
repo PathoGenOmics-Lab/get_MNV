@@ -206,7 +206,15 @@ fn get_mnv_variants_for_transcript(
                     }
                 }
             }
-            let is_frameshifted = has_symbolic_sv || upstream_shift % 3 != 0;
+            // `has_symbolic_sv` means the upstream shift could not be
+            // determined, not that there is one. Reading it as a frameshift
+            // relabelled every downstream codon of the feature `(fs)` and
+            // frameshift_variant/HIGH on the strength of an allele nobody had
+            // measured: a plain missense substitution downstream of an <INV>
+            // came out HIGH. A codon whose frame cannot be judged is reported
+            // the way a codon an indel overlaps already is, as unknown.
+            let upstream_shift_unknown = has_symbolic_sv;
+            let is_frameshifted = upstream_shift % 3 != 0;
 
             let mut var_info = process_transcript_codon(
                 gene,
@@ -217,7 +225,7 @@ fn get_mnv_variants_for_transcript(
                 genetic_code,
             );
 
-            if overlaps_indel {
+            if overlaps_indel || upstream_shift_unknown {
                 var_info.change_type = ChangeType::IndelOverlap;
                 var_info.aa_changes = vec!["Unknown".to_string()];
                 var_info.snp_aa_changes =
@@ -479,7 +487,15 @@ pub fn get_mnv_variants_for_gene_with_config(
                 }
             }
 
-            let is_frameshifted = has_symbolic_sv || upstream_shift % 3 != 0;
+            // `has_symbolic_sv` means the upstream shift could not be
+            // determined, not that there is one. Reading it as a frameshift
+            // relabelled every downstream codon of the feature `(fs)` and
+            // frameshift_variant/HIGH on the strength of an allele nobody had
+            // measured: a plain missense substitution downstream of an <INV>
+            // came out HIGH. A codon whose frame cannot be judged is reported
+            // the way a codon an indel overlaps already is, as unknown.
+            let upstream_shift_unknown = has_symbolic_sv;
+            let is_frameshifted = upstream_shift % 3 != 0;
 
             let (eff_gene_start, eff_gene_end) = effective_bounds(gene);
             let codon_info = CodonInfo {
@@ -495,7 +511,7 @@ pub fn get_mnv_variants_for_gene_with_config(
 
             let mut var_info = process_codon(codon_info, gene.strand, chrom, genetic_code);
 
-            if overlaps_indel {
+            if overlaps_indel || upstream_shift_unknown {
                 var_info.change_type = ChangeType::IndelOverlap;
                 var_info.aa_changes = vec!["Unknown".to_string()];
                 var_info.snp_aa_changes =

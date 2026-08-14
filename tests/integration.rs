@@ -4097,3 +4097,105 @@ fn test_e2e_a_variant_keeps_the_metrics_its_own_record_declared() {
         );
     }
 }
+
+/// A symbolic allele does not get to claim a frameshift nobody measured.
+///
+/// `<INV>`, `<DEL>` and `<DUP>` are what Manta, Delly and Sniffles emit. They
+/// name a structural event without spelling out its sequence, and get_MNV does
+/// not read SVTYPE, END or SVLEN, so its coding-length delta is unknown here.
+/// Asserting a frameshift turned that absence into a claim: an inversion, which
+/// preserves length exactly, came out `frameshift_variant` at HIGH, and it
+/// relabelled every downstream codon of the feature, so a plain missense
+/// substitution beyond it was reported HIGH too.
+#[test]
+fn test_e2e_a_symbolic_allele_does_not_assert_a_frameshift() {
+    let tmp = temp_dir("e2e_symbolic_frameshift");
+    let bases: String = (0..500)
+        .map(|i| ['A', 'C', 'G', 'T'][(i * 7 + 3) % 4])
+        .collect();
+    fs::write(tmp.join("ref.fas"), format!(">chr1\n{bases}\n")).unwrap();
+    fs::write(
+        tmp.join("genes.gff3"),
+        "##gff-version 3\nchr1\tsyn\tCDS\t101\t400\t.\t+\t0\tID=c1;Name=geneP\n",
+    )
+    .unwrap();
+
+    let at = |pos: usize| bases.as_bytes()[pos - 1] as char;
+    let other = |base: char| match base {
+        'A' => 'C',
+        'C' => 'G',
+        'G' => 'T',
+        _ => 'A',
+    };
+    let header = "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=500>\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
+    let snv = format!(
+        "chr1\t218\t.\t{}\t{}\t100\tPASS\tDP=100\n",
+        at(218),
+        other(at(218))
+    );
+    fs::write(
+        tmp.join("symbolic.vcf"),
+        format!(
+            "{header}chr1\t150\t.\t{}\t<INV>\t100\tPASS\tSVTYPE=INV;END=200\n{snv}",
+            at(150)
+        ),
+    )
+    .unwrap();
+    fs::write(tmp.join("alone.vcf"), format!("{header}{snv}")).unwrap();
+
+    let run = |name: &str| {
+        let mut args = base_args();
+        args.vcf_file = Some(tmp.join(format!("{name}.vcf")).to_string_lossy().into());
+        args.fasta_file = tmp.join("ref.fas").to_string_lossy().into();
+        args.genes_file_tsv = None;
+        args.gff_file = Some(tmp.join("genes.gff3").to_string_lossy().into());
+        args.gff_features_raw = Some("CDS".to_string());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+        pipeline::run(&args).unwrap_or_else(|e| panic!("{name} should annotate: {e}"));
+        read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")))
+    };
+
+    let rows = run("symbolic");
+    let inversion = rows
+        .iter()
+        .find(|row| row.get("Base Changes").map(String::as_str) == Some("<INV>"))
+        .expect("the inversion should be reported");
+    assert_ne!(
+        inversion.get("SO Term").map(String::as_str),
+        Some("frameshift_variant"),
+        "an inversion preserves length and cannot shift a frame"
+    );
+    assert_ne!(
+        inversion.get("Impact").map(String::as_str),
+        Some("HIGH"),
+        "nothing measured here justifies HIGH"
+    );
+
+    // And the substitution beyond it is not dragged along.
+    let downstream = rows
+        .iter()
+        .find(|row| row.get("Positions").map(String::as_str) == Some("218"))
+        .expect("the substitution should be reported");
+    assert!(
+        !downstream
+            .get("SO Term")
+            .is_some_and(|term| term.contains("frameshift")),
+        "a substitution past an unmeasured allele is not a frameshift: {:?}",
+        downstream.get("SO Term")
+    );
+    assert!(
+        !downstream
+            .get("AA Changes")
+            .is_some_and(|aa| aa.contains("fs")),
+        "nor does it carry an (fs) label: {:?}",
+        downstream.get("AA Changes")
+    );
+
+    // On its own that same substitution is an ordinary missense call.
+    let alone = run("alone");
+    assert_eq!(
+        alone[0].get("SO Term").map(String::as_str),
+        Some("missense_variant")
+    );
+}
