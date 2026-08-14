@@ -3820,5 +3820,28 @@ chr1\t{site}\t.\t{}\t{alternate}\t100\tPASS\tDP=30\n",
         "the gene whose intron holds the base keeps its own row"
     );
 
+    // The same pair under one name, which is what a GFF gives every transcript of
+    // a gene. Keying on the name alone made one of them disappear.
+    let shared_name = fs::read_to_string(&gff_path)
+        .unwrap()
+        .replace("Name=geneA", "Name=geneX")
+        .replace("Name=geneB", "Name=geneX");
+    let shared_path = tmp.join("shared_name.gff3");
+    fs::write(&shared_path, shared_name).unwrap();
+    args.gff_file = Some(shared_path.to_string_lossy().into());
+    args.output_prefix = Some("shared_name".to_string());
+    pipeline::run(&args).expect("pipeline should annotate both under one name");
+
+    let mut under_one_name: Vec<String> = read_tsv_rows(&tmp.join("shared_name.MNV.tsv"))
+        .iter()
+        .map(|row| row.get("SO Term").cloned().unwrap_or_default())
+        .collect();
+    under_one_name.sort();
+    assert_eq!(
+        under_one_name,
+        vec!["intron_variant".to_string(), "missense_variant".to_string()],
+        "sharing a name does not merge two units into one"
+    );
+
     fs::remove_dir_all(&tmp).ok();
 }

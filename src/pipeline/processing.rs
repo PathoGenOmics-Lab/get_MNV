@@ -759,14 +759,28 @@ pub(crate) fn process_contig(
         // splice_donor_variant disappeared because an unrelated overlapping gene
         // happened to cover the base. Each gene answers for itself.
         {
-            let named: std::collections::HashSet<(&str, &str)> = all_variants
+            // What has already been said, by gene and by base and by the
+            // consequence stated. The gene's name alone cannot key this: a GFF
+            // gives every transcript of a gene the same Name, so one transcript's
+            // coding row suppressed another's intron row for the same base and a
+            // run naming both reported fewer rows than a run naming one.
+            let named: std::collections::HashSet<(&str, &str, String)> = all_variants
                 .iter()
                 .chain(intergenic.iter())
                 .flat_map(|variant| {
-                    variant
-                        .event_components
-                        .iter()
-                        .map(move |label| (variant.gene.as_str(), label.as_str()))
+                    // A row can state more than one consequence at once, joined
+                    // with `&`: a substitution on an exon's last base is both a
+                    // missense and a splice-region change. Each part counts as
+                    // said, or the pass would repeat one of them in a row of its
+                    // own.
+                    let (term, _) = crate::output::so_consequence(variant);
+                    let parts: Vec<String> = term.split('&').map(str::to_string).collect();
+                    variant.event_components.iter().flat_map(move |label| {
+                        parts
+                            .clone()
+                            .into_iter()
+                            .map(move |part| (variant.gene.as_str(), label.as_str(), part))
+                    })
                 })
                 .collect();
             let mut missed = Vec::new();
@@ -774,12 +788,6 @@ pub(crate) fn process_contig(
                 let positions = snp.changed_positions();
                 let labels = snp.event().component_labels();
                 for gene in &genes {
-                    if labels
-                        .iter()
-                        .any(|label| named.contains(&(gene.name.as_str(), label.as_str())))
-                    {
-                        continue;
-                    }
                     // Whatever this gene has to say about these bases: a splice
                     // site first, since it is the more specific consequence, and
                     // otherwise its intron. Asking only about splice sites left a
@@ -811,6 +819,14 @@ pub(crate) fn process_contig(
                         None => variants::build_intron_variant(contig, snp, &gene.name),
                     };
                     if !retain_entries(&mut variant, |position, _, _| inside.contains(&position)) {
+                        continue;
+                    }
+                    let (term, _) = crate::output::so_consequence(&variant);
+                    if term.split('&').any(|part| {
+                        labels.iter().any(|label| {
+                            named.contains(&(gene.name.as_str(), label.as_str(), part.to_string()))
+                        })
+                    }) {
                         continue;
                     }
                     missed.push(variant);
