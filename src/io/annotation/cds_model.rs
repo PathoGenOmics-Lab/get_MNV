@@ -2,6 +2,7 @@
 
 use crate::error::AppResult;
 use crate::variants::{CdsSegment, Gene};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -110,8 +111,7 @@ pub(crate) fn parse_gff_gene_records_from_reader<R: BufRead>(
                     protein_offset: 0,
                     transcript_id: transcript_id.clone(),
                     cds_segments: Vec::new(),
-                    // The GFF path selects CDS features, so it is coding by construction.
-                    biotype: crate::variants::Biotype::ProteinCoding,
+                    biotype: biotype_from_gff(&attrs, &feature_type),
                 },
                 feature_type: feature_type.clone(),
                 transcript_id,
@@ -120,6 +120,35 @@ pub(crate) fn parse_gff_gene_records_from_reader<R: BufRead>(
     }
 
     Ok(records)
+}
+
+/// What kind of gene a GFF record describes.
+///
+/// Every GFF record used to be stamped protein-coding, on the premise that this
+/// path only ever sees CDS features. It does not: the default `--gff-features`
+/// list is `gene,pseudogene`, and a user may select any feature type there is.
+/// So a 16S rRNA gene was translated and reported with an amino-acid change, a
+/// reference codon, a Grantham score and a MODERATE missense impact, while the
+/// same gene written as a TSV annotation, whose loader reads a biotype column,
+/// was correctly reported as a non-coding transcript at MODIFIER. The same gene
+/// at the same coordinates got two answers depending only on the format its
+/// annotation was written in.
+///
+/// The record's own `gene_biotype` or `biotype` attribute decides when it has
+/// one, through the same vocabulary the TSV loader uses; otherwise the feature
+/// type in column 3 does, when it names one. A feature that says nothing about
+/// itself keeps the old assumption, which is what a bacterial `gene` row is.
+fn biotype_from_gff(
+    attrs: &HashMap<String, String>,
+    feature_type: &str,
+) -> crate::variants::Biotype {
+    attrs
+        .get("gene_biotype")
+        .or_else(|| attrs.get("biotype"))
+        .or_else(|| attrs.get("transcript_biotype"))
+        .and_then(|declared| crate::variants::Biotype::parse(declared).ok())
+        .or_else(|| crate::variants::Biotype::parse(feature_type).ok())
+        .unwrap_or(crate::variants::Biotype::ProteinCoding)
 }
 
 /// Walk all parsed CDS rows of the same transcript and assign each one its

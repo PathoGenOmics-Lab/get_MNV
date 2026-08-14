@@ -631,3 +631,47 @@ fn test_a_quote_inside_a_value_does_not_swallow_the_column() {
         vec!["gene_id \"a;b\"", "transcript_id \"t1\""]
     );
 }
+
+#[test]
+fn test_a_gff_feature_says_what_kind_of_gene_it_is() {
+    use crate::variants::Biotype;
+
+    let coding = parse_gff_gene_records_from_reader(
+        std::io::Cursor::new(
+            "##gff-version 3\nchr1\tRefSeq\tgene\t301\t399\t.\t-\t.\tID=g1;Name=dnaA\n",
+        ),
+        &["gene".to_string()],
+    )
+    .expect("parse");
+    assert_eq!(coding[0].gene.biotype, Biotype::ProteinCoding);
+
+    // Every record used to be stamped protein-coding, so a 16S rRNA gene was
+    // translated and reported with an amino-acid change and a MODERATE missense
+    // impact, while the same gene written as a TSV annotation was correctly
+    // reported as non-coding. The declared biotype decides.
+    let declared = parse_gff_gene_records_from_reader(
+        std::io::Cursor::new(
+            "##gff-version 3\nchr1\tRefSeq\tgene\t301\t399\t.\t-\t.\tID=g2;Name=rrs;gene_biotype=rRNA\n",
+        ),
+        &["gene".to_string()],
+    )
+    .expect("parse");
+    assert_eq!(declared[0].gene.biotype, Biotype::NonCoding);
+
+    // And when it declares nothing, the feature type in column 3 does, which is
+    // how rRNA, tRNA and pseudogene rows arrive.
+    for feature in ["rRNA", "tRNA", "ncRNA", "pseudogene"] {
+        let records = parse_gff_gene_records_from_reader(
+            std::io::Cursor::new(format!(
+                "##gff-version 3\nchr1\tRefSeq\t{feature}\t301\t399\t.\t-\t.\tID=x;Name=n\n"
+            )),
+            &[feature.to_string()],
+        )
+        .expect("parse");
+        assert_eq!(
+            records[0].gene.biotype,
+            Biotype::NonCoding,
+            "a {feature} feature has no reading frame"
+        );
+    }
+}
