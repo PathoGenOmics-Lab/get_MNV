@@ -88,7 +88,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          # 24: the checks read the desktop app's own TypeScript helpers and run
+          # them, which needs the type stripping node enables without a flag
+          # from 22.18 on. Asking for "22" would take whatever patch the runner
+          # has, and an older one fails the whole job on the import.
+          node-version: "24"
       - name: Build get_mnv
         run: cargo build -p get_mnv --locked
       - name: Run the JavaScript behaviour checks

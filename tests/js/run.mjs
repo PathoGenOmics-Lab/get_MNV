@@ -598,6 +598,20 @@ function literal(source, marker, opener) {
 // The desktop variant table
 // ---------------------------------------------------------------------------
 
+/// Import a module this script just wrote out of TypeScript sources. Node
+/// strips the types itself from 22.18 on; on an older one the import fails with
+/// a syntax error that says nothing about why, so it is named here.
+async function importGenerated(path) {
+  try {
+    return await import(path);
+  } catch (error) {
+    throw new Error(
+      `cannot load ${path}: this needs a node that strips TypeScript types ` +
+        `(22.18 or newer), and this is ${process.version}. Original error: ${error.message}`,
+    );
+  }
+}
+
 /// A declaration lifted out of a source file whole, from its first line to the
 /// close of its body.
 function declaration(source, header) {
@@ -622,7 +636,7 @@ async function tableHelpers(work) {
   ].join("\n\n");
   const path = join(work, "table-helpers.ts");
   writeFileSync(path, module + "\n");
-  return { source, helpers: await import(path) };
+  return { source, helpers: await importGenerated(path) };
 }
 
 async function checkVariantTable(work) {
@@ -706,7 +720,7 @@ async function bamPairing(work) {
   ].map((header) => `export ${declaration(source, header)}`).join("\n\n");
   const path = join(work, "pairing.ts");
   writeFileSync(path, module + "\n");
-  return import(path);
+  return importGenerated(path);
 }
 
 async function checkBamPairing(work) {
