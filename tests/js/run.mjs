@@ -11,7 +11,7 @@
 // like the scenario runner beside it.
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,17 +31,43 @@ function check(name, got, want) {
   if (!ok) console.log(`      got ${JSON.stringify(got)}\n      want ${JSON.stringify(want)}`);
 }
 
+/// The newest source file under a directory, which is what a binary has to be
+/// newer than to be the binary these checks are about.
+function newestSource(dir) {
+  let newest = 0;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    newest = Math.max(newest, entry.isDirectory() ? newestSource(path) : statSync(path).mtimeMs);
+  }
+  return newest;
+}
+
+/// The binary these checks run against. Both profiles may exist, and picking
+/// the wrong one means checking a build that no longer matches the source: the
+/// report page is embedded at compile time, so a stale binary ships stale
+/// JavaScript and every check here passes against code nobody can run.
 function binary() {
+  const built = [];
   for (const profile of ["debug", "release"]) {
     const path = join(REPO, "target", profile, "get_mnv");
     try {
       execFileSync(path, ["--version"], { stdio: "ignore" });
-      return path;
+      built.push({ path, mtime: statSync(path).mtimeMs });
     } catch {
-      /* try the next profile */
+      /* not built under this profile */
     }
   }
-  throw new Error("no get_mnv binary in target/debug or target/release; build it first");
+  if (built.length === 0) {
+    throw new Error("no get_mnv binary in target/debug or target/release; build it first");
+  }
+  built.sort((a, b) => b.mtime - a.mtime);
+  const source = newestSource(join(REPO, "src"));
+  if (built[0].mtime < source) {
+    throw new Error(
+      `${built[0].path} is older than src/; rebuild it, or these checks would ` +
+        "be reading a report page that the source no longer produces");
+  }
+  return built[0].path;
 }
 
 // ---------------------------------------------------------------------------
@@ -64,10 +90,15 @@ function buildReport(work) {
       "chr1\tsyn\tCDS\t501\t700\t.\t-\t0\tID=c3;Name=geneR\n",
   );
   const other = (b) => ({ A: "C", C: "G", G: "T", T: "A" })[b];
-  const sites = [150, 200, 260, 333, 520, 600, 800];
+  // 372 and 373 share a codon in both genes, so they come back as one MNV; the
+  // deletion at 620 gives the indel and HIGH lanes something to count.
+  const sites = [150, 200, 260, 333, 372, 373, 520, 600, 620, 800];
   const records = sites.map((p, n) => {
     const gts = [0, 1, 2].map((k) => ["1/1", "0/1", "1/1"][(n + k) % 3]);
-    return `chr1\t${p}\t.\t${bases[p - 1]}\t${other(bases[p - 1])}\t100\tPASS\tDP=30\tGT:DP:AF\t` +
+    const [ref, alt] = p === 620
+      ? [bases[p - 1] + bases[p] + bases[p + 1], bases[p - 1]]
+      : [bases[p - 1], other(bases[p - 1])];
+    return `chr1\t${p}\t.\t${ref}\t${alt}\t100\tPASS\tDP=30\tGT:DP:AF\t` +
       gts.map((g) => `${g}:30:0.8`).join("\t");
   });
   writeFileSync(
@@ -104,6 +135,9 @@ function pageLogic(reportPath) {
     const at = body.indexOf(name);
     runInContext(body.slice(at, body.indexOf("\n", at)), sandbox);
   }
+  // The density lanes, whose predicates key on positions in the dictionaries.
+  runInContext(
+    body.slice(body.indexOf("var T_SNP ="), body.indexOf("function activeLanes()")), sandbox);
   const from = body.indexOf("var mtx = {");
   const to = body.indexOf("mtx.groups =", from);
   runInContext(body.slice(from, to) + "\n}", sandbox);
@@ -214,6 +248,38 @@ function checkReport(work) {
       .filter(([p]) => p in asMatrix)
       .map(([p, g]) => [p, [...g].sort()]));
   check("report: a matrix site keeps every gene the TSVs give that base", asMatrix, asTsv);
+
+  // The density lanes. Each predicate keys on a position in a dictionary, so
+  // every lane is counted back against the bases the TSVs give it. The lanes
+  // count changed bases, not rows, because the track is drawn over coordinates.
+  sandbox.view = ROWS.map((_, i) => i);
+  runInContext("buildMatrix()", sandbox);
+  const changed = [];
+  for (const [sample, rows] of Object.entries(perSample)) {
+    for (const row of rows) {
+      if (row.Chromosome !== sandbox.mtx.contig) continue;
+      for (const _ of row.Positions.split(",")) {
+        changed.push({ type: row["Variant Type"], impact: row.Impact, sample });
+      }
+    }
+  }
+  const laneWants = {
+    all: changed.length,
+    snp: changed.filter((c) => c.type === "SNP").length,
+    mnv: changed.filter((c) => c.type === "MNV" || c.type === "SNP/MNV").length,
+    indel: changed.filter((c) => c.type === "INDEL").length,
+    high: changed.filter((c) => c.impact === "HIGH").length,
+  };
+  for (const lane of sandbox.LANES.filter((l) => !l.distinct)) {
+    // A lane that counts nothing on both sides would agree without proving
+    // anything, so the fixture is required to feed every one of them.
+    check(`report: the "${lane.label}" lane has something to count`, laneWants[lane.key] > 0, true);
+    check(`report: the "${lane.label}" lane counts the bases the TSVs give it`,
+      sandbox.mtx.calls.filter((c) => lane.hit(c[1], c[2])).length, laneWants[lane.key]);
+  }
+  check("report: the samples lane sees every sample the TSVs name",
+    new Set(sandbox.mtx.calls.map((c) => c[3])).size,
+    new Set(changed.map((c) => c.sample)).size);
 }
 
 // ---------------------------------------------------------------------------
