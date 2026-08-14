@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EXAMPLE_DIR="$ROOT_DIR/example"
+# A run over the bundled example with read evidence, which is what --bam adds:
+# read counts, frequencies, the strand arms, phasing and linkage.
+#
+# Outputs go to a directory of their own. Writing them into example/ overwrote
+# the committed reference output that the tests compare against.
 
-VCF_FILE="$EXAMPLE_DIR/MIP00022.MTB_anc.ann.vcf"
-BAM_FILE="$EXAMPLE_DIR/MIP00022.MTB_anc.final.bam"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+EXAMPLE_DIR="$ROOT_DIR/example"
+OUT_DIR="${OUT_DIR:-$ROOT_DIR/analysis/results/example_bam_$(date -u +%Y%m%dT%H%M%SZ)}"
+
+VCF_FILE="$EXAMPLE_DIR/G35894.var.snp.vcf"
+BAM_FILE="$EXAMPLE_DIR/G35894.demo.bam"
 FASTA_FILE="$EXAMPLE_DIR/MTB_ancestor.fas"
 GFF3_FILE="$EXAMPLE_DIR/MTB_ancestor.gff3"
 TSV_GENES_FILE="$EXAMPLE_DIR/anot_genes.txt"
@@ -20,7 +27,7 @@ elif [[ -x "$ROOT_DIR/target/debug/get_mnv" ]]; then
   BIN="$ROOT_DIR/target/debug/get_mnv"
 else
   echo "Error: get_mnv binary not found."
-  echo "Build it first with: $ROOT_DIR/build_get_mnv.sh"
+  echo "Build it first with: $ROOT_DIR/scripts/build_get_mnv.sh"
   exit 1
 fi
 
@@ -31,6 +38,7 @@ for file in "$VCF_FILE" "$BAM_FILE" "$FASTA_FILE" "$BAM_FILE.bai"; do
   fi
 done
 
+# The GFF3 is not part of the bundle; the plain TSV annotation beside it is.
 if [[ ! -f "$GENES_FILE" ]]; then
   if [[ -f "$TSV_GENES_FILE" ]]; then
     GENES_FILE="$TSV_GENES_FILE"
@@ -43,7 +51,9 @@ if [[ ! -f "$GENES_FILE" ]]; then
   fi
 fi
 
-cd "$EXAMPLE_DIR"
+mkdir -p "$OUT_DIR"
+cd "$OUT_DIR"
+
 extra_args=()
 for arg in "$@"; do
   if [[ "$arg" != "--convert" && "$arg" != "--both" ]]; then
@@ -51,56 +61,17 @@ for arg in "$@"; do
   fi
 done
 
-echo "Running get_mnv with example files (TSV + VCF)..."
-echo "Binary: $BIN"
-echo "Annotation file: $GENES_FILE ($ANNOTATION_FLAG)"
+echo "Running get_mnv over the bundled example with its demo BAM (TSV + VCF)"
+echo "Binary:     $BIN"
+echo "Annotation: $GENES_FILE ($ANNOTATION_FLAG)"
+echo "Reads:      $BAM_FILE"
 
-if "$BIN" --help 2>/dev/null | grep -q -- "--both"; then
-  if [[ ${#extra_args[@]} -gt 0 ]]; then
-    "$BIN" \
-      --vcf "$VCF_FILE" \
-      --bam "$BAM_FILE" \
-      --fasta "$FASTA_FILE" \
-      "$ANNOTATION_FLAG" "$GENES_FILE" \
-      --both \
-      "${extra_args[@]}"
-  else
-    "$BIN" \
-      --vcf "$VCF_FILE" \
-      --bam "$BAM_FILE" \
-      --fasta "$FASTA_FILE" \
-      "$ANNOTATION_FLAG" "$GENES_FILE" \
-      --both
-  fi
-else
-  echo "Warning: binary does not support --both. Falling back to two runs."
-  if [[ ${#extra_args[@]} -gt 0 ]]; then
-    "$BIN" \
-      --vcf "$VCF_FILE" \
-      --bam "$BAM_FILE" \
-      --fasta "$FASTA_FILE" \
-      "$ANNOTATION_FLAG" "$GENES_FILE" \
-      "${extra_args[@]}"
-    "$BIN" \
-      --vcf "$VCF_FILE" \
-      --bam "$BAM_FILE" \
-      --fasta "$FASTA_FILE" \
-      "$ANNOTATION_FLAG" "$GENES_FILE" \
-      "${extra_args[@]}" \
-      --convert
-  else
-    "$BIN" \
-      --vcf "$VCF_FILE" \
-      --bam "$BAM_FILE" \
-      --fasta "$FASTA_FILE" \
-      "$ANNOTATION_FLAG" "$GENES_FILE"
-    "$BIN" \
-      --vcf "$VCF_FILE" \
-      --bam "$BAM_FILE" \
-      --fasta "$FASTA_FILE" \
-      "$ANNOTATION_FLAG" "$GENES_FILE" \
-      --convert
-  fi
-fi
+"$BIN" \
+  --vcf "$VCF_FILE" \
+  --bam "$BAM_FILE" \
+  --fasta "$FASTA_FILE" \
+  "$ANNOTATION_FLAG" "$GENES_FILE" \
+  --both \
+  ${extra_args[@]+"${extra_args[@]}"}
 
-echo "Done. Output written in: $EXAMPLE_DIR"
+echo "Done. Outputs in: $OUT_DIR"
