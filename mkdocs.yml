@@ -9,6 +9,7 @@ site_url: https://pathogenomics-lab.github.io/get_MNV/
 repo_url: https://github.com/PathoGenOmics-Lab/get_MNV
 repo_name: PathoGenOmics-Lab/get_MNV
 edit_uri: edit/main/docs/
+# The view action points at the file itself; the edit action opens it for editing.
 copyright: >-
   Copyright &copy; Paula Ruiz-Rodriguez & Mireia Coscolla —
   I&sup2;SysBio, University of Valencia-CSIC
@@ -21,19 +22,43 @@ theme:
   icon:
     repo: fontawesome/brands/github
   features:
-    # Render the four groups as always-open headers. The whole map fits in the
-    # sidebar at once, so no page is hidden behind a collapsed parent.
+    # Fifteen pages in four groups fit in one sidebar, so they are all shown at
+    # once as always-open sections. `navigation.tabs` was tried and put back:
+    # it moves the groups into the header and leaves the sidebar showing only
+    # the group you are in, which on a site this size hides two thirds of the
+    # map to save nothing.
     - navigation.sections
     - navigation.tracking
     - navigation.top
     - navigation.footer
+    # A breadcrumb above each page title, so a reader arriving from search knows
+    # where they landed.
+    - navigation.path
+    # `navigation.instant` is deliberately not enabled. It loads pages without a
+    # full reload, which is nice, but the i18n plugin warns that it breaks the
+    # language switcher's contextual link: switching to Spanish from a reference
+    # page would land on the Spanish home page instead of on the same page. On a
+    # bilingual site, staying on the page you are reading is worth more.
     - search.suggest
     - search.highlight
     - search.share
     - content.code.copy
+    # Numbered notes anchored inside a code block, so a long command can be
+    # explained flag by flag without repeating it underneath.
+    - content.code.annotate
+    - content.code.select
+    # Abbreviations and links get a real tooltip instead of the browser's.
+    - content.tooltips
     - content.action.edit
+    - content.action.view
     - toc.follow
+  # Three states rather than two: the site follows the reader's system setting
+  # until they choose otherwise, and their choice is remembered.
   palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: teal
@@ -46,8 +71,8 @@ theme:
       primary: teal
       accent: teal
       toggle:
-        icon: material/weather-sunny
-        name: Switch to light mode
+        icon: material/brightness-auto
+        name: Follow the system setting
 
 plugins:
   - search
@@ -111,6 +136,16 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  # Keyboard keys for the desktop app's shortcuts, and the inline marks the
+  # comparison tables use.
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+extra_css:
+  - assets/extra.css
 
 extra:
   social:

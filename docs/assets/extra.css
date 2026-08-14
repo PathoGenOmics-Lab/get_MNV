@@ -1,0 +1,69 @@
+/* Refinements on top of Material for MkDocs.
+ *
+ * Only what the content of this site actually needs. Everything here is a
+ * consequence of a page that reads badly without it, not decoration.
+ */
+
+/* The output-format pages tabulate every column and INFO key, and some of those
+ * descriptions are a paragraph long. Left unattended the browser squeezes the
+ * name column to a few characters and the table becomes unreadable. Give the
+ * table room to scroll on its own instead of squeezing, and keep the first
+ * column, which holds the name being defined, on one line. */
+.md-typeset__table {
+  width: 100%;
+}
+
+.md-typeset table:not([class]) {
+  display: table;
+  width: 100%;
+}
+
+.md-typeset table:not([class]) td:first-child,
+.md-typeset table:not([class]) th:first-child {
+  white-space: nowrap;
+}
+
+/* A wide table scrolls inside its own box rather than pushing the page
+ * sideways: the page body must never scroll horizontally. */
+.md-typeset__scrollwrap {
+  overflow-x: auto;
+}
+
+/* Column names and INFO keys are set in code style inside those cells. At the
+ * default size they sit noticeably smaller than the prose around them, which
+ * makes a table of names harder to scan than the same names in a list. */
+.md-typeset table:not([class]) code {
+  font-size: 0.78rem;
+  word-break: normal;
+}
+
+/* Reference pages are mostly tables and code. On a wide screen Material's
+ * default measure leaves a lot of empty margin beside them while the tables
+ * themselves are cramped. */
+@media screen and (min-width: 76.25em) {
+  .md-grid {
+    max-width: 68rem;
+  }
+}
+
+/* The landing page's cards: give the whole card a hover state, so it reads as
+ * one target rather than a paragraph with a link in it. */
+.md-typeset .grid.cards > ul > li {
+  transition: border-color 125ms, box-shadow 125ms;
+}
+
+.md-typeset .grid.cards > ul > li:hover {
+  border-color: var(--md-accent-fg-color);
+  box-shadow: 0 0 0.2rem rgba(0, 0, 0, 0.1);
+}
+
+/* An image that carries a figure caption is centred with its caption under it,
+ * which is what the screenshots in the two tutorials want. */
+.md-typeset figure img {
+  border-radius: 0.1rem;
+}
+
+/* Keyboard keys inside prose, used by the desktop tutorial. */
+.md-typeset kbd {
+  font-size: 0.75em;
+}

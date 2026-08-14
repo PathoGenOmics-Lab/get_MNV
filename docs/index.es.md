@@ -110,14 +110,63 @@ VCF y un BAM de demostración minúsculo para el visor de lecturas) en la carpet
 [`example/`](https://github.com/PathoGenOmics-Lab/get_MNV/tree/main/example)
 del repositorio.
 
-!!! tip "Siguientes pasos"
-    - [Tutorial de línea de comandos](getting-started.es.md): una primera ejecución completa con los datos de ejemplo.
-    - [Recetas habituales](usage.es.md): comandos listos para ejecutar de las tareas más frecuentes.
-    - [Referencia de CLI](cli-reference.es.md): cada opción, con su valor por defecto.
-    - [Formatos de salida](output-formats.es.md): qué significa cada columna y cada campo.
-    - [Ligamiento](linkage.es.md): distinguir un haplotipo real de una coincidencia.
-    - [Glosario](glossary.es.md): qué significan aquí MNV, haplotipo, ligamiento y los demás.
-    - [Resolución de problemas](troubleshooting.es.md): soluciones a desajustes de entrada habituales.
+## Por dónde seguir
+
+<div class="grid cards" markdown>
+
+-   :material-console:{ .lg .middle } **Tutorial de línea de comandos**
+
+    ---
+
+    Una primera ejecución completa con los datos de ejemplo, con la salida
+    explicada línea a línea.
+
+    [:octicons-arrow-right-24: Empieza por aquí](getting-started.es.md)
+
+-   :material-book-open-variant:{ .lg .middle } **Recetas habituales**
+
+    ---
+
+    Comandos listos para ejecutar: una cohorte, una tabla de iVar, un VCF
+    comprimido, un informe a partir de ejecuciones ya hechas.
+
+    [:octicons-arrow-right-24: Recetas](usage.es.md)
+
+-   :material-format-list-bulleted:{ .lg .middle } **Referencia de CLI**
+
+    ---
+
+    Cada opción con su valor por defecto, y qué cambia cada una en la respuesta.
+
+    [:octicons-arrow-right-24: Referencia](cli-reference.es.md)
+
+-   :material-table:{ .lg .middle } **Formatos de salida**
+
+    ---
+
+    Qué significa cada columna del TSV, cada clave INFO del VCF y cada campo
+    JSON, y cuándo un valor está ausente en vez de valer cero.
+
+    [:octicons-arrow-right-24: Columnas y campos](output-formats.es.md)
+
+-   :material-link-variant:{ .lg .middle } **Ligamiento**
+
+    ---
+
+    Distinguir un haplotipo real de dos variantes que solo comparten codón,
+    usando las moléculas que las llevan.
+
+    [:octicons-arrow-right-24: D prima y su valor p](linkage.es.md)
+
+-   :material-lifebuoy:{ .lg .middle } **Resolución de problemas**
+
+    ---
+
+    Los desajustes de entrada que paran una ejecución, y qué pide cada mensaje.
+
+    [:octicons-arrow-right-24: Desatascarse](troubleshooting.es.md)
+
+</div>
 
 ## Cita
 

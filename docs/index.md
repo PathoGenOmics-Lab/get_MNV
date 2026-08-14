@@ -108,14 +108,63 @@ BAM for the read viewer) lives in the
 [`example/`](https://github.com/PathoGenOmics-Lab/get_MNV/tree/main/example)
 folder of the repository.
 
-!!! tip "Next steps"
-    - [Command Line Tutorial](getting-started.md): a first run end to end on the example data.
-    - [Common Recipes](usage.md): ready-to-run commands for the usual jobs.
-    - [CLI Reference](cli-reference.md): every option, with its default.
-    - [Output Formats](output-formats.md): what each column and field means.
-    - [Linkage](linkage.md): telling a real haplotype from a coincidence.
-    - [Glossary](glossary.md): what MNV, haplotype, linkage and the rest mean here.
-    - [Troubleshooting](troubleshooting.md): fixes for common input mismatches.
+## Where to go next
+
+<div class="grid cards" markdown>
+
+-   :material-console:{ .lg .middle } **Command Line Tutorial**
+
+    ---
+
+    A first run end to end on the bundled example data, with the output
+    explained line by line.
+
+    [:octicons-arrow-right-24: Start here](getting-started.md)
+
+-   :material-book-open-variant:{ .lg .middle } **Common Recipes**
+
+    ---
+
+    Ready-to-run commands for the usual jobs: a cohort, an iVar table, a
+    compressed VCF, a report from existing runs.
+
+    [:octicons-arrow-right-24: Recipes](usage.md)
+
+-   :material-format-list-bulleted:{ .lg .middle } **CLI Reference**
+
+    ---
+
+    Every option with its default, and what each one changes about the answer.
+
+    [:octicons-arrow-right-24: Reference](cli-reference.md)
+
+-   :material-table:{ .lg .middle } **Output Formats**
+
+    ---
+
+    What each TSV column, VCF INFO key and JSON field means, and when a value
+    is absent rather than zero.
+
+    [:octicons-arrow-right-24: Columns and fields](output-formats.md)
+
+-   :material-link-variant:{ .lg .middle } **Linkage**
+
+    ---
+
+    Telling a real haplotype from two variants that merely share a codon, using
+    the molecules that carry them.
+
+    [:octicons-arrow-right-24: D prime and its p-value](linkage.md)
+
+-   :material-lifebuoy:{ .lg .middle } **Troubleshooting**
+
+    ---
+
+    The input mismatches that stop a run, and what each message is asking for.
+
+    [:octicons-arrow-right-24: Get unstuck](troubleshooting.md)
+
+</div>
 
 ## Citation
 
