@@ -79,6 +79,24 @@ jobs:
         # run.py exits non-zero if any scenario FAILs.
         run: python3 tests/scenarios/run.py
 
+  js:
+    name: Report and desktop-form behaviour
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --locked
+      - name: Run the JavaScript behaviour checks
+        # run.mjs generates a report with the binary above, then exercises the
+        # page's own filter, sort and matrix code and the desktop form's own
+        # preset merge. It exits non-zero if any check fails.
+        run: node tests/js/run.mjs
+
   truth:
     name: Synthetic ground-truth validation
     runs-on: ubuntu-latest
