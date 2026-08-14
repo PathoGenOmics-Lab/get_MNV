@@ -520,6 +520,38 @@ fn push_json_str(out: &mut String, value: &str) {
 mod tests {
     use super::*;
 
+    /// A site of the matrix keeps every gene that annotates it.
+    ///
+    /// Two overlapping genes each get a row of their own in the table. The matrix
+    /// used to label a site with the gene of whichever row reached it first, so
+    /// the second gene vanished from the gene track and from the matrix search,
+    /// and which one survived changed when the table was sorted, since the sort
+    /// decides the order the rows are walked in.
+    ///
+    /// The matrix is built in the page, so this reads the template rather than
+    /// running it. The behaviour itself was checked by driving the page's own
+    /// `buildMatrix` over a generated report with two overlapping genes, in both
+    /// sort orders; what this guards is that the shape it needs stays in place.
+    #[test]
+    fn a_matrix_site_keeps_every_gene_that_annotates_it() {
+        assert!(
+            TEMPLATE.contains("siteMeta[k] = {chrom:chrom,pos:p,genes:[]}"),
+            "a site has to collect its genes, not take the first one"
+        );
+        assert!(
+            !TEMPLATE.contains("gene:geneOf(r)}"),
+            "the single-gene-per-site shape is back"
+        );
+        assert!(
+            TEMPLATE.contains("st.genes.forEach"),
+            "the gene bars have to be drawn from every gene of a site"
+        );
+        assert!(
+            TEMPLATE.contains("a.lo-b.lo || a.gene.localeCompare(b.gene)"),
+            "two genes over one span must always come out the same way round"
+        );
+    }
+
     #[test]
     fn sample_label_strips_mnv_suffixes() {
         assert_eq!(sample_label("/data/TB-001.MNV.tsv"), "TB-001");
