@@ -4301,3 +4301,96 @@ fn test_e2e_an_insertion_names_the_codon_it_changes_on_both_strands() {
         "an insertion that shifts the frame does not leave its codon untouched"
     );
 }
+
+/// An insertion inside the terminal stop codon truncates nothing, so it gets no
+/// NMD prediction, on either strand.
+///
+/// The rule that decides whether the alternate stop lies downstream of the indel
+/// read the insertion's anchor offset, which on the plus strand is one too low.
+/// A stop sitting exactly there was judged downstream, had the length change
+/// subtracted from it, and moved one codon earlier than the reference stop, so
+/// an insertion whose alternate CDS ends at the very same residue was reported
+/// as producing a premature termination codon. The exact reverse complement of
+/// the same gene, carrying the same transcript-level event, reported none.
+#[test]
+fn test_e2e_an_insertion_in_the_terminal_stop_gets_no_nmd_call() {
+    let tmp = temp_dir("e2e_nmd_terminal_stop_mirror");
+
+    // A 120-codon transcript split over two exons, and its exact reverse
+    // complement split the same way, so both spliced CDSs are byte for byte the
+    // same and end in TAA.
+    let codons = ["GCT", "ACG", "TTC", "AAC", "CCA", "GGT"];
+    let mut transcript = String::from("ATG");
+    for i in 0..118 {
+        transcript.push_str(codons[i % codons.len()]);
+    }
+    transcript.push_str("TAA");
+    assert_eq!(transcript.len(), 360);
+    let revcomp = |text: &str| -> String {
+        text.chars()
+            .rev()
+            .map(|base| match base {
+                'A' => 'T',
+                'T' => 'A',
+                'G' => 'C',
+                _ => 'G',
+            })
+            .collect()
+    };
+    let mut bases: Vec<char> = (0..3000)
+        .map(|i| ['A', 'C', 'G', 'T'][(i * 5 + 2) % 4])
+        .collect();
+    bases.splice(1000..1180, transcript[0..180].chars());
+    bases.splice(1380..1560, transcript[180..360].chars());
+    bases.splice(2380..2560, revcomp(&transcript[0..180]).chars());
+    bases.splice(2000..2180, revcomp(&transcript[180..360]).chars());
+    let sequence: String = bases.iter().collect();
+    fs::write(tmp.join("ref.fas"), format!(">chr1\n{sequence}\n")).unwrap();
+    fs::write(
+        tmp.join("genes.gff3"),
+        "##gff-version 3\nchr1\tsyn\tCDS\t1001\t1180\t.\t+\t0\tID=s1;Parent=tS;Name=geneS\nchr1\tsyn\tCDS\t1381\t1560\t.\t+\t0\tID=s2;Parent=tS;Name=geneS\nchr1\tsyn\tCDS\t2381\t2560\t.\t-\t0\tID=r1;Parent=tR;Name=geneR\nchr1\tsyn\tCDS\t2001\t2180\t.\t-\t0\tID=r2;Parent=tR;Name=geneR\n",
+    )
+    .unwrap();
+
+    // One base inserted inside the terminal stop codon, written for each strand.
+    let header = "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=3000>\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
+    for (name, pos, inserted) in [("plus", 1558usize, 'A'), ("minus", 2002usize, 'T')] {
+        let anchor = bases[pos - 1];
+        fs::write(
+            tmp.join(format!("{name}.vcf")),
+            format!("{header}chr1\t{pos}\t.\t{anchor}\t{anchor}{inserted}\t100\tPASS\tDP=100\n"),
+        )
+        .unwrap();
+    }
+
+    let annotate = |name: &str| {
+        let mut args = base_args();
+        args.vcf_file = Some(tmp.join(format!("{name}.vcf")).to_string_lossy().into());
+        args.fasta_file = tmp.join("ref.fas").to_string_lossy().into();
+        args.genes_file_tsv = None;
+        args.gff_file = Some(tmp.join("genes.gff3").to_string_lossy().into());
+        args.gff_features_raw = Some("CDS".to_string());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+        pipeline::run(&args).unwrap_or_else(|e| panic!("{name} should annotate: {e}"));
+        read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")))
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| panic!("{name} should report a row"))
+    };
+
+    let plus = annotate("plus");
+    let minus = annotate("minus");
+    assert_eq!(
+        plus.get("AA Changes"),
+        minus.get("AA Changes"),
+        "the two strands carry the same transcript-level event"
+    );
+    for (name, row) in [("plus", &plus), ("minus", &minus)] {
+        assert_eq!(
+            row.get("NMD Prediction").map(String::as_str),
+            Some("-"),
+            "{name}: the alternate CDS ends at the same residue, so nothing is truncated"
+        );
+    }
+}

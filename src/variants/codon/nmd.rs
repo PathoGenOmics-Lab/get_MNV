@@ -13,7 +13,7 @@ use crate::variants::{Gene, NmdPrediction};
 
 use super::allele_apply::apply_allele_to_feature;
 use super::protein::translate_cds;
-use super::transcript_model::{coding_sequence_for_gene, first_touched_transcript_offset};
+use super::transcript_model::{coding_sequence_for_gene, first_changed_transcript_offset};
 
 /// Distance (in coding nucleotides) below which a PTC upstream of the last
 /// exon-exon junction still escapes NMD. The canonical rule uses 50-55 nt.
@@ -95,7 +95,16 @@ pub(super) fn indel_nmd_prediction(
     let alt_stop = alt_protein.find('*')?;
     let ptc_cds_offset = alt_stop * 3;
     let delta = alt_cds.len() as isize - ref_cds.len() as isize;
-    let indel_offset = first_touched_transcript_offset(gene, variant);
+    // The offset the indel's own bases occupy, not its anchor's. An insertion
+    // sits between two bases and its own land after the anchor along the genome,
+    // so on the plus strand the anchor is one offset too low: a stop sitting
+    // exactly there was judged downstream of the indel, had the length change
+    // subtracted from it, and moved one codon earlier than the reference stop.
+    // An insertion inside the terminal stop codon, which truncates nothing and
+    // whose alternate CDS ends at the same residue, was then given an NMD
+    // prediction, while the minus-strand mirror of the same transcript-level
+    // event correctly gave none.
+    let indel_offset = first_changed_transcript_offset(gene, variant);
     let stop_is_downstream_of_indel = indel_offset.is_some_and(|offset| ptc_cds_offset >= offset);
     let stop_in_reference_coordinates = if stop_is_downstream_of_indel {
         ptc_cds_offset as isize - delta
@@ -114,7 +123,7 @@ pub(super) fn indel_nmd_prediction(
     // `alt_cds.len() - terminal_len`); an indel downstream of the junction leaves
     // the junction at its reference offset.
     let indel_upstream_of_last_junction =
-        first_touched_transcript_offset(gene, variant).is_some_and(|pos| pos < ref_last_junction);
+        first_changed_transcript_offset(gene, variant).is_some_and(|pos| pos < ref_last_junction);
     let last_junction = if indel_upstream_of_last_junction {
         alt_cds.len().saturating_sub(terminal_len)
     } else {
