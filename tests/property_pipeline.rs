@@ -223,6 +223,32 @@ fn summaries(path: &Path) -> BTreeSet<Vec<String>> {
     read_rows(path).iter().map(row_summary).collect()
 }
 
+/// What a run said about one gene, ignoring every other row it produced.
+fn summaries_for(path: &Path, gene: &str) -> BTreeSet<Vec<String>> {
+    read_rows(path)
+        .iter()
+        .filter(|row| row.get("Gene").map(String::as_str) == Some(gene))
+        .map(row_summary)
+        .collect()
+}
+
+/// The three gene models over one span, written together in one file.
+///
+/// Distinct names, so a row can be attributed to the model that produced it.
+fn write_combined_annotation(dir: &Path) -> PathBuf {
+    let path = dir.join("combined.gff3");
+    let mut content = String::from("##gff-version 3\n");
+    for source in ["genes.gff3", "spliced.gff3", "minus.gff3"] {
+        let text = fs::read_to_string(dir.join(source)).expect("read annotation");
+        for line in text.lines().filter(|line| !line.starts_with("##")) {
+            content.push_str(line);
+            content.push('\n');
+        }
+    }
+    fs::write(&path, content).expect("write combined gff");
+    path
+}
+
 fn other_base(base: char) -> char {
     match base {
         'A' => 'C',
@@ -626,6 +652,59 @@ proptest! {
             invented_by_vcf,
             sites
         );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Annotating several genes at once says about each what naming it alone says.
+    ///
+    /// A gene's account of a base is its own. Three defects on this branch broke
+    /// that: a gene lost its intron row once an overlapping gene annotated the
+    /// base coding, two units sharing a Name suppressed one another, and a base a
+    /// slippage join reads twice reached only one of its codons. Each made a run
+    /// naming several genes report fewer rows for one of them than a run naming it
+    /// alone, which is the shape this catches without having to think of the case.
+    #[test]
+    fn annotating_genes_together_says_what_each_says_alone(
+        sequence in reference_sequence(),
+        (sites, kinds) in prop_oneof![spaced_sites(), clustered_sites()].prop_flat_map(|sites| {
+            let len = sites.len();
+            (Just(sites), change_kinds(len))
+        }),
+    ) {
+        let dir = case_dir();
+        write_reference(&dir, &sequence);
+        write_annotations(&dir);
+        write_spliced_annotation(&dir);
+        write_minus_annotation(&dir);
+        let combined = write_combined_annotation(&dir);
+        let bases = stored_sequence(&sequence);
+
+        let records = records_for(&bases, &sites, &kinds);
+        let vcf = dir.join("variants.vcf");
+        write_vcf(&vcf, &records);
+
+        let together = run_pipeline(&dir, &vcf, &combined, "together", false);
+
+        for (gene, annotation) in [
+            ("geneA", "genes.gff3"),
+            ("geneB", "spliced.gff3"),
+            ("geneM", "minus.gff3"),
+        ] {
+            let alone = run_pipeline(
+                &dir,
+                &vcf,
+                &dir.join(annotation),
+                &format!("alone_{gene}"),
+                false,
+            );
+            prop_assert_eq!(
+                summaries_for(&alone, gene),
+                summaries_for(&together, gene),
+                "{} says something different when it is not alone; sites {:?}",
+                gene,
+                sites
+            );
+        }
         let _ = fs::remove_dir_all(&dir);
     }
 }
