@@ -244,6 +244,15 @@ pub fn reverse_complement(seq: &str) -> String {
 ///
 /// **Prefer [`GeneticCode::translate_seq`](crate::genetic_code::GeneticCode::translate_seq)**
 /// which supports all NCBI translation tables via `--translation-table`.
+///
+/// Deprecated because it cannot see the table the user asked for: every call
+/// site would silently answer as if the run were table 11, and the comment above
+/// asking callers not to do that is not something a compiler reads. Nothing in
+/// the crate calls it, and the deprecation keeps it that way.
+#[deprecated(
+    since = "1.1.5",
+    note = "translates as table 11 whatever --translation-table says; use GeneticCode::translate_seq"
+)]
 pub fn process_translate(seq: &[u8]) -> String {
     if seq.len() < 3 {
         return "X".to_string();
@@ -362,6 +371,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_process_translate() {
         // ATG = Methionine (M), TAA = stop codon (*)
         assert_eq!(process_translate(b"ATG"), "M");

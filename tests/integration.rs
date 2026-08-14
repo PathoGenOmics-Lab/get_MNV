@@ -3845,3 +3845,96 @@ chr1\t{site}\t.\t{}\t{alternate}\t100\tPASS\tDP=30\n",
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// The table the run asks for reaches the annotation, stops included.
+///
+/// A codon's meaning changes between NCBI tables, and so does whether it is a
+/// stop at all: TGA terminates under table 11, codes tryptophan under table 2 and
+/// glycine under table 25, while TAA terminates under table 11 and codes
+/// glutamine under table 6. Every consequence drawn from a stop has to follow the
+/// table rather than a built-in idea of which codons end a protein.
+#[test]
+fn test_e2e_translation_table_reaches_the_stop_rules() {
+    let tmp = temp_dir("e2e_translation_tables");
+    let vcf_path = tmp.join("tables.vcf");
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+
+    // CDS 101..400: ATG, then Ala, with TGA at codon 11 and TAA at codon 21.
+    let mut codons: Vec<String> = std::iter::once("ATG".to_string())
+        .chain(std::iter::repeat_n("GCT".to_string(), 97))
+        .chain(std::iter::once("TAA".to_string()))
+        .collect();
+    codons[10] = "TGA".to_string();
+    codons[20] = "TAA".to_string();
+    let coding = codons.concat();
+    let mut bases = vec!['A'; 600];
+    for (offset, base) in coding.chars().enumerate() {
+        bases[100 + offset] = base;
+    }
+    let sequence: String = bases.iter().collect();
+    fs::write(&ref_path, format!(">chr1\n{sequence}\n")).unwrap();
+    fs::write(&genes_path, "geneA\t101\t400\t+\n").unwrap();
+
+    // The first base of each of those two codons.
+    let first_of = |codon: usize| 101 + (codon - 1) * 3;
+    fs::write(
+        &vcf_path,
+        format!(
+            "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=600>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t{}\t.\tT\tC\t100\tPASS\tDP=30\n\
+chr1\t{}\t.\tT\tC\t100\tPASS\tDP=30\n",
+            first_of(11),
+            first_of(21)
+        ),
+    )
+    .unwrap();
+
+    // What each table makes of TGA>CGA at codon 11 and TAA>CAA at codon 21.
+    let expected = [
+        (11u8, "*11Arg", "Stop lost", "*21Gln", "Stop lost"),
+        (1, "*11Arg", "Stop lost", "*21Gln", "Stop lost"),
+        (2, "Trp11Arg", "Non-synonymous", "*21Gln", "Stop lost"),
+        (6, "*11Arg", "Stop lost", "Gln21Gln", "Synonymous"),
+        (25, "Gly11Arg", "Non-synonymous", "*21Gln", "Stop lost"),
+    ];
+
+    for (table, aa_11, type_11, aa_21, type_21) in expected {
+        let mut args = base_args();
+        args.vcf_file = Some(vcf_path.to_string_lossy().into());
+        args.fasta_file = ref_path.to_string_lossy().into();
+        args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(format!("table_{table}"));
+        args.translation_table = table;
+
+        pipeline::run(&args).unwrap_or_else(|e| panic!("table {table}: {e}"));
+
+        let rows = read_tsv_rows(&tmp.join(format!("table_{table}.MNV.tsv")));
+        let said = |position: usize| -> (String, String) {
+            let row = rows
+                .iter()
+                .find(|row| row.get("Positions").map(String::as_str) == Some(&position.to_string()))
+                .unwrap_or_else(|| panic!("table {table}: no row at {position}"));
+            (
+                row.get("AA Changes").cloned().unwrap_or_default(),
+                row.get("Change Type").cloned().unwrap_or_default(),
+            )
+        };
+
+        assert_eq!(
+            said(first_of(11)),
+            (aa_11.to_string(), type_11.to_string()),
+            "table {table} on TGA"
+        );
+        assert_eq!(
+            said(first_of(21)),
+            (aa_21.to_string(), type_21.to_string()),
+            "table {table} on TAA"
+        );
+    }
+
+    fs::remove_dir_all(&tmp).ok();
+}
