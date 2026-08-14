@@ -4018,3 +4018,82 @@ chr1\t150\t.\t{at_150}\t{alternate}\t100\tPASS\tDP=30\n"
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// A variant keeps the depth and frequency its own record declared, whatever
+/// the record beside it declared.
+///
+/// Two substitutions in one codon are merged into an MNV row, and the per-SNV
+/// vectors used to be discarded whole as soon as one entry was missing. So a
+/// record that supplied DP and AF lost both because its codon partner supplied
+/// neither, and the loss reached the per-SNV row for the record that did supply
+/// them. Whether a measurement survived depended on where an unrelated
+/// neighbour happened to land.
+#[test]
+fn test_e2e_a_variant_keeps_the_metrics_its_own_record_declared() {
+    let tmp = temp_dir("e2e_metrics_survive_a_partner");
+    let bases: String = (0..400)
+        .map(|i| ['A', 'C', 'G', 'T'][(i * 7 + 3) % 4])
+        .collect();
+    fs::write(tmp.join("ref.fas"), format!(">chr1\n{bases}\n")).unwrap();
+    fs::write(tmp.join("genes.txt"), "geneP\t101\t250\t+\n").unwrap();
+
+    let at = |pos: usize| bases.as_bytes()[pos - 1] as char;
+    let other = |base: char| match base {
+        'A' => 'C',
+        'C' => 'G',
+        'G' => 'T',
+        _ => 'A',
+    };
+    let record = |pos: usize, info: &str| {
+        format!(
+            "chr1\t{pos}\t.\t{}\t{}\t100\tPASS\t{info}\n",
+            at(pos),
+            other(at(pos))
+        )
+    };
+    let header = "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=400>\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
+
+    // 104 and 105 share a codon; 104 and 107 do not. In both files the record
+    // at 104 declares the same DP and AF.
+    for (name, partner) in [("together", 105usize), ("apart", 107usize)] {
+        fs::write(
+            tmp.join(format!("{name}.vcf")),
+            format!(
+                "{header}{}{}",
+                record(104, "DP=100;AF=0.9"),
+                record(partner, ".")
+            ),
+        )
+        .unwrap();
+
+        let mut args = base_args();
+        args.vcf_file = Some(tmp.join(format!("{name}.vcf")).to_string_lossy().into());
+        args.fasta_file = tmp.join("ref.fas").to_string_lossy().into();
+        args.genes_file_tsv = Some(tmp.join("genes.txt").to_string_lossy().into());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+        args.both = true;
+        pipeline::run(&args).unwrap_or_else(|e| panic!("{name} should annotate: {e}"));
+
+        // ODP and OFREQ live in the VCF's INFO column, which is where the
+        // declared metrics are reported at all.
+        let body = fs::read_to_string(tmp.join(format!("{name}.MNV.vcf"))).expect("VCF written");
+        let info = body
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .map(|line| line.split('\t').collect::<Vec<_>>())
+            .find(|fields| {
+                fields.get(1) == Some(&"104") && fields.get(4).is_some_and(|alt| alt.len() == 1)
+            })
+            .and_then(|fields| fields.get(7).map(|s| (*s).to_string()))
+            .unwrap_or_else(|| panic!("{name} should emit the single-base record at 104:\n{body}"));
+        assert!(
+            info.split(';').any(|field| field == "ODP=100"),
+            "{name}: 104 declared DP=100 in its own record, INFO was {info}"
+        );
+        assert!(
+            info.split(';').any(|field| field == "OFREQ=0.9000"),
+            "{name}: 104 declared AF=0.9 in its own record, INFO was {info}"
+        );
+    }
+}

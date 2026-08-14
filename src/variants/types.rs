@@ -753,8 +753,8 @@ pub struct VariantInfo {
     pub ref_codon: Option<String>,
     pub snp_codon: Option<String>,
     pub mnv_codon: Option<String>,
-    pub original_dp: Option<Vec<usize>>,
-    pub original_freq: Option<Vec<f64>>,
+    pub original_dp: Option<Vec<Option<usize>>>,
+    pub original_freq: Option<Vec<Option<f64>>>,
     pub original_info: Option<String>,
     /// Canonical allele event class derived from REF/ALT, e.g. `mnv`,
     /// `insertion`, `deletion`, `complex_indel`. Kept separate from

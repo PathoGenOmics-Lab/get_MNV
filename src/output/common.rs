@@ -319,19 +319,26 @@ pub(crate) fn frameshift_linkage_field(variant: &VariantInfo) -> String {
 }
 
 fn original_dp_for_index(variant: &VariantInfo, index: usize) -> Option<usize> {
-    variant.original_dp.as_ref()?.get(index).copied()
+    variant.original_dp.as_ref()?.get(index).copied().flatten()
 }
 
 fn original_freq_for_index(variant: &VariantInfo, index: usize) -> Option<f64> {
-    variant.original_freq.as_ref()?.get(index).copied()
+    variant
+        .original_freq
+        .as_ref()?
+        .get(index)
+        .copied()
+        .flatten()
 }
 
+/// A per-SNV list where an entry the input did not supply is written as the
+/// VCF's own missing marker rather than dropping the whole list.
 fn original_dp_list(variant: &VariantInfo) -> Option<String> {
     let values = variant.original_dp.as_ref()?;
     Some(
         values
             .iter()
-            .map(std::string::ToString::to_string)
+            .map(|value| value.map_or_else(|| ".".to_string(), |v| v.to_string()))
             .collect::<Vec<_>>()
             .join(","),
     )
@@ -342,7 +349,7 @@ fn original_freq_list(variant: &VariantInfo) -> Option<String> {
     Some(
         values
             .iter()
-            .map(|v| format_freq(*v))
+            .map(|value| value.map_or_else(|| ".".to_string(), format_freq))
             .collect::<Vec<_>>()
             .join(","),
     )
@@ -945,8 +952,8 @@ mod tests {
             ref_codon: Some("ACG".to_string()),
             snp_codon: Some("TCG".to_string()),
             mnv_codon: None,
-            original_dp: Some(vec![30]),
-            original_freq: Some(vec![0.25]),
+            original_dp: Some(vec![Some(30)]),
+            original_freq: Some(vec![Some(0.25)]),
             original_info: None,
             event_class: Some("snp".to_string()),
             event_components: vec!["SNV:100:A>T".to_string()],

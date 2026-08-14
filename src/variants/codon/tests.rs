@@ -1078,7 +1078,7 @@ fn test_build_intergenic_variant_snp() {
     assert_eq!(v.gene, "intergenic");
     assert_eq!(v.variant_type, VariantType::Snp);
     assert_eq!(v.positions, vec![42]);
-    assert_eq!(v.original_dp, Some(vec![30]));
+    assert_eq!(v.original_dp, Some(vec![Some(30)]));
 }
 
 #[test]

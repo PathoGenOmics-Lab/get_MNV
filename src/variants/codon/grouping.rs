@@ -72,20 +72,26 @@ pub(super) fn merge_original_info(snps: &[Snp]) -> Option<String> {
         .map(str::to_string)
 }
 
-pub(super) fn collect_all_usize(values: impl Iterator<Item = Option<usize>>) -> Option<Vec<usize>> {
-    let mut out = Vec::new();
-    for value in values {
-        out.push(value?);
-    }
-    Some(out)
+/// The per-SNV values of a codon group, each entry keeping its own presence.
+///
+/// These used to discard the whole vector the moment one entry was missing, so
+/// a substitution that declared its depth and frequency lost both because the
+/// other substitution in its codon declared neither. Whether a measurement the
+/// input supplied survived depended on an unrelated neighbour landing in the
+/// same codon, and the loss reached the per-SNV rows of the constituent that
+/// did declare them. The vector is absent only when no entry has a value.
+pub(super) fn collect_all_usize(
+    values: impl Iterator<Item = Option<usize>>,
+) -> Option<Vec<Option<usize>>> {
+    let out: Vec<Option<usize>> = values.collect();
+    out.iter().any(Option::is_some).then_some(out)
 }
 
-pub(super) fn collect_all_f64(values: impl Iterator<Item = Option<f64>>) -> Option<Vec<f64>> {
-    let mut out = Vec::new();
-    for value in values {
-        out.push(value?);
-    }
-    Some(out)
+pub(super) fn collect_all_f64(
+    values: impl Iterator<Item = Option<f64>>,
+) -> Option<Vec<Option<f64>>> {
+    let out: Vec<Option<f64>> = values.collect();
+    out.iter().any(Option::is_some).then_some(out)
 }
 
 pub(super) fn event_metadata(
