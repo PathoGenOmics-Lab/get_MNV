@@ -58,6 +58,11 @@ scenario_snp_simple = Scenario(
             change_type="Non-synonymous",
             reference_codon="GCT",
             snp_codon="ACT",
+            # Los codones describen la anotacion, no las lecturas. Esta celda se
+            # vaciaba solo cuando se pasaba --bam, asi que pedir soporte de
+            # lecturas borraba una columna que no depende de ellas, y el informe,
+            # que toma de aqui su codon alterno, lo perdia para toda SNP.
+            mnv_codon="ACT",
             snp_reads="20",
             total_reads="20",
             snp_frequencies="1.0000",

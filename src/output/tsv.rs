@@ -346,19 +346,17 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
         mnv_depth.to_string()
     };
 
-    let (ref_cod, snp_cod, mnv_cod) = if variant.variant_type == VariantType::Snp {
-        (
-            variant.ref_codon.clone().unwrap_or_default(),
-            variant.snp_codon.clone().unwrap_or_default(),
-            String::new(),
-        )
-    } else {
-        (
-            variant.ref_codon.clone().unwrap_or_default(),
-            variant.snp_codon.clone().unwrap_or_default(),
-            variant.mnv_codon.clone().unwrap_or_default(),
-        )
-    };
+    // The codons describe the annotation, not the reads, so they say the same
+    // thing whether or not a BAM was supplied. This branch emptied the alternate
+    // codon of every SNP row, so passing --bam, which only adds read-support
+    // columns, silently blanked an annotation column, and the report, which
+    // takes its alternate codon from this cell alone, showed one for a SNP in a
+    // run without reads and nothing for the same variant in a run with them.
+    let (ref_cod, snp_cod, mnv_cod) = (
+        variant.ref_codon.clone().unwrap_or_default(),
+        variant.snp_codon.clone().unwrap_or_default(),
+        variant.mnv_codon.clone().unwrap_or_default(),
+    );
 
     let pos_str = variant
         .positions
