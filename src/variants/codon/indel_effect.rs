@@ -1,12 +1,46 @@
 //! Protein-level effect of indels (frameshift, in-frame, stop gained/lost).
 
 use crate::io::VcfPosition;
+use crate::variants::event::AlleleComponentKind;
 use crate::variants::{ChangeType, Gene, Strand};
 
 use super::allele_apply::apply_allele_to_feature;
 use super::gene_path::effective_bounds;
 use super::protein::{describe_protein_change, translate_cds};
 use super::transcript_model::{coding_sequence_for_gene, first_touched_transcript_offset};
+
+/// The genomic bases this variant's components actually touch.
+///
+/// `affected_start` and `affected_end` bound the record's own reference span,
+/// and for an insertion that span is the padding rather than the junction:
+/// `102 TAA>TAAG` and `104 A>AG` describe the same insertion after base 104,
+/// and the first begins two bases earlier. The deletion branch of the
+/// decomposition sets those bounds to the first deleted base and agrees with
+/// its component; the insertion branch does not. Keying the displayed codon on
+/// the record's span therefore put a padded insertion in the codon before the
+/// one it changes, a codon it leaves alone, on a row whose own amino-acid
+/// column named the right one. The components carry the anchor, which is the
+/// ruler the transcript path already reads.
+fn component_touched_bounds(variant: &VcfPosition) -> Option<(usize, usize)> {
+    let mut lo = usize::MAX;
+    let mut hi = 0usize;
+    for component in variant.event().components {
+        let (start, end) = match component.kind {
+            AlleleComponentKind::Snp | AlleleComponentKind::Insertion => {
+                (component.position, component.position)
+            }
+            AlleleComponentKind::Deletion
+            | AlleleComponentKind::Delins
+            | AlleleComponentKind::Symbolic => (
+                component.position,
+                component.position + component.ref_allele.len().saturating_sub(1),
+            ),
+        };
+        lo = lo.min(start);
+        hi = hi.max(end);
+    }
+    (lo <= hi).then_some((lo, hi))
+}
 
 pub(super) fn protein_effect_for_indel(
     gene: &Gene,
@@ -114,8 +148,10 @@ pub(super) fn protein_effect_for_indel(
     // shorter alt CDS (yielding mnv_codon = None for every minus-strand deletion).
     let (eff_start, eff_end) = effective_bounds(gene);
     let event = variant.event();
-    let touched_lo = event.affected_start.max(eff_start);
-    let touched_hi = event.affected_end.min(eff_end);
+    let (touched_start, touched_end) =
+        component_touched_bounds(variant).unwrap_or((event.affected_start, event.affected_end));
+    let touched_lo = touched_start.max(eff_start);
+    let touched_hi = touched_end.min(eff_end);
     let (ref_codon, alt_codon) = if touched_lo <= touched_hi {
         let first_offset = match gene.strand {
             Strand::Plus => touched_lo - eff_start,

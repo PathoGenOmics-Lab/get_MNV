@@ -153,6 +153,17 @@ fn write_vcf(path: &Path, records: &[String]) {
 }
 
 fn run_pipeline(dir: &Path, vcf: &Path, annotation: &Path, prefix: &str, both: bool) -> PathBuf {
+    run_pipeline_with(dir, vcf, annotation, prefix, both, &[])
+}
+
+fn run_pipeline_with(
+    dir: &Path,
+    vcf: &Path,
+    annotation: &Path,
+    prefix: &str,
+    both: bool,
+    extra: &[&str],
+) -> PathBuf {
     let reference = dir.join("ref.fasta");
     let mut argv = vec![
         "get_mnv".to_string(),
@@ -170,6 +181,7 @@ fn run_pipeline(dir: &Path, vcf: &Path, annotation: &Path, prefix: &str, both: b
     if both {
         argv.push("--both".to_string());
     }
+    argv.extend(extra.iter().map(|flag| (*flag).to_string()));
 
     let mut args = Args::parse_from(argv);
     args.output_dir = Some(dir.to_string_lossy().into_owned());
@@ -271,6 +283,13 @@ fn row_summary(row: &HashMap<String, String>) -> Vec<String> {
         "Impact",
         "Event Components",
         "HGVS g.",
+        // The codons belong here too. Leaving them out let a padded insertion
+        // name a codon it does not touch while every column above it agreed,
+        // which is a row contradicting itself in the two cells this tool exists
+        // to fill.
+        "Reference Codon",
+        "SNP Codon",
+        "MNV Codon",
     ]
     .iter()
     .map(|column| format!("{column}={}", row.get(*column).cloned().unwrap_or_default()))
@@ -279,6 +298,29 @@ fn row_summary(row: &HashMap<String, String>) -> Vec<String> {
 
 fn summaries(path: &Path) -> BTreeSet<Vec<String>> {
     read_rows(path).iter().map(row_summary).collect()
+}
+
+/// What a run said, without the three columns that echo the record verbatim.
+///
+/// `Positions`, `Reference Bases` and `Base Changes` are documented as the
+/// record's own coordinates and alleles, and `--normalize-alleles` exists for
+/// trimming the padding off them, so two spellings of one indel are allowed to
+/// differ there. Nothing else may: everything below describes the change, not
+/// the way it was written down.
+fn annotation_summaries(path: &Path) -> BTreeSet<Vec<String>> {
+    read_rows(path)
+        .iter()
+        .map(|row| {
+            row_summary(row)
+                .into_iter()
+                .filter(|cell| {
+                    !cell.starts_with("Positions=")
+                        && !cell.starts_with("Reference Bases=")
+                        && !cell.starts_with("Base Changes=")
+                })
+                .collect()
+        })
+        .collect()
 }
 
 /// What a run said about one gene, ignoring every other row it produced.
@@ -613,6 +655,101 @@ proptest! {
             "padding changed the annotation; sites {:?}, pad {}",
             sites,
             pad
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// The same insertion or deletion, written bare and written behind reference
+    /// bases, says the same thing.
+    ///
+    /// The property above sweeps substitutions, and a substitution's record
+    /// starts on the base it changes. An insertion's does not: `102 TAA>TAAG`
+    /// and `104 A>AG` are the same insertion after base 104, and one starts two
+    /// bases earlier than the other. Keying the displayed codon on where the
+    /// record starts put the padded spelling in the codon before the one it
+    /// changes, a codon it leaves alone, on a row whose own amino-acid column
+    /// named the right one.
+    #[test]
+    fn padding_an_indel_does_not_change_what_it_says(
+        sequence in reference_sequence(),
+        annotation_index in 0usize..5,
+        offset in 0usize..40,
+        pad in 1usize..4,
+        length in 1usize..4,
+        deletion in 0usize..2,
+    ) {
+        let dir = case_dir();
+        write_reference(&dir, &sequence);
+        let (genes, _) = write_annotations(&dir);
+        write_spliced_annotation(&dir);
+        write_minus_annotation(&dir);
+        let annotation = [
+            genes,
+            dir.join("genes.gff3"),
+            dir.join("transcript.gff3"),
+            dir.join("spliced.gff3"),
+            dir.join("minus.gff3"),
+        ][annotation_index]
+            .clone();
+        let bases = stored_sequence(&sequence);
+        let site = GENE_START + offset;
+        let start = site - pad;
+
+        // Both spellings describe one event: `length` bases inserted after
+        // `site`, or the `length` bases after `site` deleted.
+        let (bare_ref, bare_alt, padded_ref, padded_alt) = if deletion == 1 {
+            let bare_ref: String = bases[site - 1..site + length].iter().collect();
+            let padded_ref: String = bases[start - 1..site + length].iter().collect();
+            let padded_alt: String = bases[start - 1..site].iter().collect();
+            (bare_ref, bases[site - 1].to_string(), padded_ref, padded_alt)
+        } else {
+            let inserted: String = bases[site..site + length].iter().collect();
+            let anchor = bases[site - 1];
+            let padded_ref: String = bases[start - 1..site].iter().collect();
+            (
+                anchor.to_string(),
+                format!("{anchor}{inserted}"),
+                padded_ref.clone(),
+                format!("{padded_ref}{inserted}"),
+            )
+        };
+
+        let bare_vcf = dir.join("bare.vcf");
+        let padded_vcf = dir.join("padded.vcf");
+        write_vcf(&bare_vcf, &[format!(
+            "chr1\t{site}\t.\t{bare_ref}\t{bare_alt}\t100\tPASS\tDP=30"
+        )]);
+        write_vcf(&padded_vcf, &[format!(
+            "chr1\t{start}\t.\t{padded_ref}\t{padded_alt}\t100\tPASS\tDP=30"
+        )]);
+
+        let bare_tsv = run_pipeline(&dir, &bare_vcf, &annotation, "bare", false);
+        let padded_tsv = run_pipeline(&dir, &padded_vcf, &annotation, "padded", false);
+
+        prop_assert_eq!(
+            annotation_summaries(&bare_tsv),
+            annotation_summaries(&padded_tsv),
+            "padding changed the annotation of an indel; site {}, pad {}, length {}, deletion {}",
+            site,
+            pad,
+            length,
+            deletion == 1
+        );
+
+        // And with the padding trimmed off first, nothing at all may differ,
+        // including the three columns that otherwise echo the record.
+        let bare_norm = run_pipeline_with(
+            &dir, &bare_vcf, &annotation, "bare_norm", false, &["--normalize-alleles"]);
+        let padded_norm = run_pipeline_with(
+            &dir, &padded_vcf, &annotation, "padded_norm", false, &["--normalize-alleles"]);
+        prop_assert_eq!(
+            summaries(&bare_norm),
+            summaries(&padded_norm),
+            "the same indel, normalized, still differs; site {}, pad {}, length {}, deletion {}",
+            site,
+            pad,
+            length,
+            deletion == 1
         );
         let _ = fs::remove_dir_all(&dir);
     }
