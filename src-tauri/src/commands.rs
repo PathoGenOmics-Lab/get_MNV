@@ -1743,6 +1743,34 @@ mod default_parity_tests {
         ),
     ];
 
+    /// Applying a preset keeps the user's choice of which files to write.
+    ///
+    /// A preset sets analysis thresholds. Which outputs to produce is not one of
+    /// those: it sits beside the output directory and the compression flag, which
+    /// the form already preserves. Resetting the formats while preserving vcfGz
+    /// left a run with "compress the VCF" on and no VCF to compress, and a user
+    /// who had asked for VCF got a TSV instead without being told.
+    ///
+    /// The merge lives in a React component and the frontend has no test runner,
+    /// so this reads the source. The behaviour was checked by running the same
+    /// merge over the shipped DEFAULT_CONFIG and presets.
+    #[test]
+    fn applying_a_preset_keeps_the_chosen_output_formats() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../frontend/src/components/ParameterForm.tsx"
+        );
+        let source =
+            std::fs::read_to_string(path).unwrap_or_else(|e| panic!("cannot read {path}: {e}"));
+        for field in ["outputTsv", "outputVcf"] {
+            let expected = format!("{field}: preset.config.{field} ?? config.{field}");
+            assert!(
+                source.contains(&expected),
+                "a preset must leave {field} alone unless it states one;                  expected the merge to read `{expected}`"
+            );
+        }
+    }
+
     fn frontend_defaults() -> std::collections::HashMap<String, String> {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../frontend/src/types.ts");
         let source =

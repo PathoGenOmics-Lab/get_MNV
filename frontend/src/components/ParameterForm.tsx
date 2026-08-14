@@ -244,6 +244,12 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
       vcfGz: config.vcfGz,
       outputDir: config.outputDir,
       outputPrefix: config.outputPrefix,
+      // Which files to write is the user's choice, like the compression flag
+      // beside it, and a preset only overrides it when it says so. Resetting the
+      // formats while preserving vcfGz left "compress the VCF" on for a VCF the
+      // run no longer wrote.
+      outputTsv: preset.config.outputTsv ?? config.outputTsv,
+      outputVcf: preset.config.outputVcf ?? config.outputVcf,
     });
   };
 
