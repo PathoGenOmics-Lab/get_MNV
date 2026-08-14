@@ -205,7 +205,17 @@ pub(super) fn indel_disturbs_codon(
                     continue;
                 }
                 if let Some(offset) = transcript_offset_for_position(gene, component.position) {
-                    if inside(offset) && offset + 1 < codon_end {
+                    // The inserted bases follow the anchor along the genome, so in
+                    // transcript order they land after it on the plus strand and
+                    // before it on the minus, where the transcript reads from
+                    // higher coordinates down. The gap is inside this codon only
+                    // when both bases it sits between are, which is the same rule
+                    // read from either end.
+                    let disturbs = match gene.strand {
+                        Strand::Plus => offset >= codon_start && offset + 1 < codon_end,
+                        Strand::Minus => offset > codon_start && offset < codon_end,
+                    };
+                    if disturbs {
                         return true;
                     }
                 }
@@ -237,6 +247,36 @@ pub(super) fn first_touched_transcript_offset(gene: &Gene, variant: &VcfPosition
     variant_touched_transcript_offsets(gene, variant)
         .into_iter()
         .min()
+}
+
+/// Whether the whole of this indel lies upstream of the codon starting at
+/// `codon_start`, in transcript offsets.
+///
+/// An insertion occupies the boundary between two bases rather than a base, and
+/// which two depends on the strand: its bases follow the anchor along the genome,
+/// so in transcript order they sit after the anchor on the plus strand and before
+/// it on the minus. Testing the anchor's own offset put a minus-strand insertion
+/// anchored on a codon's first base inside that codon instead of before it, so a
+/// frame that had shifted was reported as a plain codon change.
+pub(super) fn indel_is_upstream_of_codon_offset(
+    gene: &Gene,
+    indel: &VcfPosition,
+    codon_start: usize,
+) -> bool {
+    let Some(first) = first_touched_transcript_offset(gene, indel) else {
+        return false;
+    };
+    let insertion_only = indel
+        .event()
+        .components
+        .iter()
+        .all(|component| matches!(component.kind, AlleleComponentKind::Insertion));
+    let effective = if insertion_only && gene.strand == Strand::Minus {
+        first.saturating_sub(1)
+    } else {
+        first
+    };
+    effective < codon_start
 }
 
 pub(super) fn coding_sequence_for_gene(

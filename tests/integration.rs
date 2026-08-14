@@ -3568,3 +3568,103 @@ chr1\t{snv}\t.\t{}\tA\t100\tPASS\tDP=30;AF=0.9\n",
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// On the minus strand, upstream means the higher coordinates.
+///
+/// The transcript reads from higher coordinates down, so bases above a codon come
+/// before it. A deletion anchored exactly on a codon's last genomic base removes
+/// bases that precede that codon in the transcript, and an insertion anchored on
+/// its first genomic base opens a gap that also precedes it. Both were judged by
+/// the base the record starts on, so one codon kept a plain missense label on a
+/// frame that had shifted, and the other was blanked as an indel overlap by an
+/// insertion that never entered it. Same defect in the two annotation models.
+#[test]
+fn test_e2e_minus_strand_upstream_indels_shift_the_frame() {
+    let tmp = temp_dir("e2e_minus_upstream");
+    let ref_path = tmp.join("ref.fasta");
+
+    // A gene over 101..400 on the minus strand: codon 10 is genomic 373, 372, 371
+    // read in that order.
+    let bases: Vec<char> = (0..600)
+        .map(|index| ['A', 'C', 'G', 'T'][(index * 7 + 3) % 4])
+        .collect();
+    let sequence: String = bases.iter().collect();
+    fs::write(&ref_path, format!(">chr1\n{sequence}\n")).unwrap();
+
+    let genes_path = tmp.join("genes.txt");
+    fs::write(&genes_path, "geneA\t101\t400\t-\n").unwrap();
+    let gff_path = tmp.join("tx.gff3");
+    fs::write(
+        &gff_path,
+        "##gff-version 3\n\
+chr1\tsyn\tgene\t101\t400\t.\t-\t.\tID=g1;Name=geneA\n\
+chr1\tsyn\tmRNA\t101\t400\t.\t-\t.\tID=m1;Parent=g1;Name=geneA\n\
+chr1\tsyn\tCDS\t101\t400\t.\t-\t0\tID=c1;Parent=m1;Name=geneA\n",
+    )
+    .unwrap();
+
+    let snv = 372usize; // inside codon 10
+    let snv_alt = if bases[snv - 1] == 'A' { 'C' } else { 'A' };
+
+    // The deletion removes 374 and 375, both above codon 10 and so before it.
+    let deletion = format!(
+        "chr1\t373\t.\t{}{}{}\t{}\t100\tPASS\tDP=30;AF=0.9\n",
+        bases[372], bases[373], bases[374], bases[372]
+    );
+    // The insertion opens a gap above 373, which is also before codon 10.
+    let insertion = format!(
+        "chr1\t373\t.\t{}\t{}GG\t100\tPASS\tDP=30;AF=0.9\n",
+        bases[372], bases[372]
+    );
+
+    for (name, record, annotation) in [
+        ("genomic", &deletion, &genes_path),
+        ("transcript", &insertion, &gff_path),
+    ] {
+        let vcf_path = tmp.join(format!("{name}.vcf"));
+        fs::write(
+            &vcf_path,
+            format!(
+                "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=600>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+{record}chr1\t{snv}\t.\t{}\t{snv_alt}\t100\tPASS\tDP=30;AF=0.9\n",
+                bases[snv - 1]
+            ),
+        )
+        .unwrap();
+
+        let mut args = base_args();
+        args.vcf_file = Some(vcf_path.to_string_lossy().into());
+        args.fasta_file = ref_path.to_string_lossy().into();
+        if annotation == &gff_path {
+            args.genes_file_tsv = None;
+            args.gff_file = Some(gff_path.to_string_lossy().into());
+            args.gff_features_raw = Some("CDS".to_string());
+        } else {
+            args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+        }
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+
+        pipeline::run(&args).unwrap_or_else(|e| panic!("{name}: {e}"));
+
+        let rows = read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")));
+        let codon = rows
+            .iter()
+            .find(|row| row.get("Positions").map(String::as_str) == Some(&snv.to_string()))
+            .unwrap_or_else(|| panic!("{name}: no row at {snv}: {rows:?}"));
+        let change = codon.get("AA Changes").cloned().unwrap_or_default();
+        assert!(
+            change.ends_with("(fs)"),
+            "{name}: the codon reads in a shifted frame, so its change carries (fs): {change}"
+        );
+        assert_eq!(
+            codon.get("SO Term").map(String::as_str),
+            Some("frameshift_variant"),
+            "{name}"
+        );
+    }
+
+    fs::remove_dir_all(&tmp).ok();
+}

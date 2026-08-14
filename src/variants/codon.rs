@@ -37,13 +37,50 @@ pub(crate) use gene_path::codon_bounds_for_position as codon_bounds;
 use grouping::{merge_snp_into_groups, variant_event_metadata};
 use indel_effect::{coding_delta_for_variant, protein_effect_for_indel};
 use transcript_model::{
-    first_touched_transcript_offset, has_transcript_cds_model, indel_disturbs_codon,
+    has_transcript_cds_model, indel_disturbs_codon, indel_is_upstream_of_codon_offset,
     transcript_offsets_for_position, transcript_sequence_for_gene, variant_overlaps_coding_model,
 };
 use transcript_path::{
     apply_frameshift_labeling, frameshift_ptc_protein_pos, merge_transcript_snp_into_groups,
     process_transcript_codon, transcript_oriented_base, TranscriptSnp,
 };
+
+/// Whether the whole of this indel lies upstream of the codon in transcript
+/// order, on a gene annotated in genomic coordinates.
+///
+/// Asked of the bases the record changes, not of the base it starts on. A
+/// left-anchored deletion names the base before the gap, so on the minus strand,
+/// where the transcript reads from higher coordinates down, a deletion anchored
+/// exactly on the codon's last genomic base removes bases that come before that
+/// codon and its frame shift has to reach it. Testing the anchor said otherwise,
+/// and the codon kept a plain missense label on a frame that had shifted. An
+/// insertion places its bases after the anchor, so the gap it opens lies between
+/// the anchor and the next base, which is what makes the two strands read their
+/// boundary differently.
+fn indel_is_upstream_of_codon(
+    indel: &crate::io::VcfPosition,
+    strand: Strand,
+    codon_start: usize,
+    codon_end: usize,
+) -> bool {
+    let components = indel.event().components;
+    if components.is_empty() {
+        return false;
+    }
+    components.iter().all(|component| match component.kind {
+        crate::variants::AlleleComponentKind::Insertion => match strand {
+            Strand::Plus => component.position < codon_start,
+            Strand::Minus => component.position >= codon_end,
+        },
+        _ => {
+            let last = component.position + component.ref_allele.len().saturating_sub(1);
+            match strand {
+                Strand::Plus => last < codon_start,
+                Strand::Minus => component.position > codon_end,
+            }
+        }
+    })
+}
 
 fn get_mnv_variants_for_transcript(
     gene: &Gene,
@@ -144,10 +181,7 @@ fn get_mnv_variants_for_transcript(
             let mut has_symbolic_sv = false;
             let mut frameshift_linkage = Vec::new();
             for indel in &indels {
-                let Some(first_offset) = first_touched_transcript_offset(gene, indel) else {
-                    continue;
-                };
-                if first_offset < codon_start {
+                if indel_is_upstream_of_codon_offset(gene, indel, codon_start) {
                     // Only let sufficiently frequent upstream indels shift the frame
                     // of downstream codons (see IndelAnnotationConfig).
                     if !indel_passes_frameshift_gate(indel, config) {
@@ -388,10 +422,8 @@ pub fn get_mnv_variants_for_gene_with_config(
             let mut frameshift_linkage = Vec::new();
 
             for indel in &indels {
-                let is_upstream = match gene.strand {
-                    Strand::Plus => indel.record_start < codon_start,
-                    Strand::Minus => indel.record_start > codon_end,
-                };
+                let is_upstream =
+                    indel_is_upstream_of_codon(indel, gene.strand, codon_start, codon_end);
 
                 if is_upstream {
                     // Only sufficiently frequent upstream indels shift the frame of

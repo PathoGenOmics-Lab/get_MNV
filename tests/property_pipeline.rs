@@ -97,6 +97,27 @@ fn transcript_annotation(dir: &Path) -> PathBuf {
     dir.join("transcript.gff3")
 }
 
+/// The same single-exon gene read on the minus strand, where the transcript runs
+/// from higher coordinates down. Upstream and downstream swap there, and so does
+/// the side of an anchor its inserted bases land on, which the boundary rules had
+/// to be told twice.
+fn write_minus_annotation(dir: &Path) -> PathBuf {
+    let tsv = dir.join("minus.txt");
+    fs::write(&tsv, format!("geneM\t{GENE_START}\t{GENE_END}\t-\n")).expect("write minus tsv");
+    let path = dir.join("minus.gff3");
+    fs::write(
+        &path,
+        format!(
+            "##gff-version 3\n\
+chr1\tsyn\tgene\t{GENE_START}\t{GENE_END}\t.\t-\t.\tID=g3;Name=geneM\n\
+chr1\tsyn\tmRNA\t{GENE_START}\t{GENE_END}\t.\t-\t.\tID=m3;Parent=g3;Name=geneM\n\
+chr1\tsyn\tCDS\t{GENE_START}\t{GENE_END}\t.\t-\t0\tID=c3;Parent=m3;Name=geneM\n"
+        ),
+    )
+    .expect("write minus gff");
+    path
+}
+
 /// A two-exon transcript over the same span, so the invariants also run against
 /// a gene that has an intron, a splice donor and a splice acceptor. Every defect
 /// keyed on a record's POS rather than on the bases it changes needed one to show.
@@ -226,6 +247,12 @@ fn spaced_sites() -> impl Strategy<Value = Vec<usize>> {
             .collect();
         sites.push(GENE_START);
         sites.push(GENE_END);
+        // Codon boundaries hang off the gene's start on the plus strand and off
+        // its end on the minus, so a grid anchored at one end never lands on the
+        // other's. Both are needed: a record anchored exactly on a codon's edge is
+        // where the boundary rules are decided.
+        sites.push(GENE_END - 27);
+        sites.push(GENE_END - 28);
         sites.sort_unstable();
         sites.dedup();
         sites
@@ -333,7 +360,7 @@ proptest! {
     #[test]
     fn padding_a_record_does_not_change_what_it_says(
         sequence in reference_sequence(),
-        annotation_index in 0usize..4,
+        annotation_index in 0usize..5,
         sites in spaced_sites(),
         pad in 1usize..4,
     ) {
@@ -341,11 +368,13 @@ proptest! {
         write_reference(&dir, &sequence);
         let (genes, _) = write_annotations(&dir);
         write_spliced_annotation(&dir);
+        write_minus_annotation(&dir);
         let annotation = [
             genes,
             dir.join("genes.gff3"),
             dir.join("transcript.gff3"),
             dir.join("spliced.gff3"),
+            dir.join("minus.gff3"),
         ][annotation_index]
             .clone();
         let bases = stored_sequence(&sequence);
@@ -398,7 +427,7 @@ proptest! {
     #[test]
     fn record_order_does_not_change_the_output(
         sequence in reference_sequence(),
-        annotation_index in 0usize..4,
+        annotation_index in 0usize..5,
         (sites, kinds) in prop_oneof![spaced_sites(), clustered_sites()].prop_flat_map(|sites| {
             let len = sites.len();
             (Just(sites), change_kinds(len))
@@ -408,11 +437,13 @@ proptest! {
         write_reference(&dir, &sequence);
         let (_genes, _) = write_annotations(&dir);
         write_spliced_annotation(&dir);
+        write_minus_annotation(&dir);
         let annotation = [
             dir.join("genes.txt"),
             dir.join("genes.gff3"),
             dir.join("transcript.gff3"),
             dir.join("spliced.gff3"),
+            dir.join("minus.gff3"),
         ][annotation_index]
             .clone();
         let bases = stored_sequence(&sequence);
@@ -456,6 +487,7 @@ proptest! {
         write_reference(&dir, &sequence);
         let (genes, gff) = write_annotations(&dir);
         write_spliced_annotation(&dir);
+        write_minus_annotation(&dir);
         let bases = stored_sequence(&sequence);
 
         let records = records_for(&bases, &sites, &kinds);
@@ -484,6 +516,21 @@ proptest! {
             "adding a Parent changed the annotation; sites {:?}",
             sites
         );
+
+        // And the same pair on the minus strand, where the transcript reads from
+        // higher coordinates down. Upstream and downstream swap there, and so
+        // does the side of an anchor its inserted bases land on, so the two
+        // models had to be told the boundary rules twice and disagreed until they
+        // were. A property that compares two spellings can only see a defect the
+        // two do not share, which is exactly what this pair is for.
+        let minus_tsv = run_pipeline(&dir, &vcf, &dir.join("minus.txt"), "minus_tsv", false);
+        let minus_gff = run_pipeline(&dir, &vcf, &dir.join("minus.gff3"), "minus_gff", false);
+        prop_assert_eq!(
+            summaries(&minus_tsv),
+            summaries(&minus_gff),
+            "the two models disagree on the minus strand; sites {:?}",
+            sites
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -497,7 +544,7 @@ proptest! {
     #[test]
     fn the_tsv_and_the_vcf_agree_on_what_changed(
         sequence in reference_sequence(),
-        annotation_index in 0usize..4,
+        annotation_index in 0usize..5,
         (sites, kinds) in prop_oneof![spaced_sites(), clustered_sites()].prop_flat_map(|sites| {
             let len = sites.len();
             (Just(sites), change_kinds(len))
@@ -507,11 +554,13 @@ proptest! {
         write_reference(&dir, &sequence);
         let (genes, _) = write_annotations(&dir);
         write_spliced_annotation(&dir);
+        write_minus_annotation(&dir);
         let annotation = [
             genes,
             dir.join("genes.gff3"),
             dir.join("transcript.gff3"),
             dir.join("spliced.gff3"),
+            dir.join("minus.gff3"),
         ][annotation_index]
             .clone();
         let bases = stored_sequence(&sequence);
