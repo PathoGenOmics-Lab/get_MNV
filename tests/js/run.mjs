@@ -691,6 +691,56 @@ async function checkVariantTable(work) {
   check("table: a real zero still is one", helpers.cellNumber("0"), 0);
 }
 
+// ---------------------------------------------------------------------------
+// Pairing BAMs to variant files
+// ---------------------------------------------------------------------------
+
+/// The app's own pairing functions, run rather than described.
+async function bamPairing(work) {
+  const source = readFileSync(join(REPO, "frontend", "src", "App.tsx"), "utf8");
+  const module = [
+    "function filenameStem(path: string): string ",
+    "function sampleIdFromPath(path: string): string ",
+    "function bamMatchRank(vcfPath: string, bamPath: string): number | null ",
+    "function pairBamsToVcfs(vcfPaths: string[], bamPaths: string[]): Map<string, string> ",
+  ].map((header) => `export ${declaration(source, header)}`).join("\n\n");
+  const path = join(work, "pairing.ts");
+  writeFileSync(path, module + "\n");
+  return import(path);
+}
+
+async function checkBamPairing(work) {
+  const { pairBamsToVcfs } = await bamPairing(work);
+  const paired = (vcfs, bams) => {
+    const map = pairBamsToVcfs(vcfs, bams);
+    return vcfs.map((v) => map.get(v) ?? null);
+  };
+
+  // A sample whose name answers exactly keeps its own reads, even when a sample
+  // earlier in the list would have settled for them. Getting this wrong counts
+  // one sample's depth, frequency, strand and phasing off another's molecules.
+  check("pairing: an exact match is not taken by a weaker one",
+    paired(["A.x.vcf", "A.y.vcf"], ["A.y.bam", "A.z.bam"]), ["A.z.bam", "A.y.bam"]);
+  check("pairing: exact matches hold whatever order the files arrive in",
+    paired(["S1.vcf", "S2.vcf"], ["S2.bam", "S1.bam"]), ["S1.bam", "S2.bam"]);
+
+  // Two candidates that answer equally well are not a reason to pick one.
+  check("pairing: an ambiguous match pairs nothing",
+    paired(["MIP1.a.vcf"], ["MIP1.rep1.bam", "MIP1.rep2.bam"]), [null]);
+  check("pairing: two variant files of one stem do not both claim its BAM",
+    paired(["a/s1.vcf", "b/s1.vcf"], ["s1.bam"]), [null, null]);
+
+  // The documented ladder still works, on the shapes it was written for.
+  check("pairing: a prefix match, which is the bundled example's shape",
+    paired(["G35894.var.snp.vcf"], ["G35894.bam"]), ["G35894.bam"]);
+  check("pairing: a sample id match, the weakest rung",
+    paired(["MIP00022.MTB_anc.ann.vcf"], ["MIP00022.MTB_anc.final.bam"]),
+    ["MIP00022.MTB_anc.final.bam"]);
+  check("pairing: names that answer to nothing pair with nothing",
+    paired(["alpha.vcf"], ["beta.bam"]), [null]);
+  check("pairing: no BAM at all is not an error", paired(["alpha.vcf"], []), [null]);
+}
+
 function checkPresets() {
   const types = readFileSync(join(REPO, "frontend", "src", "types.ts"), "utf8");
   const form = readFileSync(
@@ -746,6 +796,7 @@ try {
   checkRegion(work);
   checkHaplotypes(work);
   await checkVariantTable(work);
+  await checkBamPairing(work);
   checkPresets();
 } finally {
   rmSync(work, { recursive: true, force: true });
