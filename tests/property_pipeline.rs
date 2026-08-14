@@ -178,6 +178,64 @@ fn run_pipeline(dir: &Path, vcf: &Path, annotation: &Path, prefix: &str, both: b
     dir.join(format!("{prefix}.MNV.tsv"))
 }
 
+/// A genotype per sample for each generated record.
+fn genotypes(len: usize) -> impl Strategy<Value = Vec<Vec<String>>> {
+    proptest::collection::vec(
+        proptest::collection::vec(
+            prop::sample::select(vec![
+                "1/1".to_string(),
+                "0/0".to_string(),
+                "0/1".to_string(),
+                "./.".to_string(),
+            ]),
+            2,
+        ),
+        len,
+    )
+}
+
+/// The generated records as a two-sample VCF, each carrying its own genotype.
+fn write_cohort_vcf(path: &Path, records: &[String], genotypes: &[Vec<String>]) {
+    let mut body = String::new();
+    for (index, record) in records.iter().enumerate() {
+        body.push_str(record);
+        body.push_str("\tGT");
+        for genotype in &genotypes[index] {
+            body.push('\t');
+            body.push_str(genotype);
+        }
+        body.push('\n');
+    }
+    fs::write(
+        path,
+        format!(
+            "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length={CONTIG_LEN}>\n\
+##FORMAT=<ID=GT,Number=1,Type=String,Description=\"genotype\">\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\tS2\n{body}"
+        ),
+    )
+    .expect("write cohort vcf");
+}
+
+/// Run the pipeline for one named sample, or for every sample at once.
+fn run_for_sample(dir: &Path, vcf: &Path, annotation: &Path, sample: &str, prefix: &str) {
+    let mut args = Args::parse_from(vec![
+        "get_mnv".to_string(),
+        "--vcf".to_string(),
+        vcf.to_string_lossy().into_owned(),
+        "--fasta".to_string(),
+        dir.join("ref.fasta").to_string_lossy().into_owned(),
+        "--gff".to_string(),
+        annotation.to_string_lossy().into_owned(),
+        "--sample".to_string(),
+        sample.to_string(),
+    ]);
+    args.output_dir = Some(dir.to_string_lossy().into_owned());
+    args.output_prefix = Some(prefix.to_string());
+    pipeline::run(&args).expect("pipeline should annotate the cohort");
+}
+
 fn read_rows(path: &Path) -> Vec<HashMap<String, String>> {
     let content = fs::read_to_string(path).expect("read TSV");
     let mut lines = content.lines();
@@ -967,6 +1025,84 @@ proptest! {
                     sites
                 );
             }
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// A cohort run says about each sample what naming that sample alone says.
+    ///
+    /// The genotype decides which alleles a sample carries, and the annotation is
+    /// then the same work done once per sample. Nothing about one sample may
+    /// depend on the others being in the file, and with several genes over the
+    /// same span there are more rows per allele for that to go wrong in.
+    #[test]
+    fn a_cohort_says_about_each_sample_what_it_says_alone(
+        sequence in reference_sequence(),
+        (sites, kinds, calls) in spaced_sites().prop_flat_map(|sites| {
+            let len = sites.len();
+            (Just(sites), change_kinds(len), genotypes(len))
+        }),
+    ) {
+        let dir = case_dir();
+        write_reference(&dir, &sequence);
+        write_annotations(&dir);
+        write_spliced_annotation(&dir);
+        write_minus_annotation(&dir);
+        let combined = write_combined_annotation(&dir);
+        let bases = stored_sequence(&sequence);
+
+        let vcf = dir.join("cohort.vcf");
+        write_cohort_vcf(&vcf, &records_for(&bases, &sites, &kinds), &calls);
+
+        run_for_sample(&dir, &vcf, &combined, "all", "every");
+        for sample in ["S1", "S2"] {
+            run_for_sample(&dir, &vcf, &combined, sample, &format!("just_{sample}"));
+            let together = dir.join(format!("every.sample_{sample}.MNV.tsv"));
+            let alone = dir.join(format!("just_{sample}.MNV.tsv"));
+            prop_assert_eq!(
+                summaries(&alone),
+                summaries(&together),
+                "{} is annotated differently inside the cohort; sites {:?}",
+                sample,
+                sites
+            );
+
+            // And the genotypes are obeyed. Comparing the two runs only says they
+            // agree; a filter dropped from both would leave them agreeing and
+            // wrong, so what the genotype says is asserted on its own. A row may
+            // only name a base some record this sample carries actually touches.
+            let column = usize::from(sample == "S2");
+            let carried: BTreeSet<usize> = sites
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| calls[*index][column] != "0/0")
+                .flat_map(|(index, &site)| match kinds[index] {
+                    // The row of an indel names its anchor; a substitution names
+                    // the bases it changes.
+                    Change::Mnp => vec![site, site + 1],
+                    Change::Deletion => vec![site, site + 1, site + 2],
+                    _ => vec![site],
+                })
+                .collect();
+            let reported: BTreeSet<usize> = read_rows(&alone)
+                .iter()
+                .flat_map(|row| {
+                    row.get("Positions")
+                        .cloned()
+                        .unwrap_or_default()
+                        .split(", ")
+                        .filter_map(|value| value.trim().parse::<usize>().ok())
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            let invented: Vec<usize> = reported.difference(&carried).copied().collect();
+            prop_assert!(
+                invented.is_empty(),
+                "{} has rows at {:?}, which no record it carries touches; sites {:?}",
+                sample,
+                invented,
+                sites
+            );
         }
         let _ = fs::remove_dir_all(&dir);
     }
