@@ -175,8 +175,16 @@ A non-coding feature is reported against its gene as
 **When the biotype column is omitted every feature is assumed to be
 protein-coding**, which is what four- and five-column files have always done: an
 RNA gene is then translated as though it were a protein. Declare the biotype
-when your annotation contains non-coding features. GFF/GTF input is unaffected,
-because it selects `CDS` features.
+when your annotation contains non-coding features.
+
+GFF and GTF input says what it is on its own. A record's `gene_biotype`,
+`biotype` or `transcript_biotype` attribute decides, read through the same
+vocabulary as the column above; failing that, the feature type in column 3 does,
+so `rRNA`, `tRNA`, `ncRNA` and `pseudogene` rows are read as non-coding without
+being told. A feature that says nothing about itself is assumed to be
+protein-coding, which is what a bacterial `gene` row is. Note that the default
+`--gff-features` list is `gene,pseudogene`, so pseudogenes are selected by
+default and are not translated.
 
 Limitations of TSV annotation:
 

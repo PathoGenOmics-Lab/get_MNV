@@ -165,9 +165,15 @@ fila `complex_indel` de al lado es donde está la consecuencia real.
   coordenada es la *primera* base del transcrito, así que la inserción cae en el
   5' UTR. La misma regla, por la razón contraria.
 - **Sin ensamblaje de novo.** get_MNV combina alelos que la entrada ya declara.
-- **Los alelos simbólicos** (`<DEL>`, `<DUP>`) no tienen secuencia que una
-  lectura pueda reproducir, así que la evidencia de lecturas no puede decir nada
-  de ellos.
+- **Los alelos simbólicos** (`<DEL>`, `<DUP>`, `<INV>`) no tienen secuencia que
+  una lectura pueda reproducir, así que la evidencia de lecturas no puede decir
+  nada de ellos. get_MNV tampoco lee `SVTYPE`, `END` ni `SVLEN`, así que cuántas
+  bases codificantes añade o quita un alelo así le resulta desconocido: la fila se
+  reporta como `coding_sequence_variant` (`MODIFIER`) con efecto de aminoácido
+  desconocido, en vez de darse por hecho que corre la pauta, y los codones que
+  quedan por debajo en la misma feature se reportan también como desconocidos, por
+  la misma razón. Resuelve el alelo a REF/ALT explícitos antes de ejecutar get_MNV
+  si necesitas que se clasifique.
 
 ## Cómo se comprueba esto
 

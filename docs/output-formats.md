@@ -52,7 +52,7 @@ Main columns:
 | `MNV Codon` | Codon with all grouped substitutions, same orientation as `Reference Codon`. |
 | `Event Class` | Canonical allele event class: `snp`, `mnv`, `insertion`, `deletion`, `delins`, `complex_indel`, or `symbolic`. |
 | `Event Components` | REF/ALT decomposition such as `SNV:10:A>G`, `INS:10:+T`, or `DEL:11-12:TG`. |
-| `SO Term` | Sequence Ontology consequence term (`missense_variant`, `synonymous_variant`, `stop_gained`, `start_lost`, `frameshift_variant`, `inframe_deletion`, `intergenic_variant`, …). Variants near an internal exon-exon junction of a spliced transcript also carry a splice term: `splice_donor_variant` / `splice_acceptor_variant` (the two essential intronic bases at each intron end, `HIGH`) or `splice_region_variant` (the exon's first or last 3 bases, or the intron's 3rd-8th bases, `LOW`). An exonic coding change near a junction is combined, e.g. `missense_variant&splice_region_variant`. A junction means a real intron: CDS segments that abut or overlap (a ribosomal-slippage join such as SARS-CoV-2 ORF1ab) are one continuous reading frame and carry no splice terms. A variant inside an intron but away from its splice sites is `intron_variant` (`MODIFIER`), reported against its gene rather than as intergenic, and a variant in a feature declared non-coding is `non_coding_transcript_exon_variant` (`MODIFIER`) with no amino-acid change. |
+| `SO Term` | Sequence Ontology consequence term (`missense_variant`, `synonymous_variant`, `stop_gained`, `start_lost`, `frameshift_variant`, `inframe_deletion`, `intergenic_variant`, …). Variants near an internal exon-exon junction of a spliced transcript also carry a splice term: `splice_donor_variant` / `splice_acceptor_variant` (the two essential intronic bases at each intron end, `HIGH`) or `splice_region_variant` (the exon's first or last 3 bases, or the intron's 3rd-8th bases, `LOW`). An exonic change near a junction is combined with its coding consequence, e.g. `missense_variant&splice_region_variant` for a substitution and `frameshift_variant&splice_region_variant` for an indel, as one row rather than two. A junction means a real intron: CDS segments that abut or overlap (a ribosomal-slippage join such as SARS-CoV-2 ORF1ab) are one continuous reading frame and carry no splice terms. A variant inside an intron but away from its splice sites is `intron_variant` (`MODIFIER`), reported against its gene rather than as intergenic, and a variant in a feature declared non-coding is `non_coding_transcript_exon_variant` (`MODIFIER`) with no amino-acid change. |
 | `Impact` | Predicted impact following SnpEff/VEP conventions: `HIGH`, `MODERATE`, `LOW` or `MODIFIER`. A combined splice/coding consequence keeps the more severe impact. |
 | `Grantham` | Grantham distance and conservation category of a missense change (e.g. `177 (radical)`); `-` for synonymous, nonsense or non-coding changes. |
 | `MNV Consequence Shift` | How the combined MNV compares with its individual SNVs: `MNV-gained` (more severe than any single SNV, which is what per-SNV annotators miss), `MNV-masked` (a nonsense SNV rescued by its neighbour) or `Concordant`. `-` for single SNVs. |
@@ -161,8 +161,8 @@ Common INFO fields:
 | `ER`, `ERF`, `ERR` | Exact indel/complex event reads: total, forward, reverse |
 | `EDP` | Exact event depth for indel/complex alleles |
 | `EFREQ` | Exact event frequency for indel/complex alleles |
-| `SBP` | SNP strand-bias p-value |
-| `MSBP` | MNV strand-bias p-value |
+| `SBP` | SNP strand-bias p-value, in scientific notation (`1.923e-7`), which is the value `--min-strand-bias-p` compared |
+| `MSBP` | MNV strand-bias p-value, same notation |
 | `SO`, `IMPACT` | Sequence Ontology consequence term and predicted impact |
 | `GD` | Grantham distance of a missense change |
 | `MNVSHIFT` | Combined MNV consequence vs. its individual SNVs |

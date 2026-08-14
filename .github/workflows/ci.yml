@@ -116,6 +116,30 @@ jobs:
         # cannot judge.
         run: python3 tests/truth/run.py
 
+  docs:
+    name: Documentation site builds, and names only what the tool has
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the documentation dependencies
+        run: pip install -r docs/requirements.txt
+      # --strict turns a link to a page or a heading that does not exist into a
+      # failure, so a renamed section is caught here rather than by a reader.
+      - name: Build the site
+        run: mkdocs build --strict
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --locked
+      - name: Check the pages against the tool's own vocabulary
+        # Prose drifts silently: a page can promise a flag that was renamed or an
+        # INFO key that never existed. This compares the names the pages use,
+        # English and Spanish alike, against the ones the binary produces.
+        run: python3 tests/docs/run.py
+
   phasing:
     name: Read-level phasing vs a known mixture
     runs-on: ubuntu-latest

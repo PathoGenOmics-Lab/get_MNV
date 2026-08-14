@@ -181,8 +181,16 @@ Una feature no codificante se reporta contra su gen como
 **Si se omite la columna de biotipo se asume que toda feature es codificante**,
 que es lo que han hecho siempre los ficheros de cuatro y cinco columnas: un gen
 de RNA se traduce entonces como si fuera una proteína. Declara el biotipo cuando
-tu anotación contenga features no codificantes. La entrada GFF/GTF no se ve
-afectada, porque selecciona features `CDS`.
+tu anotación contenga features no codificantes.
+
+La entrada GFF y GTF lo dice por sí sola. Decide el atributo `gene_biotype`,
+`biotype` o `transcript_biotype` del registro, leído con el mismo vocabulario que
+la columna de arriba; y si no lo trae, decide el tipo de feature de la columna 3,
+así que las filas `rRNA`, `tRNA`, `ncRNA` y `pseudogene` se leen como no
+codificantes sin necesidad de decírselo. Una feature que no dice nada de sí misma
+se asume codificante, que es lo que es una fila `gene` bacteriana. Ten en cuenta
+que la lista por defecto de `--gff-features` es `gene,pseudogene`, así que los
+pseudogenes entran por defecto y no se traducen.
 
 Limitaciones de la anotación TSV:
 
