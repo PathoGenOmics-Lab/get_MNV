@@ -229,19 +229,24 @@ pub(super) fn frameshift_ptc_protein_pos(
     let alt_protein = translate_cds(&alt_cds, genetic_code);
     let ref_protein = translate_cds(&ref_cds, genetic_code);
     let alt_stop = alt_protein.find('*')?;
-    let ref_stop = ref_protein.find('*').unwrap_or(ref_protein.len());
-    if alt_stop >= ref_stop {
-        return None;
-    }
     // The premature stop lies downstream of the frameshift that created it, so
     // its reference offset is its alternate offset less the length the indel
-    // added or removed.
+    // added or removed. Everything below is then read on one ruler.
     let delta = coding_delta_for_variant(gene, reference, fs_indels[0])?;
     let reference_offset = (alt_stop * 3) as isize - delta;
     if reference_offset < 0 {
         return None;
     }
-    Some(reference_offset as usize / 3 + 1)
+    let stop_codon = reference_offset as usize / 3 + 1;
+    // Premature means the mutant stops before the reference's own stop, both
+    // counted in reference codons. Comparing the two stops by their index in
+    // proteins of different length is what this branch already had to fix in the
+    // NMD predictor: a large frameshift insertion pushes its new stop past the
+    // reference protein's last residue, so the index test called it not
+    // premature while the mutant in fact terminates near the start, and every
+    // codon after it was reported as translated frameshift missense at HIGH.
+    let reference_stop_codon = ref_protein.find('*').unwrap_or(ref_protein.len()) + 1;
+    (stop_codon < reference_stop_codon).then_some(stop_codon)
 }
 
 /// Annotate a frameshifted downstream codon. If it lies past the premature stop

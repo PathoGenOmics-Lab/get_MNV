@@ -3491,3 +3491,80 @@ chr1\t400\t.\tAA\tCC\t100\tPASS\tDP=30\n",
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// A stop is premature when it comes before the reference's own, on one ruler.
+///
+/// The gate compared the two stops by their index in proteins of different
+/// length. A large frameshift insertion pushes its new stop past the reference
+/// protein's last residue, so the index test called it not premature while the
+/// mutant in fact terminates near the start of the gene: every codon after it was
+/// reported as translated frameshift missense at HIGH, on a protein that never
+/// reaches them. The NMD predictor had the same defect and was fixed first; this
+/// is its sibling.
+#[test]
+fn test_e2e_large_frameshift_insertion_still_has_a_premature_stop() {
+    let tmp = temp_dir("e2e_large_frameshift_ptc");
+    let vcf_path = tmp.join("big.vcf");
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+
+    // CDS 101..400: ATG, 98 Ala, stop. One hundred codons.
+    let coding = format!("ATG{}TAA", "GCT".repeat(98));
+    let mut bases: Vec<char> = vec!['A'; 600];
+    for (offset, base) in coding.chars().enumerate() {
+        bases[100 + offset] = base;
+    }
+    let sequence: String = bases.iter().collect();
+    fs::write(&ref_path, format!(">chr1\n{sequence}\n")).unwrap();
+    fs::write(&genes_path, "geneA\t101\t400\t+\n").unwrap();
+
+    // 289 inserted bases: the frame shifts, and the first stop the mutant reaches
+    // is its own, at alternate residue 100. That index is past the reference
+    // protein's last residue even though the mutant terminates near the start.
+    let inserted = format!("{}TAAG", "GCT".repeat(95));
+    assert_eq!(inserted.len(), 289);
+    let anchor = 112; // the last base of reference codon 4
+    let snv = 101 + (50 - 1) * 3; // the first base of reference codon 50
+    fs::write(
+        &vcf_path,
+        format!(
+            "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=600>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t{anchor}\t.\t{}\t{}{inserted}\t100\tPASS\tDP=30;AF=0.9\n\
+chr1\t{snv}\t.\t{}\tA\t100\tPASS\tDP=30;AF=0.9\n",
+            bases[anchor - 1],
+            bases[anchor - 1],
+            bases[snv - 1]
+        ),
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("big".to_string());
+
+    pipeline::run(&args).expect("pipeline should annotate the large insertion");
+
+    let rows = read_tsv_rows(&tmp.join("big.MNV.tsv"));
+    let downstream = rows
+        .iter()
+        .find(|row| row.get("Positions").map(String::as_str) == Some(&snv.to_string()))
+        .unwrap_or_else(|| panic!("no row at {snv}: {rows:?}"));
+
+    assert_eq!(
+        downstream.get("AA Changes").map(String::as_str),
+        Some("downstream of premature stop"),
+        "the mutant protein never reaches reference codon 50"
+    );
+    assert_eq!(
+        downstream.get("Impact").map(String::as_str),
+        Some("MODIFIER"),
+        "a base that is not translated cannot be a HIGH-impact missense"
+    );
+
+    fs::remove_dir_all(&tmp).ok();
+}
