@@ -182,46 +182,91 @@ fn default_output_dir_for_variant_file(variant_file: &str) -> Option<String> {
     }
 }
 
-fn expected_output_paths(config: &AnalysisConfig) -> Result<Vec<String>, String> {
-    let args = config.clone().into_args();
-    if args.dry_run {
-        return Ok(Vec::new());
-    }
-
+/// Where the run's outputs go, directory and all, without the suffixes.
+fn output_stem(args: &get_mnv::cli::Args) -> Result<String, String> {
     let base_name = get_mnv::io::get_base_name(args.variant_file()).map_err(|e| e.to_string())?;
     let stem_name = args.output_prefix.clone().unwrap_or(base_name);
-    // With --sample all the run writes one file set per sample, each carrying the
-    // sample in its name, so a single stem would name a file that is never
-    // written. Listing per-sample names needs the sample list, which this preview
-    // does not read, so say the outputs are per sample instead of naming one that
-    // will not exist.
-    if args.sample.as_deref() == Some("all") {
-        return Ok(vec![format!("{stem_name}.sample_<SAMPLE>.MNV.*")]);
-    }
-    let output_stem = match &args.output_dir {
+    Ok(match &args.output_dir {
         Some(dir) => std::path::Path::new(dir)
             .join(&stem_name)
             .to_string_lossy()
             .into_owned(),
         None => stem_name,
-    };
+    })
+}
 
-    let mut paths = Vec::new();
+/// The suffixes this configuration writes, which is what decides both the
+/// preview and what an existing file has to look like to be in the way.
+fn output_suffixes(args: &get_mnv::cli::Args) -> Vec<&'static str> {
+    let mut suffixes = Vec::new();
     if args.both || !args.convert {
-        paths.push(format!("{output_stem}.MNV.tsv"));
+        suffixes.push(".MNV.tsv");
     }
     if args.both || args.convert {
-        paths.push(if args.vcf_gz {
-            format!("{output_stem}.MNV.vcf.gz")
+        suffixes.push(if args.vcf_gz {
+            ".MNV.vcf.gz"
         } else {
-            format!("{output_stem}.MNV.vcf")
+            ".MNV.vcf"
         });
     }
     if args.bcf {
-        paths.push(format!("{output_stem}.MNV.bcf"));
+        suffixes.push(".MNV.bcf");
     }
+    suffixes
+}
 
-    Ok(paths)
+fn expected_output_paths(config: &AnalysisConfig) -> Result<Vec<String>, String> {
+    let args = config.clone().into_args();
+    if args.dry_run {
+        return Ok(Vec::new());
+    }
+    let stem = output_stem(&args)?;
+    // With --sample all the run writes one file set per sample, each carrying the
+    // sample in its name, so a single stem would name a file that is never
+    // written. Listing per-sample names needs the sample list, which this preview
+    // does not read, so say the outputs are per sample instead of naming one that
+    // will not exist. The chosen directory belongs in that pattern like anywhere
+    // else: leaving it out told the user their cohort files land somewhere else.
+    if args.sample.as_deref() == Some("all") {
+        return Ok(vec![format!("{stem}.sample_<SAMPLE>.MNV.*")]);
+    }
+    Ok(output_suffixes(&args)
+        .into_iter()
+        .map(|suffix| format!("{stem}{suffix}"))
+        .collect())
+}
+
+/// The per-sample files a `--sample all` run would overwrite. The preview names
+/// a pattern, because the sample list is not read here, and a pattern is not a
+/// path: asking whether it exists always answered no, so a cohort run reported
+/// nothing in the way while its own outputs from the last run sat right there.
+/// The files can be looked for without knowing which samples the VCF holds.
+fn existing_per_sample_outputs(args: &get_mnv::cli::Args) -> Result<Vec<String>, String> {
+    let stem = output_stem(args)?;
+    let stem_path = std::path::Path::new(&stem);
+    let dir = match stem_path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => std::path::PathBuf::from("."),
+    };
+    let prefix = format!(
+        "{}.sample_",
+        stem_path.file_name().unwrap_or_default().to_string_lossy()
+    );
+    let suffixes = output_suffixes(args);
+    let entries = match std::fs::read_dir(&dir) {
+        Ok(entries) => entries,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let mut found: Vec<String> = entries
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            name.starts_with(&prefix) && suffixes.iter().any(|suffix| name.ends_with(suffix))
+        })
+        .map(|entry| entry.path().to_string_lossy().into_owned())
+        .collect();
+    found.sort();
+    Ok(found)
 }
 
 #[tauri::command]
@@ -271,6 +316,13 @@ pub fn resolve_output_paths(config: AnalysisConfig) -> Result<Vec<String>, Strin
 /// Check if any output files already exist. Returns paths that would be overwritten.
 #[tauri::command]
 pub fn check_output_conflicts(config: AnalysisConfig) -> Result<Vec<String>, String> {
+    let args = config.clone().into_args();
+    if args.dry_run {
+        return Ok(Vec::new());
+    }
+    if args.sample.as_deref() == Some("all") {
+        return existing_per_sample_outputs(&args);
+    }
     Ok(expected_output_paths(&config)?
         .into_iter()
         .filter(|p| std::path::Path::new(p).exists())
@@ -1264,6 +1316,70 @@ mod tests {
         assert_eq!(
             read_fasta_region(&path, "chr2", 0, 10).unwrap(),
             "TTTTTTTTTT"
+        );
+    }
+
+    /// A cohort run, its output directory, and the files a previous run left.
+    fn cohort_config_in_a_fresh_dir(existing: &[&str]) -> (AnalysisConfig, std::path::PathBuf) {
+        let dir = unique_temp_path("outdir");
+        std::fs::create_dir_all(&dir).unwrap();
+        let vcf = dir.join("cohort.vcf");
+        std::fs::write(&vcf, "x").unwrap();
+        for name in existing {
+            std::fs::write(dir.join(name), "x").unwrap();
+        }
+        let mut config = minimal_config(vcf.to_str().unwrap());
+        config.output_dir = Some(dir.to_string_lossy().into_owned());
+        config.sample = Some("all".to_string());
+        (config, dir)
+    }
+
+    /// The preview names a pattern for a cohort, and a pattern never exists as a
+    /// file, so the conflict check answered that nothing was in the way while
+    /// the last run's per-sample outputs sat in the very directory chosen.
+    #[test]
+    fn test_cohort_conflicts_name_the_per_sample_files_already_there() {
+        let (config, dir) =
+            cohort_config_in_a_fresh_dir(&["cohort.sample_S1.MNV.tsv", "cohort.sample_S2.MNV.tsv"]);
+        let conflicts = check_output_conflicts(config).unwrap();
+        assert_eq!(
+            conflicts,
+            vec![
+                dir.join("cohort.sample_S1.MNV.tsv")
+                    .to_string_lossy()
+                    .into_owned(),
+                dir.join("cohort.sample_S2.MNV.tsv")
+                    .to_string_lossy()
+                    .into_owned(),
+            ]
+        );
+    }
+
+    /// Only the formats this run writes are in its way.
+    #[test]
+    fn test_cohort_conflicts_ignore_files_the_run_will_not_write() {
+        let (config, _dir) = cohort_config_in_a_fresh_dir(&[
+            "cohort.sample_S1.MNV.vcf",
+            "cohort.sample_S1.MNV.bcf",
+            "other.sample_S1.MNV.tsv",
+            "cohort.MNV.tsv",
+        ]);
+        assert!(
+            check_output_conflicts(config).unwrap().is_empty(),
+            "a default cohort run writes TSVs under its own stem and nothing else"
+        );
+    }
+
+    /// The pattern the preview shows has to point where the files land.
+    #[test]
+    fn test_cohort_preview_carries_the_output_directory() {
+        let (config, dir) = cohort_config_in_a_fresh_dir(&[]);
+        assert_eq!(
+            resolve_output_paths(config).unwrap(),
+            vec![dir
+                .join("cohort.sample_<SAMPLE>.MNV.*")
+                .to_string_lossy()
+                .into_owned()]
         );
     }
 
