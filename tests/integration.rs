@@ -3938,3 +3938,83 @@ chr1\t{}\t.\tT\tC\t100\tPASS\tDP=30\n",
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// A gene name cannot break the TSV it is written into.
+///
+/// GFF3 percent-encodes its attribute values, so a gene named `gene%09tab` in the
+/// file arrives holding a real tab and a `%0A` holds a real newline. Writing them
+/// raw put one more field on the row than the header has, shifting every column
+/// after the gene, and split one variant across two lines so the file claimed a
+/// row that does not exist. The VCF writer was hardened against exactly this; its
+/// sibling was not, and the two now spell an awkward name the same way.
+#[test]
+fn test_e2e_a_gene_name_cannot_break_the_tsv() {
+    let tmp = temp_dir("e2e_tsv_reserved_chars");
+    let vcf_path = tmp.join("v.vcf");
+    let ref_path = tmp.join("ref.fasta");
+
+    let bases: String = (0..600)
+        .map(|index| ['A', 'C', 'G', 'T'][(index * 3 + 1) % 4])
+        .collect();
+    fs::write(&ref_path, format!(">chr1\n{bases}\n")).unwrap();
+    let at_150 = bases.as_bytes()[149] as char;
+    let alternate = if at_150 == 'A' { 'C' } else { 'A' };
+    fs::write(
+        &vcf_path,
+        format!(
+            "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=600>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t150\t.\t{at_150}\t{alternate}\t100\tPASS\tDP=30\n"
+        ),
+    )
+    .unwrap();
+
+    for (label, encoded, expected) in [
+        ("tab", "gene%09tab", "gene%09tab"),
+        ("newline", "gene%0Aline", "gene%0Aline"),
+        ("carriage", "gene%0Dret", "gene%0Dret"),
+        ("percent", "gene%25pct", "gene%25pct"),
+        // Characters a TSV does not reserve arrive as themselves.
+        ("semicolon", "gene%3Bsemi", "gene;semi"),
+    ] {
+        let gff_path = tmp.join(format!("{label}.gff3"));
+        fs::write(
+            &gff_path,
+            format!("##gff-version 3\nchr1\tsyn\tCDS\t101\t400\t.\t+\t0\tID=c1;Name={encoded}\n"),
+        )
+        .unwrap();
+
+        let mut args = base_args();
+        args.vcf_file = Some(vcf_path.to_string_lossy().into());
+        args.fasta_file = ref_path.to_string_lossy().into();
+        args.genes_file_tsv = None;
+        args.gff_file = Some(gff_path.to_string_lossy().into());
+        args.gff_features_raw = Some("CDS".to_string());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(label.to_string());
+
+        pipeline::run(&args).unwrap_or_else(|e| panic!("{label}: {e}"));
+
+        let written = fs::read_to_string(tmp.join(format!("{label}.MNV.tsv"))).unwrap();
+        let lines: Vec<&str> = written.lines().filter(|l| !l.is_empty()).collect();
+        assert_eq!(
+            lines.len(),
+            2,
+            "{label}: a header and one row, nothing more"
+        );
+        let header_fields = lines[0].split('\t').count();
+        let row_fields = lines[1].split('\t').count();
+        assert_eq!(
+            row_fields, header_fields,
+            "{label}: the row has to have as many fields as the header"
+        );
+        assert_eq!(
+            lines[1].split('\t').nth(1),
+            Some(expected),
+            "{label}: the gene cell"
+        );
+    }
+
+    fs::remove_dir_all(&tmp).ok();
+}

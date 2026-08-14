@@ -162,6 +162,46 @@ pub struct TsvWriterConfig<'a> {
     pub min_mnv_strand_reads: usize,
 }
 
+/// Percent-encode the characters that are structurally reserved in a TSV cell:
+/// the field separator, the line separators, and a literal `%` so the encoding
+/// can be undone.
+///
+/// GFF3 percent-encodes its attribute values, so a gene named `gene%09tab` in the
+/// file arrives here holding a real tab, and writing it raw put 27 fields on a row
+/// whose header has 26, shifting every column after the gene; a `%0A` split one
+/// variant across two lines and the file then claimed a row that does not exist.
+/// The VCF writer was hardened against exactly this and its sibling was not. The
+/// substitutions match `encode_info_value` in the VCF path, so the two outputs
+/// spell an awkward name the same way.
+fn encode_tsv_cell(value: &str) -> std::borrow::Cow<'_, str> {
+    if !value
+        .bytes()
+        .any(|b| matches!(b, b'%' | b'\t' | b'\n' | b'\r'))
+    {
+        return std::borrow::Cow::Borrowed(value);
+    }
+    let mut out = String::with_capacity(value.len() + 8);
+    for c in value.chars() {
+        match c {
+            '%' => out.push_str("%25"),
+            '\t' => out.push_str("%09"),
+            '\n' => out.push_str("%0A"),
+            '\r' => out.push_str("%0D"),
+            other => out.push(other),
+        }
+    }
+    std::borrow::Cow::Owned(out)
+}
+
+/// Write one record with every cell encoded, which is the only way a row leaves
+/// this writer.
+fn write_encoded<W: std::io::Write>(
+    writer: &mut csv::Writer<W>,
+    row: &[String],
+) -> Result<(), csv::Error> {
+    writer.write_record(row.iter().map(|cell| encode_tsv_cell(cell).into_owned()))
+}
+
 fn snp_component_passes_filters(bam_vectors: &SnpBamVectors<'_>, filters: TsvFilterConfig) -> bool {
     bam_vectors
         .reads
@@ -563,11 +603,11 @@ impl TsvWriter {
                 }
                 let mut row = build_tsv_row_with_reads(variant)?;
                 row.extend(annotation_cells(variant, true));
-                self.writer.write_record(&row)?;
+                write_encoded(&mut self.writer, &row)?;
             } else {
                 let mut row = build_tsv_row_without_reads(variant)?;
                 row.extend(annotation_cells(variant, false));
-                self.writer.write_record(&row)?;
+                write_encoded(&mut self.writer, &row)?;
             }
         }
         self.writer.flush()?;
