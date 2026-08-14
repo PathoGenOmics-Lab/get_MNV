@@ -774,27 +774,46 @@ pub(crate) fn process_contig(
                 let positions = snp.changed_positions();
                 let labels = snp.event().component_labels();
                 for gene in &genes {
-                    let Some(consequence) = positions
-                        .iter()
-                        .filter_map(|&position| {
-                            variants::splice::splice_consequence_for_position(gene, position)
-                        })
-                        .max_by_key(|consequence| consequence.severity())
-                    else {
-                        continue;
-                    };
                     if labels
                         .iter()
                         .any(|label| named.contains(&(gene.name.as_str(), label.as_str())))
                     {
                         continue;
                     }
-                    missed.push(variants::build_splice_variant(
-                        contig,
-                        snp,
-                        &gene.name,
-                        consequence,
-                    ));
+                    // Whatever this gene has to say about these bases: a splice
+                    // site first, since it is the more specific consequence, and
+                    // otherwise its intron. Asking only about splice sites left a
+                    // gene whose intron holds the base with no row at all as soon
+                    // as another gene annotated it, which is the same silent loss
+                    // one consequence further in.
+                    let splice = positions
+                        .iter()
+                        .filter_map(|&position| {
+                            variants::splice::splice_consequence_for_position(gene, position)
+                        })
+                        .max_by_key(|consequence| consequence.severity());
+                    let inside: std::collections::BTreeSet<usize> = positions
+                        .iter()
+                        .copied()
+                        .filter(|&position| {
+                            variants::splice::splice_consequence_for_position(gene, position)
+                                .is_some()
+                                || variants::splice::is_intronic_position(gene, position)
+                        })
+                        .collect();
+                    if inside.is_empty() {
+                        continue;
+                    }
+                    let mut variant = match splice {
+                        Some(consequence) => {
+                            variants::build_splice_variant(contig, snp, &gene.name, consequence)
+                        }
+                        None => variants::build_intron_variant(contig, snp, &gene.name),
+                    };
+                    if !retain_entries(&mut variant, |position, _, _| inside.contains(&position)) {
+                        continue;
+                    }
+                    missed.push(variant);
                 }
             }
             intergenic.extend(missed);

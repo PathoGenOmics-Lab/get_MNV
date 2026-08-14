@@ -3739,3 +3739,86 @@ chr1\t10\t.\tAAGC\tA\t100\tPASS\tDP=30\n",
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// A gene keeps its say about a base another gene also annotates.
+///
+/// The fallback runs only for a record no gene annotated at all, so once one gene
+/// emits a coding row, every other gene's account of the same base is lost. That
+/// was fixed for splice sites by asking each gene for itself; a gene whose intron
+/// holds the base was still losing its row, one consequence further in.
+#[test]
+fn test_e2e_overlapping_gene_keeps_its_intron_call() {
+    let tmp = temp_dir("e2e_overlapping_intron");
+    let vcf_path = tmp.join("shared.vcf");
+    let ref_path = tmp.join("ref.fasta");
+    let gff_path = tmp.join("genes.gff3");
+
+    let mut bases: Vec<char> = (0..900)
+        .map(|index| ['A', 'C', 'G', 'T'][(index * 5 + 1) % 4])
+        .collect();
+    // geneB's intron runs 301..450 and needs its own dinucleotides.
+    for (index, base) in [(300, 'G'), (301, 'T'), (448, 'A'), (449, 'G')] {
+        bases[index] = base;
+    }
+    let sequence: String = bases.iter().collect();
+    fs::write(&ref_path, format!(">chr1\n{sequence}\n")).unwrap();
+
+    // geneA codes straight through 101..500. geneB splices over the same span.
+    fs::write(
+        &gff_path,
+        "##gff-version 3\n\
+chr1\tsyn\tCDS\t101\t500\t.\t+\t0\tID=ca;Name=geneA\n\
+chr1\tsyn\tgene\t101\t600\t.\t+\t.\tID=gb;Name=geneB\n\
+chr1\tsyn\tmRNA\t101\t600\t.\t+\t.\tID=mb;Parent=gb;Name=geneB\n\
+chr1\tsyn\tCDS\t101\t300\t.\t+\t0\tID=b1;Parent=mb;Name=geneB\n\
+chr1\tsyn\tCDS\t451\t600\t.\t+\t2\tID=b2;Parent=mb;Name=geneB\n",
+    )
+    .unwrap();
+
+    let site = 380usize; // coding in geneA, deep inside geneB's intron
+    let alternate = if bases[site - 1] == 'A' { 'C' } else { 'A' };
+    fs::write(
+        &vcf_path,
+        format!(
+            "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=900>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t{site}\t.\t{}\t{alternate}\t100\tPASS\tDP=30\n",
+            bases[site - 1]
+        ),
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = None;
+    args.gff_file = Some(gff_path.to_string_lossy().into());
+    args.gff_features_raw = Some("CDS".to_string());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("shared".to_string());
+
+    pipeline::run(&args).expect("pipeline should annotate both genes");
+
+    let rows = read_tsv_rows(&tmp.join("shared.MNV.tsv"));
+    let mut said: Vec<(String, String)> = rows
+        .iter()
+        .map(|row| {
+            (
+                row.get("Gene").cloned().unwrap_or_default(),
+                row.get("SO Term").cloned().unwrap_or_default(),
+            )
+        })
+        .collect();
+    said.sort();
+    assert_eq!(
+        said,
+        vec![
+            ("geneA".to_string(), "missense_variant".to_string()),
+            ("geneB".to_string(), "intron_variant".to_string()),
+        ],
+        "the gene whose intron holds the base keeps its own row"
+    );
+
+    fs::remove_dir_all(&tmp).ok();
+}
