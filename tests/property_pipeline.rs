@@ -418,7 +418,15 @@ fn report_rows(path: &Path) -> Vec<HashMap<String, String>> {
                         "change_type" => interned("changes", cell),
                         "so_term" => interned("so", cell),
                         "impact" => interned("impacts", cell),
-                        _ => cell.as_str().unwrap_or_default().to_string(),
+                        // A number is not an absent value. Reading every cell
+                        // with `as_str` blanked each one, so the numeric columns
+                        // could not be compared at all and the report's
+                        // frequency and read counts went unchecked.
+                        _ => match cell {
+                            serde_json::Value::Null => String::new(),
+                            serde_json::Value::String(text) => text.clone(),
+                            other => other.to_string(),
+                        },
                     };
                     ((*field).to_string(), value)
                 })
@@ -1243,4 +1251,52 @@ proptest! {
         }
         let _ = fs::remove_dir_all(&dir);
     }
+}
+
+/// The report shows the numbers its own TSV holds, for a SNP as much as for an
+/// MNV.
+///
+/// Both the frequency and the supporting reads preferred the MNV columns and
+/// fell back to the SNP ones only when the MNV value failed to parse. A plain
+/// SNP row carries a literal `0` and `0.0000` there rather than a dash, so the
+/// fallback never fired and every SNP was shown, sorted and exported with no
+/// reads and a frequency of zero while the TSV beside it held the real numbers.
+/// Built through `--report-from`, which is the path a per-sample pipeline uses
+/// and the one the numbers are read on.
+#[test]
+fn a_snp_row_keeps_its_own_frequency_and_reads_in_the_report() {
+    let dir = case_dir();
+    let tsv = dir.join("sample.MNV.tsv");
+    fs::write(&tsv, "Chromosome\tGene\tPositions\tReference Bases\tBase Changes\tAA Changes\tSNP AA Changes\tLocal AA Changes\tLocal SNP AA Changes\tVariant Type\tChange Type\tReference Codon\tSNP Codon\tMNV Codon\tSNP Reads\tSNP Forward Reads\tSNP Reverse Reads\tMNV Reads\tMNV Forward Reads\tMNV Reverse Reads\tTotal Reads\tSNP Frequencies\tMNV Frequencies\tEvent Class\tEvent Components\tEvent Reads\tEvent Forward Reads\tEvent Reverse Reads\tEvent Depth\tEvent Frequency\tSO Term\tImpact\tGrantham\tMNV Consequence Shift\tDBS Class\tDeclared Phase\tMNV Phasing Support\tHaplotype LD\tHaplotype LD p\tMNV Phasing Reads\tFrameshift Phasing\tNMD Prediction\tHGVS g.\tHGVS c.\nchr1\tgeneP\t110\tT\tA\tPhe4Ile\tPhe4Ile\tPhe4Ile\tPhe4Ile\tSNP\tNon-synonymous\tTTC\tATC\tATC\t66\t20\t0\t0\t0\t0\t20\t0.6000\t0.0000\tsnp\tSNV:110:T>A\t-\t-\t-\t-\t-\tmissense_variant\tMODERATE\t21 (conservative)\t-\t-\t-\t-\t-\t-\t-\t-\t-\tg.110T>A\tc.10T>A\n").expect("write tsv");
+
+    let report = dir.join("report.html");
+    let mut args = Args::parse_from(vec![
+        "get_mnv".to_string(),
+        "--report-from".to_string(),
+        tsv.to_string_lossy().into_owned(),
+        "--report".to_string(),
+        report.to_string_lossy().into_owned(),
+    ]);
+    args.output_dir = Some(dir.to_string_lossy().into_owned());
+    pipeline::run(&args).expect("the report should be built from the TSV");
+
+    let shown = report_rows(&report);
+    assert_eq!(shown.len(), 1, "one row in, one row out");
+    let row = &shown[0];
+    assert_eq!(
+        row.get("variant_type").map(String::as_str),
+        Some("SNP"),
+        "the fixture row is a plain SNP"
+    );
+    assert_eq!(
+        row.get("freq").map(String::as_str),
+        Some("0.6"),
+        "the TSV says SNP Frequencies 0.6000; row was {row:?}"
+    );
+    assert_eq!(
+        row.get("reads").map(String::as_str),
+        Some("66"),
+        "the TSV says SNP Reads 66; row was {row:?}"
+    );
+    let _ = fs::remove_dir_all(&dir);
 }

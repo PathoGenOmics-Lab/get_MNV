@@ -305,11 +305,22 @@ impl ReportBuilder {
 
             let variant_type = get(&record, "Variant Type");
             let is_indel = variant_type == "INDEL";
+            // A row carries its own evidence in the columns for its own type.
+            // Both of these preferred the MNV columns and fell back to the SNP
+            // ones only when the MNV value failed to parse, and a plain SNP row
+            // holds a literal `0` and `0.0000` there rather than a dash, so the
+            // fallback never fired: every SNP in the report was shown, sorted
+            // and exported with no supporting reads and a frequency of zero,
+            // while the TSV beside it held the real numbers.
+            let is_mnv = variant_type.contains("MNV");
             let freq = if is_indel {
                 first_number::<f64>(&get(&record, "Event Frequency"))
-            } else {
+            } else if is_mnv {
                 first_number::<f64>(&get(&record, "MNV Frequencies"))
                     .or_else(|| first_number::<f64>(&get(&record, "SNP Frequencies")))
+            } else {
+                first_number::<f64>(&get(&record, "SNP Frequencies"))
+                    .or_else(|| first_number::<f64>(&get(&record, "MNV Frequencies")))
             };
             let depth = if is_indel {
                 first_number::<u64>(&get(&record, "Event Depth"))
@@ -318,9 +329,12 @@ impl ReportBuilder {
             };
             let reads = if is_indel {
                 first_number::<u64>(&get(&record, "Event Reads"))
-            } else {
+            } else if is_mnv {
                 first_number::<u64>(&get(&record, "MNV Reads"))
                     .or_else(|| first_number::<u64>(&get(&record, "SNP Reads")))
+            } else {
+                first_number::<u64>(&get(&record, "SNP Reads"))
+                    .or_else(|| first_number::<u64>(&get(&record, "MNV Reads")))
             };
 
             let row = Row {
