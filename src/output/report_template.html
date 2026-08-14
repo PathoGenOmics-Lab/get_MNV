@@ -1368,8 +1368,12 @@ function drawMatrix(){
       if(p < mtx.view[0]-1 || p > mtx.view[1]+1) continue;
       var v = mtx.grid[si*nC + c]; if(!v) continue;
       var x = xOf(p) - cw/2;
+      // The gap that keeps neighbouring cells apart is taken off both sides, so
+      // the mark stays centred on the base it stands for. Off one side only, it
+      // sat a quarter of a pixel away from its own coordinate.
+      var gap = cw > 3 ? 0.5 : 0;
       g.fillStyle = colors[v];
-      g.fillRect(x, y, Math.max(1, cw-(cw>3?0.5:0)), CELL_H-1);
+      g.fillRect(x + gap/2, y, Math.max(1, cw-gap), CELL_H-1);
       if(showLetter){
         g.fillStyle = "#fff"; g.font = "9px system-ui,-apple-system,sans-serif";
         g.textAlign = "center"; g.textBaseline = "middle";

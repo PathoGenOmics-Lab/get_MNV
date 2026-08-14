@@ -377,6 +377,53 @@ function checkDrawing(work) {
   }
   check("report: at least one window leaves a group partly outside it", split > 0, true);
   check("report: no track is painted outside the plot, over the sample names", invaders, []);
+
+  // What is painted and what answers the mouse are computed apart: the cells
+  // from xOf, the hover from posOf and a tolerance. A pixel covered by one cell
+  // has to resolve to that cell, or the tooltip names a base you are not on.
+  //
+  // Each cell is anchored to the site whose xOf put it there, not to what the
+  // hit test says about its own centre: asking the hit test to agree with
+  // itself would pass just as happily with posOf measuring the wrong span.
+  // Cells drawn wider than the bases are apart overlap on purpose, so those
+  // pixels genuinely belong to two cells and are left out.
+  const fullSpan = mtx.span[1] - mtx.span[0];
+  // Centred on a site, not on the middle of the extent: a deep zoom onto empty
+  // sequence draws no cells, and a level with nothing to probe proves nothing.
+  const mid = mtx.sites[Math.floor(mtx.sites.length / 2)].pos;
+  let alone = 0, unanchored = [], wrong = [], empty = [];
+  for (const span of [fullSpan, fullSpan / 2, 200, 93, 60, MIN_SPAN]) {
+    painted.length = 0;
+    mtx.view = [mid - span / 2, mid + span / 2];
+    runInContext("clampView()", sandbox);
+    runInContext("drawMatrix()", sandbox);
+    const cells = painted.filter((p) =>
+      p.y >= mtx.topH && p.w < pw - 1 &&
+      // A cell the clip cut is no longer centred on its site, so it cannot be
+      // anchored; the track check above is what covers the edges.
+      p.x > LABEL_W + 0.01 && p.x + p.w < LABEL_W + pw - 0.01);
+    let here = 0;
+    const single = cells.filter((c, i) => cells.every((o, j) =>
+      j === i || o.y !== c.y || o.x + o.w <= c.x || o.x >= c.x + c.w));
+    for (const c of single) {
+      const centre = c.x + c.w / 2;
+      const at = mtx.sites
+        .map((s, i) => ({ i, d: Math.abs(sandbox.xOf(s.pos) - centre) }))
+        .filter((s) => s.d < 0.01);
+      if (at.length !== 1) { unanchored.push({ span: Math.round(span), centre, hits: at.length }); continue; }
+      alone++; here++;
+      for (let x = c.x + 0.25; x <= c.x + c.w - 0.25; x += 0.5) {
+        if (sandbox.nearestSite(sandbox.posOf(x)) !== at[0].i) {
+          wrong.push({ span: Math.round(span), x, want: at[0].i });
+        }
+      }
+    }
+    if (!here) empty.push({ span: Math.round(span), cells: cells.length });
+  }
+  check("report: every cell sits on exactly one site", unanchored, []);
+  check("report: every zoom level has a cell to probe", empty, []);
+  check("report: the zoom levels leave cells that stand alone to probe", alone > 10, true);
+  check("report: every pixel of a cell answers the mouse with that cell", wrong, []);
 }
 
 // ---------------------------------------------------------------------------
