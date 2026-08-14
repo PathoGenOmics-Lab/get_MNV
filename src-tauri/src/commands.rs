@@ -773,13 +773,23 @@ fn read_alignment_layout(
             Kind::SoftClip => {
                 q_pos += len as usize;
             }
-            Kind::Deletion | Kind::Skip => {
+            // A deletion is the read saying those reference bases are not in it,
+            // which is evidence about a deletion allele.
+            Kind::Deletion => {
                 for offset in 0..len {
                     let pos = r_pos + offset;
                     if pos >= window_start && pos <= window_end {
                         reference_bases.insert(pos, "-".to_string());
                     }
                 }
+                r_pos += len;
+            }
+            // A skip is the read not being there at all: an aligner writes it for
+            // an intron, and get_MNV builds spliced CDS models, so these reach the
+            // viewer. Recording it as a gap made a read that observed nothing
+            // count as carrying a deletion. Leaving the positions unset is what
+            // the viewer already draws for a base a read does not reach.
+            Kind::Skip => {
                 r_pos += len;
             }
             Kind::HardClip | Kind::Pad => {}
@@ -1380,6 +1390,105 @@ mod tests {
                 .join("cohort.sample_<SAMPLE>.MNV.*")
                 .to_string_lossy()
                 .into_owned()]
+        );
+    }
+
+    /// A one-read BAM, written and read back, so the layout builder can be
+    /// exercised on a real record rather than on maps written by hand.
+    fn layout_of(
+        cigar_ops: &str,
+        start: u64,
+        seq: &str,
+        window: (u64, u64),
+    ) -> (HashMap<u64, String>, HashMap<u64, Vec<String>>) {
+        use noodles::sam::alignment::io::Write as _;
+        use noodles::sam::alignment::record::MappingQuality;
+        use noodles::sam::alignment::record_buf::{Cigar, QualityScores, Sequence};
+        use noodles::sam::alignment::RecordBuf;
+        use noodles::sam::header::record::value::map::ReferenceSequence;
+        use noodles::sam::header::record::value::Map;
+        use std::num::NonZeroUsize;
+
+        let header = noodles::sam::Header::builder()
+            .add_reference_sequence(
+                "chr1",
+                Map::<ReferenceSequence>::new(NonZeroUsize::try_from(10000).unwrap()),
+            )
+            .build();
+
+        let ops: Vec<noodles::sam::alignment::record::cigar::Op> = cigar_ops
+            .split(',')
+            .map(|token| {
+                let (len, kind) = token.split_at(token.len() - 1);
+                let kind = match kind {
+                    "M" => Kind::Match,
+                    "N" => Kind::Skip,
+                    "D" => Kind::Deletion,
+                    "I" => Kind::Insertion,
+                    other => panic!("unsupported cigar op {other}"),
+                };
+                noodles::sam::alignment::record::cigar::Op::new(kind, len.parse().unwrap())
+            })
+            .collect();
+
+        let record = RecordBuf::builder()
+            .set_name("r1")
+            .set_flags(noodles::sam::alignment::record::Flags::empty())
+            .set_reference_sequence_id(0)
+            .set_alignment_start(noodles::core::Position::try_from(start as usize).unwrap())
+            .set_mapping_quality(MappingQuality::try_from(60).unwrap())
+            .set_cigar(Cigar::from(ops))
+            .set_sequence(Sequence::from(seq.as_bytes().to_vec()))
+            .set_quality_scores(QualityScores::from(vec![40u8; seq.len()]))
+            .build();
+
+        let path = unique_temp_path("bam");
+        {
+            let mut writer = noodles::bam::io::Writer::new(std::fs::File::create(&path).unwrap());
+            writer.write_header(&header).unwrap();
+            writer.write_alignment_record(&header, &record).unwrap();
+        }
+        let mut reader = noodles::bam::io::Reader::new(std::fs::File::open(&path).unwrap());
+        reader.read_header().unwrap();
+        let mut got = noodles::bam::Record::default();
+        reader.read_record(&mut got).unwrap();
+        read_alignment_layout(&got, window.0, window.1, 20)
+    }
+
+    /// A deletion is the read saying those reference bases are not in it. A skip
+    /// is the read not being there: an aligner writes N for an intron, and
+    /// get_MNV builds spliced CDS models, so both reach this viewer. Marking
+    /// them the same made a read that never observed a deletion count as
+    /// carrying it.
+    #[test]
+    fn test_a_skipped_region_is_not_read_as_a_deletion() {
+        let deleted = layout_of("1M,3D,2M", 11, "ACG", (1, 100));
+        let skipped = layout_of("1M,3N,2M", 11, "ACG", (1, 100));
+
+        // The read that deletes says so at each base it deletes.
+        assert_eq!(deleted.0.get(&12), Some(&"-".to_string()));
+        assert_eq!(deleted.0.get(&14), Some(&"-".to_string()));
+        // The read that skips says nothing there, which is what an empty cell in
+        // the viewer means, and the bases it does align are untouched.
+        assert_eq!(skipped.0.get(&12), None);
+        assert_eq!(skipped.0.get(&14), None);
+        assert_eq!(skipped.0.get(&11), Some(&"A".to_string()));
+        assert_eq!(skipped.0.get(&15), Some(&"C".to_string()));
+
+        let sites = vec![BamVariantSite {
+            position: 11,
+            reference_base: "AGGG".to_string(),
+            alt_base: "A".to_string(),
+        }];
+        assert_eq!(
+            classify_layout_support(&deleted.0, &deleted.1, &sites),
+            "mnv",
+            "the read that deletes those bases carries the deletion"
+        );
+        assert_eq!(
+            classify_layout_support(&skipped.0, &skipped.1, &sites),
+            "other",
+            "the read that skips them observed nothing about the deletion"
         );
     }
 
