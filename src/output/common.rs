@@ -445,11 +445,19 @@ pub(crate) fn build_info_string(
         builder.push("MRF", mrf);
         builder.push("MRR", mrr);
     }
+    // Written the way the linkage p-value beside them already is. Six fixed
+    // decimals printed everything below 5e-7 as exactly 0.000000, while the
+    // FILTER decision compared the full-precision value, so one file could hold
+    // two records whose only reported strand-bias evidence was identical and
+    // whose FILTER columns disagreed: the verdict could not be reproduced from
+    // the numbers the file published. It also flattened the ordering the exact
+    // test goes out of its way to preserve, printing 1.9e-07 and 1.7e-17, ten
+    // orders of magnitude apart, the same.
     if let Some(sbp) = snp_strand_bias_p {
-        builder.push("SBP", format!("{sbp:.6}"));
+        builder.push("SBP", format!("{sbp:.3e}"));
     }
     if let Some(msbp) = mnv_strand_bias_p {
-        builder.push("MSBP", format!("{msbp:.6}"));
+        builder.push("MSBP", format!("{msbp:.3e}"));
     }
 
     if let Some(event_class) = variant.event_class.as_deref() {
@@ -1255,5 +1263,58 @@ mod tests {
         let variant = make_snp_variant();
         let result = reference_subsequence("ACGT", 0, 2, &variant);
         assert!(result.is_err());
+    }
+
+    /// A record publishes the strand-bias p-value its FILTER was decided on.
+    ///
+    /// Six fixed decimals printed everything below 5e-7 as exactly `0.000000`
+    /// while the FILTER decision compared the full-precision value, so one file
+    /// could hold two records whose only reported strand-bias evidence was
+    /// identical and whose FILTER columns disagreed, and the verdict could not
+    /// be reproduced from the numbers the file published. It also flattened the
+    /// ordering the exact test goes out of its way to preserve.
+    #[test]
+    fn strand_bias_p_values_far_apart_are_printed_apart() {
+        let weaker = crate::output::stats::fisher_exact_two_tailed(13, 0, 0, 13);
+        let stronger = crate::output::stats::fisher_exact_two_tailed(30, 0, 0, 30);
+        assert!(stronger < weaker, "the larger table is the stronger bias");
+        assert!(
+            weaker < 1e-6,
+            "both sit below the six decimals that used to be printed: {weaker}"
+        );
+
+        let sbp_of = |p: f64| {
+            let info = build_info_string(
+                &make_snp_variant(),
+                Some("Ala10Val"),
+                "SNP",
+                None,
+                None,
+                Some(0),
+                None,
+                None,
+                Some(p),
+                None,
+                None,
+            );
+            info.split(';')
+                .find_map(|field| field.strip_prefix("SBP=").map(str::to_string))
+                .expect("SBP is emitted when a p-value is supplied")
+        };
+
+        let printed_weaker = sbp_of(weaker);
+        let printed_stronger = sbp_of(stronger);
+        assert_ne!(
+            printed_weaker, printed_stronger,
+            "two records ten orders of magnitude apart printed the same p-value"
+        );
+        // And each printed value names the number the filter compared.
+        for (printed, value) in [(&printed_weaker, weaker), (&printed_stronger, stronger)] {
+            let parsed: f64 = printed.parse().expect("a number");
+            assert!(
+                (parsed - value).abs() <= value * 1e-3,
+                "{printed} does not name {value}"
+            );
+        }
     }
 }
