@@ -282,12 +282,35 @@ fn get_mnv_variants_for_transcript(
             event_components,
             annotations: crate::variants::VariantAnnotations {
                 nmd,
+                splice: splice_consequence_for_indel(gene, &indel),
                 ..Default::default()
             },
         });
     }
 
     variants
+}
+
+/// The splice consequence of an indel, taken from the bases it changes.
+///
+/// The substitution path folds this into the SO term of its coding row. The
+/// indel rows left it unset, so the pass that makes each gene answer for itself
+/// added a second row for the same event and the same gene, and the two
+/// contradicted each other: one said `frameshift_variant` at HIGH with the
+/// residues it shifts, the other `splice_region_variant` at LOW with no
+/// amino-acid change at all. A substitution at the very same base came back as
+/// one row reading `missense_variant&splice_region_variant`.
+fn splice_consequence_for_indel(
+    gene: &Gene,
+    indel: &crate::io::VcfPosition,
+) -> Option<crate::variants::SpliceConsequence> {
+    indel
+        .changed_positions()
+        .into_iter()
+        .filter_map(|position| {
+            crate::variants::splice::splice_consequence_for_position(gene, position)
+        })
+        .max_by_key(|consequence| consequence.severity())
 }
 
 pub fn get_mnv_variants_for_gene(
@@ -527,7 +550,10 @@ pub fn get_mnv_variants_for_gene_with_config(
             original_info: indel.original_info.clone(),
             event_class: Some(event_class),
             event_components,
-            annotations: crate::variants::VariantAnnotations::default(),
+            annotations: crate::variants::VariantAnnotations {
+                splice: splice_consequence_for_indel(gene, &indel),
+                ..Default::default()
+            },
         });
     }
 

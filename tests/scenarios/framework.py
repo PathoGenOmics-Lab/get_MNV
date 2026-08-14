@@ -47,13 +47,41 @@ BGZIP = os.environ.get("BGZIP", "bgzip")
 TABIX = os.environ.get("TABIX", "tabix")
 
 
+def _newest_source_mtime() -> float:
+    """When src/ was last touched, which is what a binary has to be newer than."""
+    newest = 0.0
+    for path in (REPO_ROOT / "src").rglob("*"):
+        if path.is_file():
+            newest = max(newest, path.stat().st_mtime)
+    return newest
+
+
 def _default_get_mnv() -> str:
-    """Locate the get_mnv binary in standard build locations."""
-    for relative in ("target/debug/get_mnv", "target/release/get_mnv", "dist/get_mnv"):
-        candidate = REPO_ROOT / relative
-        if candidate.exists():
-            return str(candidate)
-    return "get_mnv"  # fall back to PATH
+    """Locate the get_mnv binary in standard build locations.
+
+    The newest build wins, and it has to be newer than src/. Taking the first
+    that exists meant a debug binary left over from an earlier build silently
+    shadowed a fresh release one: the suite then reported every scenario passing
+    against code that no longer existed, which is exactly how a real fix looked
+    like a failure and a real regression would have looked like a pass.
+    """
+    built = [
+        candidate
+        for relative in ("target/debug/get_mnv", "target/release/get_mnv", "dist/get_mnv")
+        for candidate in [REPO_ROOT / relative]
+        if candidate.exists()
+    ]
+    if not built:
+        return "get_mnv"  # fall back to PATH
+    built.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    newest = built[0]
+    if newest.stat().st_mtime < _newest_source_mtime():
+        raise SystemExit(
+            f"{newest} is older than src/. Rebuild it (cargo build) before running the\n"
+            "scenarios, or these results would describe a build that no longer matches\n"
+            "the source. Set GET_MNV to point somewhere else on purpose."
+        )
+    return str(newest)
 
 
 GET_MNV = os.environ.get("GET_MNV", _default_get_mnv())

@@ -61,19 +61,18 @@ fn impact_rank(impact: &str) -> u8 {
     }
 }
 
-/// Whether a change type is a coding substitution consequence, which is combined
-/// with an exonic `splice_region_variant` (e.g. `missense_variant&splice_region_variant`)
-/// rather than being replaced by it.
-fn is_substitution_consequence(change_type: crate::variants::ChangeType) -> bool {
-    use crate::variants::ChangeType;
-    matches!(
-        change_type,
-        ChangeType::Synonymous
-            | ChangeType::NonSynonymous
-            | ChangeType::StartLost
-            | ChangeType::StopGained
-            | ChangeType::StopLost
-    )
+/// Whether this row states a consequence for the protein, which is what the
+/// splice term is set beside rather than replacing.
+///
+/// An intergenic row does not, nor does a row inside a gene that reaches no
+/// codon, nor one whose term is `coding_sequence_variant`: that is the term for
+/// a change in coding sequence whose effect could not be named, so a splice
+/// call is the more informative of the two and stands alone. Everything else
+/// does, indel and substitution alike.
+fn states_a_protein_consequence(variant: &VariantInfo, base_term: &str) -> bool {
+    variant.gene != "intergenic"
+        && variant.annotations.non_coding.is_none()
+        && base_term != "coding_sequence_variant"
 }
 
 /// Map a variant to a Sequence Ontology consequence term and its impact level
@@ -88,7 +87,16 @@ pub(crate) fn so_consequence(variant: &VariantInfo) -> (String, &'static str) {
         None => (base_term.to_string(), base_impact),
         Some(splice) => {
             let (splice_term, splice_impact) = (splice.as_str(), splice.impact());
-            if is_substitution_consequence(variant.change_type) {
+            // A row that says something about the protein keeps saying it, with
+            // the splice term beside it at whichever impact is the more severe.
+            // Only a row with nothing to say, an intronic splice variant, is
+            // described by the splice term alone. Asking whether the change was
+            // a substitution instead dropped the coding half of every indel in a
+            // splice region: a frameshift came back as `splice_region_variant`
+            // at LOW, on a row still naming the residues it shifts, while the
+            // substitution at the very same base came back as
+            // `missense_variant&splice_region_variant`.
+            if states_a_protein_consequence(variant, base_term) {
                 let impact = if impact_rank(base_impact) >= impact_rank(splice_impact) {
                     base_impact
                 } else {

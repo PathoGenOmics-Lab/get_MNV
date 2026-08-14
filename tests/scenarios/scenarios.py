@@ -2910,6 +2910,34 @@ scenario_slippage_indel_reaches_both = Scenario(
 )
 
 
+
+# ---------------------------------------------------------------------------
+# 78: un indel exonico en la region de empalme salia DOS VECES y las dos filas
+# se contradecian: una frameshift_variant/HIGH con los residuos que desplaza,
+# otra splice_region_variant/LOW sin cambio de aminoacido. La sustitucion en la
+# misma base siempre dio una sola fila con los dos terminos combinados.
+scenario_splice_region_indel_is_one_row = Scenario(
+    name="78_splice_region_indel_is_one_row",
+    description="Delecion de la base 899, exonica y en la region de empalme: una fila con los dos terminos, no dos que se contradicen",
+    variants=[VcfRecord(pos=898, ref="CT", alt="C")],
+    reads=[],
+    gff_content=GFF_CDS_MULTIEXON,
+    gff_features="CDS",
+    expected=[
+        ExpectedRow(
+            positions="898",
+            gene="geneC",
+            variant_type="INDEL",
+            event_components="DEL:899:T",
+            so_term="frameshift_variant&splice_region_variant",
+            impact="HIGH",
+        ),
+    ],
+    expected_row_count=1,
+)
+
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -2998,6 +3026,7 @@ ALL_SCENARIOS = [
     scenario_exclude_intergenic_scope,
     scenario_slippage_with_reads,
     scenario_slippage_indel_reaches_both,
+    scenario_splice_region_indel_is_one_row,
 ]
 
 

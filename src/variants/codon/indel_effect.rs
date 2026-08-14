@@ -1,7 +1,6 @@
 //! Protein-level effect of indels (frameshift, in-frame, stop gained/lost).
 
 use crate::io::VcfPosition;
-use crate::variants::event::AlleleComponentKind;
 use crate::variants::{ChangeType, Gene, Strand};
 
 use super::allele_apply::apply_allele_to_feature;
@@ -22,24 +21,10 @@ use super::transcript_model::{coding_sequence_for_gene, first_touched_transcript
 /// column named the right one. The components carry the anchor, which is the
 /// ruler the transcript path already reads.
 fn component_touched_bounds(variant: &VcfPosition) -> Option<(usize, usize)> {
-    let mut lo = usize::MAX;
-    let mut hi = 0usize;
-    for component in variant.event().components {
-        let (start, end) = match component.kind {
-            AlleleComponentKind::Snp | AlleleComponentKind::Insertion => {
-                (component.position, component.position)
-            }
-            AlleleComponentKind::Deletion
-            | AlleleComponentKind::Delins
-            | AlleleComponentKind::Symbolic => (
-                component.position,
-                component.position + component.ref_allele.len().saturating_sub(1),
-            ),
-        };
-        lo = lo.min(start);
-        hi = hi.max(end);
-    }
-    (lo <= hi).then_some((lo, hi))
+    let changed = variant.changed_positions();
+    let lo = *changed.iter().min()?;
+    let hi = *changed.iter().max()?;
+    Some((lo, hi))
 }
 
 pub(super) fn protein_effect_for_indel(
