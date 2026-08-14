@@ -364,6 +364,13 @@ def expected_indel(
     reference_protein = translate(reference_cds)
     alternate_protein = translate(alternate_cds)
 
+    # What the ribosome makes stops at the first stop codon; everything past it
+    # is translated by nobody, so two alternates that differ only there produce
+    # the same protein.
+    def made(protein: str) -> str:
+        stop = protein.find("*")
+        return protein if stop < 0 else protein[: stop + 1]
+
     if frameshift:
         change_type = "Frameshift Indel"
     elif reference_protein[:1] == "M" and alternate_protein[:1] not in ("M", "*"):
@@ -372,6 +379,12 @@ def expected_indel(
         change_type = "Stop gained"
     elif alternate_protein.count("*") < reference_protein.count("*"):
         change_type = "Stop lost"
+    elif made(reference_protein) == made(alternate_protein):
+        # An in-frame indel that leaves the made protein byte for byte the same
+        # changed nothing. An insertion inside the terminal stop codon that keeps
+        # a stop there is the case, and it used to be reported as a residue
+        # inserted one position past the protein's last one.
+        change_type = "Synonymous"
     else:
         change_type = "In-frame Indel"
 
