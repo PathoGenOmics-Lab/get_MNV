@@ -383,15 +383,23 @@ pub(crate) fn codon_bounds_for_position(gene: &Gene, position: usize) -> Option<
     // phase-adjusted region (the first `phase` bases of a plus-strand CDS or
     // the last `phase` bases of a minus-strand CDS belong to a codon that
     // physically spans into the *previous* exon, and we cannot reconstruct that
-    // codon from this single CDS row, so the variant has to be dropped). Warn
-    // explicitly so the user knows: silently dropping was the trap that
+    // codon from this single CDS row, so no codon is built for it). Warn
+    // explicitly so the user knows: silently saying nothing was the trap that
     // hid the codon-grouping bug behind issue #12 for so long.
+    //
+    // The message says what happens next, which is not that the variant
+    // disappears: the pipeline still reports it against this gene as a
+    // `coding_sequence_variant` with no amino acid. It used to end "Variant
+    // skipped.", which sent a reader looking through the TSV for a row that was
+    // in it all along.
     if position < eff_start || position > eff_end {
         if gene.phase > 0 && position >= gene.start && position <= gene.end {
             log::warn!(
                 "Variant at {}:{} falls in the phase-skipped region of CDS '{}' \
                  (phase={}, exon {}-{}); the codon spans into a neighbouring exon \
-                 and cannot be reconstructed from a single GFF row. Variant skipped.",
+                 and cannot be reconstructed from a single GFF row. No codon is \
+                 built for it: the variant is still reported against the gene, \
+                 with no amino acid change.",
                 gene.name,
                 position,
                 gene.name,

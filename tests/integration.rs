@@ -4381,3 +4381,96 @@ fn test_e2e_a_missing_external_tool_is_not_reported_as_a_written_file() {
 
     fs::remove_dir_all(&dir).ok();
 }
+
+/// A base whose codon cannot be built is still reported, with no amino acid.
+///
+/// The first `phase` bases of a plus-strand CDS row belong to a codon that
+/// physically starts in the previous exon, so a single GFF row cannot spell that
+/// codon out. `codon_bounds_for_position` returns None there, and the unit tests
+/// assert exactly that, which is easy to read as "the variant is dropped": that
+/// reading is what the warning said in words for a long time, and what the
+/// troubleshooting page repeated. It is wrong. The pipeline falls back to
+/// `build_non_coding_variant`, so the variant reaches the TSV as a row naming
+/// its gene, `-` in the amino acid columns, and a MODIFIER
+/// `coding_sequence_variant` call. A reader told otherwise goes hunting for a
+/// row that was there all along, so the promise is pinned here at the level
+/// where it is visible: the output file.
+#[test]
+fn test_e2e_a_phase_skipped_base_is_reported_without_an_amino_acid() {
+    let tmp = temp_dir("e2e_phase_skipped");
+    let bases: String = (0..400)
+        .map(|i| ['A', 'C', 'G', 'T'][(i * 5 + 1) % 4])
+        .collect();
+    fs::write(tmp.join("ref.fas"), format!(">chr1\n{bases}\n")).unwrap();
+    // phase=2, so 101 and 102 belong to a codon that started in an exon this
+    // row does not describe, and 103 is the first base of a codon it does.
+    fs::write(
+        tmp.join("genes.gff3"),
+        "##gff-version 3\nchr1\tsyn\tCDS\t101\t199\t.\t+\t2\tID=c1;Name=geneQ\n",
+    )
+    .unwrap();
+
+    let at = |pos: usize| bases.as_bytes()[pos - 1] as char;
+    let other = |base: char| match base {
+        'A' => 'C',
+        'C' => 'G',
+        'G' => 'T',
+        _ => 'A',
+    };
+    fs::write(
+        tmp.join("skipped.vcf"),
+        format!(
+            "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=400>\n\
+             #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+             chr1\t102\t.\t{}\t{}\t100\tPASS\tDP=100\n\
+             chr1\t104\t.\t{}\t{}\t100\tPASS\tDP=100\n",
+            at(102),
+            other(at(102)),
+            at(104),
+            other(at(104))
+        ),
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(tmp.join("skipped.vcf").to_string_lossy().into());
+    args.fasta_file = tmp.join("ref.fas").to_string_lossy().into();
+    args.genes_file_tsv = None;
+    args.gff_file = Some(tmp.join("genes.gff3").to_string_lossy().into());
+    args.gff_features_raw = Some("CDS".to_string());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("skipped".to_string());
+    pipeline::run(&args).expect("the run should succeed");
+
+    let rows = read_tsv_rows(&tmp.join("skipped.MNV.tsv"));
+    let skipped = rows
+        .iter()
+        .find(|row| row["Positions"] == "102")
+        .expect("the phase-skipped base has to be in the TSV, not missing from it");
+    assert_eq!(
+        skipped["Gene"], "geneQ",
+        "it is reported against its gene, not as intergenic: {skipped:?}"
+    );
+    assert_eq!(
+        skipped["AA Changes"], "-",
+        "no codon could be built, so there is no amino acid to name: {skipped:?}"
+    );
+    assert_eq!(
+        skipped["SO Term"], "coding_sequence_variant",
+        "the SO term says the base is coding but the consequence is unknown: {skipped:?}"
+    );
+    assert_eq!(skipped["Impact"], "MODIFIER", "{skipped:?}");
+
+    // The neighbour outside the skipped region is annotated normally, so the
+    // fallback is scoped to the bases that need it.
+    let annotated = rows
+        .iter()
+        .find(|row| row["Positions"] == "104")
+        .expect("the base inside the phase-adjusted region is annotated");
+    assert_ne!(
+        annotated["AA Changes"], "-",
+        "a base whose codon this row does spell out keeps its amino acid: {annotated:?}"
+    );
+
+    fs::remove_dir_all(&tmp).ok();
+}
