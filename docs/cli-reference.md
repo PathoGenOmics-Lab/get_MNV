@@ -69,7 +69,7 @@ These apply only when `--bam` is provided.
     |---|---|
     | `SNP` | the SNP thresholds |
     | `MNV`, `SNP/MNV` | either side, as above |
-    | `INDEL` | the **MNV** thresholds, measured against the indel's own event support (`Event Reads`, `Event Forward/Reverse Reads`, `Event Depth`), not against any SNP column |
+    | `INDEL` | the **MNV** thresholds, measured against the indel's own event support (`Event Reads`, `Event Forward Reads`, `Event Reverse Reads`, `Event Depth`), not against any SNP column |
 
     A TSV row is kept or dropped whole, and a codon-level row clears the SNP
     side only when **every** one of its substitutions does. A VCF record is one
@@ -108,6 +108,21 @@ These apply only when `--bam` is provided.
 | `--strand-bias-info` | Add Fisher exact strand-bias p-values to VCF INFO (`SBP`/`MSBP`). |
 | `--keep-original-info` | Preserve original VCF INFO fields in the output (requires `--convert`/`--both`). |
 | `--emit-filtered` | Emit records that fail thresholds with `FILTER` tags instead of skipping them. |
+
+!!! info "`--index-vcf-gz` and `--bcf` call external programs"
+
+    Everything else get_MNV writes is written by get_MNV. These two are not:
+    `--index-vcf-gz` runs `tabix` and `--bcf` runs `bcftools`, both taken from
+    `PATH`. They come with samtools/htslib and bcftools respectively, and
+    neither is a build dependency, so a machine can have get_MNV and not have
+    them.
+
+    A missing program is not a failed run. get_MNV warns, skips that one step,
+    and finishes: the TSV and the VCF are written either way, and the run exits
+    `0`. Nothing else claims the file that was not written, so the summary JSON
+    reports no BCF and `--run-manifest` records no checksum for one. Check the
+    warnings, or check for the file, if a later step needs it.
+
 
 ## Interactive HTML report
 

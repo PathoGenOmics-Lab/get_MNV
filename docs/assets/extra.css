@@ -4,6 +4,20 @@
  * consequence of a page that reads badly without it, not decoration.
  */
 
+/* Link colour in the light scheme.
+ *
+ * Material darkens the light-mode link colour for the primaries that would be
+ * illegible on white, but not for teal: #009485 on white is 3.77:1, under the
+ * 4.5:1 that AA asks of body text, and the accent used for :hover, :focus and
+ * the focus ring is 2.38:1, so pointing at a link made it harder to read than
+ * leaving it alone. The slate scheme already gets a brightened colour at
+ * 7.92:1 and is deliberately left alone.
+ */
+[data-md-color-scheme="default"] {
+  --md-typeset-a-color: #007a6c;   /* 5.25:1 on white */
+  --md-accent-fg-color: #00695f;   /* 6.59:1 on white, and the focus ring with it */
+}
+
 /* The output-format pages tabulate every column and INFO key, and some of those
  * descriptions are a paragraph long. Left unattended the browser squeezes the
  * name column to a few characters and the table becomes unreadable. Give the
@@ -18,9 +32,22 @@
   width: 100%;
 }
 
+/* Two kinds of table live on this site and they want opposite things from the
+ * first column. A reference table holds a short name, which must not be broken
+ * across lines nor squeezed to two characters a line. A warning table holds a
+ * whole message, which has to wrap: kept on one line it pushed the table into a
+ * horizontal scroll on a page with no reason to scroll. A floor on the width
+ * serves the first without hurting the second: at 13rem no column name in the
+ * reference tables wraps, the only first cells that take two lines are the ones
+ * listing several names at once, and no table overflows its box. */
 .md-typeset table:not([class]) td:first-child,
 .md-typeset table:not([class]) th:first-child {
-  white-space: nowrap;
+  min-width: 13rem;
+}
+
+/* Within that column, a name set in code stays on one line if it fits. */
+.md-typeset table:not([class]) td:first-child code {
+  overflow-wrap: break-word;
 }
 
 /* A wide table scrolls inside its own box rather than pushing the page

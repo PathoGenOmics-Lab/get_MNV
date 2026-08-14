@@ -11,7 +11,7 @@ acid effect than the individual SNVs alone.
 ![MNV amino acid reclassification](assets/get_mnv_aa.png){ width="620" }
 </div>
 
-### The problem, in one codon
+## The problem, in one codon
 
 That is the figure above, in words. A codon reads `CGT` and codes arginine, and a
 caller reports two substitutions inside it:
@@ -31,7 +31,7 @@ Whether they really do sit on the same molecule is a separate question, and with
 a BAM get_MNV counts the reads that carry both rather than assuming:
 see [Linkage](linkage.md).
 
-### What it does with them
+## What it does with them
 
 | Step | What it reads | What it produces |
 |---|---|---|

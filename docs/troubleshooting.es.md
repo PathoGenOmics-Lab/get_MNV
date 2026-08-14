@@ -197,6 +197,61 @@ Solución:
 - Ejecuta el comando desde una carpeta con permiso de escritura, o
 - En la GUI, elige un directorio de salida donde tengas permiso de escritura.
 
+## Avisos
+
+Un aviso nunca detiene la ejecución, así que es fácil pasarlo por alto. Estos
+son los que cambian lo que acaba en la salida, y ninguno se ve en el propio TSV:
+si falta una variante que esperabas, o su anotación es más gruesa de lo que
+esperabas, la razón estaba en stderr.
+
+### Falta una variante en la salida
+
+| Aviso | Qué significa | Qué hacer |
+|---|---|---|
+| `falls in the phase-skipped region of CDS ... Variant skipped.` | El codón se mete en un exón vecino, y una sola fila del GFF no puede decir cuáles son las bases vecinas. La variante se descarta, no se reporta como intergénica. | Dale a las filas CDS un `transcript_id` o un `Parent` para que get_MNV pueda empalmar el transcrito, y ejecuta con `--gff-features CDS`. |
+
+### La anotación es más gruesa de lo que permitiría el archivo
+
+Cada uno de estos recae en la anotación por feature, así que los codones se
+agrupan dentro de una fila CDS en vez de a lo largo del transcrito empalmado.
+Una variante cerca de un borde de exón puede recibir entonces otro aminoácido.
+
+| Aviso | Qué significa | Qué hacer |
+|---|---|---|
+| `has rows on both strands` | Dos filas de un mismo transcrito discrepan sobre la orientación, y con ellas no se puede construir un CDS empalmado. | Corrige la columna de hebra, o separa las filas en transcritos distintos. |
+| `lists N duplicate CDS row(s)` | Las repeticiones se ignoran; contarlas metería las mismas bases dos veces en la secuencia codificante. | Elimina los duplicados del GFF. |
+| `has a single CDS row with non-zero phase` / `starts with non-zero phase` | Las filas seleccionadas no parecen una secuencia codificante completa, así que no puede fiarse de la fase para colocar los codones. | Incluye en la ejecución todas las filas CDS del transcrito. |
+| `contains CDS rows with non-zero phase, but --gff-features does not include 'CDS'` | La agrupación de codones está ignorando una fase que el archivo sí trae. | Añade `--gff-features CDS`. |
+
+### Las métricas vienen de una muestra que no elegiste
+
+| Aviso | Qué significa | Qué hacer |
+|---|---|---|
+| `Multi-sample VCF detected (N samples). Using first sample` | `ODP` y `OFREQ` se leen de la muestra que vaya primero en la cabecera, que rara vez es una elección deliberada. | Nombra una con `--sample`, o anótalas todas con `--sample all`. |
+
+### El soporte de lecturas no es el que decía la entrada
+
+| Aviso | Qué significa | Qué hacer |
+|---|---|---|
+| `has N spanning read(s) but 0 with exact CIGAR support` | Hay lecturas que cubren el sitio pero ninguna lleva ese indel exacto, que es lo que pasa cuando el alelo está escrito en otra posición dentro de un homopolímero o una repetición. | Alinea a la izquierda la entrada primero, por ejemplo con `bcftools norm -f ref.fa`. |
+| `was declared X by the input VCF, but N of M reads spanning the site carry the whole haplotype` | El llamador y las lecturas discrepan sobre si esos cambios viajan juntos. | Mira el alineamiento antes de fiarte de ninguno de los dos. |
+| `shows N distinct combinations on the reads; reporting the K best supported` | Una ventana con más haplotipos locales de los que get_MNV reporta. Los descartados son la cola con poco soporte. Consulta [Indels y haplotipos locales](indel-haplotypes.es.md). | Nada, salvo que te importe un haplotipo raro; entonces acota la ventana con `--chrom` e inspecciónala directamente. |
+
+### Un flag no hizo nada
+
+| Aviso | Qué significa |
+|---|---|
+| `--keep-original-info has no effect with iVar TSV input` | Un TSV de iVar no tiene columna INFO que conservar. |
+| `--gff-features is ignored when using TSV annotation format (--genes)` | Los tipos de feature son una idea de GFF/GTF; el TSV de cuatro columnas no tiene ninguno. |
+| `The MNV thresholds will not remove any SNP/MNV row` | Una fila SNP/MNV sobrevive cuando *cualquiera* de los dos lados supera su listón, así que con los umbrales de SNP a `0` el lado SNP siempre pasa. Sube `--snp` o `--min-snp-frequency` si querías filtrar esas filas. |
+
+### Faltaba un programa externo opcional
+
+| Aviso | Qué significa |
+|---|---|
+| `bcftools not found in PATH. Skipping BCF output.` | Se pidió `--bcf` y no se escribió ningún BCF. La ejecución continúa y sale con `0`; el TSV y el VCF no se ven afectados, y el resumen JSON no reporta ningún BCF. Instala bcftools, o quita `--bcf`. |
+| `tabix not found in PATH. Skipping .tbi index` | Se pidió `--index-vcf-gz` y no se escribió ningún `.tbi`. El propio `.vcf.gz` está completo. Instala samtools/htslib, o indéxalo después con `tabix -p vcf <fichero>`. |
+
 ## Conflictos entre flags
 
 | Error | Solución |

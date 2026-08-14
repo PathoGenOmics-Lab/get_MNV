@@ -11,7 +11,7 @@ un efecto sobre el aminoácido distinto al de los SNV por separado.
 ![Reclasificación de aminoácidos por MNV](assets/get_mnv_aa.png){ width="620" }
 </div>
 
-### El problema, en un codón
+## El problema, en un codón
 
 Es la figura de arriba, en palabras. Un codón lee `CGT` y codifica arginina, y un
 llamador de variantes informa de dos sustituciones dentro de él:
@@ -31,7 +31,7 @@ Si de verdad están en la misma molécula es otra pregunta, y con un BAM get_MNV
 cuenta las lecturas que llevan los dos en vez de darlo por hecho:
 mira [Ligamiento](linkage.es.md).
 
-### Qué hace con ellas
+## Qué hace con ellas
 
 | Paso | Qué lee | Qué produce |
 |---|---|---|

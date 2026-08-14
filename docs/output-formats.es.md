@@ -74,14 +74,17 @@ Columnas adicionales cuando se usa `--bam`:
 | Columna | Significado |
 |---|---|
 | `SNP Reads` | Lecturas que llevan cada SNV individual **sin** el haplotipo MNV completo. En una fila donde todas las lecturas llevan el haplotipo entero esto vale `0` para cada constituyente y el recuento vive en `MNV Reads`, así que las dos columnas reparten el soporte en vez de contarlo dos veces. |
-| `SNP Forward/Reverse Reads` | Recuentos por hebra de las lecturas de arriba. |
+| `SNP Forward Reads` | Recuento en hebra directa de las lecturas de arriba. |
+| `SNP Reverse Reads` | Recuento en hebra reversa de las lecturas de arriba. |
 | `MNV Reads` | Lecturas que respaldan el haplotipo MNV completo. |
-| `MNV Forward/Reverse Reads` | Soporte de MNV por hebra. |
+| `MNV Forward Reads` | Soporte de MNV en hebra directa. |
+| `MNV Reverse Reads` | Soporte de MNV en hebra reversa. |
 | `Total Reads` | Profundidad en las posiciones de la variante. |
 | `SNP Frequencies` | Frecuencias de SNP por posición. |
 | `MNV Frequencies` | Frecuencia del haplotipo MNV. |
 | `Event Reads` | Lecturas exactas que respaldan un evento indel/complejo. |
-| `Event Forward/Reverse Reads` | Soporte exacto del evento por hebra. |
+| `Event Forward Reads` | Soporte exacto del evento en hebra directa. |
+| `Event Reverse Reads` | Soporte exacto del evento en hebra reversa. |
 | `Event Depth` | Lecturas con un alelo observado a lo largo del tramo del evento indel/complejo. |
 | `Event Frequency` | Lecturas exactas del evento divididas por la profundidad del evento. |
 
@@ -195,6 +198,10 @@ Escribe BCF con:
 BCF requiere el modo de salida VCF, así que úsalo con `--convert` o `--both`.
 Esto es solo conversión de salida; BCF no se acepta como formato de entrada.
 
+La conversión la hace `bcftools view`, tomado del `PATH`. Sin bcftools instalado
+la ejecución avisa, no escribe ningún BCF y aun así sale con `0`, con su TSV y su
+VCF intactos. `--index-vcf-gz` funciona igual, a través de `tabix`.
+
 Nombre de archivo por defecto:
 
 ```text
@@ -202,6 +209,9 @@ Nombre de archivo por defecto:
 ```
 
 ## Archivos JSON
+
+Tres flags escriben JSON, y todos los payloads llevan un `schema_version` para
+que quien los consuma sepa qué forma está leyendo.
 
 ### JSON de resumen
 
@@ -211,13 +221,31 @@ Escribe con:
 --summary-json run.summary.json
 ```
 
-Incluye:
+Claves de primer nivel:
 
-- Sumas de comprobación de los archivos de entrada
-- Recuentos de variantes por contig
-- Recuentos globales de variantes
-- Tiempos de ejecución
-- Rutas de salida
+| Clave | Significado |
+|---|---|
+| `schema_version` | Versión del payload, ahora mismo `1.0.0` |
+| `sample` | La muestra a la que apuntó la ejecución, o `null` si no apuntó a ninguna |
+| `dry_run` | Si estaba en vigor `--dry-run` |
+| `bam_provided` | Si se leyó un BAM, que es lo que decide los campos de soporte de lecturas |
+| `translation_table` | Número de tabla de traducción del NCBI utilizada |
+| `inputs` | Las rutas de entrada: `vcf`, `fasta`, `annotation`, `bam`, y además `checksums` |
+| `output_tsv`, `output_vcf`, `output_bcf` | Los archivos que escribió esta ejecución, `null` en cada uno que no escribió |
+| `contigs` | Una entrada por contig, con sus propios recuentos |
+| `timings` | `parse_inputs_ms`, `process_ms`, `emit_ms`, `total_ms` |
+| `global` | Los recuentos de toda la ejecución, abajo |
+
+Dentro de `global`:
+
+| Clave | Significado |
+|---|---|
+| `contig_count` | Contigs vistos |
+| `snp_records_in_vcf` | Registros leídos de la entrada de variantes |
+| `mapped_genes` | Genes con al menos una variante encima |
+| `produced_variants` | Variantes anotadas, antes de los filtros de salida |
+| `snp_variants`, `mnv_variants`, `snp_mnv_variants`, `indel_variants`, `intergenic_variants` | El mismo total desglosado por tipo |
+| `region_cache_hits`, `region_cache_misses` | Caché de regiones del BAM, solo tiene sentido con `--bam` |
 
 !!! warning "Estos recuentos son lo que produjo get_MNV, antes de los filtros de salida"
     `produced_variants` y los recuentos por tipo que lo acompañan se toman
@@ -228,6 +256,32 @@ Incluye:
     HTML, que cuenta filas, dirá `1`. Lee el resumen como lo que encontró la
     anotación y el TSV como lo que pasó los filtros.
 
+!!! danger "`--sample all` escribe otro objeto, no uno más largo"
+    Todas las claves de arriba se mueven. Un resumen de `--sample all` trae
+    `mode` con el valor `sample_all`, `sample_count`, `sample_names`, un objeto
+    `aggregate` con los totales de toda la ejecución, y un array `samples` con
+    un objeto por muestra. Cada uno de esos, y `aggregate` también, tiene la
+    forma de muestra única descrita arriba, así que
+    `data["global"]["produced_variants"]` pasa a ser
+    `data["aggregate"]["global"]["produced_variants"]`.
+
+    `aggregate` suma los recuentos de todas las muestras y no nombra ningún
+    archivo de salida propio: `aggregate.output_tsv` es `null`, y las rutas de
+    cada muestra están en las entradas de `samples`. Bifurca por la clave que
+    solo tiene una de las dos formas:
+
+    ```python
+    import json
+
+    data = json.load(open("run.summary.json"))
+    if data.get("mode") == "sample_all":
+        totals = data["aggregate"]["global"]
+        per_sample = {s["sample"]: s["global"] for s in data["samples"]}
+    else:
+        totals = data["global"]
+        per_sample = {data["sample"]: data["global"]}
+    ```
+
 ### Manifiesto de la ejecución
 
 Escribe con:
@@ -236,12 +290,18 @@ Escribe con:
 --run-manifest run.manifest.json
 ```
 
-Incluye el resumen y, además:
+| Clave | Significado |
+|---|---|
+| `schema_version` | Versión del payload |
+| `tool_version` | La versión de get_MNV que se ejecutó |
+| `command_line` | El comando tal y como se invocó |
+| `timestamp_unix` | Segundos desde la época Unix |
+| `summary` | El payload de resumen entero, sin cambios |
+| `output_checksums` | `output_tsv_sha256`, `output_vcf_sha256`, `output_bcf_sha256`, cada uno `null` para el archivo que esta ejecución no escribió |
 
-- Línea de comandos
-- Versión de la herramienta
-- Sumas de comprobación de los archivos de salida
-- Marca de tiempo
+Con `--sample all` el manifiesto sigue al resumen: `mode`, `sample_names`,
+`aggregate` y `samples`, sin clave `summary` de primer nivel, y cada entrada de
+`samples` lleva sus propias `output_checksums`.
 
 ### JSON de errores
 
@@ -251,7 +311,23 @@ Escribe los errores como JSON con:
 --error-json run.error.json
 ```
 
-Esto resulta útil en pipelines automatizados.
+Se escribe solo cuando la ejecución falla, así que su presencia ya es la señal:
+
+| Clave | Significado |
+|---|---|
+| `schema_version` | Versión del payload |
+| `code` | El código de error estable, por ejemplo `E002` |
+| `exit_code` | El estado de salida del proceso, que coincide con la tabla de [Solución de problemas](troubleshooting.es.md) |
+| `message` | El mismo texto que imprimió la ejecución |
+
+```json
+{
+  "schema_version": "1.0.0",
+  "code": "E002",
+  "exit_code": 3,
+  "message": "Cannot open VCF file '/no/such.vcf': No such file or directory (os error 2)"
+}
+```
 
 ## Informe HTML interactivo
 

@@ -25,3 +25,6 @@ minimal_example/
 
 # Scratch directories the test suites build their inputs in.
 tests/*/work/
+
+# Python bytecode from the checkers under tests/
+__pycache__/

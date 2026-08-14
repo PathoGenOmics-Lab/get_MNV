@@ -109,7 +109,8 @@ The `Rv2036` row gains its evidence columns:
 | Column | Value | Meaning |
 |---|---|---|
 | `MNV Reads` | `24` | reads carrying the whole haplotype |
-| `MNV Forward/Reverse Reads` | `12` / `12` | balanced across strands |
+| `MNV Forward Reads` | `12` | balanced across strands |
+| `MNV Reverse Reads` | `12` | the other half of the same balance |
 | `Total Reads` | `24` | depth at the codon |
 | `MNV Frequencies` | `1.0000` | every read spanning it carries both |
 | `SNP Reads` | `0, 0` | reads carrying one change *without* the other |

@@ -190,6 +190,61 @@ Fix:
 - Run the command from a writable folder, or
 - In the GUI, choose an output directory where you have write permission.
 
+## Warnings
+
+A warning never stops the run, so it is easy to scroll past. These are the ones
+that change what ends up in the output, and none of them is visible in the TSV
+itself: if a variant you expected is not there, or its annotation is coarser
+than you expected, the reason was on stderr.
+
+### A variant is missing from the output
+
+| Warning | What it means | What to do |
+|---|---|---|
+| `falls in the phase-skipped region of CDS ... Variant skipped.` | The codon spans into a neighbouring exon, and a single GFF row cannot say what the neighbouring bases are. The variant is dropped, not reported as intergenic. | Give the CDS rows a `transcript_id` or `Parent` so get_MNV can splice the transcript, and run with `--gff-features CDS`. |
+
+### The annotation is coarser than the file could support
+
+Each of these falls back to per-feature annotation, so codons are grouped inside
+one CDS row instead of across the spliced transcript. A variant near an exon
+boundary can then get a different amino acid call.
+
+| Warning | What it means | What to do |
+|---|---|---|
+| `has rows on both strands` | Two rows of one transcript disagree about orientation, and a spliced CDS cannot be built from them. | Fix the strand column, or split the rows into separate transcripts. |
+| `lists N duplicate CDS row(s)` | The repeats are ignored; counting them would put the same bases in the coding sequence twice. | Deduplicate the GFF. |
+| `has a single CDS row with non-zero phase` / `starts with non-zero phase` | The selected rows do not look like a whole coding sequence, so the phase cannot be trusted to place the codons. | Include every CDS row of the transcript in the run. |
+| `contains CDS rows with non-zero phase, but --gff-features does not include 'CDS'` | Codon grouping is ignoring phase the file provides. | Add `--gff-features CDS`. |
+
+### The metrics come from a sample you did not choose
+
+| Warning | What it means | What to do |
+|---|---|---|
+| `Multi-sample VCF detected (N samples). Using first sample` | `ODP` and `OFREQ` are read from whichever sample comes first in the header, which is rarely a deliberate choice. | Name one with `--sample`, or annotate every one with `--sample all`. |
+
+### The read support is not what the input claimed
+
+| Warning | What it means | What to do |
+|---|---|---|
+| `has N spanning read(s) but 0 with exact CIGAR support` | Reads cover the site but none of them carries that exact indel, which is what happens when the allele is written at a different position inside a homopolymer or repeat. | Left-align the input first, for example `bcftools norm -f ref.fa`. |
+| `was declared X by the input VCF, but N of M reads spanning the site carry the whole haplotype` | The caller and the reads disagree about whether these changes travel together. | Look at the alignment before trusting either. |
+| `shows N distinct combinations on the reads; reporting the K best supported` | A window with more local haplotypes than get_MNV reports. The dropped ones are the weakly supported tail. See [Indels and Local Haplotypes](indel-haplotypes.md). | Nothing, unless a rare haplotype matters; then narrow the window with `--chrom` and inspect it directly. |
+
+### A flag did nothing
+
+| Warning | What it means |
+|---|---|
+| `--keep-original-info has no effect with iVar TSV input` | An iVar TSV has no INFO column to preserve. |
+| `--gff-features is ignored when using TSV annotation format (--genes)` | Feature types are a GFF/GTF idea; the four-column TSV has none. |
+| `The MNV thresholds will not remove any SNP/MNV row` | A SNP/MNV row survives when *either* side clears its bar, so with the SNP thresholds at `0` the SNP side always passes. Raise `--snp` or `--min-snp-frequency` if you meant to filter those rows. |
+
+### An optional external program was missing
+
+| Warning | What it means |
+|---|---|
+| `bcftools not found in PATH. Skipping BCF output.` | `--bcf` was asked for and no BCF was written. The run continues and exits `0`; the TSV and VCF are unaffected, and the summary JSON reports no BCF. Install bcftools, or drop `--bcf`. |
+| `tabix not found in PATH. Skipping .tbi index` | `--index-vcf-gz` was asked for and no `.tbi` was written. The `.vcf.gz` itself is complete. Install samtools/htslib, or index it later with `tabix -p vcf <file>`. |
+
 ## Flag Conflicts
 
 | Error | Fix |

@@ -17,7 +17,11 @@ copyright: >-
 theme:
   name: material
   logo: assets/get_mnv.svg
-  favicon: assets/get_mnv.png
+  # The tab icon, not the banner: `get_mnv.png` is a 1875x747 wordmark, which a
+  # browser drew into a 16px square as an illegible smear and made every page
+  # carry 199 KB to do it. This is the emblem out of that same artwork, square
+  # and 128px, which is the part that still reads at tab size.
+  favicon: assets/favicon.png
   language: en
   icon:
     repo: fontawesome/brands/github
@@ -90,6 +94,24 @@ plugins:
           name: Español
           build: true
           site_name: get_MNV
+          # The description is what a search engine and a shared link show, and
+          # it was going out in English on every Spanish page.
+          site_description: >-
+            Detección de variantes multinucleotídicas a nivel de codón y
+            anotación de indels desde VCF o TSV de iVar. Rust puro, sin
+            dependencias de C.
+          # Material translates its own interface strings, but not the ones
+          # written here: the palette toggle stayed in English on a page that
+          # was Spanish everywhere else. Merged entry by entry, so each keeps
+          # its media query, scheme and colours.
+          theme:
+            palette:
+              - toggle:
+                  name: Cambiar al modo claro
+              - toggle:
+                  name: Cambiar al modo oscuro
+              - toggle:
+                  name: Seguir la configuración del sistema
           nav_translations:
             Home: Inicio
             # Section names
@@ -125,7 +147,11 @@ markdown_extensions:
       permalink: true
   - pymdownx.details
   - pymdownx.highlight:
-      anchor_linenums: true
+      # anchor_linenums is deliberately off: no block on this site asks for line
+      # numbers, and it still emitted an empty anchor with an href in front of
+      # every line of code. Those sit in the tab order with no accessible name
+      # and nothing to see when focused, so a keyboard reader tabbed through 42
+      # invisible stops on Common Recipes alone.
       line_spans: __span
       pygments_lang_class: true
   - pymdownx.inlinehilite
@@ -146,6 +172,11 @@ markdown_extensions:
 
 extra_css:
   - assets/extra.css
+
+extra_javascript:
+  # Keeps the search results in the language of the page being read: the i18n
+  # plugin builds one index for both locales and there is no option to split it.
+  - assets/extra.js
 
 extra:
   social:

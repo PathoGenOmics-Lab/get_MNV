@@ -72,14 +72,17 @@ Extra columns when `--bam` is used:
 | Column | Meaning |
 |---|---|
 | `SNP Reads` | Reads carrying each individual SNV **without** the full MNV haplotype. On a row where every read carries the whole haplotype this is `0` for each constituent and the count lives in `MNV Reads`, so the two columns partition the support rather than double-count it. |
-| `SNP Forward/Reverse Reads` | Strand-specific counts for the reads above. |
+| `SNP Forward Reads` | Forward-strand count for the reads above. |
+| `SNP Reverse Reads` | Reverse-strand count for the reads above. |
 | `MNV Reads` | Reads supporting the full MNV haplotype. |
-| `MNV Forward/Reverse Reads` | Strand-specific MNV support. |
+| `MNV Forward Reads` | Forward-strand MNV support. |
+| `MNV Reverse Reads` | Reverse-strand MNV support. |
 | `Total Reads` | Depth at the variant positions. |
 | `SNP Frequencies` | Per-position SNP frequencies. |
 | `MNV Frequencies` | MNV haplotype frequency. |
 | `Event Reads` | Exact reads supporting an indel/complex event. |
-| `Event Forward/Reverse Reads` | Strand-specific exact event support. |
+| `Event Forward Reads` | Forward-strand exact event support. |
+| `Event Reverse Reads` | Reverse-strand exact event support. |
 | `Event Depth` | Reads with an observed allele across the indel/complex event span. |
 | `Event Frequency` | Exact event reads divided by event depth. |
 
@@ -194,6 +197,10 @@ Write BCF with:
 BCF requires VCF output mode, so use it with `--convert` or `--both`.
 This is output conversion only; BCF is not accepted as an input format.
 
+The conversion is done by `bcftools view`, taken from `PATH`. Without bcftools
+installed the run warns, writes no BCF, and still exits `0` with its TSV and VCF
+intact. `--index-vcf-gz` works the same way through `tabix`.
+
 Default file name:
 
 ```text
@@ -201,6 +208,9 @@ Default file name:
 ```
 
 ## JSON Files
+
+Three flags write JSON, and every payload carries a `schema_version` so a
+consumer can tell which shape it is reading.
 
 ### Summary JSON
 
@@ -210,13 +220,31 @@ Write with:
 --summary-json run.summary.json
 ```
 
-Includes:
+Top-level keys:
 
-- Input file checksums
-- Per-contig variant counts
-- Global variant counts
-- Runtime timings
-- Output paths
+| Key | Meaning |
+|---|---|
+| `schema_version` | Payload version, currently `1.0.0` |
+| `sample` | The sample the run targeted, or `null` when it targeted none |
+| `dry_run` | Whether `--dry-run` was in force |
+| `bam_provided` | Whether a BAM was read, which is what decides the read-support fields |
+| `translation_table` | NCBI translation table number used |
+| `inputs` | The input paths: `vcf`, `fasta`, `annotation`, `bam`, plus `checksums` |
+| `output_tsv`, `output_vcf`, `output_bcf` | The files this run wrote, `null` for each one it did not |
+| `contigs` | One entry per contig, with its own counts |
+| `timings` | `parse_inputs_ms`, `process_ms`, `emit_ms`, `total_ms` |
+| `global` | The run-wide counts, below |
+
+Inside `global`:
+
+| Key | Meaning |
+|---|---|
+| `contig_count` | Contigs seen |
+| `snp_records_in_vcf` | Records read from the variant input |
+| `mapped_genes` | Genes that had at least one variant on them |
+| `produced_variants` | Annotated variants, before the output filters |
+| `snp_variants`, `mnv_variants`, `snp_mnv_variants`, `indel_variants`, `intergenic_variants` | The same total split by type |
+| `region_cache_hits`, `region_cache_misses` | BAM region cache, only meaningful with `--bam` |
 
 !!! warning "These counts are what get_MNV produced, before the output filters"
     `produced_variants` and the per-type counts beside it are taken after
@@ -226,6 +254,30 @@ Includes:
     and the HTML report, which counts rows, will say `1`. Read the summary as
     what the annotation found and the TSV as what passed.
 
+!!! danger "`--sample all` writes a different object, not a longer one"
+    Every key above moves. A `--sample all` summary has `mode` set to
+    `sample_all`, `sample_count`, `sample_names`, one `aggregate` object holding
+    run-wide totals, and a `samples` array holding one object per sample. Each
+    of those, and `aggregate` too, has the single-sample shape described above,
+    so `data["global"]["produced_variants"]` becomes
+    `data["aggregate"]["global"]["produced_variants"]`.
+
+    `aggregate` sums the counts across samples and names no output file of its
+    own: `aggregate.output_tsv` is `null`, and the per-sample paths are on the
+    `samples` entries. Branch on the key that only one shape has:
+
+    ```python
+    import json
+
+    data = json.load(open("run.summary.json"))
+    if data.get("mode") == "sample_all":
+        totals = data["aggregate"]["global"]
+        per_sample = {s["sample"]: s["global"] for s in data["samples"]}
+    else:
+        totals = data["global"]
+        per_sample = {data["sample"]: data["global"]}
+    ```
+
 ### Run Manifest
 
 Write with:
@@ -234,12 +286,18 @@ Write with:
 --run-manifest run.manifest.json
 ```
 
-Includes the summary plus:
+| Key | Meaning |
+|---|---|
+| `schema_version` | Payload version |
+| `tool_version` | The get_MNV version that ran |
+| `command_line` | The command as invoked |
+| `timestamp_unix` | Seconds since the Unix epoch |
+| `summary` | The whole summary payload, unchanged |
+| `output_checksums` | `output_tsv_sha256`, `output_vcf_sha256`, `output_bcf_sha256`, each `null` for a file this run did not write |
 
-- Command line
-- Tool version
-- Output file checksums
-- Timestamp
+With `--sample all` the manifest follows the summary: `mode`, `sample_names`,
+`aggregate` and `samples`, with no top-level `summary` key, and each entry in
+`samples` carries its own `output_checksums`.
 
 ### Error JSON
 
@@ -249,7 +307,23 @@ Write errors as JSON with:
 --error-json run.error.json
 ```
 
-This is useful in automated pipelines.
+Written only when the run fails, which makes its presence the signal:
+
+| Key | Meaning |
+|---|---|
+| `schema_version` | Payload version |
+| `code` | The stable error code, such as `E002` |
+| `exit_code` | The process exit status, matching the table in [Troubleshooting](troubleshooting.md) |
+| `message` | The same text the run printed |
+
+```json
+{
+  "schema_version": "1.0.0",
+  "code": "E002",
+  "exit_code": 3,
+  "message": "Cannot open VCF file '/no/such.vcf': No such file or directory (os error 2)"
+}
+```
 
 ## Interactive HTML report
 

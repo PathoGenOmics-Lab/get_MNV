@@ -70,7 +70,7 @@ Estas solo aplican cuando se proporciona `--bam`.
     |---|---|
     | `SNP` | los umbrales de SNP |
     | `MNV`, `SNP/MNV` | cualquiera de los dos lados, como arriba |
-    | `INDEL` | los umbrales de **MNV**, medidos contra el soporte de evento del propio indel (`Event Reads`, `Event Forward/Reverse Reads`, `Event Depth`), no contra ninguna columna SNP |
+    | `INDEL` | los umbrales de **MNV**, medidos contra el soporte de evento del propio indel (`Event Reads`, `Event Forward Reads`, `Event Reverse Reads`, `Event Depth`), no contra ninguna columna SNP |
 
     Una fila del TSV se conserva o se descarta entera, y una fila a nivel de
     codón supera el lado SNP solo cuando lo superan **todas** sus sustituciones.
@@ -110,6 +110,22 @@ Estas solo aplican cuando se proporciona `--bam`.
 | `--strand-bias-info` | Añade los valores p de sesgo de hebra del test exacto de Fisher al INFO del VCF (`SBP`/`MSBP`). |
 | `--keep-original-info` | Conserva los campos INFO originales del VCF en la salida (requiere `--convert`/`--both`). |
 | `--emit-filtered` | Emite los registros que no superan los umbrales con etiquetas `FILTER` en lugar de omitirlos. |
+
+!!! info "`--index-vcf-gz` y `--bcf` llaman a programas externos"
+
+    Todo lo demás que escribe get_MNV lo escribe get_MNV. Estos dos no:
+    `--index-vcf-gz` ejecuta `tabix` y `--bcf` ejecuta `bcftools`, ambos
+    tomados del `PATH`. Vienen con samtools/htslib y con bcftools, y ninguno es
+    dependencia de compilación, así que una máquina puede tener get_MNV y no
+    tenerlos.
+
+    Que falte un programa no es una ejecución fallida. get_MNV avisa, se salta
+    ese paso y termina: el TSV y el VCF se escriben igualmente y la ejecución
+    sale con `0`. Nada reclama después el fichero que no se escribió, así que el
+    resumen JSON no reporta ningún BCF y `--run-manifest` no anota ninguna suma
+    de comprobación para él. Mira los avisos, o mira si está el fichero, cuando
+    un paso posterior lo necesite.
+
 
 ## Informe HTML interactivo
 

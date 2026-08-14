@@ -111,7 +111,8 @@ La fila de `Rv2036` gana sus columnas de evidencia:
 | Columna | Valor | Significado |
 |---|---|---|
 | `MNV Reads` | `24` | lecturas que llevan el haplotipo entero |
-| `MNV Forward/Reverse Reads` | `12` / `12` | equilibrado entre hebras |
+| `MNV Forward Reads` | `12` | equilibrado entre hebras |
+| `MNV Reverse Reads` | `12` | la otra mitad de ese equilibrio |
 | `Total Reads` | `24` | profundidad en el codón |
 | `MNV Frequencies` | `1.0000` | todas las lecturas que lo cruzan llevan ambos |
 | `SNP Reads` | `0, 0` | lecturas que llevan un cambio *sin* el otro |
