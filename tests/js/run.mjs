@@ -427,6 +427,72 @@ function checkDrawing(work) {
 }
 
 // ---------------------------------------------------------------------------
+// The region box
+// ---------------------------------------------------------------------------
+
+/// Two contigs, because what the box does with a contig name is the point.
+function buildTwoContigReport(work) {
+  const bases = [];
+  for (let i = 0; i < 900; i++) bases.push("ACGT"[(i * 7 + 3) % 4]);
+  const seq = bases.join("");
+  writeFileSync(join(work, "two.fasta"), `>chr1\n${seq}\n>chr2\n${seq}\n`);
+  writeFileSync(join(work, "two.gff3"),
+    "##gff-version 3\n" +
+      "chr1\tsyn\tCDS\t101\t400\t.\t+\t0\tID=c1;Name=geneP\n" +
+      "chr2\tsyn\tCDS\t101\t400\t.\t+\t0\tID=c2;Name=geneQ\n");
+  const other = (b) => ({ A: "C", C: "G", G: "T", T: "A" })[b];
+  const rec = (c, p) =>
+    `${c}\t${p}\t.\t${bases[p - 1]}\t${other(bases[p - 1])}\t100\tPASS\tDP=30`;
+  writeFileSync(join(work, "two.vcf"),
+    "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=900>\n##contig=<ID=chr2,length=900>\n" +
+      "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n" +
+      [rec("chr1", 150), rec("chr1", 372), rec("chr1", 800), rec("chr2", 200)].join("\n") + "\n");
+  execFileSync(binary(), [
+    "-v", join(work, "two.vcf"), "-f", join(work, "two.fasta"), "--gff", join(work, "two.gff3"),
+    "--report", join(work, "two.html"),
+  ], { cwd: work, stdio: "ignore" });
+  return join(work, "two.html");
+}
+
+function checkRegion(work) {
+  const sandbox = drawingLogic(buildTwoContigReport(work), []);
+  runInContext("drawMatrix()", sandbox);
+  const { mtx } = sandbox;
+  const box = sandbox.document.getElementById("regionBox");
+  const note = sandbox.document.getElementById("matrixNote");
+
+  check("region: the report carries both contigs", mtx.contigs.slice().sort(), ["chr1", "chr2"]);
+
+  const go = (q) => {
+    mtx.contig = "chr1"; mtx.view = null;
+    runInContext("drawMatrix()", sandbox);
+    const before = mtx.view.slice();
+    box.value = q;
+    note.textContent = "";
+    runInContext("gotoRegion()", sandbox);
+    return { contig: mtx.contig, view: mtx.view.slice(), before, note: note.textContent };
+  };
+
+  check("region: a plain range frames that range", go("500-600").view, [500, 600]);
+  check("region: a named contig switches to it", go("chr2:150-250").contig, "chr2");
+
+  // A contig nobody has must not move the window on the contig in front of you.
+  for (const q of ["chrX:150-250", "noSuchContig:400"]) {
+    const r = go(q);
+    check(`region: "${q}" leaves the contig alone`, r.contig, "chr1");
+    check(`region: "${q}" leaves the window alone`, r.view, r.before);
+    check(`region: "${q}" says which name it could not find`,
+      r.note.includes(q.split(":")[0]) && r.note.length > 0, true);
+  }
+
+  // A gene on the other contig is not on this one, and the box says so.
+  const away = go("geneQ");
+  check("region: a gene of another contig leaves the window alone", away.view, away.before);
+  check("region: a gene of another contig is reported against the contig shown",
+    away.note.includes("geneQ") && away.note.includes("chr1"), true);
+}
+
+// ---------------------------------------------------------------------------
 // The desktop form
 // ---------------------------------------------------------------------------
 
@@ -512,6 +578,7 @@ const work = mkdtempSync(join(tmpdir(), "get_mnv_js_"));
 try {
   checkReport(work);
   checkDrawing(work);
+  checkRegion(work);
   checkPresets();
 } finally {
   rmSync(work, { recursive: true, force: true });

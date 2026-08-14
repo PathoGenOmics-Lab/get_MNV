@@ -1566,7 +1566,17 @@ function gotoRegion(){
   if(!q || !mtx.span) return;
   var m = q.match(/^(?:([^:]+):)?\s*([\d ,.\s]+?)\s*(?:[-–]\s*([\d ,.\s]+))?$/);
   if(m && m[2]){
-    if(m[1] && mtx.contigs.indexOf(m[1].trim())>=0){ mtx.contig = m[1].trim(); mtx.view = null; drawMatrix(); }
+    if(m[1]){
+      var want = m[1].trim();
+      // A contig nobody has is not a reason to move somewhere else. Dropping the
+      // name and keeping the coordinates put the window at that position on
+      // whatever contig was already shown, which reads as the region asked for.
+      if(mtx.contigs.indexOf(want) < 0){
+        note.textContent = 'No contig named "'+want+'" among the rows on screen.';
+        return;
+      }
+      mtx.contig = want; mtx.view = null; drawMatrix();
+    }
     var a = parseInt(String(m[2]).replace(/[^\d]/g,""),10);
     var b = m[3] ? parseInt(String(m[3]).replace(/[^\d]/g,""),10) : null;
     if(!isNaN(a)){

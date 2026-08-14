@@ -188,6 +188,7 @@ All notable changes to this project are documented in this file.
 - The desktop app keeps the chosen output formats when a preset is applied. A preset sets analysis thresholds; which files to write is not one of those, and it sits beside the output directory and the compression flag, which the form already preserved. Resetting the formats while preserving `vcfGz` left a run with "compress the VCF" switched on and no VCF to compress, and a user who had asked for VCF output got a TSV instead without being told.
 - The report's matrix keeps its marks inside the plot. A group tick marks the bases one row calls together, and it was drawn straight from the coordinate mapping without the clamp its neighbouring gene bars already had: zooming until the window edge fell between the two bases of an MNV drew the tick over the sample names beside the plot, by as many pixels as the zoom made a base wide.
 - A matrix cell sits on the base it stands for. The gap that separates neighbouring cells was taken off the right side alone, so every mark was drawn a quarter of a pixel from its own coordinate; it is now taken off both sides.
+- The report's region box no longer answers about a contig you did not name. Typing `chr2:150-250` into a report that has no `chr2` dropped the name and kept the coordinates, so the window moved to 150-250 on whatever contig was already on screen and looked exactly like the region asked for. An unknown name is now reported and the view stays where it was, as an unknown gene name already was.
 
 ### Added
 
