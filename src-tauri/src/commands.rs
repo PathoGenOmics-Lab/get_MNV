@@ -927,19 +927,41 @@ fn read_fasta_region(
     fasta_file
         .seek(SeekFrom::Start(start_byte))
         .map_err(|e| format!("FASTA seek error: {}", e))?;
-    let mut buf = vec![0u8; bytes_to_read + 100];
-    let n = fasta_file
-        .read(&mut buf)
+    // Read to the end of the span instead of keeping whatever one call returns:
+    // a short read is not a short file, and padding made the two look alike.
+    let mut buf = Vec::with_capacity(bytes_to_read + 100);
+    fasta_file
+        .by_ref()
+        .take((bytes_to_read + 100) as u64)
+        .read_to_end(&mut buf)
         .map_err(|e| format!("FASTA read error: {}", e))?;
 
-    let mut result: String = buf[..n]
+    let result: String = buf
         .iter()
+        // The span is over-read by a hundred bytes to cover line breaks. A
+        // record header can never be part of a sequence, so stopping at one
+        // keeps the next contig out of the answer.
+        .take_while(|&&b| b != b'>')
         .filter(|&&b| b != b'\n' && b != b'\r')
         .map(|&b| b.to_ascii_uppercase() as char)
         .take(window_len)
         .collect();
-    while result.len() < window_len {
-        result.push('N');
+    // Padding answered with bases the file does not hold. The index says the
+    // contig is seq_len long; when the file cannot supply that, the two
+    // disagree, and saying so is the only honest answer.
+    if result.len() < window_len {
+        return Err(format!(
+            "FASTA '{}' is shorter than its index claims: {}:{}-{} needs {} base(s) \
+             and the file supplies {}. Rebuild the index, for example with \
+             `samtools faidx '{}'`",
+            fasta_path,
+            chrom,
+            start + 1,
+            actual_end,
+            window_len,
+            result.len(),
+            fasta_path
+        ));
     }
     Ok(result)
 }
@@ -1178,13 +1200,18 @@ pub fn write_text_file(path: String, content: String) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    /// A clock is not an identity. This asked for the time in nanoseconds and
+    /// used it as a name, but the clock does not tick that finely: over sixteen
+    /// thousand calls from eight threads, eleven thousand of them named a file
+    /// another thread had just named. Tests run in parallel, so two of them
+    /// shared a FASTA, and one truncating it failed the other.
     fn unique_temp_path(extension: &str) -> std::path::PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
         std::env::temp_dir().join(format!(
-            "get_mnv_gui_test_{}.{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos(),
+            "get_mnv_gui_test_{}_{}.{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed),
             extension
         ))
     }
@@ -1198,6 +1225,46 @@ mod tests {
         let path_str = path.to_string_lossy().into_owned();
         ensure_fasta_index(path_str.clone()).unwrap();
         path_str
+    }
+
+    /// A FASTA that no longer matches its index used to answer with `N` for
+    /// every base it could not supply, so a truncated file read as a contig
+    /// that genuinely holds unknown bases there.
+    #[test]
+    fn test_read_fasta_region_reports_a_file_shorter_than_its_index() {
+        use std::io::Write;
+        let path = write_indexed_fasta(">chr1\nACGTACGTACGTACGTACGT\n");
+        let mut file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        file.set_len(">chr1\n".len() as u64 + 10).unwrap();
+        file.flush().unwrap();
+
+        // The bases the file still holds come back unchanged.
+        assert_eq!(
+            read_fasta_region(&path, "chr1", 0, 10).unwrap(),
+            "ACGTACGTAC"
+        );
+
+        let err = read_fasta_region(&path, "chr1", 0, 20)
+            .expect_err("a window past the end of a truncated file must not be padded");
+        assert!(err.contains("shorter than its index"), "{err}");
+        assert!(err.contains("needs 20 base(s)"), "{err}");
+        assert!(err.contains("supplies 10"), "{err}");
+    }
+
+    /// The read window is over-read to cover line breaks, and the slack must
+    /// never let the following record's sequence stand in for this one's.
+    #[test]
+    fn test_read_fasta_region_stops_at_the_next_record() {
+        let path = write_indexed_fasta(">chr1\nACGTACGTAC\n>chr2\nTTTTTTTTTT\n");
+        assert_eq!(
+            read_fasta_region(&path, "chr1", 0, 10).unwrap(),
+            "ACGTACGTAC"
+        );
+        assert_eq!(read_fasta_region(&path, "chr1", 5, 10).unwrap(), "CGTAC");
+        assert_eq!(
+            read_fasta_region(&path, "chr2", 0, 10).unwrap(),
+            "TTTTTTTTTT"
+        );
     }
 
     fn bam_read_for_test(name: &str, support: &str, start: u64) -> BamReadView {
