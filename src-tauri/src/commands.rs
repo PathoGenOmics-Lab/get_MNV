@@ -672,6 +672,11 @@ fn expected_insertion_after(
     Some((anchor, inserted_len))
 }
 
+/// An inserted base the quality floor rejected. A read whose insertion cannot be
+/// read still carries one, which is not the same as carrying none, so the slot
+/// is kept and the allele it belongs to is withdrawn rather than shortened.
+const UNREADABLE_BASE: &str = "?";
+
 fn observed_allele_from_layout(
     reference_bases: &HashMap<u64, String>,
     insertions_after: &HashMap<u64, Vec<String>>,
@@ -693,6 +698,11 @@ fn observed_allele_from_layout(
         }
         if let Some(inserted) = insertions_after.get(&pos) {
             for base in inserted {
+                // An allele half of which could not be read is not an
+                // observation of a shorter allele: the read has nothing to say.
+                if base == UNREADABLE_BASE {
+                    return None;
+                }
                 allele.push_str(base);
                 observed_any = true;
             }
@@ -758,14 +768,24 @@ fn read_alignment_layout(
                     let inserted = insertions_after.entry(anchor).or_default();
                     for offset in 0..len {
                         let qi = q_pos + offset as usize;
-                        if qi < seq.len() {
-                            let bq: u8 = quals.iter().nth(qi).unwrap_or(0);
-                            if bq >= min_bq {
-                                if let Some(base) = seq.iter().nth(qi) {
-                                    inserted.push((base as char).to_ascii_uppercase().to_string());
-                                }
-                            }
+                        if qi >= seq.len() {
+                            continue;
                         }
+                        let bq: u8 = quals.iter().nth(qi).unwrap_or(0);
+                        // Dropping a base the floor rejected shortened the
+                        // insertion this read carries, and a read whose whole
+                        // insertion was rejected came out holding none, which
+                        // counts as evidence for the reference allele. The slot
+                        // is kept and marked unreadable instead, so the read
+                        // withdraws from the judgement the way a rejected base
+                        // in a match already does.
+                        let base = match seq.iter().nth(qi) {
+                            Some(base) if bq >= min_bq => {
+                                (base as char).to_ascii_uppercase().to_string()
+                            }
+                            _ => UNREADABLE_BASE.to_string(),
+                        };
+                        inserted.push(base);
                     }
                 }
                 q_pos += len as usize;
@@ -1401,6 +1421,17 @@ mod tests {
         seq: &str,
         window: (u64, u64),
     ) -> (HashMap<u64, String>, HashMap<u64, Vec<String>>) {
+        layout_of_q(cigar_ops, start, seq, window, &vec![40u8; seq.len()], 20)
+    }
+
+    fn layout_of_q(
+        cigar_ops: &str,
+        start: u64,
+        seq: &str,
+        window: (u64, u64),
+        quals: &[u8],
+        min_bq: u8,
+    ) -> (HashMap<u64, String>, HashMap<u64, Vec<String>>) {
         use noodles::sam::alignment::io::Write as _;
         use noodles::sam::alignment::record::MappingQuality;
         use noodles::sam::alignment::record_buf::{Cigar, QualityScores, Sequence};
@@ -1439,7 +1470,7 @@ mod tests {
             .set_mapping_quality(MappingQuality::try_from(60).unwrap())
             .set_cigar(Cigar::from(ops))
             .set_sequence(Sequence::from(seq.as_bytes().to_vec()))
-            .set_quality_scores(QualityScores::from(vec![40u8; seq.len()]))
+            .set_quality_scores(QualityScores::from(quals.to_vec()))
             .build();
 
         let path = unique_temp_path("bam");
@@ -1452,7 +1483,7 @@ mod tests {
         reader.read_header().unwrap();
         let mut got = noodles::bam::Record::default();
         reader.read_record(&mut got).unwrap();
-        read_alignment_layout(&got, window.0, window.1, 20)
+        read_alignment_layout(&got, window.0, window.1, min_bq)
     }
 
     /// A deletion is the read saying those reference bases are not in it. A skip
@@ -1490,6 +1521,53 @@ mod tests {
             "other",
             "the read that skips them observed nothing about the deletion"
         );
+    }
+
+    /// A read whose insertion the quality floor rejects still carries an
+    /// insertion. Dropping those bases left it holding none, which reads as the
+    /// reference allele, so a read that could say nothing was counted as
+    /// evidence against the variant.
+    #[test]
+    fn test_an_unreadable_insertion_is_not_evidence_for_the_reference() {
+        let sites = vec![BamVariantSite {
+            position: 11,
+            reference_base: "A".to_string(),
+            alt_base: "ATT".to_string(),
+        }];
+        let readable = layout_of_q("1M,2I,2M", 11, "ATTCG", (1, 100), &[40, 40, 40, 40, 40], 20);
+        let unreadable = layout_of_q("1M,2I,2M", 11, "ATTCG", (1, 100), &[40, 5, 5, 40, 40], 20);
+        let half = layout_of_q("1M,2I,2M", 11, "ATTCG", (1, 100), &[40, 40, 5, 40, 40], 20);
+        let without = layout_of_q("3M", 11, "ACG", (1, 100), &[40, 40, 40], 20);
+
+        // The insertion is kept whole either way, so the column keeps its width.
+        assert_eq!(
+            unreadable.1.get(&11),
+            Some(&vec![
+                UNREADABLE_BASE.to_string(),
+                UNREADABLE_BASE.to_string()
+            ])
+        );
+        assert_eq!(
+            half.1.get(&11),
+            Some(&vec!["T".to_string(), UNREADABLE_BASE.to_string()])
+        );
+
+        // Three different things, three different answers.
+        assert_eq!(
+            classify_layout_support(&readable.0, &readable.1, &sites),
+            "mnv"
+        );
+        assert_eq!(
+            classify_layout_support(&without.0, &without.1, &sites),
+            "reference"
+        );
+        for (name, layout) in [("all bases", &unreadable), ("one base", &half)] {
+            assert_eq!(
+                classify_layout_support(&layout.0, &layout.1, &sites),
+                "other",
+                "a read with {name} of its insertion rejected says nothing about it"
+            );
+        }
     }
 
     fn bam_read_for_test(name: &str, support: &str, start: u64) -> BamReadView {
