@@ -493,6 +493,61 @@ function checkRegion(work) {
 }
 
 // ---------------------------------------------------------------------------
+// The haplotype panel
+// ---------------------------------------------------------------------------
+
+/// One gene name on two replicons, which is what an IS or a transposase looks
+/// like coming out of an annotator, with the same codon MNV on each.
+function buildRepeatedGeneReport(work) {
+  const bases = [];
+  for (let i = 0; i < 900; i++) bases.push("ACGT"[(i * 7 + 3) % 4]);
+  const seq = bases.join("");
+  writeFileSync(join(work, "is.fasta"), `>chr1\n${seq}\n>plasmid\n${seq}\n`);
+  writeFileSync(join(work, "is.gff3"),
+    "##gff-version 3\n" +
+      "chr1\tsyn\tCDS\t101\t400\t.\t+\t0\tID=a;Name=IS6110\n" +
+      "plasmid\tsyn\tCDS\t101\t400\t.\t+\t0\tID=b;Name=IS6110\n");
+  const other = (b) => ({ A: "C", C: "G", G: "T", T: "A" })[b];
+  const rec = (c, p) =>
+    `${c}\t${p}\t.\t${bases[p - 1]}\t${other(bases[p - 1])}\t100\tPASS\tDP=30`;
+  writeFileSync(join(work, "is.vcf"),
+    "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=900>\n##contig=<ID=plasmid,length=900>\n" +
+      "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n" +
+      [rec("chr1", 372), rec("chr1", 373), rec("plasmid", 372), rec("plasmid", 373)]
+        .join("\n") + "\n");
+  execFileSync(binary(), [
+    "-v", join(work, "is.vcf"), "-f", join(work, "is.fasta"), "--gff", join(work, "is.gff3"),
+    "--report", join(work, "is.html"),
+  ], { cwd: work, stdio: "ignore" });
+  return join(work, "is.html");
+}
+
+function checkHaplotypes(work) {
+  const sandbox = drawingLogic(buildRepeatedGeneReport(work), []);
+  runInContext("drawHaplotypes()", sandbox);
+  const html = sandbox.document.getElementById("hapList").innerHTML;
+
+  const lines = readFileSync(join(work, "is.MNV.tsv"), "utf8").trim().split("\n");
+  const header = lines[0].split("\t");
+  const rows = lines.slice(1).map((line) => {
+    const cells = line.split("\t");
+    return Object.fromEntries(header.map((h, i) => [h, cells[i]]));
+  });
+  // What the panel collects: a codon MNV over several bases, or a complex indel.
+  const haps = new Set(rows
+    .filter((r) => ["MNV", "SNP/MNV"].includes(r["Variant Type"]) && r.Positions.includes(","))
+    .map((r) => [r.Chromosome, r.Gene, r.Positions, r["Base Changes"]].join("|")));
+  const contigs = new Set([...haps].map((k) => k.split("|")[0]));
+
+  check("the fixture puts the same haplotype on two replicons", contigs.size, 2);
+  check("haplotypes: the panel lists one row per haplotype the TSV holds",
+    (html.match(/class="hap"/g) || []).length, haps.size);
+  for (const contig of [...contigs].sort()) {
+    check(`haplotypes: the panel names ${contig}`, html.includes(`>${contig}:`), true);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The desktop form
 // ---------------------------------------------------------------------------
 
@@ -579,6 +634,7 @@ try {
   checkReport(work);
   checkDrawing(work);
   checkRegion(work);
+  checkHaplotypes(work);
   checkPresets();
 } finally {
   rmSync(work, { recursive: true, force: true });

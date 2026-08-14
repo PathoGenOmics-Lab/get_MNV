@@ -1609,7 +1609,12 @@ function drawHaplotypes(){
     var codonMnv = (t==="MNV" || t==="SNP/MNV") && multi;
     var complex = ec === "complex_indel";
     if(!codonMnv && !complex) return;
-    var key = geneOf(r)+"|"+txt(r,"pos")+"|"+txt(r,"alt");
+    // The contig is part of what a haplotype is, the way it is part of a site
+    // key in the matrix. A gene name repeats across replicons, an IS or a
+    // transposase most of all, so leaving it out merged two haplotypes that
+    // share a name and a coordinate into one row labelled with one contig, and
+    // pooled the samples of both into its count.
+    var key = chromOf(r)+"|"+geneOf(r)+"|"+txt(r,"pos")+"|"+txt(r,"alt");
     if(!groups[key]){
       groups[key] = {gene:geneOf(r), pos:txt(r,"pos"), aa:txt(r,"aa"), chrom:chromOf(r),
                      comp:txt(r,"evComp"), kind:complex?"complex indel":"codon MNV",
