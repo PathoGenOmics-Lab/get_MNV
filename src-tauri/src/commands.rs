@@ -729,6 +729,20 @@ fn read_alignment_layout(
     let seq = record.sequence();
     let quals = record.quality_scores();
     let cigar = record.cigar();
+    // SAM `QUAL=*` means the per-base qualities were not recorded, not that they
+    // are zero. The counting core treats such bases as passing, for the same
+    // reason a missing MAPQ is 255; reading the absence as a zero here failed
+    // every base of a quality-less BAM against the floor, so the viewer drew the
+    // reads blank and called them uninformative while the table beside it
+    // counted those very reads as support.
+    let quals_recorded = quals.iter().next().is_some();
+    let quality_at = |qi: usize| -> u8 {
+        if quals_recorded {
+            quals.iter().nth(qi).unwrap_or(0)
+        } else {
+            u8::MAX
+        }
+    };
 
     let mut r_pos = read_start;
     let mut q_pos: usize = 0;
@@ -750,7 +764,7 @@ fn read_alignment_layout(
                     }
                     let qi = q_pos + offset as usize;
                     if qi < seq.len() {
-                        let bq: u8 = quals.iter().nth(qi).unwrap_or(0);
+                        let bq: u8 = quality_at(qi);
                         if bq >= min_bq {
                             if let Some(base) = seq.iter().nth(qi) {
                                 reference_bases
@@ -771,7 +785,7 @@ fn read_alignment_layout(
                         if qi >= seq.len() {
                             continue;
                         }
-                        let bq: u8 = quals.iter().nth(qi).unwrap_or(0);
+                        let bq: u8 = quality_at(qi);
                         // Dropping a base the floor rejected shortened the
                         // insertion this read carries, and a read whose whole
                         // insertion was rejected came out holding none, which
@@ -1568,6 +1582,35 @@ mod tests {
                 "a read with {name} of its insertion rejected says nothing about it"
             );
         }
+    }
+
+    /// SAM `QUAL=*` means the qualities were not recorded, not that they are
+    /// zero. The counting core says so in as many words and treats such bases as
+    /// passing; reading the absence as a zero here failed every base against the
+    /// floor, so the viewer drew a quality-less BAM blank while the table beside
+    /// it counted those same reads as support.
+    #[test]
+    fn test_a_read_without_qualities_is_not_a_read_of_quality_zero() {
+        let recorded = layout_of_q("3M", 11, "ACG", (1, 100), &[40, 40, 40], 20);
+        let absent = layout_of_q("3M", 11, "ACG", (1, 100), &[], 20);
+        assert_eq!(absent.0, recorded.0, "the bases are the same either way");
+        assert_eq!(absent.0.get(&11), Some(&"A".to_string()));
+
+        // And a base that really was scored below the floor still drops out.
+        let low = layout_of_q("3M", 11, "ACG", (1, 100), &[40, 5, 40], 20);
+        assert_eq!(low.0.get(&12), None);
+        assert_eq!(low.0.get(&11), Some(&"A".to_string()));
+
+        let sites = vec![BamVariantSite {
+            position: 11,
+            reference_base: "A".to_string(),
+            alt_base: "C".to_string(),
+        }];
+        assert_eq!(
+            classify_layout_support(&absent.0, &absent.1, &sites),
+            classify_layout_support(&recorded.0, &recorded.1, &sites),
+            "the same read answers the same whether or not its qualities were stored"
+        );
     }
 
     fn bam_read_for_test(name: &str, support: &str, start: u64) -> BamReadView {
