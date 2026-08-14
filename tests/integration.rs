@@ -3694,7 +3694,7 @@ fn test_e2e_deletion_past_the_phase_skipped_bases_keeps_its_residues() {
 
     // Anchored on 11, deleting 12, 13 and 14: none of them is skipped.
     fs::write(
-        &tmp.join("clear.vcf"),
+        tmp.join("clear.vcf"),
         "##fileformat=VCFv4.2\n\
 ##contig=<ID=chr1,length=60>\n\
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
@@ -3703,7 +3703,7 @@ chr1\t11\t.\tAGCT\tA\t100\tPASS\tDP=30\n",
     .unwrap();
     // Anchored on 10, deleting 11, 12 and 13: 11 is skipped.
     fs::write(
-        &tmp.join("touching.vcf"),
+        tmp.join("touching.vcf"),
         "##fileformat=VCFv4.2\n\
 ##contig=<ID=chr1,length=60>\n\
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
