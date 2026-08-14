@@ -2861,6 +2861,55 @@ scenario_exclude_intergenic_scope = Scenario(
 )
 
 
+# ---------------------------------------------------------------------------
+# 76: la misma geometria de deslizamiento, pero con lecturas. La base compartida
+# se anota en dos codones, y las dos filas hablan de la misma base, asi que
+# tienen que llevar el mismo soporte medido en el BAM.
+scenario_slippage_with_reads = Scenario(
+    name="76_slippage_shared_base_counts_once_per_row",
+    description="CDS join con lecturas: las dos filas de la base compartida llevan el mismo soporte del BAM",
+    variants=[VcfRecord(pos=30, ref="T", alt="A")],
+    reads=[
+        ReadGroup(
+            name_prefix="r_alt",
+            start=1,
+            length=60,
+            ops=[Op(kind="snv", pos=30, seq="A")],
+            count=14,
+        ),
+        ReadGroup(name_prefix="r_ref", start=1, length=60, ops=[], count=6),
+    ],
+    gff_content=GFF_SLIPPAGE_JOIN,
+    gff_features="CDS",
+    expected=[
+        ExpectedRow(positions="30", reference_codon="GCT", snp_reads="14", total_reads="20"),
+        ExpectedRow(positions="30", reference_codon="TGC", snp_reads="14", total_reads="20"),
+    ],
+    expected_row_count=2,
+)
+
+
+# ---------------------------------------------------------------------------
+# 77: la base compartida por el deslizamiento tambien la pierde un indel. El
+# codon que la contiene deja de estar entero, asi que su fila no puede nombrar
+# un residuo. Mirar solo el primero de los dos offsets dejaba al segundo codon
+# creyendo que no le habia pasado nada.
+scenario_slippage_indel_reaches_both = Scenario(
+    name="77_slippage_indel_reaches_both_codons",
+    description="Delecion de la base compartida y SNV en el codon siguiente: ese codon sale como Indel overlap, no con un residuo concreto",
+    variants=[
+        VcfRecord(pos=29, ref="CT", alt="C"),
+        VcfRecord(pos=31, ref="G", alt="A"),
+    ],
+    reads=[],
+    gff_content=GFF_SLIPPAGE_JOIN,
+    gff_features="CDS",
+    expected=[
+        ExpectedRow(positions="31", change_type="Indel overlap", aa_changes="Unknown"),
+    ],
+)
+
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -2947,6 +2996,8 @@ ALL_SCENARIOS = [
     scenario_splice_donor_deleted,
     scenario_padded_splice_donor,
     scenario_exclude_intergenic_scope,
+    scenario_slippage_with_reads,
+    scenario_slippage_indel_reaches_both,
 ]
 
 

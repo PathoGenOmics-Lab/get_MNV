@@ -134,14 +134,15 @@ pub(super) fn variant_touched_transcript_offsets(gene: &Gene, variant: &VcfPosit
                 offsets.extend(transcript_offsets_for_position(gene, component.position));
             }
             AlleleComponentKind::Insertion => {
-                for segment in &gene.cds_segments {
-                    if insertion_anchor_in_segment(gene, segment, component.position) {
-                        if let Some(offset) =
-                            transcript_offset_for_position(gene, component.position)
-                        {
-                            offsets.insert(offset);
-                        }
-                    }
+                // Every offset the anchor occupies. A slippage join reads one base
+                // twice, so it sits at two offsets, and taking the first left the
+                // second codon believing nothing had happened to it.
+                if gene
+                    .cds_segments
+                    .iter()
+                    .any(|segment| insertion_anchor_in_segment(gene, segment, component.position))
+                {
+                    offsets.extend(transcript_offsets_for_position(gene, component.position));
                 }
             }
             AlleleComponentKind::Deletion
@@ -154,9 +155,7 @@ pub(super) fn variant_touched_transcript_offsets(gene: &Gene, variant: &VcfPosit
                     let overlap_end = component_end.min(segment.end);
                     if overlap_start <= overlap_end {
                         for pos in overlap_start..=overlap_end {
-                            if let Some(offset) = transcript_offset_for_position(gene, pos) {
-                                offsets.insert(offset);
-                            }
+                            offsets.extend(transcript_offsets_for_position(gene, pos));
                         }
                     }
                 }
@@ -204,20 +203,21 @@ pub(super) fn indel_disturbs_codon(
                 if !anchored {
                     continue;
                 }
-                if let Some(offset) = transcript_offset_for_position(gene, component.position) {
-                    // The inserted bases follow the anchor along the genome, so in
-                    // transcript order they land after it on the plus strand and
-                    // before it on the minus, where the transcript reads from
-                    // higher coordinates down. The gap is inside this codon only
-                    // when both bases it sits between are, which is the same rule
-                    // read from either end.
-                    let disturbs = match gene.strand {
+                // The inserted bases follow the anchor along the genome, so in
+                // transcript order they land after it on the plus strand and
+                // before it on the minus, where the transcript reads from higher
+                // coordinates down. The gap is inside this codon only when both
+                // bases it sits between are, which is the same rule read from
+                // either end. Every offset the anchor occupies is asked, since a
+                // slippage join reads one base twice.
+                let disturbs = transcript_offsets_for_position(gene, component.position)
+                    .into_iter()
+                    .any(|offset| match gene.strand {
                         Strand::Plus => offset >= codon_start && offset + 1 < codon_end,
                         Strand::Minus => offset > codon_start && offset < codon_end,
-                    };
-                    if disturbs {
-                        return true;
-                    }
+                    });
+                if disturbs {
+                    return true;
                 }
             }
             AlleleComponentKind::Deletion
@@ -232,7 +232,10 @@ pub(super) fn indel_disturbs_codon(
                         continue;
                     }
                     for position in overlap_start..=overlap_end {
-                        if transcript_offset_for_position(gene, position).is_some_and(inside) {
+                        if transcript_offsets_for_position(gene, position)
+                            .into_iter()
+                            .any(inside)
+                        {
                             return true;
                         }
                     }
