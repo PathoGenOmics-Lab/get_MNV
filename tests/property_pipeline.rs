@@ -249,6 +249,84 @@ fn write_combined_annotation(dir: &Path) -> PathBuf {
     path
 }
 
+/// The rows the report embeds, decoded through its dictionaries.
+///
+/// The report is a rendering of the same rows, so anything it copies verbatim
+/// has to survive the trip. Its own summary is computed in the page from these
+/// rows, so it cannot disagree with them, but the rows themselves can.
+fn report_rows(path: &Path) -> Vec<HashMap<String, String>> {
+    let page = fs::read_to_string(path).expect("read report");
+    let start = page
+        .find("id=\"report-data\"")
+        .and_then(|at| page[at..].find('>').map(|off| at + off + 1))
+        .expect("report data block");
+    let end = start + page[start..].find("</script>").expect("end of data block");
+    let data: serde_json::Value =
+        serde_json::from_str(page[start..end].trim()).expect("report data is JSON");
+
+    // The field order of the row struct the report writes.
+    const FIELDS: [&str; 26] = [
+        "sample",
+        "chrom",
+        "gene",
+        "positions",
+        "ref_bases",
+        "alt_bases",
+        "aa_change",
+        "variant_type",
+        "change_type",
+        "so_term",
+        "impact",
+        "grantham",
+        "shift",
+        "dbs",
+        "nmd",
+        "hgvs_g",
+        "hgvs_c",
+        "freq",
+        "depth",
+        "ref_codon",
+        "alt_codon",
+        "event_class",
+        "event_components",
+        "reads",
+        "phasing",
+        "phasing_reads",
+    ];
+    let interned = |key: &str, index: &serde_json::Value| -> String {
+        data["dict"][key][index.as_u64().unwrap_or(0) as usize]
+            .as_str()
+            .unwrap_or_default()
+            .to_string()
+    };
+
+    data["rows"]
+        .as_array()
+        .expect("rows array")
+        .iter()
+        .map(|row| {
+            let cells = row.as_array().expect("row array");
+            FIELDS
+                .iter()
+                .enumerate()
+                .map(|(index, field)| {
+                    let cell = &cells[index];
+                    let value = match *field {
+                        "chrom" => interned("chroms", cell),
+                        "gene" => interned("genes", cell),
+                        "variant_type" => interned("types", cell),
+                        "change_type" => interned("changes", cell),
+                        "so_term" => interned("so", cell),
+                        "impact" => interned("impacts", cell),
+                        _ => cell.as_str().unwrap_or_default().to_string(),
+                    };
+                    ((*field).to_string(), value)
+                })
+                .collect()
+        })
+        .collect()
+}
+
 fn other_base(base: char) -> char {
     match base {
         'A' => 'C',
@@ -808,6 +886,88 @@ proptest! {
             "the two notations disagree; sites {:?}",
             sites
         );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// The report shows the rows the TSV of the same run holds.
+    ///
+    /// It is a rendering of one answer, not a second opinion, so every row has to
+    /// arrive and everything it copies has to survive the trip. Its own headline
+    /// numbers are computed in the page from these rows, so they follow.
+    #[test]
+    fn the_report_shows_the_rows_the_tsv_holds(
+        sequence in reference_sequence(),
+        (sites, kinds) in prop_oneof![spaced_sites(), clustered_sites()].prop_flat_map(|sites| {
+            let len = sites.len();
+            (Just(sites), change_kinds(len))
+        }),
+    ) {
+        let dir = case_dir();
+        write_reference(&dir, &sequence);
+        write_annotations(&dir);
+        write_spliced_annotation(&dir);
+        write_minus_annotation(&dir);
+        let combined = write_combined_annotation(&dir);
+        let bases = stored_sequence(&sequence);
+
+        let vcf = dir.join("variants.vcf");
+        write_vcf(&vcf, &records_for(&bases, &sites, &kinds));
+
+        let mut args = Args::parse_from(vec![
+            "get_mnv".to_string(),
+            "--vcf".to_string(),
+            vcf.to_string_lossy().into_owned(),
+            "--fasta".to_string(),
+            dir.join("ref.fasta").to_string_lossy().into_owned(),
+            "--gff".to_string(),
+            combined.to_string_lossy().into_owned(),
+            "--report".to_string(),
+            dir.join("report.html").to_string_lossy().into_owned(),
+        ]);
+        args.output_dir = Some(dir.to_string_lossy().into_owned());
+        args.output_prefix = Some("run".to_string());
+        pipeline::run(&args).expect("pipeline should annotate and report");
+
+        let tsv = read_rows(&dir.join("run.MNV.tsv"));
+        let shown = report_rows(&dir.join("report.html"));
+
+        prop_assert_eq!(
+            tsv.len(),
+            shown.len(),
+            "the report holds a different number of rows; sites {:?}",
+            sites
+        );
+
+        for (index, (row, seen)) in tsv.iter().zip(shown.iter()).enumerate() {
+            for (column, field) in [
+                ("Chromosome", "chrom"),
+                ("Gene", "gene"),
+                ("Positions", "positions"),
+                ("Reference Bases", "ref_bases"),
+                ("Base Changes", "alt_bases"),
+                ("AA Changes", "aa_change"),
+                ("Variant Type", "variant_type"),
+                ("Change Type", "change_type"),
+                ("SO Term", "so_term"),
+                ("Impact", "impact"),
+                ("Event Components", "event_components"),
+                ("HGVS g.", "hgvs_g"),
+            ] {
+                let want = row.get(column).cloned().unwrap_or_default();
+                let got = seen.get(field).cloned().unwrap_or_default();
+                // The report writes an absent value as nothing, the TSV as a dash.
+                let same = want == got || (want == "-" && got.is_empty());
+                prop_assert!(
+                    same,
+                    "row {} column {}: the report says {:?} and the TSV {:?}; sites {:?}",
+                    index,
+                    column,
+                    got,
+                    want,
+                    sites
+                );
+            }
+        }
         let _ = fs::remove_dir_all(&dir);
     }
 }
