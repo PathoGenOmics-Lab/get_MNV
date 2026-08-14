@@ -225,7 +225,7 @@ Top-level keys:
 | Key | Meaning |
 |---|---|
 | `schema_version` | Payload version, currently `1.0.0` |
-| `sample` | The sample the run targeted, or `null` when it targeted none |
+| `sample` | The sample named with `--sample`, or `null` when the flag was not passed. `null` does not mean no sample was used: a multi-sample VCF still falls back to the first sample column, and its genotype and FORMAT fields still decide the metrics |
 | `dry_run` | Whether `--dry-run` was in force |
 | `bam_provided` | Whether a BAM was read, which is what decides the read-support fields |
 | `translation_table` | NCBI translation table number used |
@@ -240,7 +240,7 @@ Inside `global`:
 | Key | Meaning |
 |---|---|
 | `contig_count` | Contigs seen |
-| `snp_records_in_vcf` | Records read from the variant input |
+| `snp_records_in_vcf` | Variant entries kept from the input on that contig. Not the file's line count: an entry the targeted sample's genotype does not carry is not counted, so the same file gives a different number under a different `--sample` |
 | `mapped_genes` | Genes that had at least one variant on them |
 | `produced_variants` | Annotated variants, before the output filters |
 | `snp_variants`, `mnv_variants`, `snp_mnv_variants`, `indel_variants`, `intergenic_variants` | The same total split by type |
@@ -264,7 +264,9 @@ Inside `global`:
 
     `aggregate` sums the counts across samples and names no output file of its
     own: `aggregate.output_tsv` is `null`, and the per-sample paths are on the
-    `samples` entries. Branch on the key that only one shape has:
+    `samples` entries. Its `contigs` array is always empty as well, because the
+    per-contig breakdown belongs to each sample; read it from the `samples`
+    entries. Branch on the key that only one shape has:
 
     ```python
     import json
@@ -290,7 +292,7 @@ Write with:
 |---|---|
 | `schema_version` | Payload version |
 | `tool_version` | The get_MNV version that ran |
-| `command_line` | The command as invoked |
+| `command_line` | The command with every path reduced to its file name and the program written as `get_mnv`, so the manifest can be shared without publishing the directory layout it ran in. It records what was run, not a line that can be pasted back into a shell |
 | `timestamp_unix` | Seconds since the Unix epoch |
 | `summary` | The whole summary payload, unchanged |
 | `output_checksums` | `output_tsv_sha256`, `output_vcf_sha256`, `output_bcf_sha256`, each `null` for a file this run did not write |

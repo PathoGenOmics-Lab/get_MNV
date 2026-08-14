@@ -226,7 +226,7 @@ Claves de primer nivel:
 | Clave | Significado |
 |---|---|
 | `schema_version` | Versión del payload, ahora mismo `1.0.0` |
-| `sample` | La muestra a la que apuntó la ejecución, o `null` si no apuntó a ninguna |
+| `sample` | La muestra nombrada con `--sample`, o `null` si no se pasó el flag. `null` no significa que no se usara ninguna muestra: un VCF multimuestra sigue recayendo en la primera columna de muestra, y su genotipo y sus campos FORMAT siguen decidiendo las métricas |
 | `dry_run` | Si estaba en vigor `--dry-run` |
 | `bam_provided` | Si se leyó un BAM, que es lo que decide los campos de soporte de lecturas |
 | `translation_table` | Número de tabla de traducción del NCBI utilizada |
@@ -241,7 +241,7 @@ Dentro de `global`:
 | Clave | Significado |
 |---|---|
 | `contig_count` | Contigs vistos |
-| `snp_records_in_vcf` | Registros leídos de la entrada de variantes |
+| `snp_records_in_vcf` | Entradas de variantes conservadas de la entrada en ese contig. No es el número de líneas del archivo: una entrada cuyo alelo no lleva el genotipo de la muestra elegida no se cuenta, así que el mismo archivo da otro número con otro `--sample` |
 | `mapped_genes` | Genes con al menos una variante encima |
 | `produced_variants` | Variantes anotadas, antes de los filtros de salida |
 | `snp_variants`, `mnv_variants`, `snp_mnv_variants`, `indel_variants`, `intergenic_variants` | El mismo total desglosado por tipo |
@@ -267,8 +267,10 @@ Dentro de `global`:
 
     `aggregate` suma los recuentos de todas las muestras y no nombra ningún
     archivo de salida propio: `aggregate.output_tsv` es `null`, y las rutas de
-    cada muestra están en las entradas de `samples`. Bifurca por la clave que
-    solo tiene una de las dos formas:
+    cada muestra están en las entradas de `samples`. Su array `contigs` también
+    está siempre vacío, porque el desglose por contig es de cada muestra; léelo
+    de las entradas de `samples`. Bifurca por la clave que solo tiene una de las
+    dos formas:
 
     ```python
     import json
@@ -294,7 +296,7 @@ Escribe con:
 |---|---|
 | `schema_version` | Versión del payload |
 | `tool_version` | La versión de get_MNV que se ejecutó |
-| `command_line` | El comando tal y como se invocó |
+| `command_line` | El comando con cada ruta reducida a su nombre de archivo y el programa escrito como `get_mnv`, para que el manifiesto se pueda compartir sin publicar la estructura de directorios en la que se ejecutó. Registra qué se ejecutó, no una línea que se pueda pegar en un shell |
 | `timestamp_unix` | Segundos desde la época Unix |
 | `summary` | El payload de resumen entero, sin cambios |
 | `output_checksums` | `output_tsv_sha256`, `output_vcf_sha256`, `output_bcf_sha256`, cada uno `null` para el archivo que esta ejecución no escribió |
