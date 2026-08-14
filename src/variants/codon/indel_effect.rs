@@ -160,7 +160,13 @@ fn touches_phase_skipped_bases(gene: &Gene, variant: &VcfPosition) -> bool {
         crate::variants::Strand::Plus => (gene.start, gene.start + phase - 1),
         crate::variants::Strand::Minus => (gene.end.saturating_sub(phase - 1), gene.end),
     };
-    variant.overlaps_interval(skip_start, skip_end + 1)
+    // The interval as it stands. Widening it by one to make room for an
+    // insertion's anchor also widened it for a deletion, so a deletion beginning
+    // on the first translatable base was reported as touching bases it leaves
+    // alone and its residues came out unknown. An insertion is already handled
+    // here: its bases land in the gap after the anchor, and `overlaps_interval`
+    // counts an anchor only while that gap is still inside the interval.
+    variant.overlaps_interval(skip_start, skip_end)
 }
 
 /// How many coding bases the variant adds to or removes from the feature.

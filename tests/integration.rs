@@ -3668,3 +3668,74 @@ chr1\tsyn\tCDS\t101\t400\t.\t-\t0\tID=c1;Parent=m1;Name=geneA\n",
 
     fs::remove_dir_all(&tmp).ok();
 }
+
+/// Only an indel that reaches the phase-skipped bases loses its residues.
+///
+/// Those bases belong to a codon that began in a neighbouring exon, so a row
+/// cannot name the residues an indel changes there. The test for it widened the
+/// interval by one to make room for an insertion's anchor, which widened it for
+/// deletions too: a deletion beginning on the first translatable base was
+/// reported as touching bases it leaves alone, and its residues came out unknown
+/// on a change fully inside the window this row can read.
+#[test]
+fn test_e2e_deletion_past_the_phase_skipped_bases_keeps_its_residues() {
+    let tmp = temp_dir("e2e_phase_skip_boundary");
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+
+    fs::write(
+        &ref_path,
+        ">chr1\nTTTTTTTTTAAGCTGCAGCTGCAGCTGCATTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT\n",
+    )
+    .unwrap();
+    // CDS 10-29, phase 2: genomic 10 and 11 are skipped, 12 is the first base
+    // this row can translate.
+    fs::write(&genes_path, "gA\t10\t29\t+\t2\n").unwrap();
+
+    // Anchored on 11, deleting 12, 13 and 14: none of them is skipped.
+    fs::write(
+        &tmp.join("clear.vcf"),
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=60>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t11\t.\tAGCT\tA\t100\tPASS\tDP=30\n",
+    )
+    .unwrap();
+    // Anchored on 10, deleting 11, 12 and 13: 11 is skipped.
+    fs::write(
+        &tmp.join("touching.vcf"),
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=60>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t10\t.\tAAGC\tA\t100\tPASS\tDP=30\n",
+    )
+    .unwrap();
+
+    let annotate = |name: &str| -> String {
+        let mut args = base_args();
+        args.vcf_file = Some(tmp.join(format!("{name}.vcf")).to_string_lossy().into());
+        args.fasta_file = ref_path.to_string_lossy().into();
+        args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+        pipeline::run(&args).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let rows = read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")));
+        assert_eq!(rows.len(), 1, "{name}");
+        rows[0].get("AA Changes").cloned().unwrap_or_default()
+    };
+
+    let clear = annotate("clear");
+    assert_ne!(
+        clear, "Unknown",
+        "every base it deletes is one this row can translate"
+    );
+    assert!(clear.contains("del"), "it removes a residue: {clear}");
+
+    assert_eq!(
+        annotate("touching"),
+        "Unknown",
+        "this one does reach a codon the row cannot rebuild"
+    );
+
+    fs::remove_dir_all(&tmp).ok();
+}
