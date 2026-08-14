@@ -1,12 +1,13 @@
 //! Protein-level effect of indels (frameshift, in-frame, stop gained/lost).
 
 use crate::io::VcfPosition;
+use crate::variants::event::AlleleComponentKind;
 use crate::variants::{ChangeType, Gene, Strand};
 
 use super::allele_apply::apply_allele_to_feature;
 use super::gene_path::effective_bounds;
 use super::protein::{describe_protein_change, translate_cds};
-use super::transcript_model::{coding_sequence_for_gene, first_touched_transcript_offset};
+use super::transcript_model::{coding_sequence_for_gene, first_changed_transcript_offset};
 
 /// The genomic bases this variant's components actually touch.
 ///
@@ -106,7 +107,7 @@ pub(super) fn protein_effect_for_indel(
         describe_protein_change(&ref_protein, &alt_protein, gene.protein_offset, frameshift)
     };
 
-    let transcript_codon = first_touched_transcript_offset(gene, variant).and_then(|offset| {
+    let transcript_codon = first_changed_transcript_offset(gene, variant).and_then(|offset| {
         let codon_start = (offset / 3) * 3;
         let codon_end = codon_start + 3;
         let ref_codon = ref_cds.get(codon_start..codon_end).map(str::to_string)?;
@@ -138,8 +139,18 @@ pub(super) fn protein_effect_for_indel(
     let touched_lo = touched_start.max(eff_start);
     let touched_hi = touched_end.min(eff_end);
     let (ref_codon, alt_codon) = if touched_lo <= touched_hi {
+        // An insertion sits between two bases, and its own land after the anchor
+        // along the genome: in transcript order that is after the anchor on the
+        // plus strand and before it on the minus. Reading the anchor's offset
+        // either way named the codon before the one a plus-strand insertion
+        // changes, which is the same asymmetry the transcript path had.
+        let insertion_only = variant
+            .event()
+            .components
+            .iter()
+            .all(|component| matches!(component.kind, AlleleComponentKind::Insertion));
         let first_offset = match gene.strand {
-            Strand::Plus => touched_lo - eff_start,
+            Strand::Plus => (touched_lo - eff_start) + usize::from(insertion_only),
             Strand::Minus => eff_end - touched_hi,
         };
         let codon_start = (first_offset / 3) * 3;

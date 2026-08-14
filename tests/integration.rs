@@ -4199,3 +4199,105 @@ fn test_e2e_a_symbolic_allele_does_not_assert_a_frameshift() {
         Some("missense_variant")
     );
 }
+
+/// A gene and its exact reverse complement describe the same insertion the same
+/// way.
+///
+/// An insertion sits between two bases, and its own land after the anchor along
+/// the genome: in transcript order that is after the anchor on the plus strand
+/// and before it on the minus. The codon shown was picked from the anchor's own
+/// offset either way, so a plus-strand insertion anchored on a codon's last base
+/// named the codon before the one it changes, and printed it identically in the
+/// reference and alternate columns on a row labelled a HIGH frameshift naming
+/// the residue of the next codon along. The minus-strand mirror of the same
+/// transcript-level event named the right one, which is the witness here.
+#[test]
+fn test_e2e_an_insertion_names_the_codon_it_changes_on_both_strands() {
+    let tmp = temp_dir("e2e_insertion_codon_mirror");
+
+    // A 100-codon ORF on the plus strand at 101-400, and its exact reverse
+    // complement at 601-900, so the two transcripts are byte for byte the same.
+    let codons = ["GCT", "ACG", "TTC", "AAC", "CCA"];
+    let mut orf = String::from("ATG");
+    for i in 0..98 {
+        orf.push_str(codons[i % codons.len()]);
+    }
+    orf.push_str("TAA");
+    assert_eq!(orf.len(), 300);
+    let revcomp: String = orf
+        .chars()
+        .rev()
+        .map(|base| match base {
+            'A' => 'T',
+            'T' => 'A',
+            'G' => 'C',
+            _ => 'G',
+        })
+        .collect();
+    let mut bases: Vec<char> = (0..1000)
+        .map(|i| ['A', 'C', 'G', 'T'][(i * 7 + 1) % 4])
+        .collect();
+    bases.splice(100..400, orf.chars());
+    bases.splice(600..900, revcomp.chars());
+    let sequence: String = bases.iter().collect();
+    fs::write(tmp.join("ref.fas"), format!(">chr1\n{sequence}\n")).unwrap();
+    fs::write(
+        tmp.join("genes.gff3"),
+        "##gff-version 3\nchr1\tsyn\tCDS\t101\t400\t.\t+\t0\tID=cds-P;Parent=tP;Name=geneP\nchr1\tsyn\tCDS\t601\t900\t.\t-\t0\tID=cds-M;Parent=tM;Name=geneM\n",
+    )
+    .unwrap();
+
+    // The same transcript-level event either way: one base inserted between
+    // transcript offsets 29 and 30, which is the boundary of codons 10 and 11.
+    let at = |pos: usize| bases[pos - 1];
+    let header = "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=1000>\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
+    // The inserted base is complemented on the minus strand, so both records
+    // add the same base to the transcript rather than the same base to the
+    // genome.
+    for (name, pos, inserted) in [("plus", 130usize, 'A'), ("minus", 870usize, 'T')] {
+        fs::write(
+            tmp.join(format!("{name}.vcf")),
+            format!(
+                "{header}chr1\t{pos}\t.\t{}\t{}{inserted}\t100\tPASS\tDP=100\n",
+                at(pos),
+                at(pos)
+            ),
+        )
+        .unwrap();
+    }
+
+    let annotate = |name: &str| {
+        let mut args = base_args();
+        args.vcf_file = Some(tmp.join(format!("{name}.vcf")).to_string_lossy().into());
+        args.fasta_file = tmp.join("ref.fas").to_string_lossy().into();
+        args.genes_file_tsv = None;
+        args.gff_file = Some(tmp.join("genes.gff3").to_string_lossy().into());
+        args.gff_features_raw = Some("CDS".to_string());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+        pipeline::run(&args).unwrap_or_else(|e| panic!("{name} should annotate: {e}"));
+        read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")))
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| panic!("{name} should report a row"))
+    };
+
+    let plus = annotate("plus");
+    let minus = annotate("minus");
+    for column in ["AA Changes", "Reference Codon", "MNV Codon"] {
+        assert_eq!(
+            plus.get(column),
+            minus.get(column),
+            "the two strands describe the same event differently in {column}: \
+             plus {:?}, minus {:?}",
+            plus.get(column),
+            minus.get(column)
+        );
+    }
+    // And the row does not contradict itself: a frameshift changes its codon.
+    assert_ne!(
+        plus.get("Reference Codon"),
+        plus.get("MNV Codon"),
+        "an insertion that shifts the frame does not leave its codon untouched"
+    );
+}

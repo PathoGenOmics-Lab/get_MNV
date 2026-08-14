@@ -246,6 +246,31 @@ pub(super) fn indel_disturbs_codon(
     false
 }
 
+/// The first transcript offset an indel's own bases occupy.
+///
+/// An insertion sits between two bases rather than on one, and which two depends
+/// on the strand: its bases follow the anchor along the genome, so in transcript
+/// order they land after the anchor on the plus strand and before it on the
+/// minus. The codon shown for an indel was picked from the anchor's own offset
+/// either way, so a plus-strand insertion anchored on a codon's last base named
+/// the codon before the one it changes: an unchanged codon, identical in the
+/// reference and alternate columns, on a row labelled a HIGH frameshift that
+/// named the residue of the next codon along. The minus-strand mirror of the
+/// same transcript-level event named the right one.
+pub(super) fn first_changed_transcript_offset(gene: &Gene, variant: &VcfPosition) -> Option<usize> {
+    let first = first_touched_transcript_offset(gene, variant)?;
+    let insertion_only = variant
+        .event()
+        .components
+        .iter()
+        .all(|component| matches!(component.kind, AlleleComponentKind::Insertion));
+    if insertion_only && gene.strand == Strand::Plus {
+        Some(first + 1)
+    } else {
+        Some(first)
+    }
+}
+
 pub(super) fn first_touched_transcript_offset(gene: &Gene, variant: &VcfPosition) -> Option<usize> {
     variant_touched_transcript_offsets(gene, variant)
         .into_iter()
