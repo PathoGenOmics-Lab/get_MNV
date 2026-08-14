@@ -594,6 +594,103 @@ function literal(source, marker, opener) {
   throw new Error(`cannot slice ${marker}`);
 }
 
+// ---------------------------------------------------------------------------
+// The desktop variant table
+// ---------------------------------------------------------------------------
+
+/// A declaration lifted out of a source file whole, from its first line to the
+/// close of its body.
+function declaration(source, header) {
+  const at = source.indexOf(header);
+  if (at < 0) throw new Error(`cannot find ${header}`);
+  const open = source.indexOf("{", at);
+  return source.slice(at, at + header.length) + braceMatch(source, open).slice(0);
+}
+
+/// The table's own helpers, run rather than reimplemented. Node strips the
+/// TypeScript itself, so what executes here is the text the component compiles.
+async function tableHelpers(work) {
+  const source = readFileSync(
+    join(REPO, "frontend", "src", "components", "VariantTable.tsx"), "utf8");
+  const regex = source.slice(
+    source.indexOf("const NUMERIC_CELL ="),
+    source.indexOf("\n", source.indexOf("const NUMERIC_CELL =")));
+  const module = [
+    `export ${regex}`,
+    `export ${declaration(source, "function cellIsNumeric(value: string): boolean ")}`,
+    `export ${declaration(source, "function cellNumber(value: string): number | null ")}`,
+  ].join("\n\n");
+  const path = join(work, "table-helpers.ts");
+  writeFileSync(path, module + "\n");
+  return { source, helpers: await import(path) };
+}
+
+async function checkVariantTable(work) {
+  const { source, helpers } = await tableHelpers(work);
+
+  // The bundled example run, which is the data the desktop table is pointed at.
+  const lines = readFileSync(
+    join(REPO, "example", "G35894.var.snp.MNV.tsv"), "utf8").trim().split("\n");
+  const headers = lines[0].split("\t");
+  const rows = lines.slice(1).map((line) => line.split("\t"));
+  const effectiveCellValue = (row, i) => row[i] ?? "";
+
+  // The component's own column classifier, lifted from the useMemo body.
+  const classifier = braceMatch(source, source.indexOf("{", source.indexOf("headers.map((_, i) =>")));
+  const numericCols = new Function(
+    "headers", "rows", "effectiveCellValue", "cellIsNumeric",
+    `return headers.map((_, i) => ${classifier});`,
+  )(headers, rows, effectiveCellValue, helpers.cellIsNumeric);
+
+  const named = (label) => {
+    const at = headers.indexOf(label);
+    if (at < 0) throw new Error(`the example TSV has no ${label} column`);
+    return numericCols[at];
+  };
+  // Grantham holds "177 (radical)": a number carrying a qualifier, and the
+  // column whose header shares no word with the old list.
+  check("table: Grantham is read as a numeric column", named("Grantham"), true);
+  check("table: so is Positions, which holds a list of numbers", named("Positions"), true);
+  // A column absent in every row says nothing about its own type, and holds
+  // nothing to order either, so it stays text. This run had no --bam.
+  check("table: a column that is absent everywhere is not called numeric",
+    named("MNV Phasing Support"), false);
+  check("table: gene and chromosome are not",
+    [named("Gene"), named("Chromosome")], [false, false]);
+  check("table: nor is a codon column", named("MNV Codon"), false);
+  check("table: nor an HGVS descriptor", named("HGVS c."), false);
+
+  // The component's own comparator, over the real column.
+  const body = braceMatch(source, source.indexOf("{", source.indexOf("[...filtered].sort((a, b) =>")));
+  const compare = (col, sortAsc) => new Function(
+    "isNum", "col", "sortAsc", "effectiveCellValue", "cellNumber",
+    `return (a, b) => ${body};`,
+  )(numericCols[col], col, sortAsc, effectiveCellValue, helpers.cellNumber);
+
+  const gi = headers.indexOf("Grantham");
+  const value = (row) => helpers.cellNumber(row[gi]);
+  for (const ascending of [true, false]) {
+    const sorted = [...rows].sort(compare(gi, ascending));
+    const numbers = sorted.map(value);
+    // Every absent value sits on one side, never mixed in among the numbers.
+    const firstReal = numbers.findIndex((n) => n !== null);
+    const lastReal = numbers.length - 1 - [...numbers].reverse().findIndex((n) => n !== null);
+    const strays = numbers.slice(firstReal, lastReal + 1).filter((n) => n === null).length;
+    check(`table: sorting Grantham ${ascending ? "up" : "down"} keeps the absent rows together`,
+      strays, 0);
+    const real = numbers.filter((n) => n !== null);
+    const ordered = real.every((n, i) => i === 0 || (ascending ? real[i - 1] <= n : real[i - 1] >= n));
+    check(`table: sorting Grantham ${ascending ? "up" : "down"} orders it by number`, ordered, true);
+  }
+
+  // The distinction the whole column rests on: 101 is not below 5, and a row
+  // with no answer is not a row whose answer is zero.
+  check("table: a Grantham cell keeps its number, qualifier and all",
+    helpers.cellNumber("177 (radical)"), 177);
+  check("table: an absent value is not a zero", helpers.cellNumber("-"), null);
+  check("table: a real zero still is one", helpers.cellNumber("0"), 0);
+}
+
 function checkPresets() {
   const types = readFileSync(join(REPO, "frontend", "src", "types.ts"), "utf8");
   const form = readFileSync(
@@ -648,6 +745,7 @@ try {
   checkDrawing(work);
   checkRegion(work);
   checkHaplotypes(work);
+  await checkVariantTable(work);
   checkPresets();
 } finally {
   rmSync(work, { recursive: true, force: true });

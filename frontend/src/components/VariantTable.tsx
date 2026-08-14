@@ -99,14 +99,23 @@ function isAACol(header: string): "mnv" | "snp" | false {
   if (h === "snp aa changes") return "snp";
   return false;
 }
-function isNumericCol(header: string): boolean {
-  const h = header.toLowerCase();
-  return (
-    h.includes("reads") ||
-    h.includes("frequencies") ||
-    h === "total reads" ||
-    h === "positions"
-  );
+/** A cell that carries a number: a bare one, a comma-separated list of them, or a
+ *  number with a parenthesised qualifier such as "177 (radical)". */
+const NUMERIC_CELL = /^-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?(?:\s*\([^)]*\))?$/;
+
+function cellIsNumeric(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed === "" || trimmed === "-") return false;
+  return trimmed.split(",").every((part) => NUMERIC_CELL.test(part.trim()));
+}
+
+/** The leading number of a cell, or null when it holds none. `-` is not a zero: it
+ *  is the absence of an answer, and the two must not sort to the same place. */
+function cellNumber(value: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed === "" || trimmed === "-") return null;
+  const parsed = Number.parseFloat(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 /** Determine if a column is better served by a dropdown (categorical) vs text input */
@@ -159,12 +168,31 @@ export default function VariantTable({ data }: VariantTableProps) {
     return raw;
   }, [vtColIdx, snpReadsIdx, mnvReadsIdx]);
 
+  // Which columns hold numbers, decided from the values rather than from words in
+  // the header. Matching "reads", "frequencies" and "positions" left every other
+  // numeric column to be sorted as text, so a Grantham of 101 came before one of
+  // 5, and the column was filtered and aligned as if it held names.
+  const numericCols = useMemo(
+    () =>
+      headers.map((_, i) => {
+        let sawNumber = false;
+        for (const row of rows) {
+          const value = (effectiveCellValue(row, i) ?? "").trim();
+          if (value === "" || value === "-") continue;
+          if (!cellIsNumeric(value)) return false;
+          sawNumber = true;
+        }
+        return sawNumber;
+      }),
+    [headers, rows, effectiveCellValue]
+  );
+
   // Compute unique values per column for dropdowns (using effective/reclassified values)
   const columnUniques = useMemo(() => {
     const result: Record<number, string[]> = {};
     headers.forEach((h, i) => {
       // Only compute for columns that could be dropdowns
-      if (isCategoricalCol(h) || !isNumericCol(h)) {
+      if (isCategoricalCol(h) || !numericCols[i]) {
         const unique = new Set<string>();
         for (const row of rows) {
           const v = effectiveCellValue(row, i);
@@ -176,7 +204,7 @@ export default function VariantTable({ data }: VariantTableProps) {
       }
     });
     return result;
-  }, [headers, rows, effectiveCellValue]);
+  }, [headers, rows, effectiveCellValue, numericCols]);
 
   const activeFilterCount = useMemo(
     () => Object.values(colFilters).filter((v) => v.length > 0).length,
@@ -237,18 +265,26 @@ export default function VariantTable({ data }: VariantTableProps) {
   const sorted = useMemo(() => {
     if (sortCol === null) return filtered;
     const col = sortCol;
-    const isNum = isNumericCol(headers[col]);
+    const isNum = numericCols[col];
     return [...filtered].sort((a, b) => {
       const va = effectiveCellValue(a, col);
       const vb = effectiveCellValue(b, col);
       if (isNum) {
-        const na = parseFloat(va) || 0;
-        const nb = parseFloat(vb) || 0;
+        const na = cellNumber(va);
+        const nb = cellNumber(vb);
+        // An absent value is not a zero, and reading it as one buried every
+        // row that has no answer among the rows whose answer is zero. It sorts
+        // before every real value, which is where the HTML report's own table
+        // puts it, so the two agree about the same run.
+        if (na === null || nb === null) {
+          if (na === nb) return 0;
+          return (na === null ? -1 : 1) * (sortAsc ? 1 : -1);
+        }
         return sortAsc ? na - nb : nb - na;
       }
       return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
     });
-  }, [filtered, sortCol, sortAsc, headers, effectiveCellValue]);
+  }, [filtered, sortCol, sortAsc, numericCols, effectiveCellValue]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
@@ -450,7 +486,7 @@ export default function VariantTable({ data }: VariantTableProps) {
               {headers.map((h, i) => (
                 <th
                   key={i}
-                  className={`vt-th${sortCol === i ? " vt-th--sorted" : ""}${isNumericCol(h) ? " vt-th--numeric" : ""}`}
+                  className={`vt-th${sortCol === i ? " vt-th--sorted" : ""}${numericCols[i] ? " vt-th--numeric" : ""}`}
                   onClick={() => handleSort(i)}
                 >
                   <span className="vt-th-label">{h}</span>
@@ -482,7 +518,7 @@ export default function VariantTable({ data }: VariantTableProps) {
                   {headers.map((_, ci) => (
                     <td
                       key={ci}
-                      className={`${isNumericCol(headers[ci]) ? "vt-td--numeric" : ""}${isCodonCol(headers[ci]) ? " vt-td--codon" : ""}`}
+                      className={`${numericCols[ci] ? "vt-td--numeric" : ""}${isCodonCol(headers[ci]) ? " vt-td--codon" : ""}`}
                     >
                       {renderCell(row[ci] ?? "", ci, row)}
                     </td>
