@@ -283,6 +283,103 @@ function checkReport(work) {
 }
 
 // ---------------------------------------------------------------------------
+// What the matrix actually paints
+// ---------------------------------------------------------------------------
+
+/// A canvas context that records the rectangles instead of drawing them, and
+/// honours the clip, because a shape the browser clips away is not on screen
+/// and must not be judged as if it were.
+function recordingContext(painted) {
+  let clip = null, pending = null;
+  const clips = [];
+  const record = (op, x, y, w, h) => {
+    if (clip) {
+      const x1 = Math.max(x, clip.x), x2 = Math.min(x + w, clip.x + clip.w);
+      const y1 = Math.max(y, clip.y), y2 = Math.min(y + h, clip.y + clip.h);
+      if (x2 <= x1 || y2 <= y1) return;
+      x = x1; w = x2 - x1; y = y1; h = y2 - y1;
+    }
+    painted.push({ op, x, y, w, h });
+  };
+  return new Proxy({
+    fillRect: (x, y, w, h) => record("fillRect", x, y, w, h),
+    strokeRect: (x, y, w, h) => record("strokeRect", x, y, w, h),
+    rect(x, y, w, h) { pending = { x, y, w, h }; },
+    clip() { if (pending) clip = pending; },
+    save() { clips.push(clip); },
+    restore() { clip = clips.length ? clips.pop() : null; },
+    measureText: () => ({ width: 10 }),
+  }, { get: (t, k) => (k in t ? t[k] : function () {}), set: () => true });
+}
+
+/// The page's drawing code, given a fake document and that context.
+function drawingLogic(reportPath, painted) {
+  const page = readFileSync(reportPath, "utf8");
+  const data = JSON.parse(page.match(/id="report-data"[^>]*>([\s\S]*?)<\/script>/)[1]);
+  const body = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join("\n");
+  const ctx = recordingContext(painted);
+  const el = () => new Proxy(
+    {
+      style: {}, dataset: {}, clientWidth: 900, getContext: () => ctx,
+      addEventListener() {}, appendChild() {}, removeChild() {},
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 900, height: 400 }),
+    },
+    { get: (t, k) => (k in t ? t[k] : ""), set: (t, k, v) => { t[k] = v; return true; } });
+  const els = {};
+  const sandbox = {
+    D: data.dict, ROWS: data.rows, console,
+    window: { devicePixelRatio: 1, addEventListener() {} },
+    document: {
+      getElementById: (id) => (els[id] = els[id] || el()),
+      createElement: () => el(),
+      documentElement: el(), body: el(),
+      addEventListener() {}, querySelector: () => el(), querySelectorAll: () => [],
+    },
+    getComputedStyle: () => ({ getPropertyValue: () => "#000000" }),
+  };
+  createContext(sandbox);
+  // Everything up to the event handlers, which is all of the drawing.
+  runInContext(
+    body.slice(body.indexOf("var C = {"), body.indexOf('document.getElementById("exportBtn")')),
+    sandbox);
+  sandbox.view = data.rows.map((_, i) => i);
+  return sandbox;
+}
+
+function checkDrawing(work) {
+  const painted = [];
+  const sandbox = drawingLogic(buildReport(work), painted);
+  runInContext("buildMatrix()", sandbox);
+  const { mtx, LABEL_W, MIN_SPAN } = sandbox;
+  const pw = runInContext("plotWidth()", sandbox);
+
+  // Windows whose edge falls inside a group, which is where a mark drawn from a
+  // base outside the window ends up over the sample names beside the plot.
+  const windows = [null];
+  for (const [lo, hi] of mtx.groups) {
+    windows.push([lo + 0.5, lo + 0.5 + MIN_SPAN], [hi - 0.5 - MIN_SPAN, hi - 0.5]);
+  }
+  check("report: the fixture has a group to place a window inside of", mtx.groups.length > 0, true);
+
+  let split = 0, invaders = [];
+  for (const w of windows) {
+    painted.length = 0;
+    if (w) { mtx.view = w.slice(); runInContext("clampView()", sandbox); } else mtx.view = null;
+    runInContext("drawMatrix()", sandbox);
+    if (mtx.groups.some((g) => g[0] < mtx.view[0] || g[1] > mtx.view[1])) split++;
+    // The tracks are what lives on the coordinate axis, so they are what has to
+    // stay on it. The page background is the one fill that spans the canvas.
+    for (const p of painted) {
+      if (p.y >= mtx.topH) continue;
+      if (p.x === 0 && p.w >= LABEL_W + pw) continue;
+      if (p.x < LABEL_W - 1e-6 || p.x + p.w > LABEL_W + pw + 1e-6) invaders.push({ window: mtx.view.slice(), ...p });
+    }
+  }
+  check("report: at least one window leaves a group partly outside it", split > 0, true);
+  check("report: no track is painted outside the plot, over the sample names", invaders, []);
+}
+
+// ---------------------------------------------------------------------------
 // The desktop form
 // ---------------------------------------------------------------------------
 
@@ -367,6 +464,7 @@ function checkPresets() {
 const work = mkdtempSync(join(tmpdir(), "get_mnv_js_"));
 try {
   checkReport(work);
+  checkDrawing(work);
   checkPresets();
 } finally {
   rmSync(work, { recursive: true, force: true });

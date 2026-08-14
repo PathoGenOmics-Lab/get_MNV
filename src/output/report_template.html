@@ -1340,8 +1340,16 @@ function drawMatrix(){
   g.fillStyle = ink; g.globalAlpha = .6;
   mtx.groups.forEach(function(gr){
     if(gr[1] < mtx.view[0] || gr[0] > mtx.view[1]) return;
+    // Held inside the plot the way the gene bars above it are. A group with one
+    // base outside the window was drawn from where that base would have been,
+    // which is over the sample names, by as many pixels as the zoom makes a
+    // base wide. The minimum width is applied before the clamp, so a group at
+    // the very edge shows the sliver that is actually in view.
     var x1 = xOf(gr[0]), x2 = xOf(gr[1]);
-    g.fillRect(Math.min(x1,x2)-1, gy+1, Math.max(3, Math.abs(x2-x1)+2), 2);
+    var lo = Math.min(x1,x2)-1, hi = Math.max(x1,x2)+1;
+    if(hi-lo < 3) hi = lo+3;
+    lo = Math.max(LABEL_W, lo); hi = Math.min(LABEL_W+pw, hi);
+    if(hi > lo) g.fillRect(lo, gy+1, hi-lo, 2);
   });
   g.globalAlpha = 1;
 
