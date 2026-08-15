@@ -33,6 +33,16 @@ concurrency:
 permissions:
   contents: read
 
+# Each job below carries a `timeout-minutes`, because the default is six hours.
+# A pull request sat blocked for half an hour on `apt-get install samtools`
+# hanging against an Ubuntu mirror, in a job whose median run is 36 seconds, and
+# it would have gone on sitting there until the morning. The distinction that
+# matters is not how long a job takes but how long a stuck one takes to say so.
+#
+# The numbers come from the last twelve runs rather than from taste. The slowest
+# any of these has been is 3:22, and the limits sit far above that so that a cold
+# cache, which none of those runs had, is not mistaken for a hang.
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -40,6 +50,7 @@ jobs:
   rust:
     name: Build · test · clippy · fmt (core)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -58,6 +69,7 @@ jobs:
   gui:
     name: Desktop GUI builds and matches the CLI defaults
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -112,6 +124,7 @@ jobs:
   scenarios:
     name: End-to-end scenario suite
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -127,6 +140,7 @@ jobs:
   js:
     name: Report and desktop-form behaviour
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -149,6 +163,7 @@ jobs:
   truth:
     name: Synthetic ground-truth validation
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -164,6 +179,7 @@ jobs:
   docs:
     name: Documentation site builds, and names only what the tool has
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -188,6 +204,7 @@ jobs:
   phasing:
     name: Read-level phasing vs a known mixture
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -204,6 +221,7 @@ jobs:
   pileup:
     name: Read counting vs bcftools mpileup
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -219,6 +237,7 @@ jobs:
   differential:
     name: Differential annotation vs bcftools csq and SnpEff
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -235,6 +254,7 @@ jobs:
   audit:
     name: cargo audit (advisory, non-blocking)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7

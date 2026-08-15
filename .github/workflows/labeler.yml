@@ -23,6 +23,7 @@ jobs:
   label:
     name: Apply labels from the files changed
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/labeler@v5
         with:

@@ -21,6 +21,7 @@ jobs:
   auto-merge:
     name: Merge routine updates once CI is green
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       - name: Read what this pull request updates
