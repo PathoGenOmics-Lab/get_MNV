@@ -160,3 +160,56 @@ jobs:
           files: |
             dist/*_cli.tar.gz
             dist/*_cli.zip
+
+  # Everything above uploads binaries and nothing says what they should contain.
+  # A reader who downloads a 40 MB installer has no way to tell a good download
+  # from a truncated one, and no way to tell either from a substituted one. This
+  # publishes one SHA256SUMS file covering every asset, in the format
+  # `sha256sum -c` reads, so checking is one command.
+  #
+  # It waits on the whole matrix, so the file covers all four platforms or is not
+  # written at all: `needs` skips this job if any platform failed, and a
+  # checksums file that silently covered three platforms out of four would be
+  # worse than none.
+  checksums:
+    name: Publish checksums covering every asset
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checksum every asset on the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          # The release is still a draft at this point. Draft assets are
+          # downloadable by an authenticated token, which is what makes this
+          # possible before the release is published.
+          gh release download "$TAG" --repo "$REPO" --dir assets --pattern '*' --clobber
+
+          # On a rerun the previous SHA256SUMS is itself an asset, and would be
+          # checksummed into its own successor.
+          rm -f assets/SHA256SUMS
+
+          count=$(find assets -maxdepth 1 -type f | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "the release carries no assets: refusing to publish an empty checksums file" >&2
+            exit 1
+          fi
+
+          # LC_ALL=C so the order of the lines does not depend on the runner's
+          # locale, and `--` so a name beginning with a dash stays a name.
+          (cd assets && LC_ALL=C sha256sum -- * > ../SHA256SUMS)
+
+          # Read the file back and check it against the bytes on disk, rather
+          # than trusting that writing it worked.
+          (cd assets && sha256sum -c ../SHA256SUMS)
+
+          echo "checksummed $count assets"
+          cat SHA256SUMS
+
+          gh release upload "$TAG" SHA256SUMS --repo "$REPO" --clobber
