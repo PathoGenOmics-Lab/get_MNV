@@ -1,0 +1,62 @@
+# Which part of the project a pull request touches, worked out from the files it
+# changes. The labels exist so that "what is broken in the GUI" is a question the
+# issue list can answer; applying them by hand is how they stop being applied.
+#
+# The issue forms label their own issues, so this only has to cover pull requests.
+#
+# Format is actions/labeler v5, which is not v4's: a bare list of globs under the
+# label name silently matches nothing.
+
+cli:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/cli/**"
+          - "src/main.rs"
+          - "src/args.rs"
+
+gui:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "frontend/**"
+          - "src-tauri/**"
+
+report:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/output/report*"
+          - "src/output/report_template.html"
+
+annotation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/variants/**"
+          - "src/genetic_code.rs"
+          - "src/io/annotation/**"
+
+read-support:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/read_count/**"
+          - "src/read_count.rs"
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "mkdocs.yml"
+          - "README.md"
+          - "README.es.md"
+
+packaging:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/release.yml"
+          - "Cargo.toml"
+          - "CITATION.cff"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/**"
+          - ".github/dependabot.yml"
+          - "tools/**"

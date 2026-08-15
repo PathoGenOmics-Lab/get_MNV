@@ -4,6 +4,11 @@
 blank_issues_enabled: true
 
 contact_links:
+  - name: Ask a question
+    url: https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a
+    about: >-
+      Questions about how to run it, or about why a variant was annotated the way
+      it was. Answers there get marked as answers, so the next person finds them.
   - name: Documentation
     url: https://pathogenomics-lab.github.io/get_MNV/
     about: Tutorials, the CLI reference, the output format, and the glossary.
