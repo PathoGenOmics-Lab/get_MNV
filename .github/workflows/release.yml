@@ -173,10 +173,18 @@ jobs:
   # checksums file that silently covered three platforms out of four would be
   # worse than none.
   finalize:
-    name: Publish checksums and write the release notes
+    name: Publish checksums, provenance and the release notes
     needs: release
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      # Provenance is signed with the workflow's own short-lived identity, which
+      # is what makes the attestation say something a person could not forge by
+      # uploading a file.
+      id-token: write
+      attestations: write
 
     steps:
       - name: Checkout
@@ -217,6 +225,26 @@ jobs:
           cat SHA256SUMS
 
           gh release upload "$TAG" SHA256SUMS --repo "$REPO" --clobber
+
+      # The checksums say a download arrived intact. They cannot say where the
+      # file came from: a checksums file and the file it describes can both be
+      # replaced by whoever can write to the release. This signs a statement,
+      # with the workflow's own short-lived identity rather than a stored key,
+      # that these exact bytes were built by this workflow from this commit.
+      #
+      # A reader checks it with the assets in hand and nothing else:
+      #
+      #     gh attestation verify get_MNV_1.1.6_amd64.AppImage \
+      #       --repo PathoGenOmics-Lab/get_MNV
+      #
+      # For a tool that gets cited, that is the difference between "this is the
+      # file the page offered me" and "this is what the source says it is".
+      - name: Attest that these binaries came from this commit
+        uses: actions/attest-build-provenance@v2
+        with:
+          # The same set the checksums cover: the step above leaves them in
+          # release-assets/, with the previous SHA256SUMS already removed.
+          subject-path: "release-assets/*"
 
       # The notes used to be a paragraph typed into this file, describing what
       # one release contained. It outlived that release and would have described
@@ -275,6 +303,18 @@ jobs:
 
           Each file it finds prints `OK`. On macOS, `shasum -a 256
           --ignore-missing -c SHA256SUMS` does the same.
+
+          ### Check where it came from
+
+          That tells you the download arrived intact. This tells you what it is:
+
+          ```bash
+          gh attestation verify <the file you downloaded> --repo @REPO@
+          ```
+
+          Every binary here is signed with a statement that this workflow built
+          it from this repository, at the commit this release was cut from. It
+          needs no key of ours and no trust in this page.
           MARKDOWN
 
           # YAML strips the block's own indentation, so the heredoc arrives at
