@@ -28,3 +28,8 @@ tests/*/work/
 
 # Python bytecode from the checkers under tests/
 __pycache__/
+
+# Tool caches. A mkdocs-jupyter cache entry was committed once, by a change
+# about Grantham distances, and shipped in every release tarball afterwards for
+# a plugin this project does not use.
+.cache/
