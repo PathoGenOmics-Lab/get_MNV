@@ -80,6 +80,27 @@ updates:
     labels: ["dependencies", "javascript"]
     commit-message:
       prefix: "npm"
+    # Temporary, with a precise condition for removing it rather than a vague
+    # one: the newest typescript-eslint, 8.67.0, declares a peer range of
+    # `typescript >=4.8.4 <6.1.0`, and typescript is already on 7.0.2. No
+    # combination of latest versions satisfies that, so the lint family cannot
+    # move at all, and Dependabot's answer to a family it cannot resolve is to
+    # open nothing and say nothing. eslint 10 and the react-hooks rules were
+    # stuck behind a silence.
+    #
+    # Holding typescript at 5.x lets the rest of the family move, which was
+    # confirmed by resolving it: eslint 10.8.1, @eslint/js 10.0.1,
+    # eslint-plugin-react-hooks 7.1.1, eslint-plugin-react-refresh 0.5.4,
+    # typescript-eslint 8.67.0 and globals 17.11.0 all install together against
+    # typescript 5.9.3, with no peer conflict.
+    #
+    # Remove this the day typescript-eslint's peer range accepts 7, which makes
+    # TypeScript 7 a decision to take deliberately rather than a wall to sit
+    # behind. Until then it is only the major that is ignored: 5.x patches and
+    # minors still arrive.
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-lint-and-types:
         patterns:
