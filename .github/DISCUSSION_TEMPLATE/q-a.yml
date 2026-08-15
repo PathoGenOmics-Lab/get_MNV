@@ -1,0 +1,70 @@
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Questions about how to run get_MNV, or about why a variant came out the
+        way it did, belong here rather than in the issue tracker. An answer here
+        can be marked as the answer, which is what makes the next person find it.
+
+        Two things worth checking first, because they account for most questions:
+
+        - A variant outside every feature in the annotation is still reported,
+          with `intergenic` in the gene column, `-` for the amino acid change and
+          the term `intergenic_variant`. That is the intended answer, not a
+          dropped variant.
+        - Changes are merged into one codon-level MNV only when they fall in the
+          same codon. Two changes in neighbouring codons stay two variants.
+
+        If the tool crashed or refused to run, that is a
+        [bug report](https://github.com/PathoGenOmics-Lab/get_MNV/issues/new/choose)
+        instead.
+
+  - type: input
+    attributes:
+      label: Version
+      description: The output of `get_mnv --version`, or the version the desktop app shows.
+      placeholder: get_mnv 1.1.5
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: What are you trying to find out
+      description: >-
+        The analysis behind the question, not only the symptom. Knowing what
+        answer you are after usually changes what the answer should be.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: The command you ran
+      description: The whole command. If you used the desktop app, say which fields you filled in.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: What you got, and what you expected instead
+      description: >-
+        Paste the rows in question if you can, tabs and all. A question about an
+        annotation can rarely be settled from a description of it.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Where your inputs came from
+      description: >-
+        The variant caller behind the VCF, the source of the reference and the
+        annotation, and whether the annotation is GFF3 or a gene table given
+        with `--genes`. The translation table too, if you set one.
+      placeholder: |
+        VCF: bcftools 1.19, single sample
+        FASTA: NC_000962.3 from NCBI
+        Annotation: GFF3 from the same assembly
+        Translation table: default (11)
+    validations:
+      required: true
