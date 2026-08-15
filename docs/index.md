@@ -22,7 +22,8 @@ be interpreted together. These combined changes can produce a different amino
 acid effect than the individual SNVs alone.
 
 <div style="text-align: center;" markdown>
-![MNV amino acid reclassification](assets/get_mnv_aa.png){ width="620" }
+![MNV amino acid reclassification](assets/get_mnv_aa.png#only-light){ .gm-diagram width="620" }
+![MNV amino acid reclassification](assets/get_mnv_aa-dark.png#only-dark){ .gm-diagram width="620" }
 </div>
 
 ## The problem, in one codon

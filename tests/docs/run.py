@@ -18,6 +18,7 @@ binary produces:
     both the single-sample and the `--sample all` shapes
   * every page is reachable from the nav and has a twin in the other language
   * the light and dark wordmarks are the same drawing, differing only in ink
+  * the light and dark diagrams cover exactly the same pixels
 
 It is deliberately narrow. It cannot tell whether a sentence is true, only
 whether the names in it are real, which is the part that rots without anybody
@@ -414,6 +415,51 @@ def wordmark_problems() -> list[str]:
     return problems
 
 
+def artwork_problems() -> list[str]:
+    """The diagram's two variants are one drawing in two inks.
+
+    `get_mnv_aa.png` is line art on transparent paper; `get_mnv_aa-dark.png` is
+    the same art with the near-black ink inverted and the two saturated inks
+    replaced, because pure blue on a dark ground is 1.9:1 and inverting does not
+    fix that. Their alpha channels are the shape of the drawing, so comparing
+    those catches the case where one is regenerated and the other is not.
+    """
+    from PIL import Image
+
+    problems: list[str] = []
+    light = DOCS / "assets" / "get_mnv_aa.png"
+    dark = DOCS / "assets" / "get_mnv_aa-dark.png"
+    for path in (light, dark):
+        if not path.exists():
+            problems.append(f"  missing diagram: {path.name}")
+    if problems:
+        return problems
+
+    a, b = (Image.open(p).convert("RGBA") for p in (light, dark))
+    if a.size != b.size:
+        problems.append(f"  the diagrams are different sizes: {a.size} and {b.size}")
+        return problems
+    if a.getchannel("A").tobytes() != b.getchannel("A").tobytes():
+        problems.append(
+            "  the light and dark diagrams no longer cover the same pixels; "
+            "re-cut the dark one from the light one"
+        )
+
+    # And the dark one has to be light: the whole point is that its ink shows on
+    # a dark page. Measured on the pixels that are actually drawn.
+    for path, image, wanted in ((light, a, "dark"), (dark, b, "light")):
+        pixels = [p for p in image.getdata() if p[3] > 200]
+        if not pixels:
+            problems.append(f"  {path.name} has no opaque ink at all")
+            continue
+        mid = sorted(sum(p[:3]) / 3 for p in pixels)[len(pixels) // 2]
+        if wanted == "light" and mid < 128:
+            problems.append(f"  {path.name} is inked dark, so it vanishes on the dark page it is for")
+        if wanted == "dark" and mid > 128:
+            problems.append(f"  {path.name} is inked light, so it vanishes on the light page it is for")
+    return problems
+
+
 def page_structure_problems() -> list[str]:
     """No page is unreachable, and no page exists in one language only.
 
@@ -473,6 +519,7 @@ def main() -> int:
 
     problems.extend(page_structure_problems())
     problems.extend(wordmark_problems())
+    problems.extend(artwork_problems())
 
     print(
         f"{len(flags)} flags, {len(columns)} TSV columns, {len(info)} INFO keys "

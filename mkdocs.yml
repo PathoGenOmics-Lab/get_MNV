@@ -22,11 +22,10 @@ theme:
   # the same vector as the wordmark, and entirely coloured, so it needs no
   # dark-ground twin.
   logo: assets/emblem.svg
-  # The tab icon is the same emblem as the mark beside the name, in the same
-  # vector file: `get_mnv.png` is a 1875x747 wordmark, which a browser drew into
-  # a 16px square as an illegible smear and made every page carry 199 KB to do
-  # it. A browser too old for an SVG icon falls back to its own default, which
-  # is a smaller loss than an unreadable one.
+  # The tab icon is the same emblem as the mark beside the name, out of the same
+  # vector file. The wordmark itself is 2:1, so a browser drew it into a 16px
+  # square as an illegible smear. A browser too old for an SVG icon falls back
+  # to its own default, which is a smaller loss than an unreadable one.
   favicon: assets/emblem.svg
   language: en
   font:

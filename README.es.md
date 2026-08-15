@@ -43,7 +43,10 @@ La herramienta toma como entrada:
 Escribe las variantes anotadas en formato TSV, VCF o ambos.
 
 <p align="center">
-  <img src="images/get_mnv_aa.png" alt="reclasificación de aminoácidos por MNV" width="650" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/get_mnv_aa-dark.png">
+    <img src="docs/assets/get_mnv_aa.png" alt="reclasificación de aminoácidos por MNV" width="650">
+  </picture>
 </p>
 
 **Características principales:**

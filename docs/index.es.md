@@ -23,7 +23,8 @@ deben interpretarse de forma conjunta. Estos cambios combinados pueden producir
 un efecto sobre el aminoácido distinto al de los SNV por separado.
 
 <div style="text-align: center;" markdown>
-![Reclasificación de aminoácidos por MNV](assets/get_mnv_aa.png){ width="620" }
+![Reclasificación de aminoácidos por MNV](assets/get_mnv_aa.png#only-light){ .gm-diagram width="620" }
+![Reclasificación de aminoácidos por MNV](assets/get_mnv_aa-dark.png#only-dark){ .gm-diagram width="620" }
 </div>
 
 ## El problema, en un codón

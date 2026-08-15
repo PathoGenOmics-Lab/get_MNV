@@ -455,6 +455,14 @@
   border-radius: 0.4rem;
 }
 
+/* A diagram drawn on transparent paper carries its own boxes, so the frame that
+ * helps a screenshot find its edges only adds a third rectangle around the two
+ * it already has. */
+.md-typeset .gm-diagram {
+  border: none;
+  border-radius: 0;
+}
+
 .md-typeset figure figcaption {
   font-size: 0.7rem;
   color: var(--md-default-fg-color--light);

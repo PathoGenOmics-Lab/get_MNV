@@ -43,7 +43,10 @@ The tool takes:
 It writes annotated variants as TSV, VCF, or both.
 
 <p align="center">
-  <img src="images/get_mnv_aa.png" alt="MNV amino acid reclassification" width="650" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/get_mnv_aa-dark.png">
+    <img src="docs/assets/get_mnv_aa.png" alt="MNV amino acid reclassification" width="650">
+  </picture>
 </p>
 
 **Main features:**
