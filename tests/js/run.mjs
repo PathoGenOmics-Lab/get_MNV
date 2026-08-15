@@ -135,11 +135,14 @@ function buildReport(work) {
 /// script whose type says JSON is data by definition and is the one thing left
 /// out; `type="module"` and anything else is code and is kept.
 ///
-/// Case-insensitive because tag names are, and the closing tag allows space
-/// before its `>` because HTML does. Neither was in the first version of this
-/// repair, and CodeQL named them one at a time, each against the change that had
-/// just fixed the one before: allowing attributes and then missing `<SCRIPT>`,
-/// and then missing `</script >`, is the same oversight three times.
+/// The two tags are written the same way on purpose, because HTML treats them
+/// the same way: any case, and anything after whitespace up to the `>`, which in
+/// a closing tag is ignored rather than forbidden. Getting there took four
+/// rounds with CodeQL, each naming the next thing the previous repair had left
+/// out: attributes, then `<SCRIPT>`, then `</script >`, then `</script bar>`.
+/// Every one of those was the same oversight, made narrower each time, and the
+/// last of them was only ever there because the opening tag had been made
+/// permissive and the closing tag had not.
 ///
 /// What is actually being relied on is narrow, and worth stating so that the
 /// next person knows what would break it. This reads a page written by
@@ -148,7 +151,7 @@ function buildReport(work) {
 /// a page from anywhere else. If that ever stops being true, this should stop
 /// being a regular expression.
 function pageScripts(page) {
-  return [...page.matchAll(/<script(\s[^>]*)?>([\s\S]*?)<\/script\s*>/gi)]
+  return [...page.matchAll(/<script(\s[^>]*)?>([\s\S]*?)<\/script(?:\s[^>]*)?>/gi)]
     .filter((m) => !/type\s*=\s*["']application\/json["']/i.test(m[1] ?? ""))
     .map((m) => m[2])
     .join("\n");
