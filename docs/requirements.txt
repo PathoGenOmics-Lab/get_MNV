@@ -7,4 +7,4 @@ mkdocs-static-i18n~=1.3
 # Read by tests/docs/run.py to compare the light and dark artwork pixel for
 # pixel. Without it that check cannot run, and a check that quietly skips is
 # worth less than no check at all.
-pillow~=11.0
+pillow~=12.3
