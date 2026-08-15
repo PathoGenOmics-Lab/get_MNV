@@ -134,9 +134,13 @@ function buildReport(work) {
 /// page's data would be concatenated into the source about to be executed. A
 /// script whose type says JSON is data by definition and is the one thing left
 /// out; `type="module"` and anything else is code and is kept.
+///
+/// Case-insensitive because tag names are. The first version of this repair was
+/// not, and CodeQL said so about the very change that made it: allowing
+/// attributes and then missing `<SCRIPT>` is the same oversight one step along.
 function pageScripts(page) {
-  return [...page.matchAll(/<script(\s[^>]*)?>([\s\S]*?)<\/script>/g)]
-    .filter((m) => !/type\s*=\s*["']application\/json["']/.test(m[1] ?? ""))
+  return [...page.matchAll(/<script(\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
+    .filter((m) => !/type\s*=\s*["']application\/json["']/i.test(m[1] ?? ""))
     .map((m) => m[2])
     .join("\n");
 }
