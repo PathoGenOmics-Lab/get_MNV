@@ -120,11 +120,32 @@ function buildReport(work) {
   return join(work, "report.html");
 }
 
+/// Every script in the page that is code, joined.
+///
+/// Matching a bare `<script>` was enough while the template had exactly one, and
+/// would have gone on being enough right up until somebody wrote `<script defer>`
+/// in it. Then this would have quietly returned less code, and every check below
+/// would have gone on passing while exercising a page it had stopped reading.
+/// That is the shape of failure these checks exist to prevent, so it is not a
+/// shape they should have themselves.
+///
+/// The obvious repair is a trap. Allowing attributes without excluding anything
+/// also swallows `<script id="report-data" type="application/json">`, and the
+/// page's data would be concatenated into the source about to be executed. A
+/// script whose type says JSON is data by definition and is the one thing left
+/// out; `type="module"` and anything else is code and is kept.
+function pageScripts(page) {
+  return [...page.matchAll(/<script(\s[^>]*)?>([\s\S]*?)<\/script>/g)]
+    .filter((m) => !/type\s*=\s*["']application\/json["']/.test(m[1] ?? ""))
+    .map((m) => m[2])
+    .join("\n");
+}
+
 /// The page's own functions, lifted out and given its own data.
 function pageLogic(reportPath) {
   const page = readFileSync(reportPath, "utf8");
   const data = JSON.parse(page.match(/id="report-data"[^>]*>([\s\S]*?)<\/script>/)[1]);
-  const body = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join("\n");
+  const body = pageScripts(page);
 
   const sandbox = { D: data.dict, ROWS: data.rows, console, clampView() {} };
   createContext(sandbox);
@@ -316,7 +337,7 @@ function recordingContext(painted) {
 function drawingLogic(reportPath, painted) {
   const page = readFileSync(reportPath, "utf8");
   const data = JSON.parse(page.match(/id="report-data"[^>]*>([\s\S]*?)<\/script>/)[1]);
-  const body = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join("\n");
+  const body = pageScripts(page);
   const ctx = recordingContext(painted);
   const el = () => new Proxy(
     {

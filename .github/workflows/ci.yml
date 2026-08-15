@@ -26,6 +26,13 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Every job here reads the repository, builds it and runs tests. None writes a
+# comment, a label, a release or a commit. Without this block they would run with
+# whatever the repository's default token grants, which is more than that and
+# grows silently if the default is ever widened.
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
