@@ -335,4 +335,11 @@ jobs:
 
           # Overwrites whatever created the draft put there, so there is one
           # source for the notes and not two.
-          gh release edit "$TAG" --repo "$REPO" --notes-file NOTES.md
+          #
+          # `--discussion-category` takes effect when the draft is published: a
+          # release announces itself in Announcements and has somewhere for
+          # people to reply. Releases carry no comments of their own, so until
+          # now a version went out and started no conversation anywhere.
+          gh release edit "$TAG" --repo "$REPO" \
+            --notes-file NOTES.md \
+            --discussion-category Announcements
