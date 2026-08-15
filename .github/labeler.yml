@@ -54,9 +54,17 @@ packaging:
           - "Cargo.toml"
           - "CITATION.cff"
 
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "tests/**"
+
+# Everything under .github, not a list of the files there. Naming them one by
+# one left `.github/labeler.yml` itself uncovered, so the pull request adding a
+# rule to this file arrived with no label, which is a small thing that says
+# exactly how the list would have aged.
 ci:
   - changed-files:
       - any-glob-to-any-file:
-          - ".github/workflows/**"
-          - ".github/dependabot.yml"
+          - ".github/**"
           - "tools/**"
