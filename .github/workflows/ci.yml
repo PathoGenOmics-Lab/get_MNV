@@ -48,6 +48,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
             libayatana-appindicator3-dev librsvg2-dev
+      # One dependency spelled in two ecosystems: Tauri refuses to bundle when
+      # the crate and the npm package are on different minors, and that check
+      # lives inside `tauri build`, which only runs when a release is being
+      # published. The 1.1.5 release failed on all four platforms for this,
+      # after the tag was pushed. Reading it off the two lockfiles costs a
+      # second and moves the failure to the pull request that causes it.
+      - name: Tauri crate and npm package agree
+        run: python3 tools/check_tauri_versions.py
       - name: Install frontend dependencies
         run: npm --prefix frontend ci
       - name: Lint and type-check the frontend
