@@ -1,7 +1,18 @@
+<div class="gm-hero" markdown>
+
 # get_MNV
 
-**Codon-level Multi-Nucleotide Variant detection and indel annotation from VCF or iVar TSV.**
-Pure Rust · no C dependencies · cross-platform (macOS, Linux, Windows).
+<p class="gm-hero__lead">
+Codon-level Multi-Nucleotide Variant detection and indel annotation, from a VCF
+or an iVar TSV. Pure Rust, no C dependencies, on macOS, Linux and Windows.
+</p>
+
+<div class="gm-hero__actions" markdown>
+[Start here](getting-started.md){ .md-button .md-button--primary }
+[See a real report](assets/example-report.html){ .md-button target=_blank }
+</div>
+
+</div>
 
 get_MNV finds cases where two or more SNVs fall in the **same codon** and should
 be interpreted together. These combined changes can produce a different amino

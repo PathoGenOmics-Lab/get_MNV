@@ -16,13 +16,19 @@ copyright: >-
 
 theme:
   name: material
-  logo: assets/get_mnv.svg
+  # The masthead already sets the name in type, so the mark beside it is the
+  # emblem rather than the wordmark: the full wordmark renders 60px wide up
+  # there, which is too small to read and says the same thing twice.
+  logo: assets/mark.png
   # The tab icon, not the banner: `get_mnv.png` is a 1875x747 wordmark, which a
   # browser drew into a 16px square as an illegible smear and made every page
   # carry 199 KB to do it. This is the emblem out of that same artwork, square
   # and 128px, which is the part that still reads at tab size.
   favicon: assets/favicon.png
   language: en
+  font:
+    text: IBM Plex Sans
+    code: IBM Plex Mono
   icon:
     repo: fontawesome/brands/github
   features:
@@ -65,14 +71,14 @@ theme:
         name: Switch to light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: teal
+      primary: white
       accent: teal
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: teal
+      primary: black
       accent: teal
       toggle:
         icon: material/brightness-auto

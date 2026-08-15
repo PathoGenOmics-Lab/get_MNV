@@ -52,6 +52,12 @@ COLUMN_TABLE_MARKERS = (
     "Columnas adicionales cuando",
 )
 
+# A flag begins a token: the two dashes are not preceded by a word character or
+# by another dash. Without that anchor `.md-button--primary`, a CSS class in a
+# Markdown attribute list, is read as a flag named `--primary`, and the pages
+# get blamed for naming something the tool does not have.
+FLAG_PATTERN = r"(?<![\w-])(--[a-z0-9][a-z0-9-]*)"
+
 FOREIGN_FLAGS = {
     "--release", "--bin", "--path", "--locked", "--all-targets", "--nocapture",
     "--force", "--workspace", "--prefix", "--strict", "--site-dir", "--version",
@@ -91,7 +97,7 @@ def tool_vocabulary(get_mnv: Path) -> tuple[set[str], set[str], set[str]]:
     help_text = subprocess.run(
         [str(get_mnv), "--help"], capture_output=True, text=True, check=False
     ).stdout
-    flags |= set(re.findall(r"(--[a-z0-9][a-z0-9-]*)", help_text))
+    flags |= set(re.findall(FLAG_PATTERN, help_text))
     # The pages document the benchmark binary too, and it has no --help to ask:
     # it reads argv directly and runs. Its flags come from its own source, which
     # is the only place they are written down.
@@ -276,7 +282,7 @@ def documented_names(columns: set[str], info: set[str]) -> tuple[set, set, set, 
     json_keys: dict[str, set[str]] = {}
     for page in sorted(DOCS.glob("*.md")):
         text = page.read_text()
-        for flag in re.findall(r"(--[a-z0-9][a-z0-9-]*)", text):
+        for flag in re.findall(FLAG_PATTERN, text):
             flags.setdefault(flag, set()).add(page.name)
         # The tables that write down the TSV schema. Every first cell in them is
         # a column name, so a name that is not in the real header is a promise

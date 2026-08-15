@@ -1,22 +1,299 @@
-/* Refinements on top of Material for MkDocs.
+/* The look of this site, on top of Material for MkDocs.
  *
- * Only what the content of this site actually needs. Everything here is a
- * consequence of a page that reads badly without it, not decoration.
+ * Material's defaults are a good starting point and a poor finishing one: a
+ * saturated bar across the top, Roboto, and every element at the same visual
+ * weight. What follows gives the site a structure a reader can navigate by
+ * shape rather than by reading everything: one accent colour that only ever
+ * means "this is a link or a control", hairlines instead of boxes, and
+ * headings that separate sections on their own so the prose does not have to.
+ *
+ * Every colour here is checked against its own background, in both schemes, at
+ * the 4.5:1 that AA asks of body text.
  */
 
-/* Link colour in the light scheme.
- *
- * Material darkens the light-mode link colour for the primaries that would be
- * illegible on white, but not for teal: #009485 on white is 3.77:1, under the
- * 4.5:1 that AA asks of body text, and the accent used for :hover, :focus and
- * the focus ring is 2.38:1, so pointing at a link made it harder to read than
- * leaving it alone. The slate scheme already gets a brightened colour at
- * 7.92:1 and is deliberately left alone.
- */
-[data-md-color-scheme="default"] {
-  --md-typeset-a-color: #007a6c;   /* 5.25:1 on white */
-  --md-accent-fg-color: #00695f;   /* 6.59:1 on white, and the focus ring with it */
+/* ---------------------------------------------------------------- tokens -- */
+
+:root {
+  /* Teal is the project's colour, from the logo. It is used for links,
+   * controls and focus, and for nothing else, so that seeing it always means
+   * the same thing. */
+  --gm-accent: #007a6c;          /* 5.25:1 on white */
+  --gm-accent-strong: #00695f;   /* 6.59:1 on white */
+  --gm-hairline: rgba(0, 0, 0, 0.09);
+  --gm-hairline-strong: rgba(0, 0, 0, 0.16);
+  --gm-surface: #f6f8f8;
+  --gm-surface-sunken: #f0f3f3;
 }
+
+/* The dark scheme is chosen, not derived: the same teal at the same lightness
+ * would be 2.0:1 on the slate ground, so it is brightened until it clears the
+ * bar there too. */
+[data-md-color-scheme="slate"] {
+  --gm-accent: #00ccb8;          /* 7.92:1 on the slate ground */
+  --gm-accent-strong: #5fe3d3;
+  --gm-hairline: rgba(255, 255, 255, 0.12);
+  --gm-hairline-strong: rgba(255, 255, 255, 0.22);
+  --gm-surface: rgba(255, 255, 255, 0.035);
+  --gm-surface-sunken: rgba(0, 0, 0, 0.22);
+}
+
+/* Handing the accent to Material takes more than declaring it later.
+ *
+ * Its palette sheet sets the link colour twice: once on `[data-md-color-primary]`
+ * and again, for the dark scheme, on
+ * `[data-md-color-scheme="slate"][data-md-color-primary="black"]`. That second
+ * one is two attributes, so it outranks any single-attribute rule no matter
+ * which file comes last, and the dark scheme kept painting its links Material's
+ * blue while the light scheme obeyed. The attribute is repeated here only to
+ * match that weight; it selects exactly the same element it would without the
+ * repetition. */
+[data-md-color-scheme="default"][data-md-color-scheme],
+[data-md-color-scheme="slate"][data-md-color-scheme] {
+  --md-typeset-a-color: var(--gm-accent);
+  --md-accent-fg-color: var(--gm-accent-strong);
+}
+
+/* ---------------------------------------------------------------- header -- */
+
+/* A neutral header needs an edge, or it floats: the page below it starts with
+ * no boundary and the whole thing reads as one undifferentiated sheet. A
+ * hairline while at the top, a shadow once the page scrolls under it. */
+.md-header {
+  border-bottom: 1px solid var(--gm-hairline);
+  box-shadow: none;
+}
+
+.md-header--shadow {
+  border-bottom-color: transparent;
+  box-shadow: 0 0 0.2rem rgba(0, 0, 0, 0.07), 0 0.2rem 0.4rem rgba(0, 0, 0, 0.07);
+}
+
+/* The wordmark is 2.7:1 wide, so at Material's square logo size it is set in
+ * type too small to read. Give it the width it needs. */
+.md-header__button.md-logo :is(img, svg) {
+  height: 1.5rem;
+  width: auto;
+}
+
+.md-header__title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* The search field reads as a control rather than a hole in the header. */
+.md-search__form {
+  border: 1px solid var(--gm-hairline-strong);
+  border-radius: 0.3rem;
+  background-color: var(--gm-surface);
+}
+
+.md-search__form:hover {
+  background-color: var(--gm-surface-sunken);
+}
+
+[data-md-toggle="search"]:checked ~ .md-header .md-search__form {
+  border-color: var(--gm-accent);
+}
+
+/* ------------------------------------------------------------ navigation -- */
+
+/* The four group names are landmarks, not links, and they were set at the same
+ * size and weight as the fifteen pages under them. */
+.md-nav__item--section > .md-nav__link {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+  margin-top: 0.9rem;
+}
+
+/* Where you are, shown by a mark in the margin rather than by colour alone. */
+.md-nav__link--active {
+  font-weight: 600;
+}
+
+.md-sidebar--primary .md-nav__list .md-nav__link--active {
+  border-left: 2px solid var(--gm-accent);
+  margin-left: -0.6rem;
+  padding-left: calc(0.6rem - 2px);
+}
+
+.md-nav--secondary .md-nav__title {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+  box-shadow: none;
+}
+
+/* -------------------------------------------------------------- headings -- */
+
+/* A page is scanned before it is read, so the headings carry the structure:
+ * the title sits large and tight, and every section after it opens on a rule
+ * that runs the width of the column. */
+.md-typeset h1 {
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--md-default-fg-color);
+  margin-bottom: 1.2rem;
+}
+
+.md-typeset h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  margin-top: 2.4rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--gm-hairline);
+}
+
+/* The first heading of a page has the title above it, which is separation
+ * enough. */
+.md-typeset h1 + h2 {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 1.6rem;
+}
+
+.md-typeset h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin-top: 1.8rem;
+}
+
+/* The anchor mark belongs to whoever wants to copy a link, not to everyone
+ * reading the page: on a reference page with thirty headings it added thirty
+ * pilcrows to the scan. It stays reachable by keyboard. */
+.md-typeset :is(h1, h2, h3, h4, h5, h6) .headerlink {
+  opacity: 0;
+  transition: opacity 125ms;
+}
+
+.md-typeset :is(h1, h2, h3, h4, h5, h6):hover .headerlink,
+.md-typeset :is(h1, h2, h3, h4, h5, h6) .headerlink:focus {
+  opacity: 1;
+}
+
+.md-typeset h4 {
+  font-weight: 600;
+}
+
+.md-typeset {
+  line-height: 1.7;
+}
+
+/* ------------------------------------------------------------------ code -- */
+
+/* Code is most of this site. A hairline gives a block an edge without the
+ * weight of a filled box, and matches the tables and figures beside it. */
+.md-typeset pre > code {
+  border: 1px solid var(--gm-hairline);
+  border-radius: 0.3rem;
+}
+
+.md-typeset code {
+  border-radius: 0.2rem;
+}
+
+.md-typeset :not(pre) > code {
+  background-color: var(--gm-surface-sunken);
+}
+
+/* ------------------------------------------------------------- callouts --- */
+
+/* Material draws an admonition as a tinted box with a bar down its left side.
+ * Toned down to a hairline with a coloured edge, it reads as an aside instead
+ * of an alarm, which matters on pages that carry several in a row. */
+.md-typeset :is(.admonition, details) {
+  border: 1px solid var(--gm-hairline);
+  border-left-width: 3px;
+  border-radius: 0.3rem;
+  box-shadow: none;
+  font-size: 0.75rem;
+}
+
+.md-typeset :is(.admonition-title, summary) {
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------- buttons -- */
+
+.md-typeset .md-button {
+  border-radius: 0.3rem;
+  border-width: 1px;
+  font-weight: 600;
+  padding: 0.5em 1.2em;
+  transition: background-color 125ms, color 125ms, border-color 125ms;
+}
+
+/* The label colour is stated rather than inherited. With a white primary,
+ * Material's `--md-primary-bg-color` is dark, so a button that filled itself
+ * with teal and took that variable for its text came out black on teal at
+ * 4:1, under the bar. Each scheme names the label that clears it against its
+ * own fill: white on the light teal is 5.25:1, near-black on the bright teal
+ * of the dark scheme is 9.6:1. */
+.md-typeset .md-button--primary {
+  background-color: var(--gm-accent);
+  border-color: var(--gm-accent);
+  color: #fff;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .md-button--primary {
+  color: #10131a;
+}
+
+.md-typeset .md-button:is(:focus, :hover) {
+  background-color: var(--gm-accent-strong);
+  border-color: var(--gm-accent-strong);
+  color: #fff;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .md-button:is(:focus, :hover) {
+  color: #10131a;
+}
+
+/* ------------------------------------------------------------------ hero -- */
+
+/* The landing page opens on what the tool is and the two things a reader
+ * arriving cold wants: how to start, and what the output looks like. */
+.gm-hero {
+  border-bottom: 1px solid var(--gm-hairline);
+  margin-bottom: 2rem;
+  padding-bottom: 1.8rem;
+}
+
+.md-typeset .gm-hero h1 {
+  margin-bottom: 0.6rem;
+}
+
+.md-typeset .gm-hero .gm-hero__lead {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--md-default-fg-color--light);
+  max-width: 34em;
+}
+
+.md-typeset .gm-hero .gm-hero__actions {
+  margin-top: 1.4rem;
+}
+
+.md-typeset .gm-hero .gm-hero__actions .md-button + .md-button {
+  margin-left: 0.4rem;
+}
+
+/* ---------------------------------------------------------------- footer -- */
+
+.md-footer-meta {
+  border-top: 1px solid var(--gm-hairline);
+}
+
+/* -------------------------------------------------------- content pieces -- */
 
 /* The output-format pages tabulate every column and INFO key, and some of those
  * descriptions are a paragraph long. Left unattended the browser squeezes the
@@ -76,18 +353,78 @@
 /* The landing page's cards: give the whole card a hover state, so it reads as
  * one target rather than a paragraph with a link in it. */
 .md-typeset .grid.cards > ul > li {
-  transition: border-color 125ms, box-shadow 125ms;
+  border: 1px solid var(--gm-hairline);
+  border-radius: 0.4rem;
+  padding: 1rem 1.2rem;
+  transition: border-color 125ms, box-shadow 125ms, transform 125ms;
 }
 
 .md-typeset .grid.cards > ul > li:hover {
-  border-color: var(--md-accent-fg-color);
-  box-shadow: 0 0 0.2rem rgba(0, 0, 0, 0.1);
+  border-color: var(--gm-accent);
+  box-shadow: 0 0.1rem 0.5rem rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+.md-typeset .grid.cards > ul > li > hr {
+  display: none;
+}
+
+.md-typeset .grid.cards > ul > li > p:first-child {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--md-default-fg-color);
+  margin-bottom: 0.4rem;
+}
+
+.md-typeset .grid.cards > ul > li > p:last-child {
+  margin-bottom: 0;
+}
+
+/* Tables are the substance of the reference pages, so they get the same
+ * hairline treatment as everything else: a tinted head, rules between rows,
+ * and no box around the outside. Material's default is a card with a shadow,
+ * which on a page holding six tables reads as six competing objects. */
+.md-typeset table:not([class]) {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: 0.74rem;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--gm-surface);
+  border-bottom: 1px solid var(--gm-hairline-strong);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+  white-space: nowrap;
+}
+
+.md-typeset table:not([class]) td {
+  border-top: 1px solid var(--gm-hairline);
+  vertical-align: top;
+}
+
+.md-typeset table:not([class]) tr:hover td {
+  background-color: var(--gm-surface);
 }
 
 /* An image that carries a figure caption is centred with its caption under it,
- * which is what the screenshots in the two tutorials want. */
-.md-typeset figure img {
-  border-radius: 0.1rem;
+ * which is what the screenshots in the two tutorials want. A frame around it
+ * matters here because most of these figures are diagrams on white: without
+ * one they bleed into the page and lose their edges. */
+.md-typeset figure img,
+.md-typeset p > img {
+  border: 1px solid var(--gm-hairline);
+  border-radius: 0.4rem;
+}
+
+.md-typeset figure figcaption {
+  font-size: 0.7rem;
+  color: var(--md-default-fg-color--light);
+  margin-top: 0.6rem;
 }
 
 /* Keyboard keys inside prose, used by the desktop tutorial. */

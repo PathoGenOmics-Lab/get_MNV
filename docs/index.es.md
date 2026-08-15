@@ -1,7 +1,19 @@
+<div class="gm-hero" markdown>
+
 # get_MNV
 
-**Detección de variantes multinucleotídicas (MNV) a nivel de codón y anotación de indels desde VCF o iVar TSV.**
-Rust puro · sin dependencias de C · multiplataforma (macOS, Linux, Windows).
+<p class="gm-hero__lead">
+Detección de variantes multinucleotídicas a nivel de codón y anotación de
+indels, desde un VCF o un TSV de iVar. Rust puro, sin dependencias de C, en
+macOS, Linux y Windows.
+</p>
+
+<div class="gm-hero__actions" markdown>
+[Empieza aquí](getting-started.es.md){ .md-button .md-button--primary }
+[Ver un informe real](assets/example-report.html){ .md-button target=_blank }
+</div>
+
+</div>
 
 get_MNV detecta los casos en los que dos o más SNV caen en el **mismo codón** y
 deben interpretarse de forma conjunta. Estos cambios combinados pueden producir
