@@ -1,5 +1,8 @@
 <div class="gm-hero" markdown>
 
+![get_MNV](assets/logo.svg#only-light){ .gm-wordmark }
+![get_MNV](assets/logo-dark.svg#only-dark){ .gm-wordmark }
+
 # get_MNV
 
 <p class="gm-hero__lead">

@@ -260,6 +260,40 @@
 
 /* ------------------------------------------------------------------ hero -- */
 
+/* The wordmark opens the landing page. It carries no frame, unlike the diagrams
+ * further down, because it has no edges of its own to lose. Two files rather
+ * than one that decides for itself: Material swaps them on the reader's chosen
+ * theme, which is not always the system's. */
+.md-typeset .gm-hero .gm-wordmark {
+  border: none;
+  border-radius: 0;
+  display: block;
+  width: min(19rem, 82%);
+  height: auto;
+  margin: 0 0 0.4rem -0.35rem;
+}
+
+/* Material hides the variant that does not match the chosen theme with a
+ * `display: none` on `img[src$="#only-light"]`. Setting `display: block` on the
+ * mark above outranks it, so both variants were drawn, one on top of the other.
+ * The hiding is restated here at a weight that survives it. */
+[data-md-color-scheme="slate"] .md-typeset .gm-hero img[src$="#only-light"],
+[data-md-color-scheme="default"] .md-typeset .gm-hero img[src$="#only-dark"] {
+  display: none;
+}
+
+/* The title is set in type right under the mark, which already says the name.
+ * Kept for the document outline and for anyone not seeing the image, and taken
+ * out of the visual flow. */
+.md-typeset .gm-hero h1 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* The landing page opens on what the tool is and the two things a reader
  * arriving cold wants: how to start, and what the output looks like. */
 .gm-hero {

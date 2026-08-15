@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="images/get_mnv.png" alt="get_MNV logo" width="800" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img src="docs/assets/logo.svg" alt="get_MNV logo" width="640">
+  </picture>
 </p>
 
 <div align="center">

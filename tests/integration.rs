@@ -2377,7 +2377,13 @@ fn test_e2e_html_report_is_self_contained() {
         html.to_lowercase().contains("variant report"),
         "missing masthead heading"
     );
-    assert!(html.contains("alt=\"get_MNV\""), "missing the project logo");
+    // The mark is an inlined SVG rather than an <img>, so its accessible name
+    // is an aria-label. Checked because a report that loses its identity is a
+    // report nobody can tell came from this tool.
+    assert!(
+        html.contains("aria-label=\"get_MNV\""),
+        "missing the project logo"
+    );
     assert!(
         html.contains("\"rows\":["),
         "the embedded payload should carry variant rows"

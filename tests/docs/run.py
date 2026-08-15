@@ -17,6 +17,7 @@ binary produces:
   * every JSON key tabulated under "JSON files" is in a real run's JSON, for
     both the single-sample and the `--sample all` shapes
   * every page is reachable from the nav and has a twin in the other language
+  * the light and dark wordmarks are the same drawing, differing only in ink
 
 It is deliberately narrow. It cannot tell whether a sentence is true, only
 whether the names in it are real, which is the part that rots without anybody
@@ -350,6 +351,69 @@ def nav_pages() -> set[str]:
     return {page for page in pages if page.endswith(".md")}
 
 
+def wordmark_problems() -> list[str]:
+    """The two wordmarks are one drawing in two inks, and stay that way.
+
+    `logo.svg` and `logo-dark.svg` exist as separate files because a mark that
+    decides its own colour from `prefers-color-scheme` follows the reader's
+    system rather than the background it was put on, and paints itself white on
+    white the moment a site with its own toggle disagrees. The cost of two files
+    is that they can drift: someone re-exports one from the drawing program and
+    the other keeps yesterday's artwork. This compares them with their
+    stylesheets removed, so the only difference allowed is the ink.
+    """
+    problems: list[str] = []
+    light = DOCS / "assets" / "logo.svg"
+    dark = DOCS / "assets" / "logo-dark.svg"
+    for path in (light, dark):
+        if not path.exists():
+            problems.append(f"  missing wordmark: {path.name}")
+    if problems:
+        return problems
+
+    def drawing(path: Path) -> str:
+        """Everything but the stylesheet: the shapes themselves."""
+        return re.sub(r"<style[^>]*>.*?</style>", "", path.read_text(), flags=re.S)
+
+    if drawing(light) != drawing(dark):
+        problems.append(
+            "  logo.svg and logo-dark.svg are no longer the same drawing; "
+            "re-cut the dark one from the light one rather than editing it apart"
+        )
+
+    # Looking for "fill:" anywhere in the stylesheet would pass on the drawing's
+    # own twenty fills and could never fail. The rule has to be the one that
+    # repaints the five near-black shapes, and it has to repaint them light.
+    ink_rule = re.search(
+        r"([^{}]*#text2924[^{}]*)\{([^}]*)\}", dark.read_text()
+    )
+    if not ink_rule:
+        problems.append(
+            "  logo-dark.svg has no rule for the ink shapes, so it is the light mark under another name"
+        )
+    else:
+        selector, body = ink_rule.groups()
+        missing = [i for i in ("text2924", "path3", "rect2936", "rect2938", "rect2940")
+                   if i not in selector]
+        if missing:
+            problems.append(
+                f"  logo-dark.svg leaves {', '.join(missing)} in the light ink, so part of the mark "
+                "disappears on a dark ground"
+            )
+        colour = re.search(r"fill:\s*#([0-9a-fA-F]{6})", body)
+        if not colour:
+            problems.append("  logo-dark.svg's ink rule sets no fill")
+        else:
+            r, g, b = (int(colour.group(1)[i:i+2], 16) / 255 for i in (0, 2, 4))
+            lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+            if lum < 0.5:
+                problems.append(
+                    f"  logo-dark.svg paints its ink #{colour.group(1)}, which is dark: "
+                    "on a dark ground the mark loses its lettering"
+                )
+    return problems
+
+
 def page_structure_problems() -> list[str]:
     """No page is unreachable, and no page exists in one language only.
 
@@ -408,6 +472,7 @@ def main() -> int:
             )
 
     problems.extend(page_structure_problems())
+    problems.extend(wordmark_problems())
 
     print(
         f"{len(flags)} flags, {len(columns)} TSV columns, {len(info)} INFO keys "
