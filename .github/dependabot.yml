@@ -43,15 +43,65 @@ updates:
         update-types: ["major"]
 
   # The desktop app's frontend.
+  #
+  # The groups below are ordered on purpose: a dependency joins the first group
+  # whose patterns it matches, so the families come before the catch-alls.
+  #
+  # Splitting by update type alone produced two pull requests that could not
+  # both be right. `eslint` 9 to 10 went in the major group, while the bump to
+  # `eslint-plugin-react-hooks` that added `^10.0.0` to its peer range was a
+  # patch and went in the routine group. The major one then failed at `npm ci`
+  # with ERESOLVE against a peer range only the other pull request widened, and
+  # neither could be judged without the other.
+  #
+  # These families were read from the registry rather than guessed, by asking
+  # each installed version for its `peerDependencies`:
+  #
+  #   eslint          <- eslint-plugin-react-hooks, eslint-plugin-react-refresh,
+  #                      typescript-eslint
+  #   typescript      <- typescript-eslint      (so it joins the same family)
+  #   react           <- react-dom
+  #   @types/react    <- @types/react-dom
+  #   vite            <- @vitejs/plugin-react
+  #   @types/node     <- vite                   (so it joins the vite family)
+  #
+  # `@eslint/js` and `globals` declare no peer range but are the other half of
+  # the flat config, and are grouped by association rather than by a constraint.
+  #
+  # A family carries whatever update types it has to, because that is the whole
+  # point: the constraint is between the packages, not between their version
+  # numbers. What keeps a major from merging itself is the auto-merge workflow,
+  # which reads the highest semver change in the pull request.
   - package-ecosystem: npm
     directory: "/frontend"
     schedule:
       interval: monthly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     labels: ["dependencies", "javascript"]
     commit-message:
       prefix: "npm"
     groups:
+      npm-lint-and-types:
+        patterns:
+          - "eslint"
+          - "@eslint/*"
+          - "eslint-plugin-*"
+          - "eslint-config-*"
+          - "typescript"
+          - "typescript-eslint"
+          - "@typescript-eslint/*"
+          - "globals"
+      npm-react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      npm-vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+          - "@types/node"
       npm-routine:
         patterns: ["*"]
         update-types: ["minor", "patch"]

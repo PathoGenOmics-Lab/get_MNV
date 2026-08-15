@@ -29,31 +29,58 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Named rather than excluded: merge a `-routine` group, or an ungrouped
-      # update that says in so many words that it is a patch or a minor.
+      # The rule, decided once.
+      #
+      # It used to be written twice, once negated for the step that explains
+      # itself, and the two halves drifted the moment the first was edited: a
+      # grouped patch matched the merge step and the "left alone" step at the
+      # same time, so it would have merged and announced that it had not. One
+      # step decides, the other two read the answer.
+      #
+      # Named rather than excluded: merge when the pull request says in so many
+      # words that it is a patch or a minor, or when it is a `-routine` group,
+      # which the configuration already restricts to those two.
       #
       # Asking instead whether the update was "not major" let one through. A pip
       # requirement bump, `pillow ~=11.0` to `~=12.3`, reports no update type at
       # all, and an empty string is not equal to major, so the rule said yes to
-      # a major on its first day. Anything this condition cannot positively
-      # identify now waits for a person.
+      # a major on its first day. Anything this cannot positively identify still
+      # waits for a person.
+      #
+      # The update-type test once applied only to ungrouped pull requests,
+      # because it was unclear what a grouped one reports. It reports "the
+      # highest semver change being made by this PR", so a group carrying one
+      # major is a major here. That is what lets the coupled npm families in
+      # dependabot.yml hold patches and majors alike without a major slipping
+      # through on the back of a patch.
+      - name: Decide whether this one may merge itself
+        id: decide
+        env:
+          GROUP: ${{ steps.metadata.outputs.dependency-group }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+        run: |
+          set -euo pipefail
+          may_merge=false
+          case "$GROUP" in
+            *-routine) may_merge=true ;;
+          esac
+          case "$UPDATE_TYPE" in
+            version-update:semver-patch|version-update:semver-minor) may_merge=true ;;
+          esac
+          # Printed because a decision nobody can read is a decision nobody can
+          # correct: this line is what a later surprise gets diagnosed from.
+          echo "group='${GROUP}' update-type='${UPDATE_TYPE}' -> may-merge=${may_merge}"
+          echo "may-merge=${may_merge}" >> "$GITHUB_OUTPUT"
+
       - name: Queue the merge
-        if: >-
-          endsWith(steps.metadata.outputs.dependency-group, '-routine') ||
-          (steps.metadata.outputs.dependency-group == '' &&
-           (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-            steps.metadata.outputs.update-type == 'version-update:semver-minor'))
+        if: steps.decide.outputs.may-merge == 'true'
         run: gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Say why this one was left alone
-        if: >-
-          !(endsWith(steps.metadata.outputs.dependency-group, '-routine') ||
-            (steps.metadata.outputs.dependency-group == '' &&
-             (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-              steps.metadata.outputs.update-type == 'version-update:semver-minor')))
+        if: steps.decide.outputs.may-merge != 'true'
         run: |
           gh pr comment "$PR_URL" --body \
             "Left for review. Only a \`-routine\` group, or an update that identifies itself as patch or minor, merges on its own once CI passes. This one is a major update or does not say which it is."
