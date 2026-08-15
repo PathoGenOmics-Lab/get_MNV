@@ -199,7 +199,7 @@ folder of the repository.
 ## Citation
 
 If you use get_MNV, please cite it via its
-[Zenodo DOI](https://doi.org/10.5281/zenodo.13907423).
+[Zenodo DOI](https://doi.org/10.5281/zenodo.13907422).
 
 ## License
 
