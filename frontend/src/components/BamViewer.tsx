@@ -172,6 +172,35 @@ function buildLoci(data: TsvData): ViewerLocus[] {
     .filter((l): l is ViewerLocus => l !== null);
 }
 
+/**
+ * Which locus the viewer shows, from the list it is showing and the last one the
+ * user clicked.
+ *
+ * Worked out while rendering rather than corrected afterwards. It used to be an
+ * effect that wrote a corrected selection back into state, which meant the list
+ * painted once holding a selection that was not in it and then painted again to
+ * fix itself, and it made the selection two facts: what the user clicked, and
+ * what the effect had last managed to store.
+ *
+ * There is one fact now. `clickedId` is what the user clicked and nothing else
+ * writes it; this says what that means for a given list.
+ *
+ * That has a consequence worth stating, because it is a real change and not a
+ * tidier spelling of the old one. An automatic selection is no longer written
+ * back, so it lasts only as long as the list that produced it. Search for a
+ * gene, read the locus the viewer picks for you, clear the search, and the
+ * viewer returns to the locus you last clicked instead of staying on the one it
+ * picked. Clicking it makes it yours and it stays. The old effect made every
+ * automatic pick permanent, which is the other reasonable answer; this one keeps
+ * the selection meaning "what the user chose", which is the only version that
+ * can be worked out from the list without storing a second copy of it.
+ */
+function resolveSelection(loci: readonly Pick<ViewerLocus, "id">[], clickedId: string | null): string | null {
+  if (loci.length === 0) return null;
+  if (clickedId !== null && loci.some((l) => l.id === clickedId)) return clickedId;
+  return loci[0].id;
+}
+
 function locusBounds(locus: ViewerLocus): WindowRange {
   const starts = locus.positions;
   const ends = locus.positions.map((p, i) => p + Math.max(1, locus.refBases[i]?.length ?? 1) - 1);
@@ -440,7 +469,10 @@ function BamCell({ value, column, site, expectedBase, isReadStart, isReadEnd, st
 
 export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQuality }: BamViewerProps) {
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // What the user clicked. Only clicks and the arrow keys write it; what the
+  // viewer actually shows is `selectedId` below, worked out from this and the
+  // list currently on screen.
+  const [clickedId, setClickedId] = useState<string | null>(null);
   const [view, setView] = useState<BamViewResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -463,27 +495,12 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
     );
   }, [loci, search]);
 
-  // Auto-select first locus.
-  //
-  // The rule is right about this one and it is not fixed here. Correcting the
-  // selection in an effect costs a render: the list paints with a selection
-  // that is not in it, then paints again. The answer is to derive the effective
-  // selection while rendering and keep `selectedId` for what the user clicked,
-  // which means changing the ten places that read `selectedId`, among them the
-  // dependency list of the fetch below, whose exact contents are load-bearing
-  // and are explained in its own comment.
-  //
-  // That is a change to how this viewer chooses what to show, and nothing in
-  // the repository tests that today. It wants its own pull request, with tests
-  // for the selection first, not a passing remark in a dependency bump.
-  /* eslint-disable react-hooks/set-state-in-effect -- deferred, see above */
-  useEffect(() => {
-    if (filteredLoci.length === 0) { setSelectedId(null); setView(null); return; }
-    if (!selectedId || !filteredLoci.some((l) => l.id === selectedId)) {
-      setSelectedId(filteredLoci[0].id);
-    }
-  }, [filteredLoci, selectedId]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  // Which locus is on screen. See `resolveSelection`: this is worked out from
+  // the list and the click, not corrected afterwards by an effect, so the list
+  // never paints holding a selection that is not in it. Clearing the view when
+  // nothing is selected is left to the fetch below, which already does it for
+  // every other way of ending up with no locus.
+  const selectedId = resolveSelection(filteredLoci, clickedId);
 
   const selectedLocus = useMemo(
     () => filteredLoci.find((l) => l.id === selectedId) ?? null,
@@ -498,7 +515,7 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
   const shiftLocus = useCallback((delta: number) => {
     if (selectedIndex < 0 || filteredLoci.length === 0) return;
     const next = selectedIndex + delta;
-    if (next >= 0 && next < filteredLoci.length) setSelectedId(filteredLoci[next].id);
+    if (next >= 0 && next < filteredLoci.length) setClickedId(filteredLoci[next].id);
   }, [selectedIndex, filteredLoci]);
 
   useEffect(() => {
@@ -795,7 +812,7 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                   key={l.id}
                   type="button"
                   className={`bam-locus-item${selectedId === l.id ? " bam-locus-item--active" : ""}`}
-                  onClick={() => setSelectedId(l.id)}
+                  onClick={() => setClickedId(l.id)}
                 >
                   <div className="bam-locus-item-top">
                     <span className="bam-locus-gene">{l.gene}</span>
@@ -1023,7 +1040,7 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
                                   className={`bam-locus-feature${l.id === selectedId ? " bam-locus-feature--active" : ""}`}
                                   style={{ left: `${left}px`, width: `${w}px`, top: `${l.lane * 28}px` }}
                                   title={`${l.gene} · ${l.chrom}:${l.positions.join(",")} ${l.aaChanges || l.changeType || ""}`}
-                                  onClick={() => setSelectedId(l.id)}
+                                  onClick={() => setClickedId(l.id)}
                                 >
                                   <span className="bam-locus-feature-gene">{l.gene}</span>
                                   <span className="bam-locus-feature-coords">
