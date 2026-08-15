@@ -120,11 +120,48 @@ function buildReport(work) {
   return join(work, "report.html");
 }
 
+/// Every script in the page that is code, joined.
+///
+/// Matching a bare `<script>` was enough while the template had exactly one, and
+/// would have gone on being enough right up until somebody wrote `<script defer>`
+/// in it. Then this would have quietly returned less code, and every check below
+/// would have gone on passing while exercising a page it had stopped reading.
+/// That is the shape of failure these checks exist to prevent, so it is not a
+/// shape they should have themselves.
+///
+/// The obvious repair is a trap. Allowing attributes without excluding anything
+/// also swallows `<script id="report-data" type="application/json">`, and the
+/// page's data would be concatenated into the source about to be executed. A
+/// script whose type says JSON is data by definition and is the one thing left
+/// out; `type="module"` and anything else is code and is kept.
+///
+/// The two tags are written the same way on purpose, because HTML treats them
+/// the same way: any case, and anything after whitespace up to the `>`, which in
+/// a closing tag is ignored rather than forbidden. Getting there took four
+/// rounds with CodeQL, each naming the next thing the previous repair had left
+/// out: attributes, then `<SCRIPT>`, then `</script >`, then `</script bar>`.
+/// Every one of those was the same oversight, made narrower each time, and the
+/// last of them was only ever there because the opening tag had been made
+/// permissive and the closing tag had not.
+///
+/// What is actually being relied on is narrow, and worth stating so that the
+/// next person knows what would break it. This reads a page written by
+/// `src/output/report_template.html` in this same repository, minutes earlier,
+/// by the binary these checks are about. It is not a sanitiser and it never sees
+/// a page from anywhere else. If that ever stops being true, this should stop
+/// being a regular expression.
+function pageScripts(page) {
+  return [...page.matchAll(/<script(\s[^>]*)?>([\s\S]*?)<\/script(?:\s[^>]*)?>/gi)]
+    .filter((m) => !/type\s*=\s*["']application\/json["']/i.test(m[1] ?? ""))
+    .map((m) => m[2])
+    .join("\n");
+}
+
 /// The page's own functions, lifted out and given its own data.
 function pageLogic(reportPath) {
   const page = readFileSync(reportPath, "utf8");
   const data = JSON.parse(page.match(/id="report-data"[^>]*>([\s\S]*?)<\/script>/)[1]);
-  const body = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join("\n");
+  const body = pageScripts(page);
 
   const sandbox = { D: data.dict, ROWS: data.rows, console, clampView() {} };
   createContext(sandbox);
@@ -316,7 +353,7 @@ function recordingContext(painted) {
 function drawingLogic(reportPath, painted) {
   const page = readFileSync(reportPath, "utf8");
   const data = JSON.parse(page.match(/id="report-data"[^>]*>([\s\S]*?)<\/script>/)[1]);
-  const body = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join("\n");
+  const body = pageScripts(page);
   const ctx = recordingContext(painted);
   const el = () => new Proxy(
     {
