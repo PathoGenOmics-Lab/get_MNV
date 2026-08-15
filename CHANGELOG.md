@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- **`ATA` is Methionine in the mitochondrial tables.** Tables 2, 3 and 5
+  (Vertebrate, Yeast and Invertebrate Mitochondrial) translated `ATA` as
+  Isoleucine, which is its meaning in the standard code and not in theirs. Any
+  variant reaching an `ATA` codon under those tables was reported with the wrong
+  amino acid, and so could be called synonymous or missense wrongly. Tables 1, 4,
+  6, 11, 12 and 25 were correct, and table 11 is the default, so a run that did
+  not ask for a mitochondrial table is unaffected.
+
+  Each of the nine supported tables is now checked codon by codon against NCBI's
+  published tables. The three tables that were wrong already had tests, and those
+  tests passed: each checked the handful of codons whoever wrote it remembered
+  changing.
+
 ## [1.1.5] - 2026-08-15
 
 ### Added
