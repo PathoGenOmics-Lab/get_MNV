@@ -6,20 +6,36 @@ name: Mutation testing (advisory)
 # the logic does nothing, and both are worth knowing.
 #
 # It is run by hand rather than on every push, because it builds and tests once
-# per mutant and the scientific core has hundreds of them. It never fails the
-# build: a surviving mutant is a question to look at, not a defect.
+# per mutant. It never fails the build: a surviving mutant is a question to look
+# at, not a defect.
 #
 # Scope, test selection and timeouts live in `.cargo/mutants.toml` so a local
 # run matches this one.
+#
+# It is split across shards because the whole run does not fit in one job. The
+# configured scope generates 1540 mutants and a mutant costs about 2.5 seconds
+# on a warm laptop, so the single job this used to be needed 63 minutes against
+# its own 60 minute limit, on hardware faster than the runner. It had never been
+# dispatched, so nothing had ever said so. Each shard now holds a fraction of
+# that, and a final job puts the pieces back together.
 
 on:
   workflow_dispatch:
 
 jobs:
   mutants:
-    name: cargo mutants over the annotation and counting cores
+    name: Shard ${{ matrix.shard }} of 0 to 7
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # Zero-indexed, which the flag's own help does not say: it gives `1/4` as
+        # the example. Numbering these 1 to 8 quietly skipped shard 0 and ran an
+        # empty shard 8, covering 1347 of the 1540 mutants while reporting a full
+        # set of results. Listing 0 to 7 was checked by adding the shards up and
+        # by counting them without duplicates: 1540 either way.
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -29,24 +45,47 @@ jobs:
       - name: Run mutation testing
         # Surviving mutants exit non-zero; that is a report, not a failure.
         continue-on-error: true
-        run: cargo mutants --no-shuffle
-      - name: Upload the report
+        run: cargo mutants --no-shuffle --shard ${{ matrix.shard }}/8
+      - name: Upload this shard's report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: mutants-report
+          name: mutants-report-${{ matrix.shard }}
           path: mutants.out/
           retention-days: 30
-      - name: Summarise surviving mutants
-        if: always()
+
+  summary:
+    name: Surviving mutants, all shards
+    needs: mutants
+    # The shards are advisory and one may fail on its own; the report is still
+    # worth assembling from the ones that finished, and it says which did not.
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect the shard reports
+        uses: actions/download-artifact@v7
+        with:
+          pattern: mutants-report-*
+          path: shards
+      - name: Write the summary
         run: |
-          echo "## Surviving mutants" >> "$GITHUB_STEP_SUMMARY"
-          if [ -s mutants.out/missed.txt ]; then
-            echo "Logic no test distinguishes. Each line is a question: is a test" >> "$GITHUB_STEP_SUMMARY"
-            echo "missing, or does the code not do anything?" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-            cat mutants.out/missed.txt >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "None: every mutant in the examined code was caught." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          set -euo pipefail
+          {
+            echo "## Surviving mutants"
+            echo
+            arrived=$(find shards -maxdepth 1 -type d -name 'mutants-report-*' | wc -l)
+            echo "Reports from ${arrived} of 8 shards."
+            echo
+            # Sorted so the same set of survivors reads the same way between
+            # runs: the shards finish in whatever order they finish.
+            if find shards -name missed.txt -size +0 | read -r _; then
+              echo "Logic no test distinguishes. Each line is a question: is a test"
+              echo "missing, or does the code not do anything?"
+              echo
+              echo '```'
+              find shards -name missed.txt -exec cat {} + | LC_ALL=C sort
+              echo '```'
+            else
+              echo "None: every mutant in the examined code was caught."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
