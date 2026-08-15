@@ -2657,7 +2657,10 @@ fn test_sample_all_manifest_records_a_checksum_for_every_sample() {
             .expect("a TSV checksum");
         let path = sample["output_tsv"].as_str().expect("a TSV path");
         let bytes = std::fs::read(path).expect("the TSV the manifest names");
-        let actual = format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(&bytes));
+        let actual: String = <sha2::Sha256 as sha2::Digest>::digest(&bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
         assert_eq!(recorded, actual, "checksum must match the file written");
     }
 
