@@ -1,0 +1,117 @@
+name: Bug report
+description: get_MNV crashed, refused to run, or produced something that is plainly wrong
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this.
+
+        If the tool ran fine but annotated a variant differently from what you
+        expected, use **Annotation disagreement** instead: that form asks for the
+        records needed to reproduce the call.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `get_mnv --version`, or the version shown in the desktop app.
+      placeholder: get_mnv 1.1.5
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How it was installed
+      options:
+        - Bioconda (conda install -c bioconda get_mnv)
+        - Binary from the Releases page
+        - Desktop app from the Releases page
+        - Built from source (cargo install / cargo build)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Windows
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: The command you ran
+      description: >-
+        The whole command, exactly as run. If you used the desktop app, say which
+        fields you filled in instead.
+      render: shell
+      placeholder: |
+        get_mnv --vcf variants.vcf --fasta reference.fasta --gff genes.gff3 --bam sample.bam
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Error message or output
+      description: Everything the tool printed, including any warnings before the failure.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: inputs
+    attributes:
+      label: Your input files
+      description: >-
+        What produced them matters more than their size. Name the variant caller
+        for the VCF, where the reference and the annotation came from, and
+        whether the annotation is GFF3 or a gene table given with `--genes`.
+      placeholder: |
+        VCF: called with bcftools 1.19, single sample
+        FASTA: NC_000962.3 from NCBI
+        GFF3: from the same NCBI assembly
+        Translation table: default (11)
+    validations:
+      required: true
+
+  - type: textarea
+    id: records
+    attributes:
+      label: The records involved, if you can share them
+      description: >-
+        A few VCF lines and the matching annotation lines are usually enough to
+        reproduce a failure. Leave this empty if the data cannot be shared.
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and did not find this one.
+          required: true
+        - label: I checked that this still happens on the most recent release.
+          required: false

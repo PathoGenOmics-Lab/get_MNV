@@ -1,0 +1,99 @@
+name: Annotation disagreement
+description: A variant is missing from the output, or is annotated differently from what you expected
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This form asks for the records themselves. An annotation call can almost
+        never be judged from a description of it, and with the lines below it can
+        usually be reproduced in one run.
+
+        Two things worth checking first, because they explain most reports:
+
+        - A variant falling outside every feature in the annotation is still
+          reported: the gene column reads `intergenic`, the amino acid change is
+          `-`, and the term is `intergenic_variant` with `MODIFIER` impact. That
+          is the intended answer, not a dropped variant.
+        - Changes are merged into one codon-level MNV only when they fall in the
+          same codon. Three changes across one codon become a single row; a
+          fourth change in the next codon stays its own row.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `get_mnv --version`.
+      placeholder: get_mnv 1.1.5
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: The command you ran
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: vcf-records
+    attributes:
+      label: The VCF record or records
+      description: >-
+        The variant lines themselves, tabs and all. Include the header lines only
+        if they matter to the report.
+      render: text
+      placeholder: |
+        NC_000962.3	761155	.	C	T	.	PASS	.
+    validations:
+      required: true
+
+  - type: textarea
+    id: annotation-records
+    attributes:
+      label: The annotation feature that covers them
+      description: >-
+        The GFF3 line for the gene or CDS in question, or the row from the gene
+        table if you used `--genes`.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: reported
+    attributes:
+      label: What get_MNV reported
+      description: The output row or rows, or a note that nothing was reported for the position.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what led you to expect it
+      description: >-
+        If another tool disagrees, name it and its version, and paste what it
+        said. A disagreement with a specific tool is much faster to settle than
+        an impression.
+    validations:
+      required: true
+
+  - type: input
+    id: table
+    attributes:
+      label: Translation table
+      description: The value of `--translation-table`, or "default" if you did not set it.
+      placeholder: default (11)
+    validations:
+      required: true
+
+  - type: input
+    id: reference
+    attributes:
+      label: Reference and annotation source
+      description: Where the FASTA and the annotation came from, with accessions if they have them.
+      placeholder: NC_000962.3 from NCBI, GFF3 from the same assembly
+    validations:
+      required: true
