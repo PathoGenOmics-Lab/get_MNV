@@ -98,6 +98,21 @@ Escribe las variantes anotadas en TSV, VCF o ambos.
         primer arranque, haz clic derecho en la app → **Abrir** → pulsa
         **Abrir** en el diálogo.
 
+    !!! tip "Comprueba lo que has descargado"
+        Cada versión publica un fichero `SHA256SUMS` que cubre todos sus
+        binarios. Descárgalo junto al fichero que quieras y compruébalos juntos:
+
+        ```bash
+        sha256sum --ignore-missing -c SHA256SUMS
+        ```
+
+        En macOS, donde `sha256sum` ha llegado hace poco, `shasum -a 256
+        --ignore-missing -c SHA256SUMS` hace lo mismo y ha estado ahí siempre.
+
+        Cada fichero que encuentre imprime `OK`. Cualquier otra cosa significa
+        que la descarga está incompleta o que no es el fichero que publicó la
+        versión.
+
 === "Línea de comandos"
 
     ```bash

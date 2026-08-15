@@ -41,7 +41,7 @@ DOCS = REPO / "docs"
 EXAMPLE = REPO / "example"
 
 # Flags of other tools that legitimately appear in the pages: the docs show
-# cargo, npm, samtools and bcftools commands beside get_MNV's own.
+# cargo, npm, samtools, bcftools and sha256sum commands beside get_MNV's own.
 # The lines that introduce a table of TSV column names, in both languages.
 # The headings that open the JSON reference, in both languages. Everything
 # tabulated under them names a key of a payload the tool writes.
@@ -66,6 +66,7 @@ FOREIGN_FLAGS = {
     "--force", "--workspace", "--prefix", "--strict", "--site-dir", "--version",
     "--help", "--warmup", "--iters", "--no-deps", "--open", "--frozen",
     "--depth", "--branch", "--recursive", "--set-upstream-to", "--global",
+    "--ignore-missing",
 }
 
 

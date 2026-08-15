@@ -95,6 +95,21 @@ It writes annotated variants as TSV, VCF, or both.
         The app is not signed with an Apple Developer certificate. On first
         launch, right-click the app → **Open** → click **Open** in the dialog.
 
+    !!! tip "Check what you downloaded"
+        Every release carries a `SHA256SUMS` file covering all of its assets.
+        Download it next to the file you want, and check them together:
+
+        ```bash
+        sha256sum --ignore-missing -c SHA256SUMS
+        ```
+
+        On macOS, where `sha256sum` arrived only recently, `shasum -a 256
+        --ignore-missing -c SHA256SUMS` does the same and has always been
+        there.
+
+        Each file it can find prints `OK`. Anything else means the download is
+        truncated or is not the file the release published.
+
 === "Command line"
 
     ```bash
