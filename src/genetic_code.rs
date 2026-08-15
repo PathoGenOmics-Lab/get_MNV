@@ -67,12 +67,18 @@ impl GeneticCode {
                 // Vertebrate Mitochondrial
                 b"TGA" => return 'W',
                 b"AGA" | b"AGG" => return '*',
+                // ATA is Methionine here, not the Isoleucine of table 1. It was
+                // missing from tables 2, 3 and 5 until a test compared all 64
+                // codons against NCBI's published tables rather than the handful
+                // of changes anyone remembered making.
+                b"ATA" => return 'M',
                 _ => {}
             },
             3 => match codon {
                 // Yeast Mitochondrial
                 b"TGA" => return 'W',
                 b"CTT" | b"CTC" | b"CTA" | b"CTG" => return 'T',
+                b"ATA" => return 'M',
                 _ => {}
             },
             4 => {
@@ -85,6 +91,7 @@ impl GeneticCode {
                 // Invertebrate Mitochondrial
                 b"TGA" => return 'W',
                 b"AGA" | b"AGG" => return 'S',
+                b"ATA" => return 'M',
                 _ => {}
             },
             6 => match codon {
@@ -184,6 +191,98 @@ fn translate_standard(codon: &[u8; 3]) -> char {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every supported table in NCBI's own notation: the amino acid for each of
+    /// the 64 codons, in the order NCBI prints them, first base changing
+    /// slowest and third base fastest, each cycling T, C, A, G.
+    ///
+    /// Taken from <https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi> and
+    /// cross-checked against the tables Biopython carries.
+    ///
+    /// Written in that form deliberately. A test that listed codons the way the
+    /// match arms below list them would be the same sentence said twice, and
+    /// would agree with a wrong table as readily as a right one. This is the
+    /// published shape of the answer and it does not resemble the code it
+    /// checks: it caught ATA, which three of these tables call Methionine and
+    /// this module was calling Isoleucine.
+    const NCBI_TABLES: &[(u8, &str)] = &[
+        (
+            1,
+            "FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG",
+        ),
+        (
+            2,
+            "FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIMMTTTTNNKKSS**VVVVAAAADDEEGGGG",
+        ),
+        (
+            3,
+            "FFLLSSSSYY**CCWWTTTTPPPPHHQQRRRRIIMMTTTTNNKKSSRRVVVVAAAADDEEGGGG",
+        ),
+        (
+            4,
+            "FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG",
+        ),
+        (
+            5,
+            "FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIMMTTTTNNKKSSSSVVVVAAAADDEEGGGG",
+        ),
+        (
+            6,
+            "FFLLSSSSYYQQCC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG",
+        ),
+        (
+            11,
+            "FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG",
+        ),
+        (
+            12,
+            "FFLLSSSSYY**CC*WLLLSPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG",
+        ),
+        (
+            25,
+            "FFLLSSSSYY**CCGWLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG",
+        ),
+    ];
+
+    /// The codon at a position in NCBI's ordering.
+    fn ncbi_codon(index: usize) -> [u8; 3] {
+        const BASES: [u8; 4] = *b"TCAG";
+        [BASES[index / 16], BASES[(index / 4) % 4], BASES[index % 4]]
+    }
+
+    #[test]
+    fn every_codon_of_every_supported_table_agrees_with_ncbi() {
+        for &(table, published) in NCBI_TABLES {
+            let code = GeneticCode::new(table).expect("a supported table");
+            assert_eq!(published.len(), 64, "table {table} needs 64 amino acids");
+            for (index, want) in published.chars().enumerate() {
+                let codon = ncbi_codon(index);
+                let got = code.translate(&codon);
+                assert_eq!(
+                    got,
+                    want,
+                    "table {table}, codon {}: this says {got}, NCBI says {want}",
+                    std::str::from_utf8(&codon).unwrap(),
+                );
+            }
+        }
+    }
+
+    /// A table the tool offers but nobody wrote the answer for is a table
+    /// nothing checks, and the check above would pass without ever looking at
+    /// it.
+    #[test]
+    fn every_supported_table_has_a_published_answer_to_check_against() {
+        let checked: Vec<u8> = NCBI_TABLES.iter().map(|&(table, _)| table).collect();
+        let mut offered = SUPPORTED_TABLES.to_vec();
+        offered.sort_unstable();
+        let mut checked_sorted = checked.clone();
+        checked_sorted.sort_unstable();
+        assert_eq!(
+            offered, checked_sorted,
+            "SUPPORTED_TABLES and the NCBI answers in this test have drifted apart"
+        );
+    }
 
     #[test]
     fn test_all_supported_tables_construct() {
