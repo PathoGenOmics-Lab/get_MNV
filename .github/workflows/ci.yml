@@ -1,13 +1,30 @@
 name: CI
 
-# Quality gate for get_MNV. Runs on every push and pull request. The Tauri
-# desktop GUI crate is checked in its own job, which installs the system
-# WebKit/GTK libraries it needs.
+# Quality gate for get_MNV. Runs once on a pull request, and again on main after
+# the merge. The Tauri desktop GUI crate is checked in its own job, which
+# installs the system WebKit/GTK libraries it needs.
+#
+# `push` was on ["**"] alongside `pull_request`, which meant every commit on a
+# branch with a pull request open ran the whole suite twice against the same
+# commit: 22 jobs where 11 answer the question, and two notifications for one
+# result. Restricting `push` to main leaves each commit checked exactly once,
+# and main itself still checked after a merge.
+#
+# The cost of this is that a branch pushed without a pull request is not
+# checked. Nothing reaches main that way: main requires a pull request, and the
+# checks it requires are reported by the `pull_request` run.
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
+
+# A second push to a pull request makes the first run's answer irrelevant, so
+# stop it rather than pay for it. Runs on main are left alone: those record
+# whether a merged commit is sound, and a cancelled one records nothing.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
