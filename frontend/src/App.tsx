@@ -321,7 +321,7 @@ function App() {
   const [samples, setSamples] = useState<SampleEntry[]>([]);
   const [activeSampleId, setActiveSampleId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showValidation, setShowValidation] = useState(false);
+  const [validationRequested, setValidationRequested] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [justAssigned, setJustAssigned] = useState<Set<string>>(new Set());
   const [gffAvailableFeatures, setGffAvailableFeatures] = useState<string[]>([]);
@@ -388,10 +388,19 @@ function App() {
     config.fastaFile.length > 0 &&
     config.genesFile.length > 0;
 
-  // Clear validation errors once all required fields are filled
-  useEffect(() => {
-    if (filesReady) setShowValidation(false);
-  }, [filesReady]);
+  // Whether to point at the missing fields: the user asked to run while
+  // something was missing, and something is still missing.
+  //
+  // Derived rather than stored. It used to be a second piece of state that an
+  // effect switched off once the files arrived, which meant a render showing
+  // stale errors, then a second render to correct it, and two facts that had to
+  // be kept in step by hand. This cannot fall out of step.
+  //
+  // One deliberate difference: emptying a required field after filling it now
+  // points at it again, where before the errors stayed off until the user
+  // pressed run a second time. The field is required and missing, and the user
+  // has already said they want to run, so saying so is the better answer.
+  const showValidation = validationRequested && !filesReady;
 
   const fileCount = [
     samples.length > 0 ? "vcf" : "",
@@ -793,10 +802,10 @@ function App() {
   // Shared run trigger — checks for overwrite conflicts before launching
   const triggerRun = useCallback(async () => {
     if (!filesReady || samples.length === 0) {
-      setShowValidation(true);
+      setValidationRequested(true);
       return;
     }
-    setShowValidation(false);
+    setValidationRequested(false);
 
     if (runnableCount > 0) {
       const toRun = samples.filter((s) => s.status === "pending" || s.status === "error");
@@ -809,11 +818,21 @@ function App() {
     }
   }, [filesReady, samples, runnableCount, handleRunAll, handleRerunAll, confirmOutputWrites]);
 
-  // Ctrl+Enter / Cmd+Enter shortcut to run analysis
+  // Ctrl+Enter / Cmd+Enter shortcut to run analysis.
+  //
+  // The listener is registered once, so it needs somewhere to read the current
+  // values from. These refs are written after the commit rather than during the
+  // render: a render can be thrown away, by StrictMode's double render or by
+  // concurrent rendering abandoning work, and a ref written during a render that
+  // was discarded holds a value no committed screen ever had. The handler below
+  // only runs in response to a keypress, which is always after a commit, so it
+  // sees the same values the user is looking at.
   const triggerRunRef = useRef(triggerRun);
-  triggerRunRef.current = triggerRun;
   const runStateRef = useRef({ running, filesReady, runnableCount });
-  runStateRef.current = { running, filesReady, runnableCount };
+  useEffect(() => {
+    triggerRunRef.current = triggerRun;
+    runStateRef.current = { running, filesReady, runnableCount };
+  });
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

@@ -463,13 +463,27 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
     );
   }, [loci, search]);
 
-  // Auto-select first locus
+  // Auto-select first locus.
+  //
+  // The rule is right about this one and it is not fixed here. Correcting the
+  // selection in an effect costs a render: the list paints with a selection
+  // that is not in it, then paints again. The answer is to derive the effective
+  // selection while rendering and keep `selectedId` for what the user clicked,
+  // which means changing the ten places that read `selectedId`, among them the
+  // dependency list of the fetch below, whose exact contents are load-bearing
+  // and are explained in its own comment.
+  //
+  // That is a change to how this viewer chooses what to show, and nothing in
+  // the repository tests that today. It wants its own pull request, with tests
+  // for the selection first, not a passing remark in a dependency bump.
+  /* eslint-disable react-hooks/set-state-in-effect -- deferred, see above */
   useEffect(() => {
     if (filteredLoci.length === 0) { setSelectedId(null); setView(null); return; }
     if (!selectedId || !filteredLoci.some((l) => l.id === selectedId)) {
       setSelectedId(filteredLoci[0].id);
     }
   }, [filteredLoci, selectedId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const selectedLocus = useMemo(
     () => filteredLoci.find((l) => l.id === selectedId) ?? null,
@@ -525,6 +539,15 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
   // Depends on `selectedId` + `loci` (stable references) instead of `selectedLocus`
   // (object ref that changes on every search keystroke). This avoids redundant
   // backend calls when the user types in the search box.
+  //
+  // The rule reports one position per effect, so it looks like it objects to the
+  // early return. It does not: removing that line only moves the report to
+  // `setLoading(true)` below. What it objects to is a fetch written as an
+  // effect, and every fetch written as an effect announces that it has started
+  // before it can await anything. Satisfying it here means moving this
+  // component onto Suspense or a fetching library, which is an architecture
+  // decision and not a lint fix, so this stays as it is deliberately.
+  /* eslint-disable react-hooks/set-state-in-effect -- a fetch effect has to announce that it started */
   useEffect(() => {
     const locus = loci.find((l) => l.id === selectedId) ?? null;
     if (!locus) { setView(null); setError(null); setLoading(false); return; }
@@ -563,6 +586,7 @@ export default function BamViewer({ bamPath, fastaPath, data, minMapq, minBaseQu
 
     return () => { cancelled = true; };
   }, [bamPath, fastaPath, minBaseQuality, minMapq, selectedId, loci]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   /* ── Auto-scroll to center variant when data loads ── */
   // Uses `selectedId` (string) instead of `selectedLocus` (object) to avoid
