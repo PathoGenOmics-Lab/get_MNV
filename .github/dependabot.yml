@@ -1,0 +1,92 @@
+# Dependency updates.
+#
+# A configuration lived here before and was removed, because it opened one pull
+# request per dependency and led with major bumps: five arrived in a single day,
+# `bio` 2.3.0 to 3.0.0 and `rust-htslib` 0.49 to 1.0.0 among them, and all five
+# were closed. Nothing about that was wrong except the shape of it. This one
+# keeps the updates and drops the noise:
+#
+#   * monthly, not weekly
+#   * grouped, so one pull request carries a whole ecosystem's routine bumps
+#   * majors kept apart, in their own single pull request, because those are the
+#     ones that change APIs and want a person
+#
+# The minor and patch group is merged automatically once CI passes; see
+# .github/workflows/dependabot-auto-merge.yml. The major group never is.
+#
+# `schedule` here is Dependabot's own timer, not a cron in GitHub Actions: no
+# workflow runs on a schedule in this repository.
+#
+# Security updates are a separate mechanism, enabled in the repository settings,
+# and are unaffected by any of this: a vulnerable dependency still gets its own
+# pull request the day the advisory lands, major or not.
+
+version: 2
+
+updates:
+  # The Rust workspace: the CLI at the root and the desktop crate under
+  # src-tauri, which share one lockfile.
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "rust"]
+    commit-message:
+      prefix: "cargo"
+    groups:
+      cargo-routine:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      cargo-major:
+        patterns: ["*"]
+        update-types: ["major"]
+
+  # The desktop app's frontend.
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "javascript"]
+    commit-message:
+      prefix: "npm"
+    groups:
+      npm-routine:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      npm-major:
+        patterns: ["*"]
+        update-types: ["major"]
+
+  # The documentation site's build dependencies.
+  - package-ecosystem: pip
+    directory: "/docs"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    labels: ["dependencies", "documentation"]
+    commit-message:
+      prefix: "docs"
+    groups:
+      docs-routine:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      docs-major:
+        patterns: ["*"]
+        update-types: ["major"]
+
+  # The actions the workflows themselves pin. These go stale silently: a
+  # deprecated runner image or a Node version dropped from an action is only
+  # noticed when a job starts warning, or fails.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    labels: ["dependencies", "github-actions"]
+    commit-message:
+      prefix: "actions"
+    groups:
+      actions-all:
+        patterns: ["*"]

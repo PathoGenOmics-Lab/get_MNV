@@ -1,0 +1,54 @@
+name: Dependabot auto-merge
+
+# Merges Dependabot's routine updates once CI has passed, and never touches a
+# major one.
+#
+# The point of the split is that a minor or patch bump that survives the whole
+# suite (the scenario suite, the differential and pileup comparisons, the
+# ground-truth run, the JavaScript checks and the docs vocabulary check) has
+# already been examined more carefully than a person would examine it by eye,
+# while a major bump changes APIs and wants a person to look.
+#
+# Triggered by the pull request itself, not by a schedule.
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Merge routine updates once CI is green
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    steps:
+      - name: Read what this pull request updates
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # A grouped pull request reports its group rather than a single update
+      # type, so both are consulted: the groups whose names end in `-routine`
+      # carry only minor and patch bumps, by the rules in dependabot.yml.
+      - name: Queue the merge
+        if: >-
+          endsWith(steps.metadata.outputs.dependency-group, '-routine') ||
+          (steps.metadata.outputs.dependency-group == '' &&
+           steps.metadata.outputs.update-type != 'version-update:semver-major')
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Say why a major was left alone
+        if: >-
+          endsWith(steps.metadata.outputs.dependency-group, '-major') ||
+          steps.metadata.outputs.update-type == 'version-update:semver-major'
+        run: |
+          gh pr comment "$PR_URL" --body \
+            "Left for review: this is a major update, and those change APIs. Routine minor and patch updates merge themselves once CI passes."
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
