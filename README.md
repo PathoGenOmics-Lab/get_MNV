@@ -7,11 +7,11 @@
 
 <div align="center">
 
-[![License: AGPL v3](https://img.shields.io/badge/license-AGPL%20v3-%23af64d1?style=flat-square)](LICENSE)
-[![Bioconda](https://img.shields.io/conda/dn/bioconda/get_mnv.svg?style=flat-square&label=bioconda)](https://anaconda.org/bioconda/get_mnv)
-[![Version](https://img.shields.io/badge/version-1.1.5-%23149389?style=flat-square)](https://github.com/PathoGenOmics-Lab/get_MNV/releases)
-[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13907423-%23ff0077?style=flat-square)](https://doi.org/10.5281/zenodo.13907423)
-[![PGO](https://img.shields.io/badge/PathoGenOmics-lab-%23E52421?style=flat-square)](https://github.com/PathoGenOmics-Lab)
+<a href="LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/license-AGPL%20v3-%23af64d1?style=flat-square&amp;labelColor=21262d"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL%20v3-%23af64d1?style=flat-square"></picture></a>
+<a href="https://anaconda.org/bioconda/get_mnv"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/conda/dn/bioconda/get_mnv.svg?style=flat-square&amp;label=bioconda&amp;labelColor=21262d"><img alt="Bioconda" src="https://img.shields.io/conda/dn/bioconda/get_mnv.svg?style=flat-square&amp;label=bioconda"></picture></a>
+<a href="https://github.com/PathoGenOmics-Lab/get_MNV/releases"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/version-1.1.5-%23149389?style=flat-square&amp;labelColor=21262d"><img alt="Version" src="https://img.shields.io/badge/version-1.1.5-%23149389?style=flat-square"></picture></a>
+<a href="https://doi.org/10.5281/zenodo.13907423"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13907423-%23ff0077?style=flat-square&amp;labelColor=21262d"><img alt="DOI" src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13907423-%23ff0077?style=flat-square"></picture></a>
+<a href="https://github.com/PathoGenOmics-Lab"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/PathoGenOmics-lab-%23E52421?style=flat-square&amp;labelColor=21262d"><img alt="PGO" src="https://img.shields.io/badge/PathoGenOmics-lab-%23E52421?style=flat-square"></picture></a>
 
 **Multi-Nucleotide Variant detection - codon-level annotation from VCF or iVar TSV.**
 **Pure Rust · no C dependencies · cross-platform (macOS, Linux, Windows)**
