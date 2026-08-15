@@ -1,8 +1,6 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
-    <img src="docs/assets/logo.svg" alt="get_MNV logo" width="640">
-  </picture>
+  <img src="docs/assets/logo.svg#gh-light-mode-only" alt="get_MNV logo" width="640">
+  <img src="docs/assets/logo-dark.svg#gh-dark-mode-only" alt="get_MNV logo" width="640">
 </p>
 
 <div align="center">
@@ -41,10 +39,8 @@ and writes annotated variants as TSV, VCF, or both, plus a self-contained
 interactive HTML report.
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/get_mnv_aa-dark.png">
-    <img src="docs/assets/get_mnv_aa.png" alt="MNV amino acid reclassification" width="650">
-  </picture>
+  <img src="docs/assets/get_mnv_aa.png#gh-light-mode-only" alt="MNV amino acid reclassification" width="650">
+  <img src="docs/assets/get_mnv_aa-dark.png#gh-dark-mode-only" alt="MNV amino acid reclassification" width="650">
 </p>
 
 - Groups SNVs by codon and reports SNP, MNV, or SNP/MNV calls

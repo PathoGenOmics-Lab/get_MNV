@@ -1,8 +1,6 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
-    <img src="docs/assets/logo.svg" alt="logo de get_MNV" width="640">
-  </picture>
+  <img src="docs/assets/logo.svg#gh-light-mode-only" alt="logo de get_MNV" width="640">
+  <img src="docs/assets/logo-dark.svg#gh-dark-mode-only" alt="logo de get_MNV" width="640">
 </p>
 
 <div align="center">
@@ -41,10 +39,8 @@ opcionalmente las lecturas alineadas, y escribe las variantes anotadas en TSV,
 VCF o ambos, además de un informe HTML interactivo y autocontenido.
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/get_mnv_aa-dark.png">
-    <img src="docs/assets/get_mnv_aa.png" alt="reclasificación de aminoácidos por MNV" width="650">
-  </picture>
+  <img src="docs/assets/get_mnv_aa.png#gh-light-mode-only" alt="reclasificación de aminoácidos por MNV" width="650">
+  <img src="docs/assets/get_mnv_aa-dark.png#gh-dark-mode-only" alt="reclasificación de aminoácidos por MNV" width="650">
 </p>
 
 - Agrupa los SNV por codón y reporta llamadas SNP, MNV o SNP/MNV
