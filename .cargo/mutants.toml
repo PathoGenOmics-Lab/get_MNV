@@ -1,0 +1,73 @@
+# Mutation testing configuration.
+#
+# `cargo mutants` changes the source (flips a comparison, replaces a function
+# body with a default) and reports whether the test suite notices. A surviving
+# mutant is a piece of logic no test distinguishes: either a test is missing, or
+# the logic does not do anything, and both are worth knowing.
+#
+# It is advisory. A surviving mutant is a question, not a defect, and it never
+# fails CI.
+
+# The scientific core. Mutating a comparison in codon, splice or consequence
+# handling changes what a variant is annotated as; mutating the report builder
+# or the CLI mostly changes formatting, which the suite is not designed to pin
+# down mutant by mutant.
+#
+# `read_count` was outside this list until the counting core became reachable
+# without a BAM. It was the least-tested part of the tool and the part where
+# every recent defect lived, which is exactly the combination mutation testing
+# exists to expose: a surviving mutant there means no test distinguishes a rule
+# the scientific output depends on.
+examine_globs = [
+    "src/variants/**/*.rs",
+    "src/read_count/**/*.rs",
+    "src/read_count.rs",
+    "src/genetic_code.rs",
+    "src/utils.rs",
+]
+
+# Generated data and fixture plumbing carry no annotation logic.
+exclude_globs = [
+    "src/variants/property_tests.rs",
+    "src/variants/codon/tests.rs",
+    "src/io/annotation/tests.rs",
+]
+
+# Reading a BAM is I/O, not logic: those functions are covered by the scenario,
+# pileup and phasing suites, which need samtools and cannot run per mutant.
+# What is examined here is the counting that happens once the observations are
+# in hand, which the unit tests now reach directly.
+exclude_re = [
+    "build_region_observation_cache",
+    "observe_local_haplotypes",
+    "count_indel_reads",
+    "indel_snv_linkage",
+    "observed_allele_for_ref_span",
+    "get_query_pos",
+    "anchor_base_quality",
+    "build_region",
+]
+
+# Only the unit tests. The scenario and differential suites need samtools and
+# bcftools and take seconds per run, which multiplied by every mutant is hours.
+additional_cargo_test_args = ["--lib"]
+
+# The unit tests finish in well under a second, so anything still running after
+# a minute is a mutant that made the code loop rather than one under test.
+timeout_multiplier = 5.0
+minimum_test_timeout = 60
+
+# Fourteen mutants survive in the counting core as of the run that added it to
+# this list, and they fall into three groups worth naming rather than chasing:
+#
+# - Eleven need a `bam::Record` to reach: the name guard in `build_molecule_key`,
+#   the coordinate arithmetic in `build_read_key`, and `observed_base_at`. They
+#   are exercised by the scenario, pileup and phasing suites, which need
+#   samtools and cannot be run once per mutant. Nothing here can kill them; only
+#   a way to build records in memory would.
+# - Two are equivalent: `positions.len() > 1` guarding a block that is empty for
+#   a single position either way, and `(first + 1)..positions` in `codon_linkage`,
+#   where the extra self-pairs it admits are always perfectly linked and so can
+#   never be the weakest pair the function returns.
+# - One is a tie-break: which of two equally-linked pairs `codon_linkage`
+#   reports. Both answers are equally right.

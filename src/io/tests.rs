@@ -57,20 +57,22 @@ chrB\tsrc\tgene\t10\t30\t.\t+\t.\tID=gene-two;gene=two;locus_tag=L2
 
     let snp_list = vec![
         VcfPosition {
-            position: 15,
+            record_start: 15,
             ref_allele: "A".to_string(),
             alt_allele: "T".to_string(),
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
         VcfPosition {
-            position: 20,
+            record_start: 20,
             ref_allele: "C".to_string(),
             alt_allele: "G".to_string(),
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         },
     ];
 
@@ -107,7 +109,8 @@ fn test_load_references_multiple_contigs() {
     let fasta_content = ">chr1\nACTG\n>chr2\nTTAA\n";
     let path = unique_temp_path("get_mnv_fasta_multi", "fas");
     fs::write(&path, fasta_content).expect("failed to write temp fasta");
-    let refs = load_references(path.to_string_lossy().as_ref()).expect("should load references");
+    let refs =
+        load_references(path.to_string_lossy().as_ref(), None).expect("should load references");
     assert_eq!(refs.get("chr1"), Some(&"ACTG".to_string()));
     assert_eq!(refs.get("chr2"), Some(&"TTAA".to_string()));
     let _ = fs::remove_file(path);
@@ -117,12 +120,13 @@ fn test_load_references_multiple_contigs() {
 fn test_validate_vcf_reference_alleles_detects_mismatch() {
     let reference = Reference { sequence: "ACTG" };
     let snp_list = vec![VcfPosition {
-        position: 2,
+        record_start: 2,
         ref_allele: "A".to_string(),
         alt_allele: "T".to_string(),
         original_dp: None,
         original_freq: None,
         original_info: None,
+        declared_phase: None,
     }];
     let error = validate_vcf_reference_alleles("chr1", &snp_list, &reference)
         .expect_err("expected mismatch");
@@ -336,7 +340,7 @@ fn test_load_vcf_positions_multiallelic_split_mode() {
             .expect("split mode should parse");
     let positions = parsed.get("chr1").expect("missing chr1");
     assert_eq!(positions.len(), 2);
-    assert_eq!(positions[0].position, 2);
+    assert_eq!(positions[0].record_start, 2);
     assert_eq!(positions[0].alt_allele, "C");
     assert_eq!(positions[1].alt_allele, "G");
 

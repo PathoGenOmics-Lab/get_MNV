@@ -17,17 +17,20 @@ pub enum VariantInputFormat {
     name = "get_mnv",
     version,
     author = "Paula Ruiz Rodriguez",
-    about = "Identifies SNPs within codons, reclassifies multi-nucleotide variants (MNVs), calculates amino acid changes, and outputs results in TSV/VCF format."
+    about = "Identifies codon-level SNPs/MNVs, annotates indels and complex alleles, calculates amino acid changes, and outputs results in TSV/VCF format."
 )]
 #[command(
     group(
+        // Not `required(true)`: `--report-from` builds a report from existing
+        // TSVs without running the pipeline, so it needs no variant input. The
+        // "one of --vcf/--tsv is required" check then lives in `validate`.
         ArgGroup::new("variant_input")
-            .required(true)
+            .required(false)
             .args(["vcf_file", "tsv_file"])
     )
 )]
 pub struct Args {
-    /// Variant input file containing SNPs in VCF/BCF format
+    /// Variant input file containing SNVs/MNVs and indels in plain or BGZF-compressed VCF format
     #[arg(
         short = 'v',
         long = "vcf",
@@ -49,20 +52,25 @@ pub struct Args {
     pub bam_file: Option<String>,
 
     /// Reference FASTA file
-    #[arg(short = 'f', long = "fasta")]
+    #[arg(
+        short = 'f',
+        long = "fasta",
+        required_unless_present = "report_from",
+        default_value = ""
+    )]
     pub fasta_file: String,
 
     /// Gene annotation file in TSV format (gene,start,end,strand)
     #[arg(
         short = 'g',
         long = "genes",
-        required_unless_present = "gff_file",
+        required_unless_present_any = ["gff_file", "report_from"],
         conflicts_with = "gff_file"
     )]
     pub genes_file_tsv: Option<String>,
 
     /// Gene annotation file in GFF/GFF3 format
-    #[arg(long = "gff", required_unless_present = "genes_file_tsv")]
+    #[arg(long = "gff", required_unless_present_any = ["genes_file_tsv", "report_from"])]
     pub gff_file: Option<String>,
 
     /// Comma-separated GFF feature types to analyze (default: gene,pseudogene)
@@ -77,7 +85,7 @@ pub struct Args {
     #[arg(long)]
     pub sample: Option<String>,
 
-    /// Minimum Phred quality (default: 20)
+    /// Minimum base Phred quality for BAM read support (default: 20)
     #[arg(short = 'q', long = "quality", default_value_t = 20)]
     pub min_quality: u8,
 
@@ -120,6 +128,45 @@ pub struct Args {
     /// Minimum Fisher exact p-value accepted for strand-bias metrics (default: 0.0)
     #[arg(long = "min-strand-bias-p", default_value_t = 0.0)]
     pub min_strand_bias_p: f64,
+
+    /// Minimum allele frequency (0.0-1.0) an upstream indel must reach to mark
+    /// downstream SNV/MNV codons as frameshifted. Default 0.5 propagates the
+    /// frame shift only from a consensus (majority) upstream indel, so a
+    /// high-frequency downstream substitution is not relabelled as frameshifted
+    /// because of a low-frequency upstream indel that is almost certainly on a
+    /// different molecule (intra-host data). Set 0.0 to propagate from every
+    /// indel. Indels without a known frequency always propagate.
+    #[arg(long = "frameshift-min-freq", default_value_t = 0.5)]
+    pub frameshift_min_freq: f64,
+
+    /// By default the indel locus depth (EDP/EFREQ denominator) is counted from
+    /// reads observing the anchor base, which avoids under-counting depth and
+    /// EFREQ bias for multi-base deletions. Pass --legacy-indel-depth to restrict
+    /// the denominator to reads that fully span the REF allele instead.
+    #[arg(long = "legacy-indel-depth", action = clap::ArgAction::SetFalse)]
+    pub indel_anchor_depth: bool,
+
+    /// Minimum BAM-supporting reads required to emit a phased indel/complex
+    /// haplotype row. Default 2: haplotypes are read off the molecules, so a
+    /// single read carrying a sequencing error at a called position mints a
+    /// combination of its own, and one read is not evidence of a haplotype.
+    /// Set 1 to emit every combination any read shows.
+    #[arg(long = "phased-indel-min-reads", default_value_t = 2)]
+    pub phased_indel_min_reads: usize,
+
+    /// Minimum BAM-derived frequency (0.0-1.0) required to emit a phased
+    /// indel/complex haplotype row (default: 0.0).
+    #[arg(long = "phased-indel-min-freq", default_value_t = 0.0)]
+    pub phased_indel_min_freq: f64,
+
+    /// Count the two mates of a paired-end fragment as two observations
+    /// instead of one molecule. By default they are one: a fragment is a
+    /// single DNA molecule sequenced from both ends, so counting the mates
+    /// separately double-counts wherever they overlap, and treats a variant on
+    /// each mate as unrelated when it is in fact proof that the two are on the
+    /// same molecule. Single-end data is unaffected either way.
+    #[arg(long = "count-mates-separately")]
+    pub count_mates_separately: bool,
 
     /// Parse and validate inputs, print per-contig summary, and skip writing TSV/VCF outputs
     #[arg(long = "dry-run")]
@@ -168,6 +215,25 @@ pub struct Args {
     /// Write a reproducibility manifest (inputs, outputs, checksums, runtime metadata)
     #[arg(long = "run-manifest")]
     pub run_manifest: Option<String>,
+
+    /// Write a self-contained interactive HTML report of the called variants.
+    /// Requires TSV output, which is the default. --convert writes the VCF
+    /// *instead* of the TSV, so use --both rather than --convert when you want
+    /// a report alongside VCF output. With --sample all the report covers
+    /// every sample.
+    #[arg(long = "report", value_name = "HTML_FILE")]
+    pub report: Option<String>,
+
+    /// Build the HTML report from existing get_MNV TSV files instead of running
+    /// the pipeline, for cohorts processed one sample per run. Each file becomes
+    /// one sample, labelled by its file name. Requires --report for the output.
+    #[arg(
+        long = "report-from",
+        value_name = "TSV",
+        num_args = 1..,
+        requires = "report"
+    )]
+    pub report_from: Vec<String>,
 
     /// NCBI translation table number for codon-to-amino-acid mapping
     /// (default: 11 = Bacterial/Archaeal/Plant Plastid).

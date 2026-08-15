@@ -14,3 +14,17 @@ src-tauri/gen/
 minimal_example.tar.gz
 minimal_example/
 /test_pancreas/
+
+# Mutation testing reports (cargo mutants)
+/mutants.out/
+/mutants.out.old/
+
+# Documentation site (MkDocs)
+/.venv-docs/
+/site/
+
+# Scratch directories the test suites build their inputs in.
+tests/*/work/
+
+# Python bytecode from the checkers under tests/
+__pycache__/

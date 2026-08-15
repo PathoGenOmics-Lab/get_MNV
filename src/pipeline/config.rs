@@ -38,6 +38,11 @@ pub(crate) fn selected_contigs(
     contigs.sort();
     contigs.dedup();
 
+    // Empty here means the input named no contig at all: a file with no records.
+    // A run whose records were all skipped, a cohort sample carrying none of the
+    // cohort's alleles, still names the contigs it read and gets an empty output
+    // rather than an error, because there is a difference between nothing to
+    // annotate and nothing to read.
     if contigs.is_empty() {
         return Err(AppError::validation("No contigs selected for processing"));
     }
@@ -84,6 +89,30 @@ pub(crate) fn validate_contig_inputs(
         )));
     }
 
+    Ok(())
+}
+
+/// Validate the BAM file up front: it exists, is openable as a coordinate-sorted
+/// indexed BAM, and its header is readable. Run this before any output file is
+/// created so a missing/un-indexed BAM fails fast with an actionable message
+/// instead of erroring lazily inside a worker thread after partial output.
+pub(crate) fn validate_bam(bam_path: &str) -> AppResult<()> {
+    if !std::path::Path::new(bam_path).exists() {
+        return Err(AppError::validation(format!(
+            "BAM file not found: '{bam_path}'"
+        )));
+    }
+    let mut reader = noodles::bam::io::indexed_reader::Builder::default()
+        .build_from_path(bam_path)
+        .map_err(|e| {
+            AppError::validation(format!(
+                "Cannot open BAM '{bam_path}'. It must be coordinate-sorted and indexed \
+                 (run `samtools index {bam_path}`). Underlying error: {e}"
+            ))
+        })?;
+    reader.read_header().map_err(|e| {
+        AppError::validation(format!("Cannot read BAM header from '{bam_path}': {e}"))
+    })?;
     Ok(())
 }
 
@@ -139,7 +168,7 @@ pub(crate) fn validate_strict_original_metrics(
                     examples.push(format!(
                         "{}:{}({})",
                         contig,
-                        site.position,
+                        site.record_start,
                         missing_fields.join(",")
                     ));
                 }
@@ -169,6 +198,23 @@ pub(crate) fn log_toggle(label: &str, enabled: bool) {
         label,
         if enabled { "enabled" } else { "disabled" }
     );
+}
+
+/// True when the MNV thresholds were asked for but cannot remove a single
+/// `SNP/MNV` row.
+///
+/// A codon-level row is kept when *either* its individual SNVs or its haplotype
+/// clears its bar. While the SNP thresholds are all zero the SNP side passes for
+/// every row, so raising `--mnv` on its own is a no-op on exactly the rows this
+/// tool exists to report, and nothing in the output would say so. The MNV
+/// thresholds still reach pure `MNV`, `INDEL` and intergenic rows, which is why
+/// this warns rather than refusing the run.
+pub(crate) fn mnv_thresholds_cannot_reach_codon_rows(args: &Args) -> bool {
+    let mnv_asked =
+        args.min_mnv_reads > 0 || args.min_mnv_frequency > 0.0 || args.min_mnv_strand_reads > 0;
+    let snp_side_always_passes =
+        args.min_snp_reads == 0 && args.min_snp_frequency <= 0.0 && args.min_snp_strand_reads == 0;
+    args.bam_file.is_some() && mnv_asked && snp_side_always_passes
 }
 
 pub(crate) fn log_run_configuration(args: &Args, sample_override: Option<&str>) {
@@ -218,6 +264,15 @@ pub(crate) fn log_run_configuration(args: &Args, sample_override: Option<&str>) 
         "Minimum MNV reads per strand: {}",
         args.min_mnv_strand_reads
     );
+    if mnv_thresholds_cannot_reach_codon_rows(args) {
+        log::warn!(
+            "The MNV thresholds will not remove any SNP/MNV row. Such a row is kept when \
+             either its SNVs or its haplotype clears its bar, and with the SNP thresholds \
+             at 0 the SNP side always passes. Raise --snp / --min-snp-frequency / \
+             --min-snp-strand as well to filter codon-level rows; as set, the MNV \
+             thresholds only reach MNV, indel and intergenic rows."
+        );
+    }
     log_toggle("Strict original metrics", args.strict);
     log_toggle("Split multiallelic records", args.split_multiallelic);
     log_toggle("Compressed VCF output (--vcf-gz)", args.vcf_gz);
@@ -326,12 +381,13 @@ mod tests {
         let snps: HashMap<String, Vec<VcfPosition>> = [(
             "chr1".into(),
             vec![VcfPosition {
-                position: 10,
+                record_start: 10,
                 ref_allele: "A".to_string(),
                 alt_allele: "T".to_string(),
                 original_dp: None,
                 original_freq: Some(0.5),
                 original_info: None,
+                declared_phase: None,
             }],
         )]
         .into_iter()
@@ -347,12 +403,13 @@ mod tests {
         let snps: HashMap<String, Vec<VcfPosition>> = [(
             "chr1".into(),
             vec![VcfPosition {
-                position: 10,
+                record_start: 10,
                 ref_allele: "A".to_string(),
                 alt_allele: "T".to_string(),
                 original_dp: None,
                 original_freq: None,
                 original_info: None,
+                declared_phase: None,
             }],
         )]
         .into_iter()
@@ -383,6 +440,11 @@ mod tests {
             min_snp_strand_reads: 0,
             min_mnv_strand_reads: 0,
             min_strand_bias_p: 0.0,
+            frameshift_min_freq: 0.0,
+            indel_anchor_depth: false,
+            phased_indel_min_reads: 1,
+            phased_indel_min_freq: 0.0,
+            count_mates_separately: false,
             dry_run: false,
             strict: false,
             split_multiallelic: false,
@@ -396,11 +458,74 @@ mod tests {
             summary_json: None,
             error_json: None,
             run_manifest: None,
+            report: None,
+            report_from: Vec::new(),
             convert: false,
             both: false,
             translation_table: 11,
             output_dir: None,
             output_prefix: None,
         }
+    }
+
+    /// `--mnv 5` on its own reads like a filter and removes nothing from the
+    /// codon-level rows, because the SNP side of the `or` passes for free while
+    /// its own thresholds are zero. The run should say so.
+    #[test]
+    fn warns_when_mnv_thresholds_cannot_reach_codon_rows() {
+        let mut args = default_test_args();
+        args.bam_file = Some("reads.bam".to_string());
+        args.min_snp_reads = 0;
+        args.min_snp_frequency = 0.0;
+        args.min_snp_strand_reads = 0;
+
+        args.min_mnv_reads = 5;
+        assert!(mnv_thresholds_cannot_reach_codon_rows(&args));
+
+        args.min_mnv_reads = 0;
+        args.min_mnv_frequency = 0.2;
+        assert!(mnv_thresholds_cannot_reach_codon_rows(&args));
+
+        args.min_mnv_frequency = 0.0;
+        args.min_mnv_strand_reads = 3;
+        assert!(mnv_thresholds_cannot_reach_codon_rows(&args));
+    }
+
+    #[test]
+    fn no_warning_once_a_snp_threshold_gives_the_or_something_to_fail() {
+        let mut args = default_test_args();
+        args.bam_file = Some("reads.bam".to_string());
+        args.min_mnv_reads = 5;
+
+        args.min_snp_reads = 1;
+        assert!(!mnv_thresholds_cannot_reach_codon_rows(&args));
+
+        args.min_snp_reads = 0;
+        args.min_snp_frequency = 0.05;
+        assert!(!mnv_thresholds_cannot_reach_codon_rows(&args));
+
+        args.min_snp_frequency = 0.0;
+        args.min_snp_strand_reads = 2;
+        assert!(!mnv_thresholds_cannot_reach_codon_rows(&args));
+    }
+
+    #[test]
+    fn no_warning_without_a_bam_or_without_an_mnv_threshold() {
+        let mut args = default_test_args();
+        args.min_snp_reads = 0;
+        args.min_snp_frequency = 0.0;
+        args.min_snp_strand_reads = 0;
+
+        // The read filters need a BAM to mean anything at all.
+        args.bam_file = None;
+        args.min_mnv_reads = 5;
+        assert!(!mnv_thresholds_cannot_reach_codon_rows(&args));
+
+        // Nothing was asked of the MNV side, so nothing is being ignored.
+        args.bam_file = Some("reads.bam".to_string());
+        args.min_mnv_reads = 0;
+        args.min_mnv_frequency = 0.0;
+        args.min_mnv_strand_reads = 0;
+        assert!(!mnv_thresholds_cannot_reach_codon_rows(&args));
     }
 }

@@ -113,34 +113,71 @@ function sampleIdFromPath(path: string): string {
 }
 
 /**
- * Match a BAM file to a VCF using multi-level fallback:
- * 1. Exact stem match (e.g., "sample1.vcf" ↔ "sample1.bam")
- * 2. Prefix match (e.g., "G35894.var.snp.vcf" ↔ "G35894.bam" — one stem starts with the other)
- * 3. Sample ID match (e.g., "MIP00022.MTB_anc.ann.vcf" ↔ "MIP00022.MTB_anc.final.bam" — first segment)
+ * How well a BAM's name answers to a variant file's. Lower is stronger, null is
+ * no answer at all.
+ * 1. Exact stem match ("sample1.vcf" and "sample1.bam")
+ * 2. Prefix match ("G35894.var.snp.vcf" and "G35894.bam": one stem starts with the other)
+ * 3. Sample ID match ("MIP00022.MTB_anc.ann.vcf" and "MIP00022.MTB_anc.final.bam": first segment)
  */
-function matchBamToVcf(vcfPath: string, bamPaths: string[]): string | undefined {
-  if (bamPaths.length === 0) return undefined;
+function bamMatchRank(vcfPath: string, bamPath: string): number | null {
   const vcfStem = filenameStem(vcfPath);
-
-  // 1. Exact stem
-  const exact = bamPaths.find((b) => filenameStem(b) === vcfStem);
-  if (exact) return exact;
-
-  // 2. One stem is prefix of the other (handles "G35894.var.snp" vs "G35894")
-  const prefix = bamPaths.find((b) => {
-    const bamStem = filenameStem(b);
-    return vcfStem.startsWith(bamStem + ".") || bamStem.startsWith(vcfStem + ".");
-  });
-  if (prefix) return prefix;
-
-  // 3. First segment match (sample ID: "MIP00022" vs "MIP00022")
+  const bamStem = filenameStem(bamPath);
+  if (bamStem === vcfStem) return 1;
+  if (vcfStem.startsWith(bamStem + ".") || bamStem.startsWith(vcfStem + ".")) return 2;
   const vcfId = sampleIdFromPath(vcfPath);
-  if (vcfId) {
-    const idMatch = bamPaths.find((b) => sampleIdFromPath(b) === vcfId);
-    if (idMatch) return idMatch;
-  }
+  if (vcfId && sampleIdFromPath(bamPath) === vcfId) return 3;
+  return null;
+}
 
-  return undefined;
+/**
+ * Pair BAMs to variant files across the whole set.
+ *
+ * Strength decides, not the order the files were dropped in. Taking each
+ * variant file in turn and giving it the best BAM still free let a weak match
+ * consume a BAM that a later file answered to exactly: "A.x.vcf" took "A.y.bam"
+ * on a shared sample id, and "A.y.vcf" was left with "A.z.bam", so both samples
+ * were counted against another sample's reads.
+ *
+ * A variant file with several equally good candidates is left unpaired. Picking
+ * the first would be a coin flip presented as an answer, and reading one
+ * sample's depth, frequency, strand and phasing off another sample's molecules
+ * is not a small error to make silently.
+ */
+function pairBamsToVcfs(vcfPaths: string[], bamPaths: string[]): Map<string, string> {
+  const paired = new Map<string, string>();
+  const taken = new Set<string>();
+  for (const rank of [1, 2, 3]) {
+    // Settling one pair can leave another file with a single candidate where it
+    // had two, so keep going until a pass settles nothing new.
+    for (;;) {
+      const candidates = new Map<string, string[]>();
+      for (const vcf of vcfPaths) {
+        if (paired.has(vcf)) continue;
+        candidates.set(
+          vcf,
+          bamPaths.filter((bam) => !taken.has(bam) && bamMatchRank(vcf, bam) === rank)
+        );
+      }
+      // A file with one candidate has no alternative, so it takes it, unless
+      // another file is in the same position for the same BAM: when one BAM is
+      // the only answer for two files, it is the answer for neither, and the
+      // order they were dropped in says nothing about whose reads those are.
+      const onlyAnswerFor = new Map<string, string[]>();
+      for (const [vcf, list] of candidates) {
+        if (list.length !== 1) continue;
+        onlyAnswerFor.set(list[0], [...(onlyAnswerFor.get(list[0]) ?? []), vcf]);
+      }
+      let settled = false;
+      for (const [bam, claimants] of onlyAnswerFor) {
+        if (claimants.length !== 1) continue;
+        paired.set(claimants[0], bam);
+        taken.add(bam);
+        settled = true;
+      }
+      if (!settled) break;
+    }
+  }
+  return paired;
 }
 
 function resetSampleForRun(sample: SampleEntry): SampleEntry {
@@ -290,7 +327,7 @@ function App() {
   const [gffAvailableFeatures, setGffAvailableFeatures] = useState<string[]>([]);
   const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme);
   const [showCrab, setShowCrab] = useState(getInitialCrab);
-  const [appVersion, setAppVersion] = useState("v1.1.3");
+  const [appVersion, setAppVersion] = useState("v1.1.5");
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const [runProgress, setRunProgress] = useState<ProgressEvent | null>(null);
   const [confirmationPrompt, setConfirmationPrompt] = useState<ConfirmationPrompt | null>(null);
@@ -472,20 +509,16 @@ function App() {
                 const freshVcfPaths = uniqueVcfPaths.filter((p) => !existingPaths.has(p));
                 if (freshVcfPaths.length === 0) return prev; // nothing new
 
-                const usedBams = new Set<string>();
-                const newSamples: SampleEntry[] = freshVcfPaths.map((vcf) => {
-                  // Match BAM using multi-level fallback (exact stem → prefix → sample ID)
-                  const availableBams = bamPaths.filter((b) => !usedBams.has(b));
-                  const matchedBam = matchBamToVcf(vcf, availableBams);
-                  if (matchedBam) usedBams.add(matchedBam);
-                  return {
-                    id: crypto.randomUUID(),
-                    name: sampleIdFromPath(vcf) || filenameStem(vcf),
-                    vcfPath: vcf,
-                    bamPath: matchedBam,
-                    status: "pending" as const,
-                  };
-                });
+                // Paired across the whole set at once, strongest match first, so
+                // no sample takes the BAM another one answers to exactly.
+                const pairing = pairBamsToVcfs(freshVcfPaths, bamPaths);
+                const newSamples: SampleEntry[] = freshVcfPaths.map((vcf) => ({
+                  id: crypto.randomUUID(),
+                  name: sampleIdFromPath(vcf) || filenameStem(vcf),
+                  vcfPath: vcf,
+                  bamPath: pairing.get(vcf),
+                  status: "pending" as const,
+                }));
 
                 // If there's only one BAM and no stem match happened, assign it to all new samples
                 if (bamPaths.length === 1 && !newSamples.some((s) => s.bamPath)) {
@@ -969,7 +1002,13 @@ function App() {
                       <div key={s.id} className={`sample-list-item sample-list-item--${s.status}`}>
                         <span className="sample-status-dot" />
                         <span className="sample-name" title={s.vcfPath}>{s.name}</span>
-                        {s.bamPath && <span className="sample-bam-tag">BAM</span>}
+                        {/* Which BAM, not just that there is one: a sample paired
+                            with another sample's reads is otherwise invisible. */}
+                        {s.bamPath && (
+                          <span className="sample-bam-tag" title={s.bamPath}>
+                            {filenameStem(s.bamPath)}
+                          </span>
+                        )}
                         {(s.status === "error" || s.status === "done") && (
                           <button
                             className="sample-retry-btn"

@@ -1,0 +1,2137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>get_MNV report</title>
+<style>
+/* ==========================================================================
+   get_MNV variant report
+   Direction: CLINICAL INSTRUMENT
+   A calm diagnostic application. One elevated masthead plate, one overview
+   plate, three instrument panels. Warm paper neutrals in light, a cool
+   graphite console in dark. Teal (#149389) is chrome only: it never encodes
+   data, so it can never be confused with a nucleotide or a severity class.
+   Every data mark uses the fixed, colour-vision-safe palette.
+   Self-contained: system fonts, inline SVG data URIs, no network.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Tokens - light
+   The matrix canvas is filled with --page, so --page is chosen to sit under
+   the fixed --nt-none cell colour (#e8e8e2) without a hue clash: warm neutral,
+   not blue-grey. --grid must read as a solid fill on it (overview strip).
+   -------------------------------------------------------------------------- */
+:root{
+  color-scheme: light;
+
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+          Arial, "Noto Sans", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  /* surfaces */
+  --page:#f2f2ef;
+  --surface:#ffffff;
+  --surface-2:#f7f7f4;
+  --inset:#fafaf8;
+
+  /* ink */
+  --text:#17191c;
+  --text-2:#4b5057;
+  --muted:#71767d;
+
+  /* lines */
+  --border:#d9d9d2;
+  --border-strong:#c2c2b8;
+  --hair:#e9e9e3;
+  --line-2:#e9e9e3;
+  --grid:#e4e4dd;
+  --axis:#a8a89f;
+
+  /* brand - interface chrome only */
+  --brand:#149389;
+  --brand-ink:#0d736b;
+  --brand-soft:rgba(20,147,137,.10);
+  --brand-line:rgba(20,147,137,.34);
+  --ring:rgba(20,147,137,.26);
+
+  /* interaction state */
+  --hover:rgba(23,25,28,.045);
+  --press:rgba(23,25,28,.085);
+  --sel:rgba(20,147,137,.09);
+  --sw-ring:rgba(23,25,28,.16);
+
+  /* data encodings - fixed values, validated for colour-vision deficiency */
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --critical:#d03b3b; --serious:#e0762e; --warning:#c2971a;
+  --nt-A:#1baf7a; --nt-C:#2a78d6; --nt-G:#eda100; --nt-T:#b03fa0;
+  --nt-indel:#52514e; --nt-none:#e8e8e2;
+
+  /* geometry and depth */
+  --r:12px; --r-sm:8px; --r-lg:16px;
+  --sh-1:0 1px 2px rgba(23,25,28,.05);
+  --sh-2:0 1px 2px rgba(23,25,28,.06), 0 10px 24px -16px rgba(23,25,28,.28);
+  --sh-3:0 2px 8px rgba(23,25,28,.10), 0 28px 64px -20px rgba(23,25,28,.34);
+  --well:inset 0 1px 3px rgba(23,25,28,.07);
+  --plate-hi:none;
+
+  /* affordance icons, inline so the file stays offline-complete */
+  --ico-search:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2371767d' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.3'/%3E%3Cpath d='M10.3 10.3 13.7 13.7'/%3E%3C/svg%3E");
+  --ico-caret:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6' fill='none' stroke='%2371767d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.4 5 4.8 9 1.4'/%3E%3C/svg%3E");
+}
+
+/* --------------------------------------------------------------------------
+   2. Tokens - dark
+   Not an inversion. The page becomes a cool graphite console; panels are
+   raised with a light hairline and a top highlight instead of a shadow, ink
+   is warmed slightly so long reading stays comfortable, and the brand teal is
+   lifted to stay legible without glowing. --page is kept darker than the
+   fixed --nt-none (#212328) so uncalled cells still read as cells.
+   -------------------------------------------------------------------------- */
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme: dark;
+
+    --page:#131518;
+    --surface:#1b1e22;
+    --surface-2:#212429;
+    --inset:#17191d;
+
+    --text:#e9ebee;
+    --text-2:#b1b7be;
+    --muted:#868d95;
+
+    --border:#2f343b;
+    --border-strong:#3f4650;
+    --hair:#262a30;
+    --line-2:#262a30;
+    --grid:#272b31;
+    --axis:#4b515a;
+
+    --brand:#25a99c;
+    --brand-ink:#40bfb1;
+    --brand-soft:rgba(37,169,156,.15);
+    --brand-line:rgba(37,169,156,.42);
+    --ring:rgba(37,169,156,.32);
+
+    --hover:rgba(255,255,255,.055);
+    --press:rgba(255,255,255,.10);
+    --sel:rgba(37,169,156,.14);
+    --sw-ring:rgba(255,255,255,.18);
+
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --critical:#d03b3b; --serious:#d9782f; --warning:#c9a227;
+    --nt-A:#199e70; --nt-C:#3987e5; --nt-G:#c98500; --nt-T:#b05fbf;
+    --nt-indel:#c3c2b7; --nt-none:#212328;
+
+    --sh-1:0 1px 2px rgba(0,0,0,.40);
+    --sh-2:0 1px 2px rgba(0,0,0,.45), 0 12px 28px -18px rgba(0,0,0,.80);
+    --sh-3:0 2px 10px rgba(0,0,0,.55), 0 32px 70px -22px rgba(0,0,0,.85);
+    --well:inset 0 1px 0 rgba(0,0,0,.45);
+    --plate-hi:inset 0 1px 0 rgba(255,255,255,.045);
+
+    --ico-search:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23868d95' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.3'/%3E%3Cpath d='M10.3 10.3 13.7 13.7'/%3E%3C/svg%3E");
+    --ico-caret:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6' fill='none' stroke='%23868d95' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.4 5 4.8 9 1.4'/%3E%3C/svg%3E");
+  }
+}
+/* The toggle stamps data-theme on the root; this must win in both directions. */
+:root[data-theme="dark"]{
+  color-scheme: dark;
+
+  --page:#131518;
+  --surface:#1b1e22;
+  --surface-2:#212429;
+  --inset:#17191d;
+
+  --text:#e9ebee;
+  --text-2:#b1b7be;
+  --muted:#868d95;
+
+  --border:#2f343b;
+  --border-strong:#3f4650;
+  --hair:#262a30;
+  --line-2:#262a30;
+  --grid:#272b31;
+  --axis:#4b515a;
+
+  --brand:#25a99c;
+  --brand-ink:#40bfb1;
+  --brand-soft:rgba(37,169,156,.15);
+  --brand-line:rgba(37,169,156,.42);
+  --ring:rgba(37,169,156,.32);
+
+  --hover:rgba(255,255,255,.055);
+  --press:rgba(255,255,255,.10);
+  --sel:rgba(37,169,156,.14);
+  --sw-ring:rgba(255,255,255,.18);
+
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --critical:#d03b3b; --serious:#d9782f; --warning:#c9a227;
+  --nt-A:#199e70; --nt-C:#3987e5; --nt-G:#c98500; --nt-T:#b05fbf;
+  --nt-indel:#c3c2b7; --nt-none:#212328;
+
+  --sh-1:0 1px 2px rgba(0,0,0,.40);
+  --sh-2:0 1px 2px rgba(0,0,0,.45), 0 12px 28px -18px rgba(0,0,0,.80);
+  --sh-3:0 2px 10px rgba(0,0,0,.55), 0 32px 70px -22px rgba(0,0,0,.85);
+  --well:inset 0 1px 0 rgba(0,0,0,.45);
+  --plate-hi:inset 0 1px 0 rgba(255,255,255,.045);
+
+  --ico-search:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23868d95' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.3'/%3E%3Cpath d='M10.3 10.3 13.7 13.7'/%3E%3C/svg%3E");
+  --ico-caret:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6' fill='none' stroke='%23868d95' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.4 5 4.8 9 1.4'/%3E%3C/svg%3E");
+}
+
+/* --------------------------------------------------------------------------
+   3. Base
+   -------------------------------------------------------------------------- */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+html,body{margin:0;padding:0}
+body{
+  background:var(--page);
+  color:var(--text);
+  font:15px/1.6 var(--sans);
+  font-synthesis-weight:none;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+[hidden]{display:none !important}
+img{max-width:100%}
+::selection{background:rgba(20,147,137,.22)}
+:root[data-theme="dark"] ::selection{background:rgba(37,169,156,.30)}
+
+/* numerals line up in columns everywhere they carry meaning */
+.num,.heroval,.stat b,.runmeta dd,.row>div,.thead>div,#count,.hap .rec,.hap .ph,.dl .kv dd{
+  font-variant-numeric:tabular-nums;
+  font-feature-settings:"tnum" 1;
+}
+.mono{font-family:var(--mono);font-size:12.3px;letter-spacing:-.012em;color:var(--text-2)}
+.note{margin:10px 0 0;color:var(--muted);font-size:12.5px;line-height:1.55;max-width:92ch}
+.hint{margin:0;padding:22px 2px;color:var(--muted);font-size:13.5px}
+
+/* Thin, quiet scrollbars: dense panels have several of them. */
+*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb, var(--text) 22%, transparent) transparent}
+*::-webkit-scrollbar{width:11px;height:11px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{
+  background:color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius:99px;border:3px solid transparent;background-clip:content-box;
+}
+*::-webkit-scrollbar-thumb:hover{
+  background:color-mix(in srgb, var(--text) 34%, transparent);background-clip:content-box;
+}
+
+/* --------------------------------------------------------------------------
+   4. Controls - large enough to hit while tired, obvious in every state
+   -------------------------------------------------------------------------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:34px;padding:0 14px;
+  background:var(--surface);color:var(--text);
+  border:1px solid var(--border);border-radius:var(--r-sm);
+  font:500 13px/1 var(--sans);cursor:pointer;white-space:nowrap;
+  box-shadow:var(--sh-1);
+  transition:background .13s ease, border-color .13s ease, box-shadow .13s ease;
+}
+.btn:hover{background:var(--surface-2);border-color:var(--border-strong)}
+.btn:active{background:var(--press);box-shadow:none}
+.btn.sm{min-height:30px;padding:0 10px;font-size:12.5px}
+a.btn{text-decoration:none}
+.btn svg{width:14px;height:14px;flex:none;display:block}
+.mh-actions .btn{gap:7px}
+
+input[type=search],input[type=text],input[type=number],select{
+  min-height:34px;padding:0 12px;
+  background-color:var(--surface);color:var(--text);
+  border:1px solid var(--border);border-radius:var(--r-sm);
+  font:400 13.5px/1 var(--sans);
+  transition:border-color .13s ease, box-shadow .13s ease;
+}
+input[type=search]{
+  -webkit-appearance:none;appearance:none;
+  padding-left:34px;
+  background-image:var(--ico-search);
+  background-repeat:no-repeat;
+  background-position:left 11px center;
+  background-size:15px 15px;
+}
+select{
+  -webkit-appearance:none;appearance:none;
+  padding-right:30px;
+  background-image:var(--ico-caret);
+  background-repeat:no-repeat;
+  background-position:right 11px center;
+  background-size:10px 6px;
+  cursor:pointer;
+}
+input::placeholder{color:var(--muted)}
+input:focus,select:focus{
+  outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--ring);
+}
+input[type=checkbox]{accent-color:var(--brand);width:16px;height:16px;flex:none;margin:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:var(--r-sm)}
+
+/* --------------------------------------------------------------------------
+   5. Masthead - a single raised plate, teal only at the very top edge
+   -------------------------------------------------------------------------- */
+.masthead{
+  position:relative;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  box-shadow:var(--sh-1);
+}
+.masthead::before{
+  content:"";position:absolute;inset:0 0 auto;height:3px;background:var(--brand);
+}
+.mh{
+  max-width:1500px;margin:0 auto;padding:22px 32px 18px;
+  display:flex;gap:26px;align-items:center;flex-wrap:wrap;
+}
+/* The mark here is the wordmark without the layer of codon letters behind MNV.
+   A report is a file people mail around, and that layer is 90 KB of geometry
+   that measures 0.00% of the rendered pixels at the 132px this masthead draws
+   it; the site, which shows the mark ten times larger, keeps it. */
+.logo-wrap{flex:none;display:inline-flex;align-items:center}
+.logo-wordmark{display:block;width:132px;height:auto}
+.gmw-ink{fill:var(--text)}
+.mh-title{flex:1 1 200px;min-width:0}
+.mh-title h1{
+  margin:0;font-size:19px;font-weight:600;letter-spacing:-.012em;color:var(--text);
+}
+.mh-title .rule{width:34px;height:3px;margin-top:9px;border-radius:2px;background:var(--brand)}
+
+.runmeta{display:flex;flex-wrap:wrap;margin:0;gap:8px 0}
+.runmeta>div{
+  display:flex;flex-direction:column;gap:3px;
+  padding:2px 20px;border-left:1px solid var(--hair);
+}
+.runmeta dt{
+  font-size:10px;font-weight:650;text-transform:uppercase;letter-spacing:.11em;
+  color:var(--muted);
+}
+.runmeta dd{margin:0;font-size:13.5px;color:var(--text)}
+.mh-actions{display:flex;gap:10px;margin-left:auto}
+
+.cmdbar{background:var(--inset);border-top:1px solid var(--hair)}
+.cmdbar>div{
+  max-width:1500px;margin:0 auto;padding:9px 32px;
+  font-family:var(--mono);font-size:12px;color:var(--text-2);
+  white-space:nowrap;overflow-x:auto;
+}
+/* the command line is a shell command: give it its prompt */
+#meta::before{content:"$";margin-right:10px;color:var(--brand-ink);font-weight:700}
+
+/* --------------------------------------------------------------------------
+   6. Shell and section headings
+   -------------------------------------------------------------------------- */
+.wrap{max-width:1500px;margin:0 auto;padding:32px 32px 96px}
+.sec{margin:0 0 40px}
+.sec-head{display:flex;align-items:center;gap:10px 18px;flex-wrap:wrap;margin:0 0 14px}
+.sec-head h2{
+  display:flex;align-items:center;gap:11px;
+  margin:0;font-size:16px;font-weight:600;letter-spacing:-.008em;color:var(--text);
+}
+.sec-head h2::before{
+  content:"";flex:none;width:4px;height:17px;border-radius:2px;background:var(--brand);
+}
+.sec-head p{margin:0;font-size:13px;color:var(--muted);max-width:70ch}
+.sec-head .ctl{margin-left:auto}
+
+/* --------------------------------------------------------------------------
+   7. Overview plate - the only place with a headline figure
+   -------------------------------------------------------------------------- */
+.wrap>.sec:first-child{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r-lg);
+  padding:28px 30px 26px;
+  box-shadow:var(--sh-1), var(--plate-hi);
+}
+.summary{
+  display:grid;grid-template-columns:minmax(210px,.8fr) minmax(340px,1.5fr);
+  gap:36px;align-items:center;
+}
+.hero .lab{
+  font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.12em;
+  color:var(--muted);
+}
+.heroval{
+  display:inline-block;
+  margin:12px 0 12px;padding-bottom:11px;
+  font-size:clamp(52px,6.2vw,78px);line-height:.94;font-weight:600;letter-spacing:-.042em;
+  color:var(--text);
+  border-bottom:3px solid var(--brand);
+}
+.hero .note{margin:0;max-width:34ch;color:var(--text-2);font-size:13.5px}
+
+.statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:14px 0}
+.stat{padding:2px 20px;border-left:1px solid var(--hair)}
+.stat span{
+  display:block;font-size:10.5px;font-weight:650;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--muted);
+}
+.stat b{
+  display:block;margin:7px 0 2px;
+  font-size:27px;font-weight:600;letter-spacing:-.03em;color:var(--text);
+}
+.stat i{font-style:normal;font-size:12px;color:var(--muted)}
+
+.conseq-wrap{margin-top:28px;padding-top:24px;border-top:1px solid var(--hair)}
+.conseq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(370px,1fr));gap:0 52px}
+/* The consequence rows are emitted with inline styles by the report script.
+   These overrides are deliberate: a taller track, a rounder fill and larger
+   type than the generated defaults. The bars stay ink-neutral - hue in this
+   document belongs to the nucleotide and severity encodings alone. */
+#soChart>div{padding:9px 0 !important;border-bottom:1px solid var(--hair)}
+#soChart>div>span:first-child{font-size:13px !important;color:var(--text) !important}
+#soChart>div>span:nth-child(2){height:8px !important;background:var(--grid) !important}
+#soChart i{background:var(--text-2) !important;opacity:.7 !important}
+#soChart .num{font-size:12.5px !important;color:var(--text-2) !important}
+
+/* --------------------------------------------------------------------------
+   8. Filter bar - sticky, opaque, unambiguous
+   -------------------------------------------------------------------------- */
+.filters{
+  position:sticky;top:0;z-index:25;
+  display:flex;flex-wrap:wrap;align-items:center;gap:12px;
+  margin:0 0 30px;padding:12px 14px;
+  background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r);
+  box-shadow:var(--sh-2);
+}
+.filters input[type=search]{flex:1 1 320px;min-width:210px;min-height:36px}
+#activeFilters{font-size:12.5px;font-weight:600;color:var(--brand-ink)}
+#activeFilters:not(:empty){
+  padding:5px 11px;border-radius:999px;
+  background:var(--brand-soft);border:1px solid var(--brand-line);
+}
+#resetBtn{margin-left:auto}
+
+/* --------------------------------------------------------------------------
+   9. Instrument panels
+   -------------------------------------------------------------------------- */
+.panel{
+  background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r);
+  padding:18px 20px 16px;
+  box-shadow:var(--sh-1), var(--plate-hi);
+}
+.ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.ctl label{
+  margin-left:8px;font-size:10.5px;font-weight:650;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--muted);
+}
+.ctl input[type=search]{width:250px;min-height:30px;font-size:12.5px}
+.ctl select{min-height:30px;font-size:12.5px;min-width:132px}
+
+/* the canvas paints itself with --page, so the well is the same colour:
+   the instrument is recessed into the panel rather than floated on it */
+#matrixScroll{
+  overflow-x:auto;overflow-y:hidden;
+  background:var(--page);
+  border:1px solid var(--border);border-radius:10px;
+  box-shadow:var(--well);
+}
+#matrix{display:block;cursor:grab}
+#matrix:active{cursor:grabbing}
+
+/* a fixed readout strip, so the panel never reflows while the pointer moves */
+#matrixTip{
+  display:flex;align-items:center;
+  min-height:38px;margin-top:12px;padding:0 14px;
+  background:var(--surface-2);border:1px solid var(--hair);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:12.5px;color:var(--text);
+  white-space:nowrap;overflow-x:auto;
+}
+#matrixTip:empty::before{content:"Hover a cell to read its call";color:var(--muted)}
+#matrixTip:not(:empty){box-shadow:inset 3px 0 0 var(--brand);padding-left:18px}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px 10px;margin-top:12px;font-size:12px;color:var(--text-2)}
+.legend .grp{
+  display:inline-flex;align-items:center;flex-wrap:wrap;gap:6px 12px;
+  padding:6px 13px;border-radius:999px;
+  background:var(--inset);border:1px solid var(--hair);
+}
+.legend .grp b{
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);
+}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{
+  display:inline-block;flex:none;width:10px;height:10px;border-radius:3px;
+  box-shadow:inset 0 0 0 1px var(--sw-ring);
+}
+
+/* --------------------------------------------------------------------------
+   10. Haplotype list
+   -------------------------------------------------------------------------- */
+.scrollY{max-height:340px;overflow-y:auto;padding-right:4px}
+.hap{
+  display:flex;align-items:center;gap:14px;
+  margin:0 -10px;padding:11px 10px;border-radius:var(--r-sm);
+  border-bottom:1px solid var(--hair);
+  font-size:13px;cursor:pointer;
+  transition:background .12s ease;
+}
+.hap:last-child{border-bottom:0}
+.hap:hover{background:var(--hover)}
+.hap .rec{
+  flex:0 0 116px;display:flex;align-items:center;gap:9px;
+  font-size:12.5px;color:var(--text-2);
+}
+.hap .who{flex:1 1 auto;min-width:0}
+.hap .who b{font-weight:650;color:var(--text)}
+.hap .comp{
+  display:block;margin-top:3px;
+  font-family:var(--mono);font-size:11.5px;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.hap .ph{
+  flex:0 0 168px;display:flex;align-items:center;justify-content:flex-end;gap:9px;
+  font-size:12.5px;color:var(--text-2);
+}
+.bartrack{
+  position:relative;flex:none;display:inline-block;
+  width:54px;height:6px;border-radius:99px;
+  background:var(--grid);overflow:hidden;vertical-align:middle;
+}
+.bartrack i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:var(--text-2);opacity:.62}
+
+/* --------------------------------------------------------------------------
+   11. The table
+   #hscroll is the only horizontal scroller so the header and the virtualised
+   body stay locked together; #viewport scrolls vertically only, and .row keeps
+   its 33px box (32px pitch + the 1px rule that underlaps the next row).
+   -------------------------------------------------------------------------- */
+.tablewrap{
+  background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;box-shadow:var(--sh-1), var(--plate-hi);
+}
+.tbar{
+  display:flex;justify-content:space-between;align-items:center;gap:14px;
+  height:48px;padding:0 16px;border-bottom:1px solid var(--hair);
+  font-size:12.5px;color:var(--muted);
+}
+.tbar #count{font-size:13.5px;font-weight:600;color:var(--text)}
+#hscroll{overflow-x:auto;overflow-y:hidden}
+#tinner{min-width:100%}
+
+.thead{display:flex;align-items:stretch;background:var(--surface-2);border-bottom:1px solid var(--border)}
+.thead>div{
+  height:40px;line-height:40px;padding:0 10px;
+  font-size:11.5px;font-weight:600;color:var(--text-2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  cursor:pointer;user-select:none;
+  transition:color .12s ease, background .12s ease;
+}
+.thead>div:hover{color:var(--text);background:var(--hover)}
+.thead>div:focus-visible{outline:2px solid var(--brand);outline-offset:-2px;border-radius:0}
+.thead .ind{margin-left:3px;color:var(--brand-ink);font-weight:700}
+/* numeric columns read right-aligned, header and body together */
+.thead>div:nth-child(4),
+.thead>div:nth-child(10),
+.thead>div:nth-child(11){text-align:right}
+
+.fbtn{
+  border:0;background:none;color:var(--muted);
+  font:inherit;font-size:10px;line-height:1;
+  margin-left:4px;padding:5px 6px;border-radius:5px;
+  cursor:pointer;vertical-align:middle;
+  transition:color .12s ease, background .12s ease;
+}
+.fbtn:hover{color:var(--text);background:var(--press)}
+.fbtn.on{color:var(--brand-ink);background:var(--brand-soft)}
+
+#viewport{height:576px;overflow-y:auto;overflow-x:hidden;position:relative}
+#spacer{position:relative;width:100%}
+.row{
+  position:absolute;left:0;right:0;
+  display:flex;align-items:center;height:33px;
+  border-bottom:1px solid var(--hair);
+  cursor:pointer;
+  transition:background .1s ease;
+}
+.row:hover{background:var(--hover)}
+.row.on{background:var(--sel);box-shadow:inset 3px 0 0 var(--brand)}
+.row>div,.thead>div{flex:0 0 auto}
+.row>div{
+  padding:0 10px;font-size:13px;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.row>div.num{text-align:right}
+.imp{display:inline-flex;align-items:center;gap:7px;font-size:12.5px}
+.imp i{flex:none;width:8px;height:8px;border-radius:99px}
+.empty{padding:64px 16px;text-align:center;color:var(--muted);font-size:14px}
+
+/* --------------------------------------------------------------------------
+   12. Overlays
+   -------------------------------------------------------------------------- */
+#pop{
+  position:absolute;z-index:60;
+  min-width:250px;max-height:380px;overflow:auto;
+  padding:12px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  box-shadow:var(--sh-3);
+  font-size:13px;
+}
+#pop .ph{
+  margin:0 0 10px;font-size:10.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.11em;color:var(--muted);
+}
+#pop label{
+  display:flex;align-items:center;gap:9px;
+  margin:0 -6px;padding:6px;border-radius:6px;
+  line-height:1.35;cursor:pointer;
+}
+#pop label:hover{background:var(--hover)}
+#pop input[type=text],#pop input[type=number]{width:100%;min-height:32px}
+#pop #popList{max-height:222px;overflow-y:auto;margin-right:-6px;padding-right:6px}
+#pop .row2{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+#pop .acts{
+  position:sticky;bottom:-12px;
+  display:flex;justify-content:space-between;gap:8px;
+  margin-top:12px;padding-top:10px;
+  border-top:1px solid var(--hair);background:var(--surface);
+}
+
+#drawer{
+  position:fixed;top:0;right:0;bottom:0;z-index:50;
+  width:min(480px,94vw);
+  background:var(--surface);
+  border-left:1px solid var(--border);
+  box-shadow:var(--sh-3);
+  overflow-y:auto;
+  transform:translateX(100%);
+  transition:transform .24s cubic-bezier(.22,.61,.36,1);
+}
+#drawer.open{transform:translateX(0)}
+.dhead{
+  position:sticky;top:0;z-index:1;
+  display:flex;justify-content:space-between;align-items:flex-start;gap:14px;
+  padding:20px 22px 16px;
+  background:var(--surface);border-bottom:1px solid var(--border);
+}
+.dhead h3{margin:0;font-size:18px;font-weight:600;letter-spacing:-.012em}
+.dl{padding:6px 22px 32px}
+.dl section{padding:16px 0;border-bottom:1px solid var(--hair)}
+.dl section:last-child{border-bottom:0}
+.dl h4{
+  margin:0 0 10px;font-size:10.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.11em;color:var(--brand-ink);
+}
+.dl .kv{display:grid;grid-template-columns:124px 1fr;gap:7px 14px;margin:0;font-size:13px}
+.dl .kv dt{color:var(--muted)}
+.dl .kv dd{
+  margin:0;font-family:var(--mono);font-size:12.3px;color:var(--text);
+  word-break:break-word;
+}
+
+#foot{
+  margin-top:44px;padding-top:18px;
+  border-top:1px solid var(--border);
+  color:var(--muted);font-size:12px;text-align:center;
+}
+
+/* --------------------------------------------------------------------------
+   13. Narrow viewports (screen only - a printed page is narrow but not a phone)
+   -------------------------------------------------------------------------- */
+@media screen and (max-width:1000px){
+  .summary{grid-template-columns:1fr;gap:24px}
+  .stat{padding-left:0;border-left:0;border-top:1px solid var(--hair);padding-top:10px}
+  .statrow{gap:0 22px}
+  .conseq-grid{grid-template-columns:1fr}
+}
+@media screen and (max-width:760px){
+  body{font-size:14.5px}
+  .mh{padding:16px 18px 14px;gap:16px}
+  .cmdbar>div{padding:9px 18px}
+  .wrap{padding:22px 18px 72px}
+  .runmeta>div{padding:2px 14px 2px 0;border-left:0}
+  .mh-actions{margin-left:0}
+  .hap{flex-wrap:wrap;gap:8px 12px}
+  .hap .who{flex:1 1 100%;order:-1}
+  .hap .ph{flex:0 0 auto;margin-left:auto}
+  .wrap>.sec:first-child{padding:20px 18px}
+  .panel{padding:14px}
+}
+
+/* --------------------------------------------------------------------------
+   14. Reduced motion
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    transition:none !important;animation:none !important;scroll-behavior:auto !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   15. Print - the report is archived next to a manuscript, so figures keep
+   their colours and the light palette is forced even from the dark theme.
+   -------------------------------------------------------------------------- */
+@media print{
+  :root,:root[data-theme="dark"],:root[data-theme="light"]{
+    color-scheme:light;
+    --page:#fff; --surface:#fff; --surface-2:#fff; --inset:#fff;
+    --text:#000; --text-2:#333; --muted:#555;
+    --border:#bbb; --border-strong:#999; --hair:#ddd; --line-2:#ddd;
+    --grid:#e4e4dd; --axis:#999;
+    --hover:transparent; --sel:transparent; --press:transparent;
+    --sh-1:none; --sh-2:none; --sh-3:none; --well:none; --plate-hi:none;
+  }
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:#fff;font-size:10pt}
+  .masthead{box-shadow:none;border-bottom:1.5pt solid #000}
+  .masthead::before{display:none}
+  .mh,.wrap,.cmdbar>div{max-width:none;padding-left:0;padding-right:0}
+  .wrap{padding-top:14pt;padding-bottom:0}
+  .cmdbar>div{white-space:pre-wrap;overflow:visible;word-break:normal;overflow-wrap:anywhere}
+  .mh-actions,.filters,.ctl,.fbtn,#drawer,#pop,#matrixTip{display:none !important}
+  .sec{margin-bottom:18pt}
+  .sec-head{break-after:avoid}            /* never orphan a heading */
+  .wrap>.sec:first-child,.panel,.tablewrap{border:1px solid #bbb;box-shadow:none}
+  .wrap>.sec:first-child,#matrixPanel .panel{break-inside:avoid}
+  #hapPanel .panel,.tablewrap{break-inside:auto}
+  .heroval{font-size:34pt;border-bottom-width:2pt}
+  .stat b{font-size:16pt}
+  .scrollY,#matrixScroll,#hscroll{overflow:hidden;max-height:none}
+  /* print-only: the canvas is scaled down to the page, never cropped */
+  #matrix{max-width:100%;height:auto !important}
+  .hap{break-inside:avoid}
+  #hapList>.hap:nth-child(n+21){display:none}
+  #hapList::after{
+    content:"Up to 20 haplotypes are printed; the interactive report lists them all.";
+    display:block;padding-top:8pt;color:#555;font-size:8.5pt;
+  }
+  /* The table keeps the column widths the script gives it and is scaled to the
+     paper instead, so no column is silently cropped off the right edge. */
+  #tinner{zoom:.58}
+  /* the table is virtualised: only the pooled rows exist in the DOM, and the
+     pool is sized from the on-screen viewport, so print exactly that many */
+  #viewport{height:832px;overflow:hidden}
+  .tablewrap::after{
+    content:"Printed view shows the visible rows only - use Export filtered TSV for the full table.";
+    display:block;padding:8pt 12pt;border-top:1px solid #ddd;color:#555;font-size:8.5pt;
+  }
+  .row{transition:none}
+  #foot{margin-top:18pt}
+}
+</style>
+</head>
+<body>
+<header class="masthead">
+  <div class="mh">
+    <span class="logo-wrap">
+      <svg class="logo-wordmark" role="img" aria-label="get_MNV"
+         version="1.1"
+         x="0px"
+         y="0px"
+         viewBox="0 0 600.90001 300"
+         xml:space="preserve"
+         xmlns="http://www.w3.org/2000/svg"
+         xmlns:svg="http://www.w3.org/2000/svg"><defs
+         />
+      <style
+         type="text/css"
+        >
+      	.gmw-st0{fill:#F6E81D;}
+      	.gmw-st1{fill:#3460AA;}
+      	.gmw-st2{fill:#9FA31D;}
+      	.gmw-st3{fill:#F3E600;}
+      	.gmw-st4{fill:#2A5DA9;}
+      	.gmw-st5{fill:#E52421;}
+      	.gmw-st6{fill:#010202;}
+      	.gmw-st7{fill:#EF781A;}
+      	.gmw-st8{fill:#66B32E;}
+      	.gmw-st9{opacity:0.46;}
+      	.gmw-st10{fill:#FFFFFF;}
+      	.gmw-st11{font-family:'Neonderthaw-Regular';}
+      	.gmw-st12{font-size:221px;}
+      	.gmw-st13{fill:#E7216A;}
+      	.gmw-st14{font-size:106px;}
+      	.gmw-st15{fill:#149389;}
+      	.gmw-st16{font-family:'TwCenMT-Italic';}
+      	.gmw-st17{font-size:113px;}
+      	.gmw-st18{fill:#6F398D;}
+      	/* The wordmark for a light ground. Its dark twin, logo-dark.svg, is the
+      	   same drawing with these five shapes in light ink: the "get", the V of
+      	   MNV and the three bars of the bracket, which are the only near-black
+      	   parts of the mark. Everything else is coloured and reads on either.
+      	   The pair is chosen by whoever shows it, not by the file: a media query
+      	   in here would follow the reader's system setting, which is not the same
+      	   thing as the background it has been put on. A site with its own light
+      	   and dark toggle can disagree with the system, and then the mark paints
+      	   itself white on white. */
+      </style>
+      <g
+        >
+      </g>
+      <g
+         transform="translate(-0.28447064,7.0301388)">
+      	<path class="gmw-ink"
+         style="font-size:221px;font-family:Neonderthaw;-inkscape-font-specification:Neonderthaw"
+         d="m 67.128575,181.8198 q -5.304,0 -7.072,-4.199 -1.547,-4.42 -1.547,-7.293 0,-5.525 3.757,-13.26 3.978,-7.735 10.166,-15.249 6.188,-7.514 13.26,-12.376 7.072,-5.083 13.26,-5.083 2.651995,0 2.651995,2.21 0,0.884 -0.663,1.768 -0.663,0.663 -1.767995,0.442 -4.862,-0.221 -11.05,4.199 -6.188,4.42 -11.934,11.271 -5.746,6.851 -9.503,13.923 -3.757,7.072 -3.757,12.155 0,3.094 1.105,5.083 1.105,1.989 3.094,1.989 3.315,0 7.514,-4.641 4.199,-4.641 9.282,-11.934 5.083,-7.514 10.608,-15.47 5.745995,-8.619 11.491995,-16.354 5.967,-7.956 11.492,-12.818 5.746,-5.083 10.829,-5.083 2.873,0 5.304,1.768 2.431,1.768 2.431,5.525 0,0.442 -1.326,4.862 -1.326,4.199 -3.315,10.387 -1.768,6.188 -3.757,12.376 -1.989,5.967 -3.536,10.608 -1.326,4.42 -1.768,5.304 -0.663,1.326 -1.768,1.326 -1.105,0 -1.989,-0.884 -0.663,-0.884 -0.221,-2.21 0.442,-0.884 1.768,-5.304 1.547,-4.42 3.315,-10.387 1.989,-5.967 3.757,-11.934 1.989,-5.967 3.094,-9.945 1.326,-3.978 1.326,-4.199 0,-2.873 -3.315,-2.873 -2.873,0 -5.746,2.21 -5.525,3.536 -11.934,12.376 -6.409,8.619 -12.817995,18.343 -5.525,8.177 -11.05,15.912 -5.304,7.735 -10.387,12.597 -5.083,4.862 -9.282,4.862 z m -21.879,-26.962 q -1.105,0 -1.768,-0.884 -0.663,-1.105 0.221,-2.431 8.177,-9.724 16.575,-18.343 8.398,-8.619 17.459,-14.144 9.282,-5.525 19.669,-5.525 3.093995,0 5.524995,0.442 2.652,0.442 4.42,1.768 0.884,0.663 0.884,1.768 0,1.105 -1.105,1.989 -1.105,0.663 -2.431,-0.221 -1.547,-1.326 -7.292995,-1.326 -9.061,0 -17.459,5.083 -8.398,4.862 -16.354,13.039 -7.956,8.177 -16.133,17.68 -0.884,1.105 -2.21,1.105 z m -8.177,91.052 q -2.873,0.221 -5.967,-1.547 -3.315,-1.547 -3.315,-5.746 0,-4.862 4.641,-10.387 4.641,-5.304 11.713,-10.608 6.851,-5.083 13.923,-9.503 7.072,-4.42 11.934,-7.514 0.884,-0.442 1.105,-0.442 1.105,0 1.547,0.663 0.663,0.884 0.663,1.768 0,1.105 -0.884,1.768 -3.978,2.652 -10.387,6.63 -6.409,3.978 -12.818,8.398 -6.409,4.641 -11.05,9.282 -4.862,4.641 -5.967,8.619 0,0.221 0,0.442 -0.221,0.442 -0.221,0.663 0,3.094 4.199,3.094 7.735,0 16.796,-6.409 9.282,-6.409 18.343,-17.238 9.061,-10.608 17.017,-23.426 7.956,-13.039 13.480995,-26.078 5.525,-13.039 7.293,-23.868 0.221,-1.768 2.21,-1.768 0.884,0 1.547,0.663 0.884,0.663 0.663,1.989 -1.768,10.829 -7.293,24.089 -5.525,13.26 -13.701995,26.52 -8.177,13.26 -17.68,24.31 -9.503,11.271 -19.227,18.122 -9.724,7.072 -18.564,7.514 z m -1.768,15.47 q -5.304,0 -9.945,-3.094 -4.862,-2.873 -3.978,-9.945 0,-1.989 1.989,-1.989 0.884,0 1.768,0.663 0.663,0.663 0.442,1.768 -0.442,4.199 2.431,6.188 2.652,1.989 7.293,1.989 10.608,0 20.332,-5.304 9.945,-5.083 18.785,-13.923 9.061,-8.619 16.354,-19.227 7.514,-10.608 13.259995,-21.658 5.967,-10.829 9.503,-20.553 0.884,-2.431 1.105,-3.094 0.442,-0.884 2.873,-1.989 4.862,-2.21 12.155,-6.63 7.293,-4.42 15.028,-14.365 0.663,-0.884 1.768,-0.884 1.105,0 1.768,1.326 0.884,1.105 0,2.21 -6.63,8.84 -14.144,13.923 -7.514,4.862 -15.912,9.282 -3.536,9.503 -9.282,20.995 -5.746,11.492 -13.701995,22.763 -7.735,11.271 -17.238,20.553 -9.282,9.503 -20.111,15.249 -10.829,5.746 -22.542,5.746 z m 25.857,-65.195 q -8.177,0 -13.702,-5.083 -5.525,-5.083 -5.525,-13.923 0,-1.105 0.221,-2.431 0,-1.326 0.221,-2.652 0.221,-1.768 1.989,-1.768 2.431,0 2.431,2.21 0,1.105 -0.221,2.431 -0.221,1.105 -0.221,1.989 0,6.851 4.199,10.829 4.199,3.978 10.387,3.978 6.851,0 15.028,-4.862 8.177,-4.862 15.249,-16.133 0.663,-1.105 1.768,-1.105 1.105,0 1.768,1.105 0.884,0.884 0,2.21 -7.514,11.934 -16.575,17.68 -8.84,5.525 -17.017,5.525 z m 112.488805,-35.36 q -3.978,0 -6.851,-1.768 -1.326,-0.663 -1.326,-1.768 0,-1.105 0.884,-1.768 1.105,-0.884 2.431,-0.221 2.652,1.105 4.862,1.105 4.641,0 10.166,-2.652 5.525,-2.873 10.608,-7.293 5.083,-4.42 8.177,-9.503 3.315,-5.083 3.315,-9.724 0,-9.061 -9.282,-9.061 -10.387,0 -19.448,5.525 -8.84,5.304 -16.354,13.481 -7.293,7.956 -13.039,16.354 -0.663,1.105 -1.768,1.105 -1.105,0 -1.768,-1.105 -0.884,-1.105 0,-2.431 5.746,-8.398 13.481,-17.017 7.735,-8.619 17.459,-14.365 9.945,-5.967 21.437,-5.967 5.967,0 9.724,3.536 3.978,3.536 3.978,9.945 0,5.967 -3.757,11.934 -3.536,5.746 -9.282,10.829 -5.525,4.862 -11.934,7.956 -6.409,2.873 -11.713,2.873 z m -5.083,20.553 q -5.967,0 -11.05,-3.094 -4.862,-3.094 -4.862,-10.608 0,-6.188 4.42,-13.26 4.641,-7.072 11.271,-13.481 6.851,-6.63 13.923,-11.492 7.072,-4.862 12.155,-6.409 0.221,0 0.221,0 0.221,-0.221 0.442,-0.221 2.21,0 2.21,2.431 0,1.326 -1.547,1.989 -4.862,1.547 -11.492,6.188 -6.409,4.641 -12.818,10.829 -6.188,5.967 -10.387,12.155 -3.978,6.188 -3.978,11.271 0,4.862 3.094,7.072 3.315,2.21 8.398,2.21 13.039,0 26.299,-6.851 13.481,-7.072 22.984,-19.448 0.663,-0.884 1.547,-0.884 1.326,0 1.989,1.326 0.884,1.105 -0.221,2.431 -9.945,12.818 -24.31,20.332 -14.144,7.514 -28.288,7.514 z m -1.105,13.26 q -5.746,0 -11.713,-1.768 -5.967,-1.768 -9.945,-5.746 -4.199,-4.199 -4.199,-11.05 0,-2.431 2.21,-2.431 2.21,0 2.21,2.431 0,4.199 1.547,6.63 1.768,2.431 5.967,4.42 3.315,1.547 7.072,2.431 3.978,0.663 6.851,0.663 8.177,0 15.912,-3.094 7.956,-3.094 14.586,-7.956 0.442,-0.442 1.326,-0.442 2.21,0 2.21,2.21 0,1.105 -0.884,1.768 -7.072,5.304 -15.691,8.619 -8.398,3.315 -17.459,3.315 z m 104.97516,-84.643 q -1.326,0 -2.21,-1.105 -0.663,-1.326 0.442,-2.652 l 15.691,-17.017005 q 1.105,-1.105 1.105,-2.873 0,-1.989 -1.989,-3.536 -1.768,-1.547 -4.199,-1.547 -2.21,0 -4.641,1.989 -2.652,2.21 -8.177,8.398 -5.525,6.188 -12.597,14.807005 0,0.221 -0.663,0.663 -0.663,0.221 -0.884,0.221 h -17.459 q -2.21,0 -2.21,-2.21 0,-2.21 2.21,-2.21 h 16.354 q 6.63,-8.398005 12.155,-14.365005 5.525,-6.188 8.177,-8.619 3.315,-3.094 7.735,-3.094 4.42,0 7.514,2.873 3.094,2.652 3.094,6.409 0,3.315 -2.21,5.746 -0.442,0.663 -3.094,3.536 -2.431,2.873 -5.967,6.630005 -3.536,3.757 -6.63,7.293 -0.663,0.663 -1.547,0.663 z m -53.261,44.421 q -1.989,0 -1.989,-1.989 0,-0.663 1.105,-2.21 5.746,-7.072 13.26,-16.796 7.514,-9.724 15.028,-20.332 0.663,-0.884 1.547,-0.884 1.326,0 1.989,1.326 0.884,1.105 0,2.21 -7.514,10.608 -15.028,20.553 -7.514,9.724 -13.923,17.238 -0.884,0.884 -1.989,0.884 z m 24.752,27.404 q -8.177,0 -12.155,-6.409 -0.884,-1.768 -1.547,-3.536 -0.663,-1.989 -0.663,-4.199 0,-3.757 1.768,-8.619 1.989,-5.083 6.188,-10.829 2.431,-3.536 7.072,-9.061 4.641,-5.746 9.724,-11.934 5.304,-6.409 9.061,-11.713 0,-0.221 0.663,-0.442 0.884,-0.442 1.105,-0.442 h 19.006 q 2.21,0 2.21,2.21 0,2.21 -2.21,2.21 h -17.901 q -3.757,5.304 -8.84,11.492 -4.862,5.967 -9.503,11.492 -4.42,5.525 -6.851,8.84 -3.757,5.525 -5.304,9.724 -1.547,3.978 -1.547,7.072 0,3.315 1.326,5.304 2.652,4.42 8.398,4.42 5.746,0 11.713,-3.757 6.188,-3.978 12.155,-9.945 5.967,-6.188 10.829,-12.818 0.663,-0.884 1.768,-0.884 1.105,0 1.989,1.105 0.884,1.105 -0.221,2.431 -8.177,11.492 -18.564,19.89 -10.387,8.398 -19.669,8.398 z m -7.072,13.26 q -8.619,0 -13.923,-4.862 -5.083,-5.083 -4.641,-14.365 0,-1.989 2.21,-1.989 0.884,0 1.547,0.663 0.884,0.442 0.663,1.547 -0.221,6.188 3.536,10.608 3.978,4.199 11.492,4.199 5.304,0 12.155,-2.652 7.072,-2.873 15.249,-9.061 0.442,-0.442 1.326,-0.442 2.21,0 2.21,2.21 0,1.105 -0.884,1.768 -8.177,6.188 -16.354,9.282 -7.956,3.094 -14.586,3.094 z"
+         class="gmw-st11 gmw-st12"
+         aria-label="get" />
+      	<path
+         style="font-size:106px;font-family:Neonderthaw;-inkscape-font-specification:Neonderthaw;fill:#e7216a"
+         d="m 377.91643,196.18463 q -1.06,0 -1.06,-1.06 0,-1.06 1.06,-1.06 1.166,0 2.12,-1.272 0.954,-1.166 0.954,-2.438 0,-0.954 -0.742,-1.696 -0.636,-0.742 -2.332,-0.742 h -73.67 q -1.484,0 -2.226,0.954 -0.742,0.954 -0.742,2.12 0,1.166 0.742,2.014 0.742,0.954 2.226,0.954 h 67.734 q 1.166,0 1.166,1.06 0,1.06 -1.166,1.06 h -67.734 q -2.544,0 -3.816,-1.696 -1.272,-1.59 -1.272,-3.392 0,-1.908 1.272,-3.604 1.272,-1.59 3.816,-1.59 h 73.67 q 2.332,0 3.71,1.802 1.484,1.908 1.484,4.028 0,1.696 -1.272,3.074 -1.166,1.484 -3.922,1.484 z m 10.81203,-11.66 q -2.014,-1.696 -2.014,-4.028 0,-2.12 1.378,-3.498 1.484,-1.378 3.498,-1.378 2.12,0 3.498,1.378 1.484,1.378 1.484,3.498 0,2.014 -1.378,3.392 -0.318,0.318 -0.742,0.318 -0.53,0 -0.954,-0.53 -0.318,-0.636 0.212,-1.272 0.742,-0.954 0.742,-1.908 0,-1.166 -0.848,-1.908 -0.742,-0.848 -1.908,-0.848 -1.166,0 -2.014,0.848 -0.848,0.742 -0.848,1.908 0,1.59 1.166,2.226 0.424,0.318 0.424,0.848 0,0.53 -0.53,0.954 -0.53,0.424 -1.166,0 z"
+         class="gmw-st13 gmw-st11 gmw-st14"
+         aria-label="_." />
+      	<g
+         style="font-family:TwCenMT;-inkscape-font-specification:TwCenMT"
+         aria-label="MNV"><path
+           style="font-style:italic;font-size:113px;-inkscape-font-specification:'TwCenMT Italic';fill:#149389"
+           d="m 399.93069,33.357925 19.20118,73.218265 h -9.37989 L 398.10989,61.828629 378.08109,109.2798 357.9971,61.497574 346.24466,106.57619 h -9.37988 l 19.20117,-73.218265 22.01514,52.416993 z"
+           /><path
+           style="font-style:italic;font-size:113px;-inkscape-font-specification:'TwCenMT Italic';fill:#6f398d"
+           d="m 428.4892,33.468277 51.97558,53.465332 V 36.282242 h 9.60059 V 109.83156 L 438.08978,56.642105 v 49.934085 h -9.60058 z"
+           /><path class="gmw-ink"
+           style="font-style:italic;font-size:113px;-inkscape-font-specification:'TwCenMT Italic'"
+           d="m 498.56244,36.392593 h 10.15234 l 22.01514,49.713379 22.18066,-49.713379 h 10.2627 l -32.55371,72.556157 z"
+           /></g>
+      	<rect
+         x="311.64667"
+         y="90.995178"
+         class="gmw-ink gmw-st6"
+         width="4.9000001"
+         height="31.1"
+         style="fill:#010202" />
+      	<rect
+         x="311.64667"
+         y="116.89518"
+         class="gmw-ink gmw-st6"
+         width="266.20001"
+         height="5.1999998"
+         style="fill:#010202" />
+      	<rect
+         x="573.34674"
+         y="90.995178"
+         class="gmw-ink gmw-st6"
+         width="4.9000001"
+         height="31.1"
+         style="fill:#010202" />
+      <g
+         transform="matrix(1.1148787,0.38680446,-0.38364053,1.1057594,326.38065,119.31897)"><path
+           fill="#77b255"
+           d="M 3.019,26.246 6.451,29.678 5.528,30.6 2.096,27.169 Z"
+           /><path
+           fill="#ffd983"
+           d="M 6.362,29.587 9.793,33.019 8.87,33.942 5.44,30.51 Z"
+           /><path
+           fill="#ffac33"
+           d="M 6.273,24.237 9.705,27.669 8.782,28.592 5.35,25.16 Z"
+           /><path
+           fill="#ea596e"
+           d="m 8.998,26.962 3.432,3.432 -0.923,0.923 -3.431,-3.432 z m 3.909,-9.359 3.431,3.432 -0.923,0.923 -3.431,-3.432 z"
+           /><path
+           fill="#ffac33"
+           d="m 15.631,20.329 3.432,3.431 -0.923,0.923 -3.432,-3.431 z"
+           /><path
+           fill="#77b255"
+           d="M 14.97,14.377 18.402,17.809 17.48,18.732 14.048,15.3 Z"
+           /><path
+           fill="#ffd983"
+           d="m 18.277,17.683 3.432,3.432 -0.923,0.923 -3.432,-3.432 z"
+           /><path
+           fill="#ffac33"
+           d="m 17.616,11.731 3.432,3.432 -0.923,0.922 -3.432,-3.431 z"
+           /><path
+           fill="#ea596e"
+           d="m 20.923,15.038 3.432,3.431 -0.923,0.923 -3.431,-3.432 z M 24.387,4.96 27.819,8.392 26.896,9.314 23.464,5.883 Z"
+           /><path
+           fill="#ffac33"
+           d="m 27.694,8.267 3.432,3.431 -0.923,0.923 -3.432,-3.432 z"
+           /><path
+           fill="#77b255"
+           d="M 27.013,2.252 30.445,5.684 29.522,6.607 26.09,3.175 Z"
+           /><path
+           fill="#ffd983"
+           d="M 30.36,5.6 33.792,9.031 32.869,9.954 29.437,6.523 Z"
+           /><path
+           fill="#9266cc"
+           d="m 24.922,0.812 c -2.52,2.52 -2.601,6.145 -2.396,9.806 0.501,0.028 1.002,0.061 1.502,0.094 0.39,0.026 0.775,0.051 1.159,0.074 C 24.989,7.5 24.988,4.487 26.793,2.682 27.52,1.979 27.748,1.029 27.24,0.516 26.705,-0.024 25.698,0.019 24.922,0.812 Z"
+           /><path
+           fill="#3b88c3"
+           d="m 13.146,25.65 -0.153,-2.66 c -0.026,-0.445 -0.058,-0.899 -0.074,-1.332 -0.296,-0.296 -2.466,-0.349 -2.653,-0.162 0.013,0.44 0.047,0.884 0.071,1.327 0.028,0.502 0.126,2.275 0.149,2.66 0.054,0.91 0.096,1.806 0.086,2.656 0.259,0.259 2.371,0.437 2.645,0.162 A 36.931,36.931 0 0 0 13.146,25.65 Z"
+           /><path
+           fill="#55acee"
+           d="m 13.22,28.3 -2.649,-0.162 c -0.026,2.209 -0.384,4.145 -1.687,5.448 a 1.3226433,1.3226433 0 1 0 1.87,1.871 c 2.423,-2.422 2.467,-7.174 2.466,-7.157 z"
+           /><path
+           fill="#9266cc"
+           d="m 25.354,13.447 c -0.501,-0.028 -1.003,-0.061 -1.503,-0.094 -0.389,-0.026 -0.775,-0.051 -1.158,-0.074 0.198,3.285 0.199,6.299 -1.607,8.104 -1.804,1.804 -4.813,1.805 -8.094,1.607 -0.386,-0.023 -2.159,-0.14 -2.656,-0.168 -3.667,-0.206 -7.297,-0.126 -9.82,2.397 a 1.3226433,1.3226433 0 0 0 1.871,1.87 c 1.805,-1.804 4.815,-1.806 8.098,-1.608 0.385,0.023 2.161,0.14 2.66,0.168 3.662,0.205 7.289,0.125 9.811,-2.396 2.521,-2.52 2.603,-6.145 2.398,-9.806 z"
+           /><path
+           fill="#744eaa"
+           d="M 25.354,13.447 C 25.326,12.946 25.209,11.17 25.186,10.787 A 51.95,51.95 0 0 1 25.122,9.455 c -0.336,-0.021 -2.1,-0.133 -2.653,-0.163 0.013,0.44 0.032,0.883 0.056,1.326 0.028,0.501 0.145,2.277 0.168,2.661 0.055,0.914 0.091,1.804 0.081,2.656 0.333,0.021 2.094,0.132 2.645,0.162 a 36.316,36.316 0 0 0 -0.065,-2.65 z"
+           /><path
+           fill="#55acee"
+           d="M 35.581,8.827 C 35.161,8.391 34.196,8.226 33.29,9.18 c -1.805,1.805 -4.817,1.806 -8.104,1.607 -0.384,-0.023 -2.16,-0.141 -2.661,-0.169 -3.66,-0.205 -7.286,-0.123 -9.806,2.397 -2.215,2.215 -2.545,5.284 -2.453,8.48 0.553,0.03 2.319,0.142 2.653,0.162 -0.098,-2.755 0.113,-5.214 1.671,-6.772 1.805,-1.805 4.818,-1.805 8.104,-1.607 0.383,0.023 2.16,0.14 2.661,0.168 3.661,0.205 7.286,0.124 9.806,-2.396 0.886,-0.869 0.84,-1.787 0.42,-2.223 z"
+           /></g><g
+         style="fill:#e7216a;fill-opacity:1"
+         transform="matrix(0.17973416,-0.0227006,0.0227006,0.17973416,315.59922,156.6008)"><path
+           d="m 189.788,121.935 c 0.979,-1.54 1.826,-3.122 2.508,-4.746 l 30.203,-5.299 31.501,15.75 -31.501,-31.501 -28.472,5.695 c -0.274,-1.494 -0.678,-2.963 -1.198,-4.405 l 23.765,-9.164 18.511,-24.954 h -0.021 C 242.921,52.703 235.38,32.388 217.741,17.222 206.381,7.447 193.505,2.141 183.317,2.112 l 23.429,46.906 -39.819,-20.17 c 2.943,8.604 9.401,17.926 18.615,25.84 7.401,6.366 15.434,10.835 22.954,13.19 l -5.683,12.513 -15.617,7.321 c -7.561,-9.231 -20.471,-16.465 -36.19,-20.089 0.996,-1.225 1.594,-2.786 1.594,-4.487 0,-3.933 -3.189,-7.122 -7.122,-7.122 -3.933,0 -7.122,3.189 -7.122,7.122 0,0.876 0.166,1.71 0.455,2.485 -3.518,-0.36 -7.125,-0.555 -10.806,-0.555 -3.681,0 -7.288,0.195 -10.806,0.555 0.289,-0.775 0.455,-1.61 0.455,-2.485 0,-3.933 -3.189,-7.122 -7.122,-7.122 -3.933,0 -7.122,3.189 -7.122,7.122 0,1.702 0.598,3.262 1.594,4.487 -15.72,3.624 -28.63,10.859 -36.192,20.091 L 53.191,80.392 47.51,67.885 C 55.028,65.531 63.058,61.066 70.455,54.706 79.669,46.791 86.127,37.459 89.08,28.846 L 49.251,49.016 72.67,2.119 C 62.471,2.159 49.615,7.455 38.245,17.24 20.606,32.404 13.068,52.732 20.915,63.335 l 18.492,24.929 23.769,9.166 c -0.521,1.442 -0.924,2.91 -1.198,4.405 L 33.501,96.14 2,127.64 l 31.501,-15.75 30.209,5.3 c 0.682,1.624 1.529,3.205 2.507,4.745 l -32.716,5.706 -15.75,25.594 26.616,-16.913 31.468,-2.725 4.25,4.809 -13.114,3.016 -17.72,17.718 19.651,15.72 c 0.002,0.003 0.005,0.007 0.008,0.01 0,-0.001 0.001,-0.002 0.001,-0.003 l 0.028,0.023 -0.013,-0.053 c 0.945,-1.698 1.49,-3.649 1.49,-5.73 0,-4.158 -2.153,-7.807 -5.4,-9.912 l -0.014,-0.055 8.86,-7.875 H 91.45 l 2.255,2.552 c 1.622,1.836 3.954,2.887 6.405,2.887 h 55.445 c 2.45,0 4.782,-1.051 6.404,-2.887 l 2.255,-2.552 h 17.927 l 8.86,7.875 -0.014,0.055 c -3.247,2.105 -5.4,5.754 -5.4,9.912 0,2.081 0.545,4.032 1.49,5.73 l -0.013,0.053 0.028,-0.023 c 10e-4,0.001 10e-4,0.002 10e-4,0.003 0.003,-0.003 0.005,-0.007 0.008,-0.01 l 19.65,-15.72 -17.719,-17.719 -13.395,-3.081 4.217,-4.771 31.782,2.752 26.616,16.913 -15.75,-25.594 z"
+           style="fill:#e7216a;fill-opacity:1" /></g></g></svg>
+    </span>
+    <div class="mh-title">
+      <h1>Variant report</h1>
+      <div class="rule"></div>
+    </div>
+    <dl class="runmeta" id="runMeta"></dl>
+    <div class="mh-actions">
+      <a class="btn" href="https://github.com/PathoGenOmics-Lab/get_MNV"
+         target="_blank" rel="noopener noreferrer" title="Source code on GitHub">
+        <svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38l-.01-1.34c-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48l-.01 2.19c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"/></svg>
+        GitHub</a>
+      <a class="btn" href="https://pathogenomics-lab.github.io/get_MNV/"
+         target="_blank" rel="noopener noreferrer" title="Documentation">
+        <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.2c1.9-.6 3.7-.6 5.5.4 1.8-1 3.6-1 5.5-.4v9.3c-1.9-.6-3.7-.6-5.5.4-1.8-1-3.6-1-5.5-.4V3.2Z"/><path d="M8 3.6v9.3"/></svg>
+        Docs</a>
+      <button class="btn" id="themeBtn" type="button">
+        <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor"
+             stroke-width="1.4"><circle cx="8" cy="8" r="5.9"/><path
+             d="M8 2.1a5.9 5.9 0 0 0 0 11.8z" fill="currentColor" stroke="none"/></svg>
+        Theme</button>
+      <button class="btn" id="exportBtn" type="button">
+        <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor"
+             stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path
+             d="M8 2v7.6"/><path d="M4.8 6.6 8 9.8l3.2-3.2"/><path d="M2.8 13.2h10.4"/></svg>
+        Export filtered TSV</button>
+    </div>
+  </div>
+  <div class="cmdbar"><div id="meta"></div></div>
+</header>
+
+<main class="wrap">
+  <section class="sec">
+    <div class="summary">
+      <div class="hero">
+        <div class="lab">Variants shown</div>
+        <div class="heroval num" id="heroVal">0</div>
+        <p class="note" id="heroNote"></p>
+      </div>
+      <div class="statrow" id="kpis"></div>
+    </div>
+    <div class="conseq-wrap">
+      <div class="sec-head">
+        <h2>Consequence</h2>
+        <p>Most frequent Sequence Ontology terms.</p>
+      </div>
+      <div id="soChart" class="conseq-grid"></div>
+    </div>
+  </section>
+
+  <div class="filters">
+    <input type="search" id="q" placeholder="Search gene, position, AA change, HGVS..." aria-label="Search">
+    <span id="activeFilters"></span>
+    <button class="btn" id="resetBtn" type="button">Reset all</button>
+  </div>
+
+  <section class="sec" id="matrixPanel">
+    <div class="sec-head">
+      <h2>Variant matrix</h2>
+      <p id="matrixHint"></p>
+      <div class="ctl">
+        <select id="contigSel" aria-label="Contig" hidden></select>
+        <input type="search" id="regionBox" placeholder="region or gene, e.g. 761000-763500" aria-label="Go to region">
+        <button class="btn sm" id="goBtn" type="button">Go</button>
+        <button class="btn sm" id="zoomOutBtn" type="button" aria-label="Zoom out">&minus;</button>
+        <button class="btn sm" id="zoomInBtn" type="button" aria-label="Zoom in">+</button>
+        <button class="btn sm" id="fitBtn" type="button">Fit</button>
+        <label for="tracksSel">Tracks</label>
+        <select id="tracksSel" aria-label="Density tracks">
+          <option value="all">all lanes</option>
+          <option value="compact">compact</option>
+          <option value="off">hidden</option>
+        </select>
+        <label for="orderSel">Order</label>
+        <select id="orderSel" aria-label="Sample order">
+          <option value="similar">shared profile</option>
+          <option value="count">variant count</option>
+          <option value="name">name</option>
+        </select>
+      </div>
+    </div>
+    <div class="panel">
+      <div id="matrixScroll"><canvas id="matrix"></canvas></div>
+      <div id="matrixTip" role="status" aria-live="polite"></div>
+      <div class="legend" id="matrixLegend"></div>
+      <p class="note" id="matrixNote"></p>
+    </div>
+  </section>
+
+  <section class="sec" id="hapPanel">
+    <div class="sec-head">
+      <h2>Read-backed haplotypes</h2>
+      <p>Allele combinations observed on the same reads. Long-range phasing is not inferred.</p>
+    </div>
+    <div class="panel"><div class="scrollY"><div id="hapList"></div></div></div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>All variants</h2>
+      <p id="hintSort">Click a column to sort, the caret to filter, a row for detail.</p>
+    </div>
+    <div class="tablewrap">
+      <div class="tbar">
+        <span id="count"></span>
+        <span></span>
+      </div>
+      <div id="hscroll">
+        <div id="tinner">
+          <div class="thead" id="thead"></div>
+          <div id="viewport"><div id="spacer"></div></div>
+        </div>
+      </div>
+      <div id="empty" class="empty" hidden>No variants match the current filters.</div>
+    </div>
+  </section>
+
+  <footer id="foot"></footer>
+</main>
+
+<div id="pop" hidden role="dialog" aria-label="Column filter"></div>
+
+<aside id="drawer" aria-hidden="true" aria-label="Variant detail">
+  <div class="dhead">
+    <h3 id="dTitle">Variant</h3>
+    <button class="btn" id="dClose" type="button">Close</button>
+  </div>
+  <div class="dl" id="dBody"></div>
+</aside>
+<script id="report-data" type="application/json">__GET_MNV_REPORT_DATA__</script>
+<script>
+(function(){
+"use strict";
+var DATA = JSON.parse(document.getElementById("report-data").textContent);
+var D = DATA.dict, ROWS = DATA.rows, META = DATA.meta;
+
+// Row schema (kept in sync with the Rust writer).
+var C = {sample:0,chrom:1,gene:2,pos:3,ref:4,alt:5,aa:6,type:7,change:8,so:9,impact:10,
+         grantham:11,shift:12,dbs:13,nmd:14,hgvsg:15,hgvsc:16,freq:17,depth:18,
+         refCodon:19,altCodon:20,evClass:21,evComp:22,reads:23,phasing:24,phReads:25};
+
+var TYPE_COLOR = {"SNP":"var(--s1)","MNV":"var(--s2)","SNP/MNV":"var(--s3)","INDEL":"var(--s4)"};
+var IMP_COLOR  = {"HIGH":"var(--critical)","MODERATE":"var(--serious)","LOW":"var(--warning)","MODIFIER":"var(--muted)"};
+var IMP_ORDER  = ["HIGH","MODERATE","LOW","MODIFIER"];
+
+function txt(row,key){
+  var v = row[C[key]];
+  if(v===null||v===undefined||v==="") return "-";
+  return v;
+}
+function dictVal(row,key,arr){
+  var i = row[C[key]];
+  return (i===null||i===undefined) ? "-" : (arr[i]===undefined?"-":arr[i]);
+}
+function sampleOf(r){ return dictVal(r,"sample",D.samples); }
+function geneOf(r){ return dictVal(r,"gene",D.genes); }
+function typeOf(r){ return dictVal(r,"type",D.types); }
+function changeOf(r){ return dictVal(r,"change",D.changes); }
+function soOf(r){ return dictVal(r,"so",D.so); }
+function impOf(r){ return dictVal(r,"impact",D.impacts); }
+function chromOf(r){ return dictVal(r,"chrom",D.chroms); }
+
+// ---------- state ----------
+var state = {q:"",col:{},sortCol:null,sortDir:1,sel:-1};
+var view = [];
+
+// What each filterable column is: a checkbox list of values, a free-text match,
+// or a numeric range.
+var FKIND = {sample:"cat", chrom:"cat", gene:"cat", type:"cat", so:"cat", impact:"cat",
+             pos:"text", change:"text", aa:"text", grantham:"num", freq:"num"};
+function fValues(key){
+  if(key==="sample") return D.samples;
+  if(key==="chrom")  return D.chroms;
+  if(key==="gene")   return D.genes.slice().sort();
+  if(key==="type")   return D.types;
+  if(key==="so")     return D.so.slice().sort();
+  if(key==="impact") return IMP_ORDER.filter(function(i){ return D.impacts.indexOf(i)>=0; });
+  return [];
+}
+function colOf(key){
+  for(var i=0;i<COLS.length;i++) if(COLS[i].k===key) return COLS[i];
+  return null;
+}
+function fNumber(r, key){
+  var v = r[C[key]];
+  return (v===null||v===undefined) ? null : v;
+}
+function colFilterActive(key){
+  var f = state.col[key];
+  if(!f) return false;
+  if(FKIND[key]==="cat")  return !!(f.set && Object.keys(f.set).length);
+  if(FKIND[key]==="text") return !!f.q;
+  return f.min!==null && f.min!==undefined || f.max!==null && f.max!==undefined;
+}
+
+function passes(r){
+  for(var key in state.col){
+    if(!colFilterActive(key)) continue;
+    var f = state.col[key], kind = FKIND[key];
+    if(kind==="cat"){
+      var col = colOf(key);
+      if(!f.set[col ? col.get(r) : ""]) return false;
+    } else if(kind==="text"){
+      var c2 = colOf(key);
+      if(String(c2 ? c2.get(r) : "").toLowerCase().indexOf(f.q) < 0) return false;
+    } else {
+      var n = fNumber(r, key);
+      if(n===null) return false;
+      if(f.min!==null && f.min!==undefined && n < f.min) return false;
+      if(f.max!==null && f.max!==undefined && n > f.max) return false;
+    }
+  }
+  if(state.q){
+    var q = state.q.toLowerCase();
+    var hay = [geneOf(r),chromOf(r),txt(r,"pos"),txt(r,"aa"),txt(r,"hgvsg"),txt(r,"hgvsc"),
+               soOf(r),changeOf(r),txt(r,"dbs"),sampleOf(r)].join(" ").toLowerCase();
+    if(hay.indexOf(q)===-1) return false;
+  }
+  return true;
+}
+
+var COLS = [
+  {k:"sample", t:"Sample", w:110, get:sampleOf},
+  {k:"chrom",  t:"Contig", w:90,  get:chromOf},
+  {k:"gene",   t:"Gene",   w:110, get:geneOf},
+  {k:"pos",    t:"Position", w:110, num:true, mono:true, get:function(r){return txt(r,"pos")}},
+  {k:"change", t:"Change",  w:120, mono:true, get:function(r){return txt(r,"ref")+">"+txt(r,"alt")}},
+  {k:"aa",     t:"AA change", w:130, mono:true, get:function(r){return txt(r,"aa")}},
+  {k:"type",   t:"Type",   w:88,  get:typeOf},
+  {k:"so",     t:"Consequence", w:190, get:soOf},
+  {k:"impact", t:"Impact", w:104, get:impOf},
+  {k:"grantham", t:"Grantham", w:88, num:true, get:function(r){var v=r[C.grantham];return v===null||v===undefined?"-":v}},
+  {k:"freq",   t:"Freq", w:78, num:true, get:function(r){var v=r[C.freq];return v===null||v===undefined?"-":v.toFixed(4)}}
+];
+
+function sortKey(r,col){
+  if(col.k==="pos"){ var m=String(txt(r,"pos")).match(/\d+/); return m?parseInt(m[0],10):0; }
+  if(col.k==="grantham"||col.k==="freq"){ var v=r[C[col.k]]; return (v===null||v===undefined)?-1:v; }
+  if(col.k==="impact"){ var i=IMP_ORDER.indexOf(impOf(r)); return i<0?99:i; }
+  return String(col.get(r)).toLowerCase();
+}
+
+function recompute(){
+  view = [];
+  for(var i=0;i<ROWS.length;i++) if(passes(ROWS[i])) view.push(i);
+  if(state.sortCol){
+    var col = state.sortCol, dir = state.sortDir;
+    view.sort(function(a,b){
+      var ka=sortKey(ROWS[a],col), kb=sortKey(ROWS[b],col);
+      if(ka<kb) return -1*dir; if(ka>kb) return 1*dir; return a-b;
+    });
+  }
+  render();
+}
+
+// ---------- charts ----------
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+function stackedBars(el, groups, order, colorOf, totalLabel){
+  // groups: [{name, parts:{key:count}, total}] already sorted
+  var max = 0; groups.forEach(function(g){ if(g.total>max) max=g.total; });
+  if(!groups.length || max===0){ el.innerHTML = '<p class="hint">Nothing to show.</p>'; return; }
+  var h = "";
+  groups.forEach(function(g){
+    h += '<div style="display:flex;align-items:center;gap:9px;margin:0 0 7px">';
+    h += '<div style="flex:0 0 108px;font-size:11.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(g.name)+'">'+esc(g.name)+'</div>';
+    h += '<div style="flex:1 1 auto;display:flex;gap:2px;height:15px;align-items:stretch">';
+    order.forEach(function(k){
+      var v = g.parts[k]||0; if(!v) return;
+      var pct = (v/max)*100;
+      h += '<div title="'+esc(g.name+" · "+k+": "+v)+'" style="width:'+pct.toFixed(3)+'%;background:'+colorOf(k)+';opacity:.65;border-radius:2px"></div>';
+    });
+    h += '</div>';
+    h += '<div class="num" style="flex:0 0 58px;text-align:right;font-size:11.5px;color:var(--text-2)">'+g.total.toLocaleString()+'</div>';
+    h += '</div>';
+  });
+  el.innerHTML = h;
+}
+
+function drawCharts(){
+  var bySo = {};
+  view.forEach(function(idx){ var t = soOf(ROWS[idx]); bySo[t]=(bySo[t]||0)+1; });
+  var so = Object.keys(bySo).map(function(k){ return {name:k, parts:{v:bySo[k]}, total:bySo[k]}; });
+  so.sort(function(a,b){ return b.total-a.total || a.name.localeCompare(b.name); });
+  // Magnitude is neutral: the nucleotide hues belong to the matrix cells alone.
+  var max = so.length ? so[0].total : 0;
+  document.getElementById("soChart").innerHTML = so.slice(0,10).map(function(g){
+    var pct = max ? (g.total/max)*100 : 0;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:4px 0">' +
+      '<span style="flex:0 0 152px;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(g.name)+'">'+esc(g.name)+'</span>' +
+      '<span style="flex:1 1 auto;height:5px;border-radius:99px;background:var(--grid);position:relative;overflow:hidden">' +
+        '<i style="position:absolute;inset:0 auto 0 0;width:'+pct.toFixed(2)+'%;background:var(--text-2);opacity:.5;border-radius:99px"></i></span>' +
+      '<span class="num" style="flex:0 0 46px;text-align:right;font-size:11.5px;color:var(--text-2)">'+g.total.toLocaleString()+'</span></div>';
+  }).join("");
+}
+
+// ---------- variant matrix (genomic browser over variable sites) ----------
+// The x axis is a real genomic coordinate range, so panning and zooming behave
+// like a genome browser. Cell states are deliberately only two: an ALT call, or
+// "not called". The TSV cannot distinguish reference from absent coverage, so a
+// blank cell is never claimed to be reference.
+var NT = ["A","C","G","T"];
+var MAX_SITES = 20000, LABEL_W = 150, CELL_H = 12, NAME_W = 104;
+var OVER_H = 16, RULER_H = 17, GENE_H = 13, GROUP_H = 5, PAD_TOP = 4, LANE_H = 21;
+
+// Density lanes. Each lane is its own single-series chart named by its own
+// label, so colour carries no identity load: everything is the sequential hue
+// except HIGH impact, which uses the reserved status colour for severity.
+var T_SNP = D.types.indexOf("SNP"), T_MNV = D.types.indexOf("MNV"),
+    T_SNPMNV = D.types.indexOf("SNP/MNV"), T_INDEL = D.types.indexOf("INDEL"),
+    I_HIGH = D.impacts.indexOf("HIGH");
+var LANES = [
+  {key:"all",     label:"all calls",   hue:"--text-2",   hit:function(){ return true; }},
+  {key:"snp",     label:"SNP",         hue:"--text-2",   hit:function(t){ return t===T_SNP; }},
+  {key:"mnv",     label:"MNV",         hue:"--text-2",   hit:function(t){ return t===T_MNV || t===T_SNPMNV; }},
+  {key:"indel",   label:"indel",       hue:"--text-2",   hit:function(t){ return t===T_INDEL; }},
+  {key:"high",    label:"HIGH impact", hue:"--critical", hit:function(t,im){ return im===I_HIGH; }},
+  {key:"samples", label:"samples",     hue:"--text-2",   distinct:true, hit:function(){ return true; }}
+];
+function activeLanes(){
+  if(mtx.tracks === "off") return [];
+  if(mtx.tracks === "compact") return LANES.filter(function(l){
+    return l.key==="all" || l.key==="mnv" || l.key==="high";
+  });
+  return LANES;
+}
+var MIN_TICK = 2;       // a site is never thinner than this, so sparse views stay readable
+var MIN_SPAN = 40;      // deepest zoom, in base pairs
+
+var mtx = {contig:null, contigs:[], sites:[], samples:[], grid:null, owner:null,
+           order:"similar", groups:[], view:null, span:null, dropped:0, drag:null,
+           calls:[], geneSpans:[], tracks:"all", topH:0, densH:0};
+
+function themeColor(name){
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#888";
+}
+function fmtPos(n){
+  // Grouped with thin spaces: a locale separator (1.234) reads as a decimal.
+  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
+function buildMatrix(){
+  var siteMeta = {}, siteKeys = [], sampleIdx = {}, sampleNames = [];
+  var recs = [], groupKeys = [], contigCount = {}, calls = [];
+  for(var n=0;n<view.length;n++){
+    var r = ROWS[view[n]], s = sampleOf(r);
+    if(sampleIdx[s]===undefined){ sampleIdx[s]=sampleNames.length; sampleNames.push(s); }
+    var chrom = chromOf(r), isIndel = typeOf(r)==="INDEL";
+    var poss = String(txt(r,"pos")).split(","), alts = String(txt(r,"alt")).split(",");
+    var mine = [];
+    for(var i=0;i<poss.length;i++){
+      var p = parseInt(poss[i],10); if(!p) continue;
+      contigCount[chrom] = (contigCount[chrom]||0)+1;
+      var k = chrom+"|"+p;
+      // Every gene that annotates this base, not just the first row to mention
+      // it. Two overlapping genes each get a row of their own in the table, and
+      // keeping one name here dropped the other from the gene track and from the
+      // matrix search, with which one survived decided by the order the table
+      // happened to be sorted in.
+      if(siteMeta[k]===undefined){ siteMeta[k] = {chrom:chrom,pos:p,genes:[]}; siteKeys.push(k); }
+      var gname = geneOf(r);
+      if(gname && siteMeta[k].genes.indexOf(gname) < 0) siteMeta[k].genes.push(gname);
+      var raw = String(alts[i]!==undefined?alts[i]:(alts[0]||"")).trim().toUpperCase();
+      var base = isIndel ? "I" : (NT.indexOf(raw)>=0 ? raw : "I");
+      recs.push([sampleIdx[s], k, base, view[n]]);
+      calls.push([chrom, p, r[C.type], r[C.impact], sampleIdx[s]]);
+      mine.push(k);
+    }
+    if(mine.length>1) groupKeys.push(mine);
+  }
+
+  mtx.contigs = Object.keys(contigCount).sort(function(a,b){ return contigCount[b]-contigCount[a]; });
+  if(mtx.contigs.indexOf(mtx.contig) < 0) { mtx.contig = mtx.contigs[0] || null; mtx.view = null; }
+
+  // Only the selected contig is plotted: a continuous coordinate axis cannot span contigs.
+  siteKeys = siteKeys.filter(function(k){ return siteMeta[k].chrom === mtx.contig; });
+  siteKeys.sort(function(a,b){ return siteMeta[a].pos - siteMeta[b].pos; });
+  mtx.dropped = Math.max(0, siteKeys.length - MAX_SITES);
+  if(mtx.dropped) siteKeys = siteKeys.slice(0, MAX_SITES);
+  var col = {};
+  siteKeys.forEach(function(k,i){ col[k]=i; });
+
+  // The gene list of a site is sorted for the same reason its bars are: what the
+  // tooltip reads must not depend on how the table happens to be sorted.
+  mtx.sites = siteKeys.map(function(k){ siteMeta[k].genes.sort(); return siteMeta[k]; });
+  mtx.samples = sampleNames;
+  var nS = sampleNames.length, nC = siteKeys.length;
+  var grid = new Uint8Array(nS*nC);
+  var owner = new Int32Array(nS*nC); owner.fill(-1);
+  for(var j=0;j<recs.length;j++){
+    var c = col[recs[j][1]]; if(c===undefined) continue;
+    var at = recs[j][0]*nC + c;
+    var bi = NT.indexOf(recs[j][2]);
+    grid[at] = bi>=0 ? bi+1 : 5;
+    owner[at] = recs[j][3];
+  }
+  mtx.grid = grid; mtx.owner = owner;
+  mtx.calls = calls.filter(function(c){ return c[0] === mtx.contig; })
+                   .map(function(c){ return [c[1], c[2], c[3], c[4]]; });
+  // Extent of the called sites of each gene. This is not the annotated gene
+  // boundary, which the report does not carry; it is where calls were made.
+  var spans = {};
+  mtx.sites.forEach(function(st){
+    st.genes.forEach(function(g){
+      // The intergenic placeholder is not a gene, and its calls run the length of
+      // the contig, so it drew a gene bar across the whole track.
+      if(!g || g === "intergenic") return;
+      if(!spans[g]) spans[g] = [st.pos, st.pos];
+      else { if(st.pos<spans[g][0]) spans[g][0]=st.pos; if(st.pos>spans[g][1]) spans[g][1]=st.pos; }
+    });
+  });
+  // Ordered by where the calls start and then by name, so two genes covering the
+  // same span always come out the same way round. Leaving it to insertion order
+  // let the shading of the track change when the table was sorted.
+  mtx.geneSpans = Object.keys(spans).map(function(g){ return {gene:g, lo:spans[g][0], hi:spans[g][1]}; })
+                        .sort(function(a,b){ return a.lo-b.lo || a.gene.localeCompare(b.gene); });
+  mtx.groups = groupKeys.map(function(ks){
+    var ps = ks.map(function(k){ return col[k]; }).filter(function(c){ return c!==undefined; });
+    return ps.length>1 ? [mtx.sites[Math.min.apply(null,ps)].pos, mtx.sites[Math.max.apply(null,ps)].pos] : null;
+  }).filter(Boolean);
+
+  // Full extent of the contig's called sites, and the current window.
+  if(nC){
+    var lo = mtx.sites[0].pos, hi = mtx.sites[nC-1].pos;
+    var pad = Math.max(20, Math.round((hi-lo)*0.02));
+    // Genomic coordinates are 1-based: the padded extent must never go below 1.
+    mtx.span = [Math.max(1, lo-pad), hi+pad];
+    if(!mtx.view) mtx.view = mtx.span.slice();
+    clampView();
+  } else { mtx.span = null; mtx.view = null; }
+
+  var idx = sampleNames.map(function(_,i){ return i; });
+  if(mtx.order==="name"){
+    idx.sort(function(a,b){ return sampleNames[a].localeCompare(sampleNames[b]); });
+  } else if(mtx.order==="count"){
+    var cnt = idx.map(function(i){ var t=0; for(var c=0;c<nC;c++) if(grid[i*nC+c]) t++; return t; });
+    idx.sort(function(a,b){ return cnt[b]-cnt[a] || sampleNames[a].localeCompare(sampleNames[b]); });
+  } else {
+    var prof = idx.map(function(i){
+      var out = new Array(nC);
+      for(var c=0;c<nC;c++) out[c] = grid[i*nC+c] ? "1" : "0";
+      return out.join("");
+    });
+    idx.sort(function(a,b){ return prof[a]<prof[b] ? 1 : prof[a]>prof[b] ? -1 : sampleNames[a].localeCompare(sampleNames[b]); });
+  }
+  mtx.rowOrder = idx;
+}
+
+function clampView(){
+  if(!mtx.view || !mtx.span) return;
+  var full = mtx.span[1]-mtx.span[0];
+  var w = Math.min(Math.max(mtx.view[1]-mtx.view[0], MIN_SPAN), Math.max(full, MIN_SPAN));
+  var mid = (mtx.view[0]+mtx.view[1])/2;
+  var s = mid - w/2, e = mid + w/2;
+  if(s < mtx.span[0]){ s = mtx.span[0]; e = s + w; }
+  if(e > mtx.span[1]){ e = mtx.span[1]; s = e - w; }
+  if(s < mtx.span[0]) s = mtx.span[0];
+  mtx.view = [s, e];
+}
+function plotWidth(){
+  var wrap = document.getElementById("matrixScroll");
+  return Math.max(240, (wrap.clientWidth || 900) - LABEL_W - 2);
+}
+function xOf(pos){
+  return LABEL_W + ((pos - mtx.view[0]) / (mtx.view[1] - mtx.view[0])) * plotWidth();
+}
+function posOf(x){
+  return mtx.view[0] + ((x - LABEL_W) / plotWidth()) * (mtx.view[1] - mtx.view[0]);
+}
+
+function niceStep(span, target){
+  var raw = span / Math.max(1,target), mag = Math.pow(10, Math.floor(Math.log(raw)/Math.LN10));
+  var norm = raw/mag;
+  return (norm<=1?1:norm<=2?2:norm<=5?5:10) * mag;
+}
+
+function drawMatrix(){
+  buildMatrix();
+  var cv = document.getElementById("matrix");
+  var nS = mtx.samples.length, nC = mtx.sites.length;
+  var hint = document.getElementById("matrixHint"), note = document.getElementById("matrixNote");
+  var contigSel = document.getElementById("contigSel");
+
+  if(mtx.contigs.length > 1){
+    contigSel.hidden = false;
+    if(contigSel.dataset.built !== mtx.contigs.join("|")){
+      contigSel.innerHTML = mtx.contigs.map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+'</option>'; }).join("");
+      contigSel.dataset.built = mtx.contigs.join("|");
+    }
+    contigSel.value = mtx.contig;
+  } else { contigSel.hidden = true; }
+
+  if(!nS || !nC || !mtx.view){
+    cv.width = 0; cv.height = 0; cv.style.width = "0px"; cv.style.height = "0px";
+    hint.textContent = "No variable sites under the current filters.";
+    note.textContent = ""; document.getElementById("matrixLegend").innerHTML = "";
+    return;
+  }
+
+  var span = mtx.view[1]-mtx.view[0];
+  var inView = 0;
+  for(var i=0;i<nC;i++) if(mtx.sites[i].pos>=mtx.view[0] && mtx.sites[i].pos<=mtx.view[1]) inView++;
+  hint.textContent = nS + " sample" + (nS===1?"":"s") + " · " + nC.toLocaleString() +
+    " variable site" + (nC===1?"":"s") + " on " + mtx.contig + " · showing " +
+    fmtPos(mtx.view[0]) + "-" + fmtPos(mtx.view[1]) + " (" + fmtPos(span) + " bp, " +
+    inView.toLocaleString() + " site" + (inView===1?"":"s") + " in view)";
+
+  var pw = plotWidth();
+  var lanes = activeLanes();
+  var densH = lanes.length ? lanes.length*LANE_H + 6 : 0;
+  var topH = OVER_H + densH + RULER_H + GENE_H + GROUP_H + PAD_TOP;
+  mtx.densH = densH; mtx.topH = topH;
+  var w = LABEL_W + pw, h = topH + nS*CELL_H;
+  var dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
+  cv.style.width = w+"px"; cv.style.height = h+"px";
+  var g = cv.getContext("2d");
+  g.setTransform(dpr,0,0,dpr,0,0);
+
+  var colors = ["", themeColor("--nt-A"), themeColor("--nt-C"), themeColor("--nt-G"),
+                themeColor("--nt-T"), themeColor("--nt-indel")];
+  var none = themeColor("--nt-none"), ink = themeColor("--text-2"), muted = themeColor("--muted");
+  var grid = themeColor("--grid"), surface = themeColor("--page");
+  g.clearRect(0,0,w,h); g.fillStyle = surface; g.fillRect(0,0,w,h);
+
+  // Overview strip: the whole contig extent with the current window highlighted.
+  var fullSpan = mtx.span[1]-mtx.span[0];
+  g.fillStyle = grid; g.fillRect(LABEL_W, 3, pw, OVER_H-7);
+  g.fillStyle = muted;
+  for(var i2=0;i2<nC;i2++){
+    var ox = LABEL_W + ((mtx.sites[i2].pos - mtx.span[0]) / fullSpan) * pw;
+    g.fillRect(ox, 3, 1, OVER_H-7);
+  }
+  var vx = LABEL_W + ((mtx.view[0]-mtx.span[0])/fullSpan)*pw;
+  var vw = Math.max(2, (span/fullSpan)*pw);
+  g.strokeStyle = ink; g.lineWidth = 1.5;
+  g.strokeRect(vx, 2.5, vw, OVER_H-6);
+  g.fillStyle = ink; g.globalAlpha = .12;
+  g.fillRect(vx, 3, vw, OVER_H-7); g.globalAlpha = 1;
+  g.fillStyle = muted; g.font = "9px system-ui,-apple-system,sans-serif";
+  g.textAlign = "left"; g.textBaseline = "middle";
+  g.fillText("whole contig", 4, 3+(OVER_H-7)/2);
+  if(mtx.drag && mtx.drag.mode === "brush" && mtx.drag.x2 !== undefined){
+    var bx1 = Math.min(mtx.drag.x1, mtx.drag.x2), bx2 = Math.max(mtx.drag.x1, mtx.drag.x2);
+    g.fillStyle = themeColor("--s1"); g.globalAlpha = .30;
+    g.fillRect(bx1, 3, Math.max(1,bx2-bx1), OVER_H-7); g.globalAlpha = 1;
+  }
+
+  // Density lanes: one small chart per metric, each with its own scale and its
+  // own label. Separate lanes rather than one stacked bar, because in a stack
+  // only the bottom series can actually be read.
+  var bins = Math.max(1, Math.floor(pw/3));
+  var binW = span/bins;
+  if(lanes.length){
+    var series = lanes.map(function(){ return new Array(bins).fill(0); });
+    var seen = lanes.map(function(l){ return l.distinct ? [] : null; });
+    for(var ci=0;ci<mtx.calls.length;ci++){
+      var cp = mtx.calls[ci][0];
+      if(cp < mtx.view[0] || cp > mtx.view[1]) continue;
+      var b = Math.min(bins-1, Math.max(0, Math.floor((cp-mtx.view[0])/binW)));
+      var ct = mtx.calls[ci][1], cim = mtx.calls[ci][2], cs = mtx.calls[ci][3];
+      for(var li=0;li<lanes.length;li++){
+        if(!lanes[li].hit(ct, cim)) continue;
+        if(lanes[li].distinct){
+          if(!seen[li][b]) seen[li][b] = {};
+          if(seen[li][b][cs]) continue;
+          seen[li][b][cs] = 1;
+        }
+        series[li][b]++;
+      }
+    }
+    for(var li2=0;li2<lanes.length;li2++){
+      var laneY = OVER_H + 3 + li2*LANE_H, barH = LANE_H - 7;
+      var arr = series[li2], mx = 0;
+      for(var b3=0;b3<bins;b3++) if(arr[b3]>mx) mx = arr[b3];
+      g.fillStyle = grid; g.fillRect(LABEL_W, laneY+barH, pw, 1);
+      if(mx > 0){
+        var bpx = pw/bins;
+        g.fillStyle = themeColor(lanes[li2].hue);
+        for(var b4=0;b4<bins;b4++){
+          var v4 = arr[b4]; if(!v4) continue;
+          var hh = Math.max(1, (v4/mx)*barH);
+          g.fillRect(LABEL_W + b4*bpx, laneY+barH-hh, Math.max(1, bpx-0.4), hh);
+        }
+      }
+      g.font = "9px system-ui,-apple-system,sans-serif"; g.textBaseline = "middle";
+      g.fillStyle = ink; g.textAlign = "left";
+      g.fillText(lanes[li2].label, 4, laneY + barH/2);
+      g.fillStyle = muted; g.textAlign = "right";
+      g.fillText(mx ? String(mx) : "0", LABEL_W-5, laneY + barH/2);
+    }
+  }
+
+  // Ruler.
+  var ry = OVER_H + densH + RULER_H - 4;
+  var step = niceStep(span, Math.max(2, Math.floor(pw/110)));
+  g.strokeStyle = grid; g.beginPath(); g.moveTo(LABEL_W, ry+0.5); g.lineTo(LABEL_W+pw, ry+0.5); g.stroke();
+  g.fillStyle = muted; g.font = "10px system-ui,-apple-system,sans-serif"; g.textBaseline = "bottom";
+  var first = Math.ceil(mtx.view[0]/step)*step;
+  for(var t=first; t<=mtx.view[1]; t+=step){
+    var tx = xOf(t);
+    g.strokeStyle = grid; g.beginPath(); g.moveTo(tx+0.5, ry-3); g.lineTo(tx+0.5, ry); g.stroke();
+    g.textAlign = (tx < LABEL_W+26) ? "left" : "center";
+    g.fillText(fmtPos(t), tx, ry-4);
+  }
+
+  // Gene track: the extent of each gene's called sites. This is not the annotated
+  // gene boundary, which the report does not carry.
+  var geneY = OVER_H + densH + RULER_H;
+  g.textBaseline = "middle";
+  mtx.geneSpans.forEach(function(gs, gi){
+    if(gs.hi < mtx.view[0] || gs.lo > mtx.view[1]) return;
+    var gx1 = Math.max(LABEL_W, xOf(gs.lo)), gx2 = Math.min(LABEL_W+pw, xOf(gs.hi));
+    var gwd = Math.max(2, gx2-gx1);
+    g.fillStyle = ink;
+    g.globalAlpha = gi % 2 ? .22 : .13;
+    g.fillRect(gx1, geneY+1, gwd, GENE_H-4); g.globalAlpha = 1;
+    g.fillStyle = ink; g.font = "9px system-ui,-apple-system,sans-serif"; g.textAlign = "center";
+    if(gwd > g.measureText(gs.gene).width + 8) g.fillText(gs.gene, gx1+gwd/2, geneY+1+(GENE_H-4)/2);
+  });
+
+  // Ticks marking positions called together on the same reads.
+  var gy = OVER_H + densH + RULER_H + GENE_H;
+  g.fillStyle = ink; g.globalAlpha = .6;
+  mtx.groups.forEach(function(gr){
+    if(gr[1] < mtx.view[0] || gr[0] > mtx.view[1]) return;
+    // Held inside the plot the way the gene bars above it are. A group with one
+    // base outside the window was drawn from where that base would have been,
+    // which is over the sample names, by as many pixels as the zoom makes a
+    // base wide. The minimum width is applied before the clamp, so a group at
+    // the very edge shows the sliver that is actually in view.
+    var x1 = xOf(gr[0]), x2 = xOf(gr[1]);
+    var lo = Math.min(x1,x2)-1, hi = Math.max(x1,x2)+1;
+    if(hi-lo < 3) hi = lo+3;
+    lo = Math.max(LABEL_W, lo); hi = Math.min(LABEL_W+pw, hi);
+    if(hi > lo) g.fillRect(lo, gy+1, hi-lo, 2);
+  });
+  g.globalAlpha = 1;
+
+  // Cells.
+  var top0 = topH;
+  var perBase = pw / span;
+  var cw = Math.max(MIN_TICK, Math.min(16, perBase));
+  var showLetter = cw >= 8;
+  g.save();
+  g.beginPath(); g.rect(LABEL_W, top0-2, pw, nS*CELL_H+2); g.clip();
+  for(var vrow=0; vrow<nS; vrow++){
+    var si = mtx.rowOrder[vrow], y = top0 + vrow*CELL_H;
+    g.fillStyle = none; g.fillRect(LABEL_W, y, pw, CELL_H-1);
+    for(var c=0;c<nC;c++){
+      var p = mtx.sites[c].pos;
+      if(p < mtx.view[0]-1 || p > mtx.view[1]+1) continue;
+      var v = mtx.grid[si*nC + c]; if(!v) continue;
+      var x = xOf(p) - cw/2;
+      // The gap that keeps neighbouring cells apart is taken off both sides, so
+      // the mark stays centred on the base it stands for. Off one side only, it
+      // sat a quarter of a pixel away from its own coordinate.
+      var gap = cw > 3 ? 0.5 : 0;
+      g.fillStyle = colors[v];
+      g.fillRect(x + gap/2, y, Math.max(1, cw-gap), CELL_H-1);
+      if(showLetter){
+        g.fillStyle = "#fff"; g.font = "9px system-ui,-apple-system,sans-serif";
+        g.textAlign = "center"; g.textBaseline = "middle";
+        g.fillText(v===5 ? "•" : NT[v-1], x + cw/2, y + (CELL_H-1)/2);
+      }
+    }
+  }
+  g.restore();
+
+  // Sample labels, each with a bar of how many calls that sample has in view.
+  // This replaces the old separate per-sample chart: the counts belong beside
+  // the samples they describe.
+  var perSample = new Array(nS).fill(0), maxSample = 0;
+  for(var si2=0; si2<nS; si2++){
+    var t2 = 0;
+    for(var c2=0;c2<nC;c2++){
+      if(!mtx.grid[si2*nC+c2]) continue;
+      var pp = mtx.sites[c2].pos;
+      if(pp >= mtx.view[0] && pp <= mtx.view[1]) t2++;
+    }
+    perSample[si2] = t2; if(t2>maxSample) maxSample = t2;
+  }
+  g.font = "10px system-ui,-apple-system,sans-serif"; g.textBaseline = "middle";
+  for(var vr=0; vr<nS; vr++){
+    var sIdx = mtx.rowOrder[vr], yy = top0 + vr*CELL_H + (CELL_H-1)/2;
+    var nm = mtx.samples[sIdx];
+    g.fillStyle = ink; g.textAlign = "left";
+    while(nm.length > 3 && g.measureText(nm).width > NAME_W - 6) nm = nm.slice(0, -1);
+    g.fillText(nm === mtx.samples[sIdx] ? nm : nm + "…", 4, yy);
+    if(maxSample > 0){
+      var bw = Math.round((perSample[sIdx]/maxSample) * (LABEL_W - NAME_W - 12));
+      g.fillStyle = ink; g.globalAlpha = .22;
+      g.fillRect(NAME_W, top0 + vr*CELL_H + 2, LABEL_W - NAME_W - 12, CELL_H-5);
+      g.globalAlpha = .55; g.fillRect(NAME_W, top0 + vr*CELL_H + 2, Math.max(1,bw), CELL_H-5);
+      g.globalAlpha = 1;
+    }
+  }
+
+  document.getElementById("matrixLegend").innerHTML =
+    '<span class="grp"><b>base</b>' +
+      NT.map(function(b){ return '<span><i class="sw" style="background:var(--nt-'+b+')"></i>'+b+'</span>'; }).join("") +
+      '<span><i class="sw" style="background:var(--nt-indel)"></i>indel</span></span>' +
+    '<span class="grp"><b>cell</b>' +
+      '<span><i class="sw" style="background:var(--nt-none);border:1px solid var(--border)"></i>not called (reference or no coverage)</span>' +
+      '<span><i class="sw" style="background:var(--text-2);opacity:.6;height:3px"></i>called together</span></span>' +
+    '<span class="grp"><b>tracks</b>' +
+      '<span><i class="sw" style="background:var(--text-2);opacity:.2"></i>gene extent</span>' +
+      '<span>lanes are labelled left, each with its own maximum</span></span>';
+
+  var notes = ["Scroll to zoom, drag to pan, drag across the top strip to select a range. Double-click resets."];
+  if(mtx.dropped) notes.push("Showing the first " + MAX_SITES.toLocaleString() + " sites of this contig; " +
+                            mtx.dropped.toLocaleString() + " further site(s) are not drawn.");
+  if(!showLetter) notes.push("Zoom in to read the base letter in each cell; hovering always names it.");
+  note.textContent = notes.join(" ");
+}
+
+// ---------- matrix interaction ----------
+var mcanvas = document.getElementById("matrix");
+function overviewHit(y){ return y <= OVER_H + 2; }
+function rowAt(y){
+  var vr = Math.floor((y - (mtx.topH||0))/CELL_H);
+  return (vr>=0 && vr<mtx.samples.length) ? vr : -1;
+}
+function nearestSite(pos){
+  var best = -1, bestD = Infinity;
+  var tolerance = (mtx.view[1]-mtx.view[0]) / plotWidth() * 4;
+  for(var i=0;i<mtx.sites.length;i++){
+    var d = Math.abs(mtx.sites[i].pos - pos);
+    if(d < bestD){ bestD = d; best = i; }
+  }
+  return bestD <= Math.max(tolerance, 0.5) ? best : -1;
+}
+function setViewCentered(center, width){
+  mtx.view = [center-width/2, center+width/2]; clampView(); drawMatrix();
+}
+// Genomic coordinate under an x pixel on the whole-contig strip.
+function stripPos(x){
+  var full = mtx.span[1]-mtx.span[0];
+  return mtx.span[0] + ((x-LABEL_W)/plotWidth())*full;
+}
+
+mcanvas.addEventListener("wheel", function(e){
+  if(!mtx.view) return;
+  e.preventDefault();
+  var rect = this.getBoundingClientRect(), x = e.clientX-rect.left;
+  if(x < LABEL_W) return;
+  var anchor = posOf(x);
+  var factor = e.deltaY > 0 ? 1.25 : 0.8;
+  var span = (mtx.view[1]-mtx.view[0]) * factor;
+  var full = mtx.span[1]-mtx.span[0];
+  span = Math.min(Math.max(span, MIN_SPAN), full);
+  var frac = (anchor - mtx.view[0]) / (mtx.view[1]-mtx.view[0]);
+  mtx.view = [anchor - frac*span, anchor + (1-frac)*span];
+  clampView(); drawMatrix();
+}, {passive:false});
+
+mcanvas.addEventListener("mousedown", function(e){
+  if(!mtx.view) return;
+  var rect = this.getBoundingClientRect(), x = e.clientX-rect.left, y = e.clientY-rect.top;
+  if(x < LABEL_W) return;
+  if(overviewHit(y)){
+    // Drag across the strip selects a range; a plain click just recentres.
+    mtx.drag = {mode:"brush", x1:x};
+  } else {
+    mtx.drag = {mode:"pan", x:x, view:mtx.view.slice(), moved:false};
+  }
+});
+window.addEventListener("mousemove", function(e){
+  if(!mtx.drag) return;
+  var rect = mcanvas.getBoundingClientRect(), x = e.clientX-rect.left;
+  if(mtx.drag.mode === "brush"){
+    mtx.drag.x2 = x; drawMatrix();
+  } else {
+    var dx = x - mtx.drag.x;
+    if(Math.abs(dx) > 2) mtx.drag.moved = true;
+    var perPx = (mtx.drag.view[1]-mtx.drag.view[0]) / plotWidth();
+    mtx.view = [mtx.drag.view[0] - dx*perPx, mtx.drag.view[1] - dx*perPx];
+    clampView(); drawMatrix();
+  }
+});
+window.addEventListener("mouseup", function(){
+  if(mtx.drag && mtx.drag.mode === "brush"){
+    var d = mtx.drag; mtx.drag = null;
+    if(d.x2 !== undefined && Math.abs(d.x2-d.x1) > 3){
+      var a = stripPos(Math.min(d.x1,d.x2)), b = stripPos(Math.max(d.x1,d.x2));
+      mtx.view = [a,b];
+    } else {
+      setViewCentered(stripPos(d.x1), mtx.view[1]-mtx.view[0]);
+      return;
+    }
+    clampView(); drawMatrix(); return;
+  }
+  mtx.drag = null;
+});
+
+mcanvas.addEventListener("mousemove", function(e){
+  if(mtx.drag || !mtx.view) return;
+  var rect = this.getBoundingClientRect();
+  var x = e.clientX-rect.left, y = e.clientY-rect.top;
+  var tip = document.getElementById("matrixTip");
+  var vr = rowAt(y);
+  if(x < LABEL_W || vr < 0){ tip.textContent = ""; return; }
+  var c = nearestSite(posOf(x));
+  if(c < 0){ tip.textContent = mtx.contig + ":" + fmtPos(posOf(x)) + "  ·  no called site here"; return; }
+  var si = mtx.rowOrder[vr], v = mtx.grid[si*mtx.sites.length + c], site = mtx.sites[c];
+  var what = v ? (v===5 ? "indel" : "ALT "+NT[v-1]) : "not called (reference or no coverage)";
+  tip.textContent = mtx.samples[si] + "  ·  " + site.chrom + ":" + site.pos +
+                    "  ·  " + (site.genes.join(", ") || "-") + "  ·  " + what;
+});
+mcanvas.addEventListener("mouseleave", function(){ document.getElementById("matrixTip").textContent=""; });
+mcanvas.addEventListener("click", function(e){
+  if(mtx.drag && mtx.drag.moved) return;
+  var rect = this.getBoundingClientRect();
+  var x = e.clientX-rect.left, y = e.clientY-rect.top;
+  var vr = rowAt(y); if(x < LABEL_W || vr < 0) return;
+  var c = nearestSite(posOf(x)); if(c < 0) return;
+  var si = mtx.rowOrder[vr], ri = mtx.owner[si*mtx.sites.length + c];
+  if(ri >= 0) openDrawer(ri);
+});
+mcanvas.addEventListener("dblclick", function(){
+  if(!mtx.span) return;
+  mtx.view = mtx.span.slice(); drawMatrix();
+});
+
+function zoomBy(factor){
+  if(!mtx.view) return;
+  var mid = (mtx.view[0]+mtx.view[1])/2;
+  var full = mtx.span[1]-mtx.span[0];
+  setViewCentered(mid, Math.min(Math.max((mtx.view[1]-mtx.view[0])*factor, MIN_SPAN), full));
+}
+document.getElementById("zoomInBtn").addEventListener("click", function(){ zoomBy(0.5); });
+document.getElementById("zoomOutBtn").addEventListener("click", function(){ zoomBy(2); });
+document.getElementById("fitBtn").addEventListener("click", function(){
+  if(mtx.span){ mtx.view = mtx.span.slice(); drawMatrix(); }
+});
+document.getElementById("contigSel").addEventListener("change", function(){
+  mtx.contig = this.value; mtx.view = null; drawMatrix();
+});
+document.getElementById("orderSel").addEventListener("change", function(){
+  mtx.order = this.value; drawMatrix();
+});
+document.getElementById("tracksSel").addEventListener("change", function(){
+  mtx.tracks = this.value; drawMatrix();
+});
+
+// Region box: "start-end", "contig:start-end", a single coordinate, or a gene name.
+function gotoRegion(){
+  var q = document.getElementById("regionBox").value.trim();
+  var note = document.getElementById("matrixNote");
+  if(!q || !mtx.span) return;
+  var m = q.match(/^(?:([^:]+):)?\s*([\d ,.\s]+?)\s*(?:[-–]\s*([\d ,.\s]+))?$/);
+  if(m && m[2]){
+    if(m[1]){
+      var want = m[1].trim();
+      // A contig nobody has is not a reason to move somewhere else. Dropping the
+      // name and keeping the coordinates put the window at that position on
+      // whatever contig was already shown, which reads as the region asked for.
+      if(mtx.contigs.indexOf(want) < 0){
+        note.textContent = 'No contig named "'+want+'" among the rows on screen.';
+        return;
+      }
+      mtx.contig = want; mtx.view = null; drawMatrix();
+    }
+    var a = parseInt(String(m[2]).replace(/[^\d]/g,""),10);
+    var b = m[3] ? parseInt(String(m[3]).replace(/[^\d]/g,""),10) : null;
+    if(!isNaN(a)){
+      if(b && b>a){ mtx.view = [a,b]; } else { setViewCentered(a, Math.max(MIN_SPAN, (mtx.view[1]-mtx.view[0])/4)); return; }
+      clampView(); drawMatrix(); return;
+    }
+  }
+  // Otherwise treat it as a gene name and frame every called site of that gene.
+  var lo = Infinity, hi = -Infinity, needle = q.toLowerCase();
+  mtx.sites.forEach(function(s){
+    if(s.genes.some(function(g){ return String(g).toLowerCase().indexOf(needle) >= 0; })){
+      if(s.pos<lo) lo = s.pos; if(s.pos>hi) hi = s.pos;
+    }
+  });
+  if(lo === Infinity){ note.textContent = 'No called site matches "'+q+'" on '+mtx.contig+'.'; return; }
+  var pad = Math.max(20, Math.round((hi-lo)*0.1) || 200);
+  mtx.view = [lo-pad, hi+pad]; clampView(); drawMatrix();
+}
+document.getElementById("goBtn").addEventListener("click", gotoRegion);
+document.getElementById("regionBox").addEventListener("keydown", function(e){
+  if(e.key === "Enter"){ e.preventDefault(); gotoRegion(); }
+});
+
+// ---------- read-backed haplotypes ----------
+function drawHaplotypes(){
+  var groups = {};
+  view.forEach(function(vi){
+    var r = ROWS[vi], t = typeOf(r), ec = txt(r,"evClass");
+    var multi = String(txt(r,"pos")).indexOf(",") >= 0;
+    var codonMnv = (t==="MNV" || t==="SNP/MNV") && multi;
+    var complex = ec === "complex_indel";
+    if(!codonMnv && !complex) return;
+    // The contig is part of what a haplotype is, the way it is part of a site
+    // key in the matrix. A gene name repeats across replicons, an IS or a
+    // transposase most of all, so leaving it out merged two haplotypes that
+    // share a name and a coordinate into one row labelled with one contig, and
+    // pooled the samples of both into its count.
+    var key = chromOf(r)+"|"+geneOf(r)+"|"+txt(r,"pos")+"|"+txt(r,"alt");
+    if(!groups[key]){
+      groups[key] = {gene:geneOf(r), pos:txt(r,"pos"), aa:txt(r,"aa"), chrom:chromOf(r),
+                     comp:txt(r,"evComp"), kind:complex?"complex indel":"codon MNV",
+                     samples:{}, phLinked:0, phReads:0, row:vi};
+    }
+    groups[key].samples[sampleOf(r)] = 1;
+    // Pool the reads across samples rather than averaging the per-sample
+    // ratios: a sample with three informative reads should not weigh as much
+    // as one with three hundred.
+    var p = r[C.phasing], pr = r[C.phReads];
+    if(p!==null && p!==undefined && pr){
+      groups[key].phLinked += p*pr;
+      groups[key].phReads  += pr;
+    }
+  });
+  var list = Object.keys(groups).map(function(k){
+    var g = groups[k];
+    g.n = Object.keys(g.samples).length;
+    g.phMean = g.phReads ? g.phLinked/g.phReads : null;
+    return g;
+  });
+  list.sort(function(a,b){ return b.n-a.n || a.gene.localeCompare(b.gene); });
+
+  var el = document.getElementById("hapList");
+  if(!list.length){
+    el.innerHTML = '<p class="hint">No codon-level MNV or phased complex-indel haplotype under the current filters.</p>';
+    return;
+  }
+  var maxN = list[0].n;
+  el.innerHTML = list.slice(0,60).map(function(g){
+    var pct = Math.round((g.n/maxN)*100);
+    var ph = g.phMean===null
+           ? '<span title="No read spans the whole codon, or the run had no --bam">phasing n/a</span>'
+           : '<span title="'+g.phReads.toLocaleString()+' read(s) span the codon and carry the least-supported constituent SNV">' +
+             'phasing ' + g.phMean.toFixed(2) + ' <span style="color:var(--muted)">n=' + g.phReads.toLocaleString() + '</span>' +
+             '<span class="bartrack"><i style="width:'+Math.round(g.phMean*100)+'%"></i></span></span>';
+    return '<div class="hap" data-r="'+g.row+'">' +
+      '<span class="rec">'+g.n+' sample'+(g.n===1?"":"s")+
+        '<span class="bartrack" style="width:34px"><i style="width:'+pct+'%"></i></span></span>' +
+      '<span class="who"><b>'+esc(g.gene)+'</b> '+esc(g.aa)+' <span style="color:var(--muted)">('+esc(g.kind)+')</span>' +
+        '<span class="comp">'+esc(g.chrom)+':'+esc(g.pos)+'  ·  '+esc(g.comp)+'</span></span>' +
+      '<span class="ph">'+ph+'</span></div>';
+  }).join("");
+  if(list.length>60){
+    el.innerHTML += '<p class="hint note">Showing the 60 most recurrent of '+list.length.toLocaleString()+' haplotypes.</p>';
+  }
+}
+document.getElementById("hapList").addEventListener("click", function(e){
+  var h = e.target.closest(".hap"); if(!h) return;
+  openDrawer(parseInt(h.dataset.r,10));
+});
+
+// ---------- KPIs ----------
+function drawKpis(){
+  var genes = {}, samples = {}, high = 0, mnv = 0;
+  view.forEach(function(i){
+    var r = ROWS[i];
+    // `intergenic` is the placeholder get_MNV writes in the Gene column for a
+    // variant outside every annotated gene, not the name of a gene. Counting it
+    // made the report claim one gene more than the same run's log and summary.
+    // A gene is a feature on a contig, not a name: the run's own log counts them
+    // per contig and adds those up, so counting names alone made a report of a
+    // chromosome and its plasmid claim one gene where the same run logged two.
+    var g = geneOf(r);
+    if(g && g !== "intergenic") genes[chromOf(r)+"|"+g] = 1;
+    samples[sampleOf(r)] = 1;
+    if(impOf(r)==="HIGH") high++;
+    var t = typeOf(r); if(t==="MNV"||t==="SNP/MNV") mnv++;
+  });
+  document.getElementById("heroVal").textContent = view.length.toLocaleString();
+  document.getElementById("heroNote").textContent =
+    view.length===ROWS.length ? "every row in the report"
+                              : "of " + ROWS.length.toLocaleString() + " total";
+  var k = [
+    {lab:"Samples", val:Object.keys(samples).length.toLocaleString(), note:D.samples.length+" in report"},
+    {lab:"Genes", val:Object.keys(genes).length.toLocaleString(), note:"with a call"},
+    {lab:"MNV rows", val:mnv.toLocaleString(), note:"codon-level"},
+    {lab:"High impact", val:high.toLocaleString(), note:"HIGH consequence"}
+  ];
+  document.getElementById("kpis").innerHTML = k.map(function(x){
+    return '<div class="stat"><span>'+esc(x.lab)+'</span><b>'+esc(x.val)+'</b><i>'+esc(x.note)+'</i></div>';
+  }).join("");
+}
+
+// ---------- table ----------
+var ROWH = 32, viewport = document.getElementById("viewport"), spacer = document.getElementById("spacer");
+var pool = [];
+
+function buildHead(){
+  var h = "";
+  COLS.forEach(function(c,i){
+    var ind = "";
+    if(state.sortCol===c) ind = ' <span class="ind">'+(state.sortDir>0?"↑":"↓")+'</span>';
+    var f = FKIND[c.k]
+      ? '<button class="fbtn'+(colFilterActive(c.k)?" on":"")+'" type="button" data-f="'+c.k+'" ' +
+        'aria-label="Filter by '+esc(c.t)+'" title="Filter by '+esc(c.t)+'">' +
+        (colFilterActive(c.k) ? "\u25BE\u25CF" : "\u25BE") + '</button>'
+      : "";
+    h += '<div style="flex:0 0 '+c.w+'px" data-i="'+i+'" role="button" tabindex="0" title="Sort by '+esc(c.t)+'">'+esc(c.t)+ind+f+'</div>';
+  });
+  document.getElementById("thead").innerHTML = h;
+  var total = COLS.reduce(function(a,c){ return a + c.w; }, 0);
+  document.getElementById("tinner").style.width = total + "px";
+  var active = Object.keys(state.col).filter(colFilterActive);
+  document.getElementById("activeFilters").textContent =
+    active.length ? active.length + " column filter" + (active.length===1?"":"s") + " active" : "";
+}
+
+function cellHtml(r,c){
+  var v = c.get(r);
+  if(c.k==="impact"){
+    return '<span class="imp"><i style="background:'+(IMP_COLOR[v]||"var(--muted)")+'"></i>'+esc(v)+'</span>';
+  }
+  if(c.mono) return '<span class="mono">'+esc(v)+'</span>';
+  return esc(v);
+}
+
+function paint(){
+  var visible = Math.ceil(viewport.clientHeight/ROWH)+8;
+  // Clamp to the last start that can still fill the viewport. render() shrinks
+  // the spacer and paints in the same tick, before the browser has clamped
+  // scrollTop to the shorter content, so a stale scrollTop used to place the
+  // first row past the end of a filtered result: the table painted fewer rows
+  // than the count claimed, sometimes none, and once the shortened table no
+  // longer overflowed no scroll event ever arrived to correct it.
+  var maxFirst = Math.max(0, view.length - Math.floor(viewport.clientHeight/ROWH));
+  var top = viewport.scrollTop;
+  var first = Math.min(Math.max(0, Math.floor(top/ROWH)-4), maxFirst);
+  var need = Math.min(visible, view.length-first);
+  while(pool.length < need){
+    var d = document.createElement("div");
+    d.className = "row";
+    d.addEventListener("click", function(){ openDrawer(parseInt(this.dataset.ri,10)); });
+    spacer.appendChild(d); pool.push(d);
+  }
+  for(var p=0;p<pool.length;p++){
+    var el = pool[p];
+    if(p>=need){ el.style.display="none"; continue; }
+    var ri = view[first+p], r = ROWS[ri];
+    el.style.display=""; el.style.top = ((first+p)*ROWH)+"px";
+    el.dataset.ri = ri;
+    el.className = "row" + (state.sel===ri?" on":"");
+    var h = "";
+    for(var ci=0;ci<COLS.length;ci++){
+      var c = COLS[ci];
+      h += '<div style="flex:0 0 '+c.w+'px" class="'+(c.num?"num":"")+'">'+cellHtml(r,c)+'</div>';
+    }
+    el.innerHTML = h;
+  }
+}
+
+function render(){
+  spacer.style.height = (view.length*ROWH)+"px";
+  // A new result set starts at its own top; keeping the old offset would show
+  // the middle of a list the reader has not seen the start of.
+  viewport.scrollTop = 0;
+  document.getElementById("count").textContent =
+    view.length.toLocaleString()+" variant"+(view.length===1?"":"s")+" shown";
+  document.getElementById("empty").hidden = view.length!==0;
+  buildHead(); drawKpis(); drawCharts(); drawMatrix(); drawHaplotypes(); paint();
+}
+var rsz;
+window.addEventListener("resize", function(){
+  clearTimeout(rsz); rsz = setTimeout(drawMatrix, 150);
+});
+viewport.addEventListener("scroll", paint, {passive:true});
+
+// ---------- drawer ----------
+function row(dt,dd){ return dd===undefined||dd===null||dd===""||dd==="-" ? "" : "<dt>"+esc(dt)+"</dt><dd>"+esc(dd)+"</dd>"; }
+function openDrawer(ri){
+  var r = ROWS[ri]; state.sel = ri;
+  document.getElementById("dTitle").textContent = geneOf(r)+" "+txt(r,"pos");
+  var b = "";
+  b += '<section><h4>Location</h4><dl class="kv">'
+     + row("Sample",sampleOf(r)) + row("Contig",chromOf(r)) + row("Gene",geneOf(r))
+     + row("Position",txt(r,"pos")) + row("REF",txt(r,"ref")) + row("ALT",txt(r,"alt"))
+     + '</dl></section>';
+  b += '<section><h4>Consequence</h4><dl class="kv">'
+     + row("Variant type",typeOf(r)) + row("Change type",changeOf(r))
+     + row("SO term",soOf(r)) + row("Impact",impOf(r))
+     + row("AA change",txt(r,"aa"))
+     + row("Grantham", r[C.grantham]===null||r[C.grantham]===undefined?"":r[C.grantham])
+     + row("MNV shift",txt(r,"shift")) + row("DBS class",txt(r,"dbs")) + row("NMD",txt(r,"nmd"))
+     + '</dl></section>';
+  b += '<section><h4>HGVS</h4><dl class="kv">'
+     + row("Genomic",txt(r,"hgvsg")) + row("Coding",txt(r,"hgvsc")) + row("Protein",txt(r,"aa"))
+     + '</dl></section>';
+  b += '<section><h4>Codons</h4><dl class="kv">'
+     + row("Reference",txt(r,"refCodon")) + row("Variant",txt(r,"altCodon"))
+     + '</dl></section>';
+  b += '<section><h4>Event &amp; support</h4><dl class="kv">'
+     + row("Event class",txt(r,"evClass")) + row("Components",txt(r,"evComp"))
+     + row("Reads",txt(r,"reads"))
+     + row("Frequency", r[C.freq]===null||r[C.freq]===undefined?"":r[C.freq].toFixed(4))
+     + row("Depth", r[C.depth]===null||r[C.depth]===undefined?"":r[C.depth])
+     + '</dl></section>';
+  document.getElementById("dBody").innerHTML = b;
+  var dr = document.getElementById("drawer");
+  dr.classList.add("open"); dr.setAttribute("aria-hidden","false");
+  paint();
+}
+function closeDrawer(){
+  var dr = document.getElementById("drawer");
+  dr.classList.remove("open"); dr.setAttribute("aria-hidden","true");
+  state.sel = -1; paint();
+}
+document.getElementById("dClose").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeDrawer(); });
+
+// ---------- filters ----------
+var pop = document.getElementById("pop"), popKey = null;
+
+function closePop(){ pop.hidden = true; popKey = null; }
+function popHtml(key){
+  var kind = FKIND[key], f = state.col[key] || {}, col = colOf(key);
+  var h = '<p class="ph">'+esc(col ? col.t : key)+'</p>';
+  if(kind === "cat"){
+    var vals = fValues(key), sel = f.set || {};
+    if(vals.length > 12) h += '<input type="text" id="popSearch" placeholder="Filter values...">';
+    h += '<div id="popList" style="margin-top:6px">';
+    vals.forEach(function(v){
+      h += '<label data-v="'+esc(v)+'"><input type="checkbox" value="'+esc(v)+'"' +
+           (sel[v] ? " checked" : "") + '>'+esc(v)+'</label>';
+    });
+    h += '</div>';
+  } else if(kind === "text"){
+    h += '<input type="text" id="popText" placeholder="contains..." value="'+esc(f.q || "")+'">';
+  } else {
+    h += '<div class="row2"><input type="number" id="popMin" placeholder="min" value="' +
+         (f.min===null||f.min===undefined?"":f.min) + '">' +
+         '<span>to</span><input type="number" id="popMax" placeholder="max" value="' +
+         (f.max===null||f.max===undefined?"":f.max) + '"></div>';
+  }
+  h += '<div class="acts"><button class="btn sm" type="button" id="popClear">Clear</button>' +
+       '<button class="btn sm" type="button" id="popApply">Apply</button></div>';
+  return h;
+}
+function openPop(key, anchor){
+  popKey = key;
+  pop.innerHTML = popHtml(key);
+  pop.hidden = false;
+  var r = anchor.getBoundingClientRect();
+  pop.style.left = Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - pop.offsetWidth - 12) + "px";
+  pop.style.top  = (window.scrollY + r.bottom + 4) + "px";
+  var srch = document.getElementById("popSearch");
+  if(srch){
+    srch.addEventListener("input", function(){
+      var q = this.value.toLowerCase();
+      Array.prototype.forEach.call(document.querySelectorAll("#popList label"), function(l){
+        l.style.display = l.dataset.v.toLowerCase().indexOf(q) >= 0 ? "" : "none";
+      });
+    });
+    srch.focus();
+  }
+  var txt = document.getElementById("popText"); if(txt) txt.focus();
+}
+function applyPop(){
+  if(!popKey) return;
+  var kind = FKIND[popKey], f = {};
+  if(kind === "cat"){
+    // No prototype: a value named "constructor" or "toString" would otherwise
+    // find an inherited property and pass the filter without being selected.
+    var set = Object.create(null);
+    Array.prototype.forEach.call(pop.querySelectorAll('input[type=checkbox]'), function(cb){
+      if(cb.checked) set[cb.value] = 1;
+    });
+    f.set = set;
+  } else if(kind === "text"){
+    f.q = (document.getElementById("popText").value || "").trim().toLowerCase();
+  } else {
+    var mn = document.getElementById("popMin").value, mx = document.getElementById("popMax").value;
+    f.min = mn === "" ? null : parseFloat(mn);
+    f.max = mx === "" ? null : parseFloat(mx);
+  }
+  state.col[popKey] = f;
+  closePop(); recompute();
+}
+pop.addEventListener("click", function(e){
+  if(e.target.id === "popApply") applyPop();
+  else if(e.target.id === "popClear"){ delete state.col[popKey]; closePop(); recompute(); }
+});
+pop.addEventListener("keydown", function(e){ if(e.key === "Enter") applyPop(); });
+document.addEventListener("mousedown", function(e){
+  if(pop.hidden) return;
+  // The target is not always an Element (document, text nodes), so guard the
+  // Element-only helpers rather than assuming them.
+  var t = e.target;
+  var inside = t && t.nodeType === 1 && (pop.contains(t) || t.closest(".fbtn"));
+  if(!inside) closePop();
+});
+document.addEventListener("keydown", function(e){ if(e.key === "Escape") closePop(); });
+
+var q = document.getElementById("q"), tmr;
+q.addEventListener("input", function(){
+  clearTimeout(tmr);
+  tmr = setTimeout(function(){ state.q = q.value.trim(); recompute(); }, 130);
+});
+
+document.getElementById("resetBtn").addEventListener("click", function(){
+  state.q = ""; state.col = {}; state.sortCol = null; state.sortDir = 1;
+  q.value = ""; closePop(); recompute();
+});
+
+document.getElementById("thead").addEventListener("click", function(e){
+  var fb = e.target.closest(".fbtn");
+  if(fb){
+    e.stopPropagation();
+    if(popKey === fb.dataset.f) closePop(); else openPop(fb.dataset.f, fb);
+    return;
+  }
+  var d = e.target.closest("[data-i]"); if(!d) return;
+  var c = COLS[parseInt(d.dataset.i,10)];
+  if(state.sortCol===c) state.sortDir = -state.sortDir; else { state.sortCol=c; state.sortDir=1; }
+  recompute();
+});
+
+// ---------- export ----------
+document.getElementById("exportBtn").addEventListener("click", function(){
+  var head = ["Sample","Contig","Gene","Positions","Reference Bases","Base Changes","AA Changes",
+              "Variant Type","Change Type","SO Term","Impact","Grantham","MNV Consequence Shift",
+              "DBS Class","NMD Prediction","HGVS g.","HGVS c.","Frequency","Depth"];
+  var lines = [head.join("\t")];
+  view.forEach(function(i){
+    var r = ROWS[i];
+    lines.push([sampleOf(r),chromOf(r),geneOf(r),txt(r,"pos"),txt(r,"ref"),txt(r,"alt"),txt(r,"aa"),
+                typeOf(r),changeOf(r),soOf(r),impOf(r),
+                r[C.grantham]===null||r[C.grantham]===undefined?"-":r[C.grantham],
+                txt(r,"shift"),txt(r,"dbs"),txt(r,"nmd"),txt(r,"hgvsg"),txt(r,"hgvsc"),
+                r[C.freq]===null||r[C.freq]===undefined?"-":r[C.freq].toFixed(4),
+                r[C.depth]===null||r[C.depth]===undefined?"-":r[C.depth]].join("\t"));
+  });
+  var blob = new Blob([lines.join("\n")+"\n"], {type:"text/tab-separated-values"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "get_mnv_filtered.tsv";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+});
+
+// ---------- theme ----------
+document.getElementById("themeBtn").addEventListener("click", function(){
+  var cur = document.documentElement.getAttribute("data-theme");
+  var dark = cur ? cur==="dark"
+                 : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.setAttribute("data-theme", dark?"light":"dark");
+  // The canvas holds resolved colours, so it has to be repainted on a theme change.
+  drawMatrix();
+});
+
+// ---------- boot ----------
+document.getElementById("runMeta").innerHTML = [
+  ["version", META.version],
+  ["generated", META.generated],
+  ["samples", D.samples.length.toLocaleString()],
+  ["variants", ROWS.length.toLocaleString()]
+].map(function(pair){
+  return "<div><dt>"+esc(pair[0])+"</dt><dd>"+esc(String(pair[1]))+"</dd></div>";
+}).join("");
+document.getElementById("meta").textContent = META.command || "";
+document.getElementById("foot").textContent =
+  "get_MNV " + META.version + " · self-contained report, no network access required";
+recompute();
+})();
+</script>
+</body>
+</html>

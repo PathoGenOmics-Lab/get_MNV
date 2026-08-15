@@ -2,11 +2,12 @@
 //!
 //! iVar reports variant calls as a tab-separated table with columns such as
 //! REGION, POS, REF, ALT, TOTAL_DP, ALT_FREQ and PASS.  get_MNV internally
-//! works with VCF-like positions, so this parser maps passing single-nucleotide
-//! iVar rows onto `VcfPosition`.
+//! works with VCF-like positions, so this parser maps passing iVar SNV and
+//! indel rows onto `VcfPosition`.
 
 use super::validation::validate_vcf_allele;
 use super::vcf::{parse_optional_depth, VcfPosition};
+use super::ReferenceMap;
 use crate::error::AppResult;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
@@ -117,10 +118,132 @@ fn row_passes(raw: Option<&str>) -> bool {
 }
 
 fn is_single_nucleotide(ref_allele: &str, alt_allele: &str) -> bool {
-    ref_allele.chars().count() == 1
-        && alt_allele.chars().count() == 1
-        && !alt_allele.starts_with('+')
-        && !alt_allele.starts_with('-')
+    ref_allele.chars().count() == 1 && alt_allele.chars().count() == 1
+}
+
+fn reference_slice<'a>(
+    references: &'a ReferenceMap,
+    chrom: &str,
+    start_1based: usize,
+    len: usize,
+    record_idx: usize,
+) -> AppResult<&'a str> {
+    let reference = references.get(chrom).ok_or_else(|| {
+        format!("iVar record {record_idx}: contig '{chrom}' not found in FASTA reference")
+    })?;
+    if start_1based == 0 {
+        return Err(format!("iVar record {record_idx}: reference position cannot be 0").into());
+    }
+    let start = start_1based - 1;
+    let end = start + len;
+    if end > reference.len() {
+        return Err(format!(
+            "iVar record {record_idx}: indel at {chrom}:{start_1based} extends beyond FASTA length {}",
+            reference.len()
+        )
+        .into());
+    }
+    Ok(&reference[start..end])
+}
+
+fn reference_base(
+    references: &ReferenceMap,
+    chrom: &str,
+    pos: usize,
+    record_idx: usize,
+) -> AppResult<String> {
+    Ok(reference_slice(references, chrom, pos, 1, record_idx)?.to_string())
+}
+
+fn normalize_ivar_allele(
+    references: &ReferenceMap,
+    chrom: &str,
+    pos: usize,
+    ref_allele: &str,
+    alt_allele: &str,
+    record_idx: usize,
+) -> AppResult<Option<(usize, String, String)>> {
+    if ref_allele == alt_allele {
+        return Ok(None);
+    }
+    if is_single_nucleotide(ref_allele, alt_allele) {
+        return Ok(Some((pos, ref_allele.to_string(), alt_allele.to_string())));
+    }
+
+    if let Some(inserted) = alt_allele.strip_prefix('+') {
+        if inserted.is_empty() {
+            return Err(format!("iVar record {record_idx}: empty insertion ALT").into());
+        }
+        validate_vcf_allele(inserted, record_idx, chrom, pos, "ALT")?;
+        check_ref_column(references, chrom, pos, ref_allele, record_idx)?;
+        let anchor = reference_base(references, chrom, pos, record_idx)?;
+        return Ok(Some((pos, anchor.clone(), format!("{anchor}{inserted}"))));
+    }
+
+    if let Some(deleted_raw) = alt_allele.strip_prefix('-') {
+        if deleted_raw.is_empty() {
+            return Err(format!("iVar record {record_idx}: empty deletion ALT").into());
+        }
+        validate_vcf_allele(deleted_raw, record_idx, chrom, pos, "ALT")?;
+        check_ref_column(references, chrom, pos, ref_allele, record_idx)?;
+        let deleted_len = deleted_raw.chars().count();
+        // iVar reports a deletion at the anchor base immediately BEFORE the gap:
+        // POS is that anchor, REF is the base at POS, and ALT='-<bases>' lists the
+        // bases deleted starting at POS+1 (see andersen-lab/ivar issue #86 and the
+        // iVar manual). Convert to a VCF-anchored allele: REF = anchor base plus
+        // the deleted bases at POS+1.., ALT = the anchor base alone.
+        let deleted_from_ref =
+            reference_slice(references, chrom, pos + 1, deleted_len, record_idx)?;
+
+        // The bases iVar reports as deleted must match the reference at POS+1.. .
+        // A mismatch means the FASTA does not correspond to the iVar run (or the
+        // coordinates are off) and would otherwise silently mis-place the
+        // deletion; fail fast instead.
+        if !deleted_raw.eq_ignore_ascii_case(deleted_from_ref) {
+            return Err(format!(
+                "iVar record {record_idx}: deletion at {chrom}:{pos} lists deleted bases \
+                 '{deleted_raw}' but the reference reads '{deleted_from_ref}' at {chrom}:{}. \
+                 Check that the FASTA matches the iVar run.",
+                pos + 1
+            )
+            .into());
+        }
+
+        let anchor = reference_base(references, chrom, pos, record_idx)?;
+        return Ok(Some((pos, format!("{anchor}{deleted_from_ref}"), anchor)));
+    }
+
+    Ok(Some((pos, ref_allele.to_string(), alt_allele.to_string())))
+}
+
+/// The TSV's own REF column must agree with the FASTA at that position.
+///
+/// The indel branches take the anchor base from the reference and never looked
+/// at this column, so a FASTA that does not belong to the iVar run was rejected
+/// on a substitution row and quietly accepted on an indel row of the same file,
+/// which then annotated against a reference the caller never saw. The
+/// substitution path gets the same check downstream; this makes the guard the
+/// same wherever the row came from.
+fn check_ref_column(
+    references: &crate::io::ReferenceMap,
+    chrom: &str,
+    pos: usize,
+    ref_allele: &str,
+    record_idx: usize,
+) -> AppResult<()> {
+    if ref_allele.is_empty() {
+        return Ok(());
+    }
+    let expected = reference_base(references, chrom, pos, record_idx)?;
+    let declared: String = ref_allele.chars().take(1).collect();
+    if !declared.eq_ignore_ascii_case(&expected) {
+        return Err(format!(
+            "iVar record {record_idx}: REF column reads '{ref_allele}' at {chrom}:{pos} but the \
+             reference has '{expected}'. Check that the FASTA matches the iVar run."
+        )
+        .into());
+    }
+    Ok(())
 }
 
 fn open_reader(path: &str) -> AppResult<BufReader<std::fs::File>> {
@@ -149,7 +272,10 @@ pub fn looks_like_ivar_tsv(path: &str) -> AppResult<bool> {
 }
 
 /// Parse an iVar variants TSV file into VCF-like positions grouped by contig.
-pub fn load_ivar_tsv(path: &str) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
+pub fn load_ivar_tsv(
+    path: &str,
+    references: &ReferenceMap,
+) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
     log::info!("Loading iVar TSV: {path}");
     let reader = open_reader(path)?;
 
@@ -158,7 +284,7 @@ pub fn load_ivar_tsv(path: &str) -> AppResult<HashMap<String, Vec<VcfPosition>>>
     let mut record_idx = 0usize;
     let mut kept = 0usize;
     let mut skipped_failed = 0usize;
-    let mut skipped_non_snv = 0usize;
+    let mut skipped_reference = 0usize;
 
     for line_result in reader.lines() {
         let line = line_result.map_err(|e| format!("Error reading iVar TSV line: {e}"))?;
@@ -203,25 +329,30 @@ pub fn load_ivar_tsv(path: &str) -> AppResult<HashMap<String, Vec<VcfPosition>>>
             .trim()
             .to_ascii_uppercase();
 
-        if !is_single_nucleotide(&ref_allele, &alt_allele) || ref_allele == alt_allele {
-            skipped_non_snv += 1;
-            continue;
-        }
-
         validate_vcf_allele(&ref_allele, record_idx, chrom, pos, "REF")?;
-        validate_vcf_allele(&alt_allele, record_idx, chrom, pos, "ALT")?;
+
+        let Some((vcf_pos, vcf_ref, vcf_alt)) =
+            normalize_ivar_allele(references, chrom, pos, &ref_allele, &alt_allele, record_idx)?
+        else {
+            skipped_reference += 1;
+            continue;
+        };
+        validate_vcf_allele(&vcf_ref, record_idx, chrom, vcf_pos, "REF")?;
+        validate_vcf_allele(&vcf_alt, record_idx, chrom, vcf_pos, "ALT")?;
 
         let (original_dp, original_freq) = parse_original_metrics(cols, &fields);
         positions_by_contig
             .entry(chrom.to_string())
             .or_default()
             .push(VcfPosition {
-                position: pos,
-                ref_allele,
-                alt_allele,
+                record_start: vcf_pos,
+                ref_allele: vcf_ref,
+                alt_allele: vcf_alt,
                 original_dp,
                 original_freq,
                 original_info: None,
+                // iVar TSV carries no genotype, so it declares no phase.
+                declared_phase: None,
             });
         kept += 1;
     }
@@ -234,14 +365,14 @@ pub fn load_ivar_tsv(path: &str) -> AppResult<HashMap<String, Vec<VcfPosition>>>
     }
 
     for values in positions_by_contig.values_mut() {
-        values.sort_by_key(|v| v.position);
+        values.sort_by_key(|v| v.record_start);
     }
 
     log::info!(
-        "Loaded iVar TSV records: kept={}, skipped_failed={}, skipped_non_snv={}",
+        "Loaded iVar TSV records: kept={}, skipped_failed={}, skipped_reference={}",
         kept,
         skipped_failed,
-        skipped_non_snv
+        skipped_reference
     );
 
     Ok(positions_by_contig)
@@ -253,12 +384,14 @@ mod tests {
     use std::io::Write;
 
     fn write_temp_ivar(content: &str) -> String {
+        // Unique per (process, call) so parallel tests never share a temp path.
+        // A bare nanosecond timestamp can collide under coarse clock resolution.
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
         let path = std::env::temp_dir().join(format!(
-            "get_mnv_ivar_test_{}.tsv",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            "get_mnv_ivar_test_{}_{}.tsv",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
         ));
         let mut file = std::fs::File::create(&path).unwrap();
         file.write_all(content.as_bytes()).unwrap();
@@ -273,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_ivar_tsv_keeps_passing_snvs_only() {
+    fn test_load_ivar_tsv_keeps_passing_snvs_and_insertions() {
         let path = write_temp_ivar(
             "REGION\tPOS\tREF\tALT\tREF_DP\tALT_DP\tALT_FREQ\tTOTAL_DP\tPASS\n\
 chr1\t2\tC\tT\t5\t5\t0.5\t10\tTRUE\n\
@@ -281,14 +414,37 @@ chr1\t3\tG\t+A\t5\t5\t0.5\t10\tTRUE\n\
 chr1\t4\tT\tA\t5\t5\t0.5\t10\tFALSE\n\
 chr1\t5\tA\tA\t5\t5\t0.5\t10\tTRUE\n",
         );
-        let parsed = load_ivar_tsv(&path).unwrap();
+        let references = ReferenceMap::from([("chr1".to_string(), "ACGTACGT".to_string())]);
+        let parsed = load_ivar_tsv(&path, &references).unwrap();
         let chr1 = parsed.get("chr1").unwrap();
-        assert_eq!(chr1.len(), 1);
-        assert_eq!(chr1[0].position, 2);
+        assert_eq!(chr1.len(), 2);
+        assert_eq!(chr1[0].record_start, 2);
         assert_eq!(chr1[0].ref_allele, "C");
         assert_eq!(chr1[0].alt_allele, "T");
         assert_eq!(chr1[0].original_dp, Some(10));
         assert_eq!(chr1[0].original_freq, Some(0.5));
+        assert_eq!(chr1[1].record_start, 3);
+        assert_eq!(chr1[1].ref_allele, "G");
+        assert_eq!(chr1[1].alt_allele, "GA");
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_load_ivar_tsv_converts_deletion_to_vcf_allele() {
+        // Real iVar anchors a deletion at the base BEFORE the gap: POS=3 is the
+        // anchor (G), and ALT='-TA' lists the bases deleted at positions 4-5 of
+        // reference "ACGTACGT". This converts to the VCF allele (3, GTA, G).
+        let path = write_temp_ivar(
+            "REGION\tPOS\tREF\tALT\tREF_DP\tALT_DP\tALT_FREQ\tTOTAL_DP\tPASS\n\
+chr1\t3\tG\t-TA\t5\t5\t0.5\t10\tTRUE\n",
+        );
+        let references = ReferenceMap::from([("chr1".to_string(), "ACGTACGT".to_string())]);
+        let parsed = load_ivar_tsv(&path, &references).unwrap();
+        let chr1 = parsed.get("chr1").unwrap();
+        assert_eq!(chr1.len(), 1);
+        assert_eq!(chr1[0].record_start, 3);
+        assert_eq!(chr1[0].ref_allele, "GTA");
+        assert_eq!(chr1[0].alt_allele, "G");
         let _ = std::fs::remove_file(path);
     }
 }

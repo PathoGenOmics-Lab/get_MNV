@@ -4,7 +4,7 @@ resolver = "2"
 
 [package]
 name = "get_mnv"
-version = "1.1.4"
+version = "1.1.5"
 edition = "2021"
 license = "AGPL-3.0-only"
 default-run = "get_mnv"
@@ -12,6 +12,12 @@ default-run = "get_mnv"
 [[bin]]
 name = "get_mnv"
 path = "src/main.rs"
+
+[dev-dependencies]
+# Property tests: the strand-symmetry and codon-bounds invariants are checked
+# over generated gene shapes rather than the handful of coordinates a person
+# thinks to write down.
+proptest = "1"
 
 [dependencies]
 clap = { version = "4.5.30", features = ["derive"] }
@@ -24,4 +30,12 @@ serde_json = "1.0.140"
 csv = "1.3.1"
 lru = "0.16"
 rayon = "1.8"
-sha2 = "0.11.0"
+sha2 = "0.10"
+
+# Release profile tuned for production builds. LTO + a single codegen unit
+# inline across module/crate boundaries (hot paths: CIGAR walks, allele
+# decomposition, codon translation). `panic` is left at the default so the
+# Tauri GUI member builds unchanged.
+[profile.release]
+lto = "thin"
+codegen-units = 1

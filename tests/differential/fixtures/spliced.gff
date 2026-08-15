@@ -1,0 +1,8 @@
+##gff-version 3
+##sequence-region v1 1 753
+v1	fixture	gene	101	553	.	+	.	ID=gene:geneS;biotype=protein_coding;Name=geneS
+v1	fixture	mRNA	101	553	.	+	.	ID=transcript:geneS;Parent=gene:geneS;biotype=protein_coding
+v1	fixture	exon	101	250	.	+	.	Parent=transcript:geneS
+v1	fixture	CDS	101	250	.	+	0	ID=cds:geneS;Parent=transcript:geneS;gene=geneS
+v1	fixture	exon	401	553	.	+	.	Parent=transcript:geneS
+v1	fixture	CDS	401	553	.	+	0	ID=cds:geneS;Parent=transcript:geneS;gene=geneS

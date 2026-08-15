@@ -16,8 +16,10 @@ Thank you for your interest in contributing to **get_MNV**! We welcome contribut
 ## Project Description
 `get_MNV` is a tool designed to identify **Multi-Nucleotide Variants (MNVs)** within the same codon in genomic sequences. MNVs occur when multiple Single Nucleotide Variants (SNVs) are present within the same codon, leading to the translation of a different amino acid. This tool addresses limitations in current annotation programs like **ANNOVAR** or **SnpEff**, which are primarily designed to work with individual SNVs and might overlook the actual amino acid changes resulting from MNVs.
 
-### Current Limitations
-**IMPORTANT**: This script currently works only with **SNVs** against a reference genome. Insertions and deletions that modify the reading frame are not supported yet.
+### Scope and Limitations
+`get_MNV` annotates and summarizes **existing** variant calls (VCF or iVar TSV) against a reference; it is not a variant caller. Beyond codon-aware SNV/MNV grouping, it supports indel, delins, and complex-allele protein effects, frameshift detection, spliced-transcript CDS models (`--gff-features CDS`, including codons that span exon junctions), and exact BAM-derived support for individual SNV/MNV observations and combined indel/SNV/MNV haplotypes.
+
+Current limits: input BCF must be converted first (e.g. `bcftools view`); indels are not left-aligned or fully normalized automatically (normalize cross-caller inputs with `bcftools norm -f ref.fa`); and genotypes, ploidy, phase, and genotype likelihoods are not re-estimated. Local *de novo* assembly is out of scope — get_MNV only reannotates alleles already present in the input. See [docs/indel-mnv-semantics.md](../docs/indel-mnv-semantics.md) for the full, current semantics and limits.
 
 ## How to Contribute
 We appreciate all contributions, whether it’s fixing bugs, proposing new features, improving the documentation, or suggesting a new direction for the tool.
@@ -63,6 +65,31 @@ If you’d like to contribute code, follow these steps:
    ```
 
 4. You’re ready to start contributing!
+
+## Building the Documentation
+
+The documentation site is built with [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) and is bilingual (English + Spanish) through the `mkdocs-static-i18n` plugin. English pages live in `docs/*.md`; their Spanish counterparts are the `docs/*.es.md` siblings.
+
+```bash
+python3 -m venv .venv-docs
+.venv-docs/bin/pip install -r docs/requirements.txt
+.venv-docs/bin/mkdocs serve          # live preview at http://127.0.0.1:8000/get_MNV/
+.venv-docs/bin/mkdocs build --strict # production build into ./site
+```
+
+### Publishing
+
+The site is published to GitHub Pages on the `gh-pages` branch and served at
+`https://pathogenomics-lab.github.io/get_MNV/`. The **Docs** workflow
+(`.github/workflows/docs.yml`) deploys automatically on pushes to the default
+branch that touch the docs, and can also be run manually. To publish from any
+branch locally:
+
+```bash
+.venv-docs/bin/mkdocs gh-deploy --force
+```
+
+Enable serving once under **Settings → Pages → Source: Deploy from a branch → `gh-pages` / `(root)`**. To surface the docs from another website, just link to that URL.
 
 ## Submitting a Pull Request
 1. Ensure that your code follows the coding guidelines and passes all tests.

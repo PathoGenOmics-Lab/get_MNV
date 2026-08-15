@@ -2,7 +2,7 @@
 //! test, VCF entry formatting, variant shape validation, and header generation.
 
 use crate::error::AppResult;
-use crate::variants::VariantInfo;
+use crate::variants::{VariantInfo, VariantType};
 use std::io::Write;
 
 /// INFO keys emitted by get_mnv itself. Original VCF fields with these names
@@ -27,7 +27,124 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "OFREQ"
             | "DP"
             | "FREQ"
+            | "EC"
+            | "COMP"
+            | "ER"
+            | "ERF"
+            | "ERR"
+            | "EDP"
+            | "EFREQ"
+            | "SO"
+            | "IMPACT"
+            | "GD"
+            | "MNVSHIFT"
+            | "DBS"
+            | "MNVPS"
+            | "MNVPR"
+            | "FSPH"
+            | "DPHASE"
+            | "LD"
+            | "LDP"
+            | "NMD"
+            | "HGVSG"
+            | "HGVSC"
     )
+}
+
+/// Severity rank of an impact level, for keeping the more severe of two.
+fn impact_rank(impact: &str) -> u8 {
+    match impact {
+        "HIGH" => 3,
+        "MODERATE" => 2,
+        "LOW" => 1,
+        _ => 0,
+    }
+}
+
+/// Whether this row states a consequence for the protein, which is what the
+/// splice term is set beside rather than replacing.
+///
+/// An intergenic row does not, nor does a row inside a gene that reaches no
+/// codon, nor one whose term is `coding_sequence_variant`: that is the term for
+/// a change in coding sequence whose effect could not be named, so a splice
+/// call is the more informative of the two and stands alone. Everything else
+/// does, indel and substitution alike.
+fn states_a_protein_consequence(variant: &VariantInfo, base_term: &str) -> bool {
+    variant.gene != "intergenic"
+        && variant.annotations.non_coding.is_none()
+        && base_term != "coding_sequence_variant"
+}
+
+/// Map a variant to a Sequence Ontology consequence term and its impact level
+/// (`HIGH` / `MODERATE` / `LOW` / `MODIFIER`), following SnpEff/VEP conventions.
+///
+/// A splice consequence is folded in: an exonic coding substitution near a
+/// junction is combined (`missense_variant&splice_region_variant`, keeping the
+/// more severe impact), and an intronic splice site stands on its own.
+pub(crate) fn so_consequence(variant: &VariantInfo) -> (String, &'static str) {
+    let (base_term, base_impact) = base_so_consequence(variant);
+    match variant.annotations.splice {
+        None => (base_term.to_string(), base_impact),
+        Some(splice) => {
+            let (splice_term, splice_impact) = (splice.as_str(), splice.impact());
+            // A row that says something about the protein keeps saying it, with
+            // the splice term beside it at whichever impact is the more severe.
+            // Only a row with nothing to say, an intronic splice variant, is
+            // described by the splice term alone. Asking whether the change was
+            // a substitution instead dropped the coding half of every indel in a
+            // splice region: a frameshift came back as `splice_region_variant`
+            // at LOW, on a row still naming the residues it shifts, while the
+            // substitution at the very same base came back as
+            // `missense_variant&splice_region_variant`.
+            if states_a_protein_consequence(variant, base_term) {
+                let impact = if impact_rank(base_impact) >= impact_rank(splice_impact) {
+                    base_impact
+                } else {
+                    splice_impact
+                };
+                (format!("{base_term}&{splice_term}"), impact)
+            } else {
+                (splice_term.to_string(), splice_impact)
+            }
+        }
+    }
+}
+
+/// Base SO consequence from the gene context and change type, before any splice
+/// refinement.
+fn base_so_consequence(variant: &VariantInfo) -> (&'static str, &'static str) {
+    use crate::variants::ChangeType;
+    if variant.gene == "intergenic" {
+        return ("intergenic_variant", "MODIFIER");
+    }
+    // Inside a gene but not in a codon: an intron, or a transcript that is never
+    // translated. Neither is intergenic, and neither has a codon to classify.
+    if let Some(reason) = variant.annotations.non_coding {
+        return (reason.as_str(), "MODIFIER");
+    }
+    match variant.change_type {
+        ChangeType::Synonymous => ("synonymous_variant", "LOW"),
+        ChangeType::NonSynonymous => ("missense_variant", "MODERATE"),
+        ChangeType::StartLost => ("start_lost", "HIGH"),
+        ChangeType::StopGained | ChangeType::FrameshiftStopGained => ("stop_gained", "HIGH"),
+        ChangeType::StopLost | ChangeType::FrameshiftStopLost => ("stop_lost", "HIGH"),
+        ChangeType::FrameshiftIndel
+        | ChangeType::FrameshiftSynonymous
+        | ChangeType::FrameshiftNonSynonymous
+        | ChangeType::FrameshiftUnknown => ("frameshift_variant", "HIGH"),
+        // A frameshift after the stop codon does not alter the protein.
+        ChangeType::FrameshiftDownstreamOfStop => ("coding_sequence_variant", "MODIFIER"),
+        ChangeType::InFrameIndel => {
+            let ref_len = variant.ref_bases.first().map_or(0, |b| b.len());
+            let alt_len = variant.base_changes.first().map_or(0, |b| b.len());
+            if alt_len > ref_len {
+                ("inframe_insertion", "MODERATE")
+            } else {
+                ("inframe_deletion", "MODERATE")
+            }
+        }
+        ChangeType::IndelOverlap | ChangeType::Unknown => ("coding_sequence_variant", "MODIFIER"),
+    }
 }
 
 #[derive(Default)]
@@ -38,6 +155,14 @@ struct InfoBuilder {
 impl InfoBuilder {
     fn push(&mut self, key: &str, value: impl ToString) {
         self.fields.push((key.to_string(), value.to_string()));
+    }
+
+    /// Push a free-text value (gene name, AA change, change type, event
+    /// components), percent-encoding characters that are structurally reserved
+    /// in a VCF INFO column so the value cannot corrupt downstream parsing.
+    fn push_text(&mut self, key: &str, value: &str) {
+        self.fields
+            .push((key.to_string(), encode_info_value(value)));
     }
 
     fn build(self) -> String {
@@ -53,6 +178,35 @@ impl InfoBuilder {
             .collect::<Vec<_>>()
             .join(";")
     }
+}
+
+/// Percent-encode the characters that are structurally reserved in a VCF INFO
+/// value: the field separator `;`, the key/value separator `=`, the array
+/// separator `,`, a literal `%`, and the line-structural tab/newline/CR. Spaces,
+/// `:` and `|` are intentionally left intact so controlled labels (e.g.
+/// "Stop gained") and `COMP` components (e.g. "SNV:28:G>T") stay readable, while
+/// arbitrary GFF-derived gene names can no longer break the INFO column.
+fn encode_info_value(value: &str) -> String {
+    if !value
+        .bytes()
+        .any(|b| matches!(b, b'%' | b';' | b'=' | b',' | b'\t' | b'\n' | b'\r'))
+    {
+        return value.to_string();
+    }
+    let mut out = String::with_capacity(value.len() + 8);
+    for c in value.chars() {
+        match c {
+            '%' => out.push_str("%25"),
+            ';' => out.push_str("%3B"),
+            '=' => out.push_str("%3D"),
+            ',' => out.push_str("%2C"),
+            '\t' => out.push_str("%09"),
+            '\n' => out.push_str("%0A"),
+            '\r' => out.push_str("%0D"),
+            other => out.push(other),
+        }
+    }
+    out
 }
 
 pub(crate) fn snp_aa_for_index(variant: &VariantInfo, index: usize) -> String {
@@ -76,20 +230,115 @@ pub(crate) fn allele_frequency(support_reads: usize, depth: usize) -> f64 {
     }
 }
 
+/// MNV phasing (linkage) support from BAM reads: the fraction of the reads
+/// carrying the least-supported constituent SNV that also carry the full MNV
+/// haplotype. `1.0` means every read with the rarer variant also carries the
+/// other (a genuine co-occurring haplotype); low values indicate the SNVs
+/// largely fall on different molecules (a same-codon coincidence rather than a
+/// real MNV), which matters most for intra-host data. `None` unless this is a
+/// multi-SNV MNV / SNP-MNV with per-SNV and MNV read counts available.
+///
+/// Only reads that observe *every* position of the codon are counted, on either
+/// side of the ratio. A read that stops between two positions, or that crosses
+/// an intron the wrong way round, saw no evidence about the pair and neither
+/// supports nor refutes linkage. When no read spans the whole codon the answer
+/// is `None`: unknown, which is not the same as zero linkage.
+pub(crate) fn mnv_phasing_support(variant: &VariantInfo) -> Option<f64> {
+    if variant.positions.len() < 2 {
+        return None;
+    }
+    if !matches!(variant.variant_type, VariantType::Mnv | VariantType::SnpMnv) {
+        return None;
+    }
+    let informative = mnv_phasing_read_count(variant)?;
+    let mnv_reads = variant.mnv_reads?;
+    // `informative` already includes the full-haplotype reads, so the ratio is
+    // in [0, 1]. Clamp defensively.
+    Some((mnv_reads as f64 / informative as f64).min(1.0))
+}
+
+/// The denominator behind [`mnv_phasing_support`]: how many reads were entitled
+/// to answer the linkage question. Reported alongside the ratio so a reader can
+/// tell a confident 1.0 from one resting on a couple of reads. `None` when the
+/// question does not apply or nothing could answer it.
+pub(crate) fn mnv_phasing_read_count(variant: &VariantInfo) -> Option<usize> {
+    if variant.positions.len() < 2 {
+        return None;
+    }
+    if !matches!(variant.variant_type, VariantType::Mnv | VariantType::SnpMnv) {
+        return None;
+    }
+    match variant.mnv_phasing_reads {
+        Some(0) | None => None,
+        Some(reads) => Some(reads),
+    }
+}
+
+/// The phase the input VCF declared for this row's alleles, as `cis:12345`
+/// (the verdict and the `PS` phase set), with `|contradicted-by-reads`
+/// appended when the BAM leaves the claim no room. `-` when the input did not
+/// phase these alleles together, which is the usual case for haploid pathogen
+/// callers. This is the caller's claim; the read evidence is the neighbouring
+/// phasing columns.
+pub(crate) fn declared_phase_field(variant: &VariantInfo) -> String {
+    variant
+        .annotations
+        .declared_phase
+        .map(|call| call.to_string())
+        .unwrap_or_else(|| "-".to_string())
+}
+
+/// Read-level linkage disequilibrium for a codon, as `D'` and its p-value.
+/// `-` when no molecule observed every position or one of the alleles does not
+/// vary across them, which leaves nothing to correlate.
+pub(crate) fn codon_linkage_fields(variant: &VariantInfo) -> (String, String) {
+    match variant.annotations.linkage {
+        Some(linkage) => (
+            format!("{:.4}", linkage.d_prime),
+            format!("{:.3e}", linkage.p_value),
+        ),
+        None => ("-".to_string(), "-".to_string()),
+    }
+}
+
+/// What the reads said about each upstream indel sharing molecules with this
+/// codon, as `trans:1234:0/18 | cis:1250:17/18`: the verdict, the indel's
+/// position, and the reads behind it. `-` when the reads were never consulted,
+/// which is not a finding of no linkage.
+pub(crate) fn frameshift_linkage_field(variant: &VariantInfo) -> String {
+    if variant.annotations.frameshift_linkage.is_empty() {
+        return "-".to_string();
+    }
+    variant
+        .annotations
+        .frameshift_linkage
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
+
 fn original_dp_for_index(variant: &VariantInfo, index: usize) -> Option<usize> {
-    variant.original_dp.as_ref()?.get(index).copied()
+    variant.original_dp.as_ref()?.get(index).copied().flatten()
 }
 
 fn original_freq_for_index(variant: &VariantInfo, index: usize) -> Option<f64> {
-    variant.original_freq.as_ref()?.get(index).copied()
+    variant
+        .original_freq
+        .as_ref()?
+        .get(index)
+        .copied()
+        .flatten()
 }
 
+/// A per-SNV list where an entry the input did not supply is written as the
+/// VCF's own missing marker rather than dropping the whole list.
 fn original_dp_list(variant: &VariantInfo) -> Option<String> {
     let values = variant.original_dp.as_ref()?;
     Some(
         values
             .iter()
-            .map(std::string::ToString::to_string)
+            .map(|value| value.map_or_else(|| ".".to_string(), |v| v.to_string()))
             .collect::<Vec<_>>()
             .join(","),
     )
@@ -100,7 +349,7 @@ fn original_freq_list(variant: &VariantInfo) -> Option<String> {
     Some(
         values
             .iter()
-            .map(|v| format_freq(*v))
+            .map(|value| value.map_or_else(|| ".".to_string(), format_freq))
             .collect::<Vec<_>>()
             .join(","),
     )
@@ -142,12 +391,49 @@ pub(crate) fn build_info_string(
     original_info: Option<&str>,
 ) -> String {
     let mut builder = InfoBuilder::default();
-    builder.push("GENE", &variant.gene);
+    builder.push_text("GENE", &variant.gene);
     if let Some(aa_change) = aa {
-        builder.push("AA", aa_change);
+        builder.push_text("AA", aa_change);
     }
-    builder.push("CT", variant.change_type.to_string());
-    builder.push("TYPE", variant_type);
+    builder.push_text("CT", &variant.change_type.to_string());
+    builder.push_text("TYPE", variant_type);
+    let (so_term, impact) = so_consequence(variant);
+    builder.push_text("SO", &so_term);
+    builder.push_text("IMPACT", impact);
+    if let Some(gd) = variant.annotations.grantham {
+        builder.push("GD", gd);
+    }
+    if variant.annotations.consequence_shift != crate::variants::ConsequenceShift::NotApplicable {
+        builder.push_text("MNVSHIFT", variant.annotations.consequence_shift.as_str());
+    }
+    if let Some(dbs) = variant.annotations.dbs_class.as_deref() {
+        builder.push_text("DBS", dbs);
+    }
+    if let Some(phasing) = mnv_phasing_support(variant) {
+        builder.push("MNVPS", format_freq(phasing));
+    }
+    if let Some(reads) = mnv_phasing_read_count(variant) {
+        builder.push("MNVPR", reads);
+    }
+    if let Some(call) = variant.annotations.declared_phase {
+        builder.push_text("DPHASE", &call.to_string());
+    }
+    if let Some(linkage) = variant.annotations.linkage {
+        builder.push("LD", format!("{:.4}", linkage.d_prime));
+        builder.push("LDP", format!("{:.3e}", linkage.p_value));
+    }
+    if !variant.annotations.frameshift_linkage.is_empty() {
+        builder.push_text("FSPH", &frameshift_linkage_field(variant));
+    }
+    if let Some(nmd) = variant.annotations.nmd {
+        builder.push_text("NMD", nmd.as_str());
+    }
+    if let Some(hgvs_g) = crate::variants::hgvs::genomic(variant) {
+        builder.push_text("HGVSG", &hgvs_g);
+    }
+    if let Some(hgvs_c) = variant.annotations.hgvs_c.as_deref() {
+        builder.push_text("HGVSC", hgvs_c);
+    }
 
     if let Some((sr, srf, srr)) = snp_metrics {
         builder.push("SR", sr);
@@ -159,11 +445,26 @@ pub(crate) fn build_info_string(
         builder.push("MRF", mrf);
         builder.push("MRR", mrr);
     }
+    // Written the way the linkage p-value beside them already is. Six fixed
+    // decimals printed everything below 5e-7 as exactly 0.000000, while the
+    // FILTER decision compared the full-precision value, so one file could hold
+    // two records whose only reported strand-bias evidence was identical and
+    // whose FILTER columns disagreed: the verdict could not be reproduced from
+    // the numbers the file published. It also flattened the ordering the exact
+    // test goes out of its way to preserve, printing 1.9e-07 and 1.7e-17, ten
+    // orders of magnitude apart, the same.
     if let Some(sbp) = snp_strand_bias_p {
-        builder.push("SBP", format!("{sbp:.6}"));
+        builder.push("SBP", format!("{sbp:.3e}"));
     }
     if let Some(msbp) = mnv_strand_bias_p {
-        builder.push("MSBP", format!("{msbp:.6}"));
+        builder.push("MSBP", format!("{msbp:.3e}"));
+    }
+
+    if let Some(event_class) = variant.event_class.as_deref() {
+        builder.push_text("EC", event_class);
+    }
+    if !variant.event_components.is_empty() {
+        builder.push_text("COMP", &variant.event_components.join("|"));
     }
 
     push_original_metrics(&mut builder, variant, original_index);
@@ -172,6 +473,21 @@ pub(crate) fn build_info_string(
         let freq = allele_frequency(support, dp);
         builder.push("DP", dp);
         builder.push("FREQ", format_freq(freq));
+    }
+
+    if variant.variant_type == VariantType::Indel {
+        if let (Some(reads), Some(forward), Some(reverse), Some(depth)) = (
+            variant.mnv_reads,
+            variant.mnv_forward_reads,
+            variant.mnv_reverse_reads,
+            variant.mnv_total_reads,
+        ) {
+            builder.push("ER", reads);
+            builder.push("ERF", forward);
+            builder.push("ERR", reverse);
+            builder.push("EDP", depth);
+            builder.push("EFREQ", format_freq(allele_frequency(reads, depth)));
+        }
     }
 
     // Append original INFO fields from the input VCF (if --keep-original-info).
@@ -470,6 +786,70 @@ pub(crate) fn write_info_header(
     )?;
     writeln!(
         writer,
+        "##INFO=<ID=SO,Number=1,Type=String,Description=\"Sequence Ontology consequence term\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=IMPACT,Number=1,Type=String,Description=\"Predicted impact (HIGH, MODERATE, LOW, MODIFIER)\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=GD,Number=1,Type=Integer,Description=\"Grantham distance of the (combined) missense change\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=MNVSHIFT,Number=1,Type=String,Description=\"Combined MNV consequence vs. individual SNVs (MNV-gained / MNV-masked / Concordant)\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=DBS,Number=1,Type=String,Description=\"COSMIC-style doublet base substitution class for adjacent 2-SNV MNVs (reverse-complement collapsed)\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=MNVPS,Number=1,Type=Float,Description=\"MNV phasing support: among reads spanning every position of the codon and carrying the least-supported constituent SNV, the fraction that also carry the full MNV haplotype. Absent when no read spans the codon\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=MNVPR,Number=1,Type=Integer,Description=\"Reads the MNVPS ratio was computed from: reads spanning every position of the codon that carry the least-supported constituent SNV\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=LD,Number=1,Type=Float,Description=\"Read-level linkage disequilibrium D-prime between the codon's substitutions, over the molecules observing every position: +1 they travel together as far as their frequencies allow, 0 they co-occur exactly as often as chance predicts, -1 they exclude each other (competing haplotypes). The weakest pair decides\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=LDP,Number=1,Type=Float,Description=\"Two-tailed Fisher exact p-value for the LD table, so a D-prime from four molecules is not read as one from four hundred\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=DPHASE,Number=1,Type=String,Description=\"Phase the input VCF declared for this row's alleles, as verdict:phase_set, with |contradicted-by-reads when the BAM refutes it. The caller's claim, not an observation\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=FSPH,Number=1,Type=String,Description=\"Read-level phasing between this codon and each upstream indel, as verdict:indel_position:cis_reads/informative_reads. Absent when the reads were not consulted\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=NMD,Number=1,Type=String,Description=\"Nonsense-mediated decay prediction for a premature stop under the 50-nt rule (NMD-triggering / NMD-escaping)\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=HGVSG,Number=1,Type=String,Description=\"HGVS genomic descriptor; MNVs use the allele-bracket form (';' percent-encoded per the VCF spec)\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=HGVSC,Number=1,Type=String,Description=\"HGVS coding descriptor for a coding substitution (SNV/MNV); ';' percent-encoded per the VCF spec\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=EC,Number=1,Type=String,Description=\"Canonical allele event class derived from REF/ALT\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=COMP,Number=.,Type=String,Description=\"Allele event components derived from REF/ALT\">"
+    )?;
+    writeln!(
+        writer,
         "##INFO=<ID=ODP,Number=.,Type=Integer,Description=\"Original depth from input VCF\">"
     )?;
     writeln!(
@@ -508,6 +888,26 @@ pub(crate) fn write_info_header(
         writeln!(
             writer,
             "##INFO=<ID=FREQ,Number=1,Type=Float,Description=\"Calculated allele frequency from BAM at the site\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=ER,Number=1,Type=Integer,Description=\"Exact event read count for indel/complex alleles\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=ERF,Number=1,Type=Integer,Description=\"Exact event forward read count for indel/complex alleles\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=ERR,Number=1,Type=Integer,Description=\"Exact event reverse read count for indel/complex alleles\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=EDP,Number=1,Type=Integer,Description=\"Exact event depth for indel/complex alleles\">"
+        )?;
+        writeln!(
+            writer,
+            "##INFO=<ID=EFREQ,Number=1,Type=Float,Description=\"Exact event allele frequency for indel/complex alleles\">"
         )?;
         if include_strand_bias_info {
             writeln!(
@@ -556,12 +956,16 @@ mod tests {
             total_reverse_reads: Some(vec![8]),
             mnv_total_forward_reads: None,
             mnv_total_reverse_reads: None,
+            mnv_phasing_reads: None,
             ref_codon: Some("ACG".to_string()),
             snp_codon: Some("TCG".to_string()),
             mnv_codon: None,
-            original_dp: Some(vec![30]),
-            original_freq: Some(vec![0.25]),
+            original_dp: Some(vec![Some(30)]),
+            original_freq: Some(vec![Some(0.25)]),
             original_info: None,
+            event_class: Some("snp".to_string()),
+            event_components: vec!["SNV:100:A>T".to_string()],
+            annotations: crate::variants::VariantAnnotations::default(),
         }
     }
 
@@ -573,6 +977,102 @@ mod tests {
         assert_eq!(format_freq(1.0), "1.0000");
         assert_eq!(format_freq(0.0), "0.0000");
         assert_eq!(format_freq(0.12345), "0.1235");
+    }
+
+    // ---- INFO value encoding ----
+
+    #[test]
+    fn test_encode_info_value_escapes_structural_chars() {
+        assert_eq!(encode_info_value("a;b=c,d%e"), "a%3Bb%3Dc%2Cd%25e");
+        assert_eq!(encode_info_value("x\ty\nz\r"), "x%09y%0Az%0D");
+        // Spaces, ':' and '|' stay readable.
+        assert_eq!(encode_info_value("Stop gained"), "Stop gained");
+        assert_eq!(
+            encode_info_value("SNV:28:G>T|INS:29:+GCT"),
+            "SNV:28:G>T|INS:29:+GCT"
+        );
+        // No reserved chars → unchanged (fast path).
+        assert_eq!(encode_info_value("geneA"), "geneA");
+    }
+
+    #[test]
+    fn test_build_info_string_special_gene_name_does_not_corrupt_info() {
+        let mut v = make_snp_variant();
+        v.gene = "weird;gene=x,y".to_string();
+        let info = build_info_string(
+            &v,
+            Some("Ala10Val"),
+            "SNP",
+            None,
+            None,
+            Some(0),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        // The whole gene value stays inside the GENE field instead of spilling
+        // into spurious INFO keys via its ';' and '='.
+        let gene_field = info.split(';').next().unwrap();
+        assert_eq!(gene_field, "GENE=weird%3Bgene%3Dx%2Cy", "got: {info}");
+    }
+
+    // ---- mnv_phasing_support ----
+
+    fn two_position_variant() -> VariantInfo {
+        let mut v = make_snp_variant();
+        v.variant_type = VariantType::SnpMnv;
+        v.positions = vec![100, 101];
+        v.ref_bases = vec!["A".to_string(), "C".to_string()];
+        v.base_changes = vec!["T".to_string(), "G".to_string()];
+        v
+    }
+
+    #[test]
+    fn test_mnv_phasing_support_ratio_and_guards() {
+        let mut v = two_position_variant();
+        // 8 reads span both positions and carry the rarer SNV; 6 of them carry
+        // the whole haplotype.
+        v.mnv_phasing_reads = Some(8);
+        v.mnv_reads = Some(6);
+        assert_eq!(mnv_phasing_support(&v), Some(0.75));
+
+        // Perfect linkage.
+        v.mnv_reads = Some(8);
+        assert_eq!(mnv_phasing_support(&v), Some(1.0));
+
+        // A single SNP is not an MNV, so phasing is not applicable.
+        assert_eq!(mnv_phasing_support(&make_snp_variant()), None);
+    }
+
+    #[test]
+    fn test_mnv_phasing_support_does_not_saturate_on_an_even_mixture() {
+        // Ten molecules carry both variants and ten carry only the first: half
+        // the reads with that SNV lack its partner. The answer is 0.5, and an
+        // earlier formula that divided by the solo reads alone returned 1.0
+        // here, calling a coin-flip mixture a perfectly linked haplotype.
+        let mut v = two_position_variant();
+        v.mnv_reads = Some(10);
+        v.mnv_phasing_reads = Some(20);
+        assert_eq!(mnv_phasing_support(&v), Some(0.5));
+    }
+
+    #[test]
+    fn test_mnv_phasing_support_is_unknown_when_no_read_spans_the_codon() {
+        // A codon split by an intron, read with fragments too short to reach
+        // across it: both SNVs are seen, never together. That is an absence of
+        // evidence, so the metric must be absent too, not 0.0 (which reads as
+        // "proven to be on different molecules").
+        let mut v = two_position_variant();
+        v.snp_reads = Some(vec![20, 20]);
+        v.mnv_reads = Some(0);
+        v.mnv_phasing_reads = Some(0);
+        assert_eq!(mnv_phasing_support(&v), None);
+
+        // Likewise when the field was never populated (no BAM).
+        v.mnv_phasing_reads = None;
+        assert_eq!(mnv_phasing_support(&v), None);
     }
 
     // ---- filter_value ----
@@ -763,5 +1263,58 @@ mod tests {
         let variant = make_snp_variant();
         let result = reference_subsequence("ACGT", 0, 2, &variant);
         assert!(result.is_err());
+    }
+
+    /// A record publishes the strand-bias p-value its FILTER was decided on.
+    ///
+    /// Six fixed decimals printed everything below 5e-7 as exactly `0.000000`
+    /// while the FILTER decision compared the full-precision value, so one file
+    /// could hold two records whose only reported strand-bias evidence was
+    /// identical and whose FILTER columns disagreed, and the verdict could not
+    /// be reproduced from the numbers the file published. It also flattened the
+    /// ordering the exact test goes out of its way to preserve.
+    #[test]
+    fn strand_bias_p_values_far_apart_are_printed_apart() {
+        let weaker = crate::output::stats::fisher_exact_two_tailed(13, 0, 0, 13);
+        let stronger = crate::output::stats::fisher_exact_two_tailed(30, 0, 0, 30);
+        assert!(stronger < weaker, "the larger table is the stronger bias");
+        assert!(
+            weaker < 1e-6,
+            "both sit below the six decimals that used to be printed: {weaker}"
+        );
+
+        let sbp_of = |p: f64| {
+            let info = build_info_string(
+                &make_snp_variant(),
+                Some("Ala10Val"),
+                "SNP",
+                None,
+                None,
+                Some(0),
+                None,
+                None,
+                Some(p),
+                None,
+                None,
+            );
+            info.split(';')
+                .find_map(|field| field.strip_prefix("SBP=").map(str::to_string))
+                .expect("SBP is emitted when a p-value is supplied")
+        };
+
+        let printed_weaker = sbp_of(weaker);
+        let printed_stronger = sbp_of(stronger);
+        assert_ne!(
+            printed_weaker, printed_stronger,
+            "two records ten orders of magnitude apart printed the same p-value"
+        );
+        // And each printed value names the number the filter compared.
+        for (printed, value) in [(&printed_weaker, weaker), (&printed_stronger, stronger)] {
+            let parsed: f64 = printed.parse().expect("a number");
+            assert!(
+                (parsed - value).abs() <= value * 1e-3,
+                "{printed} does not name {value}"
+            );
+        }
     }
 }

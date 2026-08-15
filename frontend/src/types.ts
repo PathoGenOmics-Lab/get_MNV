@@ -19,6 +19,12 @@ export interface AnalysisConfig {
   minSnpStrandReads: number;
   minMnvStrandReads: number;
   minStrandBiasP: number;
+  frameshiftMinFreq: number;
+  /** Anchor-base depth for the indel locus. On by default, as in the CLI, where
+   *  `--legacy-indel-depth` is the opt-out. */
+  indelAnchorDepth: boolean;
+  phasedIndelMinReads: number;
+  phasedIndelMinFreq: number;
   normalizeAlleles: boolean;
   splitMultiallelic: boolean;
   strict: boolean;
@@ -45,6 +51,16 @@ export interface BamVariantSite {
   altBase: string;
 }
 
+export interface BamViewColumn {
+  key: string;
+  position: number;
+  kind: "ref" | "ins";
+  insertionIndex?: number;
+  label: string;
+  referenceBase: string;
+  isVariant: boolean;
+}
+
 export interface BamReadView {
   name: string;
   strand: string;
@@ -68,6 +84,7 @@ export interface BamViewResponse {
   displayStart: number;
   displayEnd: number;
   reference: string;
+  columns: BamViewColumn[];
   sites: BamVariantSite[];
   reads: BamReadView[];
   counts: BamSupportCounts;
@@ -186,6 +203,10 @@ export const DEFAULT_CONFIG: AnalysisConfig = {
   minSnpStrandReads: 0,
   minMnvStrandReads: 0,
   minStrandBiasP: 0,
+  frameshiftMinFreq: 0.5,
+  indelAnchorDepth: true,
+  phasedIndelMinReads: 2,
+  phasedIndelMinFreq: 0,
   normalizeAlleles: true,
   splitMultiallelic: true,
   strict: false,

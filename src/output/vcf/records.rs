@@ -1,0 +1,407 @@
+//! VcfWriter per-record writers (indel, SNP, MNV, SNP+MNV, intergenic).
+
+use super::*;
+
+impl VcfWriter {
+    pub(super) fn write_indel(&mut self, variant: &VariantInfo) -> AppResult<()> {
+        validate_variant_shape(variant)?;
+        let ref_base = get_required(&variant.ref_bases, 0, "ref_bases", variant)?;
+        let alt_base = get_required(&variant.base_changes, 0, "base_changes", variant)?;
+        let pos = *get_required(&variant.positions, 0, "positions", variant)?;
+        let filters = if self.bam_provided {
+            self.build_support_filters(SupportFilterInput {
+                support_reads: variant.mnv_reads.unwrap_or(0),
+                min_reads: self.min_mnv_reads,
+                depth: variant.mnv_total_reads.unwrap_or(0),
+                min_frequency: self.min_mnv_frequency,
+                forward_reads: variant.mnv_forward_reads.unwrap_or(0),
+                reverse_reads: variant.mnv_reverse_reads.unwrap_or(0),
+                min_strand_reads: self.min_mnv_strand_reads,
+                strand_bias_p: None,
+            })
+        } else {
+            Vec::new()
+        };
+        if !self.should_emit_record(&filters) {
+            return Ok(());
+        }
+        let info = build_info_string(
+            variant,
+            variant.aa_changes.first().map(String::as_str),
+            VariantType::Indel.as_str(),
+            None,
+            None,
+            Some(0),
+            None,
+            None,
+            None,
+            None,
+            variant.original_info.as_deref(),
+        );
+        let filter = filter_value(&filters);
+        self.write_variant_line(&variant.chrom, pos, ref_base, alt_base, &filter, &info)
+    }
+
+    pub(super) fn write_snp(&mut self, variant: &VariantInfo) -> AppResult<()> {
+        validate_variant_shape(variant)?;
+        // An intergenic multi-base substitution is never read-counted (the
+        // intergenic counter handles single-position SNPs only), so it has no
+        // counts to report even with a BAM. Emit it the way a run without a BAM
+        // would rather than failing the whole run for the missing vectors.
+        if self.bam_provided && variant.snp_reads.is_some() {
+            let bam_vectors = snp_bam_vectors(variant)?;
+            for i in 0..variant.positions.len() {
+                let metrics = self.snp_metrics_at(variant, &bam_vectors, i)?;
+                let aa = variant.aa_changes.join(",");
+                if let Some(entry) = self.build_snp_entry(variant, i, &aa, metrics)? {
+                    self.pending.push(entry);
+                }
+            }
+            Ok(())
+        } else {
+            for (i, &pos) in variant.positions.iter().enumerate() {
+                let ref_base = get_required(&variant.ref_bases, i, "ref_bases", variant)?;
+                let alt_base = get_required(&variant.base_changes, i, "base_changes", variant)?;
+                let aa = variant.aa_changes.join(",");
+                let info = build_info_string(
+                    variant,
+                    Some(&aa),
+                    VariantType::Snp.as_str(),
+                    None,
+                    None,
+                    Some(i),
+                    None,
+                    None,
+                    None,
+                    None,
+                    variant.original_info.as_deref(),
+                );
+                self.write_variant_line(&variant.chrom, pos, ref_base, alt_base, "PASS", &info)?;
+            }
+            Ok(())
+        }
+    }
+
+    pub(super) fn write_mnv(
+        &mut self,
+        variant: &VariantInfo,
+        reference_sequence: &str,
+    ) -> AppResult<()> {
+        validate_variant_shape(variant)?;
+        // A multi-base substitution that falls inside a gene but outside every
+        // codon (an intron, a splice region, a non-coding transcript) is never
+        // read-counted, so its depth is absent even when `--bam` was given.
+        // Demanding it here aborted the entire run and left no output files at
+        // all, losing every other variant in the file with it. Key on whether
+        // the counts exist rather than on whether a BAM was supplied, and such
+        // a row is emitted the way the no-BAM path emits it. This is the VCF
+        // twin of the same guard in the TSV writer.
+        if self.bam_provided && variant.total_reads.is_some() {
+            let total_reads = variant.total_reads.as_ref().ok_or_else(|| {
+                format!("Missing total read depth for {}", variant_context(variant))
+            })?;
+            let metrics = self.mnv_metrics(variant, total_reads)?;
+            let aa = variant.aa_changes.join(",");
+            if let Some(entry) = self.build_mnv_entry(variant, reference_sequence, &aa, metrics)? {
+                self.pending.push(entry);
+            }
+            Ok(())
+        } else {
+            let min_pos = *variant
+                .positions
+                .iter()
+                .min()
+                .ok_or_else(|| format!("Missing positions for {}", variant_context(variant)))?;
+            let max_pos = *variant
+                .positions
+                .iter()
+                .max()
+                .ok_or_else(|| format!("Missing positions for {}", variant_context(variant)))?;
+            let ref_region = reference_subsequence(reference_sequence, min_pos, max_pos, variant)?;
+            let alt_region = build_alt_region(
+                reference_sequence,
+                &variant.positions,
+                &variant.base_changes,
+            )?;
+            let aa = variant.aa_changes.join(",");
+            let info = build_info_string(
+                variant,
+                Some(&aa),
+                VariantType::Mnv.as_str(),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                variant.original_info.as_deref(),
+            );
+            self.write_variant_line(
+                &variant.chrom,
+                min_pos,
+                ref_region,
+                &alt_region,
+                "PASS",
+                &info,
+            )
+        }
+    }
+
+    pub(super) fn write_snp_mnv(
+        &mut self,
+        variant: &VariantInfo,
+        reference_sequence: &str,
+    ) -> AppResult<()> {
+        validate_variant_shape(variant)?;
+        let mut entries: Vec<VcfEntry> = Vec::new();
+
+        if self.bam_provided && variant.snp_reads.is_some() {
+            let bam_vectors = snp_bam_vectors(variant)?;
+            // Zero supporting reads is the absence of evidence, not evidence of
+            // absence: it is what a BAM that does not reach this locus reports,
+            // which is normal for a targeted panel or a subset alignment. These
+            // alleles used to be skipped here, before `build_*_entry` could
+            // weigh them, so a run with `--bam` silently dropped calls the TSV
+            // still wrote and `--emit-filtered` could not bring them back. Let
+            // them through: with no thresholds set they are emitted with their
+            // zero counts, exactly as the run without a BAM emits them, and a
+            // threshold marks or skips them through the one gate that decides.
+            for i in 0..variant.positions.len() {
+                let metrics = self.snp_metrics_at(variant, &bam_vectors, i)?;
+                let aa = snp_aa_for_index(variant, i);
+                if let Some(entry) = self.build_snp_entry(variant, i, &aa, metrics)? {
+                    entries.push(entry);
+                }
+            }
+
+            let mnv_metrics = self.mnv_metrics(variant, bam_vectors.total_reads)?;
+            let aa = variant.aa_changes.join(",");
+            if let Some(entry) =
+                self.build_mnv_entry(variant, reference_sequence, &aa, mnv_metrics)?
+            {
+                entries.push(entry);
+            }
+        } else {
+            for (i, &pos) in variant.positions.iter().enumerate() {
+                let ref_base = get_required(&variant.ref_bases, i, "ref_bases", variant)?;
+                let alt_base = get_required(&variant.base_changes, i, "base_changes", variant)?;
+                let aa = snp_aa_for_index(variant, i);
+                let info = build_info_string(
+                    variant,
+                    Some(&aa),
+                    VariantType::Snp.as_str(),
+                    None,
+                    None,
+                    Some(i),
+                    None,
+                    None,
+                    None,
+                    None,
+                    variant.original_info.as_deref(),
+                );
+                entries.push((
+                    pos,
+                    vcf_entry_line(&variant.chrom, pos, ref_base, alt_base, "PASS", &info),
+                ));
+            }
+
+            let min_pos = *variant
+                .positions
+                .iter()
+                .min()
+                .ok_or_else(|| format!("Missing positions for {}", variant_context(variant)))?;
+            let max_pos = *variant
+                .positions
+                .iter()
+                .max()
+                .ok_or_else(|| format!("Missing positions for {}", variant_context(variant)))?;
+            let ref_region = reference_subsequence(reference_sequence, min_pos, max_pos, variant)?;
+            let alt_region = build_alt_region(
+                reference_sequence,
+                &variant.positions,
+                &variant.base_changes,
+            )?;
+
+            let aa = variant.aa_changes.join(",");
+            let info = build_info_string(
+                variant,
+                Some(&aa),
+                VariantType::Mnv.as_str(),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                variant.original_info.as_deref(),
+            );
+            entries.push((
+                min_pos,
+                vcf_entry_line(
+                    &variant.chrom,
+                    min_pos,
+                    ref_region,
+                    &alt_region,
+                    "PASS",
+                    &info,
+                ),
+            ));
+        }
+
+        // Into the contig-wide buffer: sorting a variant's own records is not
+        // enough when another variant sits between them.
+        self.pending.extend(entries);
+        Ok(())
+    }
+
+    pub(super) fn write_intergenic(&mut self, variant: &VariantInfo) -> AppResult<()> {
+        validate_variant_shape(variant)?;
+        // One record per base that changes. These rows carry an entry per
+        // changed base, as the gene path's do, and writing only the first left
+        // the second base of a multi-base substitution in the TSV and out of the
+        // VCF: two outputs of one run disagreeing about what was called. An
+        // indel row has a single entry, so this loop runs once for it.
+        for index in 0..variant.positions.len() {
+            self.write_intergenic_entry(variant, index)?;
+        }
+        Ok(())
+    }
+
+    fn write_intergenic_entry(&mut self, variant: &VariantInfo, index: usize) -> AppResult<()> {
+        let ref_base = get_required(&variant.ref_bases, index, "ref_bases", variant)?;
+        let alt_base = get_required(&variant.base_changes, index, "base_changes", variant)?;
+        let pos = *get_required(&variant.positions, index, "positions", variant)?;
+
+        // A single-base intergenic substitution is judged on its own read
+        // support, base by base, exactly as the TSV judges it. Every other
+        // intergenic row, a multi-base substitution or an indel, is judged on its
+        // haplotype support, which is also what the TSV uses: the reads carrying
+        // the whole change. Judging a multi-base row on the SNP side deleted it
+        // from the VCF while the TSV kept it, because a haplotype every read
+        // carries whole has no reads carrying one base alone, so its SNP support
+        // is zero by construction.
+        let judged_per_base = variant.variant_type == VariantType::Snp;
+        let snp_support = if self.bam_provided && judged_per_base {
+            let support = variant
+                .snp_reads
+                .as_ref()
+                .and_then(|c| c.get(index))
+                .copied();
+            let forward = variant
+                .snp_forward_reads
+                .as_ref()
+                .and_then(|c| c.get(index))
+                .copied();
+            let reverse = variant
+                .snp_reverse_reads
+                .as_ref()
+                .and_then(|c| c.get(index))
+                .copied();
+            let depth = variant
+                .total_reads
+                .as_ref()
+                .and_then(|c| c.get(index))
+                .copied();
+            match (support, forward, reverse, depth) {
+                (Some(s), Some(f), Some(r), Some(d)) => Some((s, f, r, d)),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        // The haplotype counts, when a counter reached this row.
+        let mnv_support = if self.bam_provided && !judged_per_base {
+            match (variant.mnv_reads, variant.mnv_total_reads) {
+                (None, None) => None,
+                _ => Some((
+                    variant.mnv_reads.unwrap_or(0),
+                    variant.mnv_forward_reads.unwrap_or(0),
+                    variant.mnv_reverse_reads.unwrap_or(0),
+                    variant.mnv_total_reads.unwrap_or(0),
+                )),
+            }
+        } else {
+            None
+        };
+
+        // Strand-bias p-value, computed like the genic SNP path so the
+        // --min-strand-bias-p filter and the SBP INFO field apply to intergenic
+        // SNPs too (the strand read counts are populated for them).
+        let strand_bias_p = if snp_support.is_some() {
+            self.snp_strand_bias(variant, index)
+        } else {
+            None
+        };
+        let filters = match snp_support {
+            Some((support, forward, reverse, depth)) => {
+                self.build_support_filters(SupportFilterInput {
+                    support_reads: support,
+                    min_reads: self.min_snp_reads,
+                    depth,
+                    min_frequency: self.min_snp_frequency,
+                    forward_reads: forward,
+                    reverse_reads: reverse,
+                    min_strand_reads: self.min_snp_strand_reads,
+                    strand_bias_p,
+                })
+            }
+            None if self.bam_provided && !judged_per_base && mnv_support.is_some() => self
+                .build_support_filters(SupportFilterInput {
+                    support_reads: variant.mnv_reads.unwrap_or(0),
+                    min_reads: self.min_mnv_reads,
+                    depth: variant.mnv_total_reads.unwrap_or(0),
+                    min_frequency: self.min_mnv_frequency,
+                    forward_reads: variant.mnv_forward_reads.unwrap_or(0),
+                    reverse_reads: variant.mnv_reverse_reads.unwrap_or(0),
+                    min_strand_reads: self.min_mnv_strand_reads,
+                    strand_bias_p: None,
+                }),
+            None if self.bam_provided && !judged_per_base => {
+                // Nobody counted this row. A filter cannot be met by a
+                // measurement that was never taken, so it is held to the same
+                // verdict the TSV reaches: out while an MNV filter is active.
+                self.build_support_filters(SupportFilterInput {
+                    support_reads: 0,
+                    min_reads: self.min_mnv_reads,
+                    depth: 0,
+                    min_frequency: self.min_mnv_frequency,
+                    forward_reads: 0,
+                    reverse_reads: 0,
+                    min_strand_reads: self.min_mnv_strand_reads,
+                    strand_bias_p: None,
+                })
+            }
+            None => Vec::new(),
+        };
+        if !self.should_emit_record(&filters) {
+            return Ok(());
+        }
+
+        let info = build_info_string(
+            variant,
+            None,
+            variant.variant_type.as_str(),
+            snp_support.map(|(s, f, r, _)| (s, f, r)),
+            mnv_support.map(|(s, f, r, _)| (s, f, r)),
+            Some(index),
+            snp_support
+                .map(|(_, _, _, d)| d)
+                .or(mnv_support.map(|(_, _, _, d)| d)),
+            snp_support
+                .map(|(s, _, _, _)| s)
+                .or(mnv_support.map(|(s, _, _, _)| s)),
+            if self.include_strand_bias_info {
+                strand_bias_p
+            } else {
+                None
+            },
+            None,
+            variant.original_info.as_deref(),
+        );
+        let filter = filter_value(&filters);
+        self.write_variant_line(&variant.chrom, pos, ref_base, alt_base, &filter, &info)
+    }
+}

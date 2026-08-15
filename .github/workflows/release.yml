@@ -142,9 +142,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "get_MNV ${{ github.ref_name }}"
           releaseBody: |
-            get_MNV ${{ github.ref_name }} adds explicit iVar variants TSV input through `--tsv`, keeps VCF input through `--vcf`, and updates the desktop GUI to handle both input types.
-
-            Sebastian Velandia-Álvarez and Mireya Martínez-Pérez proposed iVar input support for get_MNV.
+            get_MNV ${{ github.ref_name }} updates the project metadata and refreshes security-sensitive Rust and frontend dependencies for the 1.1.5 release line.
 
             See [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for the full list of changes.
           releaseDraft: true

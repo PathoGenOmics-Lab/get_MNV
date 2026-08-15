@@ -34,13 +34,16 @@ pub struct Reference<'a> {
 
 pub type ReferenceMap = HashMap<String, String>;
 
-pub fn load_references(fasta_file: &str) -> AppResult<ReferenceMap> {
+pub fn load_references(fasta_file: &str, only_contig: Option<&str>) -> AppResult<ReferenceMap> {
     log::info!("Loading reference FASTA: {fasta_file}");
     let file = std::fs::File::open(fasta_file)
         .map_err(|e| format!("Cannot open FASTA file '{}': {}", fasta_file, e))?;
     let reader = BufReader::with_capacity(128 * 1024, file);
     let mut references: ReferenceMap = HashMap::new();
     let mut current_id: Option<String> = None;
+    // Whether the current record matches the requested contig (--chrom). With
+    // `only_contig == None` every record is loaded (original behaviour).
+    let mut current_wanted = false;
     let mut seq_buf: Vec<u8> = Vec::with_capacity(4_500_000); // pre-size for typical genome
     let mut record_idx = 0usize;
 
@@ -50,13 +53,15 @@ pub fn load_references(fasta_file: &str) -> AppResult<ReferenceMap> {
         if line.starts_with('>') {
             // Flush previous record
             if let Some(id) = current_id.take() {
-                let seq_str = finalize_sequence(&mut seq_buf, &id, fasta_file)?;
-                if references.insert(id.clone(), seq_str).is_some() {
-                    return Err(format!(
-                        "Duplicate FASTA contig '{}' found in '{}'",
-                        id, fasta_file
-                    )
-                    .into());
+                if current_wanted {
+                    let seq_str = finalize_sequence(&mut seq_buf, &id, fasta_file)?;
+                    if references.insert(id.clone(), seq_str).is_some() {
+                        return Err(format!(
+                            "Duplicate FASTA contig '{}' found in '{}'",
+                            id, fasta_file
+                        )
+                        .into());
+                    }
                 }
             }
             record_idx += 1;
@@ -70,9 +75,13 @@ pub fn load_references(fasta_file: &str) -> AppResult<ReferenceMap> {
                 )
                 .into());
             }
+            current_wanted = match only_contig {
+                Some(want) => id == want,
+                None => true,
+            };
             current_id = Some(id);
             seq_buf.clear();
-        } else if current_id.is_some() {
+        } else if current_id.is_some() && current_wanted {
             // Append sequence bytes, skipping whitespace
             for &b in line.as_bytes() {
                 if !b.is_ascii_whitespace() {
@@ -84,16 +93,26 @@ pub fn load_references(fasta_file: &str) -> AppResult<ReferenceMap> {
 
     // Flush last record
     if let Some(id) = current_id.take() {
-        let seq_str = finalize_sequence(&mut seq_buf, &id, fasta_file)?;
-        if references.insert(id.clone(), seq_str).is_some() {
-            return Err(
-                format!("Duplicate FASTA contig '{}' found in '{}'", id, fasta_file).into(),
-            );
+        if current_wanted {
+            let seq_str = finalize_sequence(&mut seq_buf, &id, fasta_file)?;
+            if references.insert(id.clone(), seq_str).is_some() {
+                return Err(
+                    format!("Duplicate FASTA contig '{}' found in '{}'", id, fasta_file).into(),
+                );
+            }
         }
     }
 
     if references.is_empty() {
-        return Err(format!("No FASTA records found in '{fasta_file}'").into());
+        return Err(match only_contig {
+            Some(contig) => {
+                format!(
+                    "Contig '{contig}' (requested via --chrom) not found in FASTA '{fasta_file}'"
+                )
+            }
+            None => format!("No FASTA records found in '{fasta_file}'"),
+        }
+        .into());
     }
     Ok(references)
 }
@@ -140,20 +159,20 @@ pub fn validate_vcf_reference_alleles(
     reference: &Reference<'_>,
 ) -> AppResult<()> {
     for site in snp_list {
-        if site.position == 0 {
+        if site.record_start == 0 {
             return Err(format!(
                 "Invalid VCF position 0 found at contig '{chrom}' (positions must be 1-based)"
             )
             .into());
         }
         let ref_len = site.ref_allele.len();
-        let start = site.position - 1;
+        let start = site.record_start - 1;
         let end = start + ref_len;
         if end > reference.sequence.len() {
             return Err(format!(
                 "VCF REF out of FASTA bounds at {}:{} (REF='{}', FASTA length={})",
                 chrom,
-                site.position,
+                site.record_start,
                 site.ref_allele,
                 reference.sequence.len()
             )
@@ -163,12 +182,88 @@ pub fn validate_vcf_reference_alleles(
         if !fasta_ref.eq_ignore_ascii_case(&site.ref_allele) {
             return Err(format!(
                 "VCF REF/FASTA mismatch at {}:{}: VCF REF='{}' FASTA='{}'",
-                chrom, site.position, site.ref_allele, fasta_ref
+                chrom, site.record_start, site.ref_allele, fasta_ref
             )
             .into());
         }
     }
     Ok(())
+}
+
+/// Drop records that describe no change, where ALT repeats REF.
+///
+/// Some callers emit reference calls into a variants file. Such a record has no
+/// components to decompose, so it reached the annotator as a variant with
+/// nothing in it and came out attributed to `intergenic` even from inside a
+/// gene, typed `INDEL`, and carrying an `intergenic_variant` consequence: three
+/// claims about something that is not a variant at all. A missing ALT (`.`) is
+/// already rejected at parse time; this one is common enough in real files that
+/// refusing the whole run would be unhelpful, so the records are skipped and
+/// counted.
+///
+/// Returns the surviving records and how many were dropped.
+pub fn drop_reference_calls(snp_list: Vec<VcfPosition>) -> (Vec<VcfPosition>, usize) {
+    let before = snp_list.len();
+    let kept: Vec<VcfPosition> = snp_list
+        .into_iter()
+        .filter(|site| {
+            crate::variants::decompose_allele(site.record_start, &site.ref_allele, &site.alt_allele)
+                .class
+                != crate::variants::AlleleEventClass::Reference
+        })
+        .collect();
+    let dropped = before - kept.len();
+    (kept, dropped)
+}
+
+/// Rewrite a right-anchored insertion into the equivalent left-anchored record.
+///
+/// VCF allows an insertion to be written against the base after it, so
+/// `31 G>AAAG` and `30 T>TAAA` are the same inserted `AAA`. The first spells the
+/// anchor as base 30, which lies *before* the record's own POS, and every part
+/// of get_MNV that observes an allele reads forward from POS: the exact indel
+/// counter and local haplotype discovery could never see that junction, so such
+/// a record reported zero supporting reads over a full depth and dropped out of
+/// its own haplotype. Rather than teach each observer to reach backwards, the
+/// record is re-anchored here, once, to the spelling the rest of the pipeline
+/// already handles.
+///
+/// Returns the rewritten records and how many were changed.
+pub fn left_anchor_insertions(
+    snp_list: &[VcfPosition],
+    reference: &Reference<'_>,
+) -> (Vec<VcfPosition>, usize) {
+    let mut rewritten = 0usize;
+    let out = snp_list
+        .iter()
+        .map(|site| {
+            let event = crate::variants::decompose_allele(
+                site.record_start,
+                &site.ref_allele,
+                &site.alt_allele,
+            );
+            let [component] = event.components.as_slice() else {
+                return site.clone();
+            };
+            if component.kind != crate::variants::AlleleComponentKind::Insertion
+                || component.position >= site.record_start
+                // An insertion before the first base of the contig has no anchor
+                // to move onto; leave it exactly as the caller wrote it.
+                || component.position == 0
+                || component.position > reference.sequence.len()
+            {
+                return site.clone();
+            }
+            let anchor = &reference.sequence[component.position - 1..component.position];
+            let mut moved = site.clone();
+            moved.record_start = component.position;
+            moved.ref_allele = anchor.to_string();
+            moved.alt_allele = format!("{anchor}{}", component.alt_allele);
+            rewritten += 1;
+            moved
+        })
+        .collect();
+    (out, rewritten)
 }
 
 #[cfg(test)]
@@ -190,7 +285,7 @@ mod tests {
     #[test]
     fn test_load_single_contig() {
         let path = write_temp_fasta(">chr1\nACGT\nTTGG\n");
-        let refs = load_references(&path).unwrap();
+        let refs = load_references(&path, None).unwrap();
         assert_eq!(refs.len(), 1);
         assert_eq!(refs["chr1"], "ACGTTTGG");
         std::fs::remove_file(&path).ok();
@@ -199,7 +294,7 @@ mod tests {
     #[test]
     fn test_load_multi_contig() {
         let path = write_temp_fasta(">chr1\nACGT\n>chr2\nNNNN\n");
-        let refs = load_references(&path).unwrap();
+        let refs = load_references(&path, None).unwrap();
         assert_eq!(refs.len(), 2);
         assert_eq!(refs["chr1"], "ACGT");
         assert_eq!(refs["chr2"], "NNNN");
@@ -207,9 +302,27 @@ mod tests {
     }
 
     #[test]
+    fn test_load_only_contig_filter() {
+        let path = write_temp_fasta(">chr1\nACGT\n>chr2\nNNNN\n>chr3\nGGGG\n");
+        let refs = load_references(&path, Some("chr2")).unwrap();
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs["chr2"], "NNNN");
+        assert!(!refs.contains_key("chr1"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_load_only_contig_not_found_errors() {
+        let path = write_temp_fasta(">chr1\nACGT\n");
+        let err = load_references(&path, Some("chrX")).unwrap_err();
+        assert!(err.to_string().contains("chrX"), "got: {err}");
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
     fn test_load_lowercase_uppercased() {
         let path = write_temp_fasta(">c\nacgt\n");
-        let refs = load_references(&path).unwrap();
+        let refs = load_references(&path, None).unwrap();
         assert_eq!(refs["c"], "ACGT");
         std::fs::remove_file(&path).ok();
     }
@@ -217,7 +330,7 @@ mod tests {
     #[test]
     fn test_load_iupac_ambiguity() {
         let path = write_temp_fasta(">c\nACGTRYSWKMBDHVN\n");
-        let refs = load_references(&path).unwrap();
+        let refs = load_references(&path, None).unwrap();
         assert_eq!(refs["c"], "ACGTRYSWKMBDHVN");
         std::fs::remove_file(&path).ok();
     }
@@ -225,28 +338,28 @@ mod tests {
     #[test]
     fn test_load_invalid_base_rejected() {
         let path = write_temp_fasta(">c\nACGTX\n");
-        assert!(load_references(&path).is_err());
+        assert!(load_references(&path, None).is_err());
         std::fs::remove_file(&path).ok();
     }
 
     #[test]
     fn test_load_empty_file_rejected() {
         let path = write_temp_fasta("");
-        assert!(load_references(&path).is_err());
+        assert!(load_references(&path, None).is_err());
         std::fs::remove_file(&path).ok();
     }
 
     #[test]
     fn test_load_duplicate_contig_rejected() {
         let path = write_temp_fasta(">c\nACGT\n>c\nTTTT\n");
-        assert!(load_references(&path).is_err());
+        assert!(load_references(&path, None).is_err());
         std::fs::remove_file(&path).ok();
     }
 
     #[test]
     fn test_load_header_description_stripped() {
         let path = write_temp_fasta(">chr1 some description here\nACGT\n");
-        let refs = load_references(&path).unwrap();
+        let refs = load_references(&path, None).unwrap();
         assert!(refs.contains_key("chr1"));
         assert!(!refs.contains_key("chr1 some description here"));
         std::fs::remove_file(&path).ok();
@@ -271,12 +384,13 @@ mod tests {
         let refs = ReferenceMap::from([("c".to_string(), "ACGT".to_string())]);
         let r = reference_for_chrom(&refs, "c").unwrap();
         let snps = vec![VcfPosition {
-            position: 1,
+            record_start: 1,
             ref_allele: "A".into(),
             alt_allele: "T".into(),
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }];
         assert!(validate_vcf_reference_alleles("c", &snps, &r).is_ok());
     }
@@ -286,12 +400,13 @@ mod tests {
         let refs = ReferenceMap::from([("c".to_string(), "ACGT".to_string())]);
         let r = reference_for_chrom(&refs, "c").unwrap();
         let snps = vec![VcfPosition {
-            position: 1,
+            record_start: 1,
             ref_allele: "T".into(),
             alt_allele: "A".into(),
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }];
         assert!(validate_vcf_reference_alleles("c", &snps, &r).is_err());
     }
@@ -301,13 +416,46 @@ mod tests {
         let refs = ReferenceMap::from([("c".to_string(), "AC".to_string())]);
         let r = reference_for_chrom(&refs, "c").unwrap();
         let snps = vec![VcfPosition {
-            position: 2,
+            record_start: 2,
             ref_allele: "CG".into(),
             alt_allele: "TT".into(),
             original_dp: None,
             original_freq: None,
             original_info: None,
+            declared_phase: None,
         }];
         assert!(validate_vcf_reference_alleles("c", &snps, &r).is_err());
+    }
+
+    /// A record whose ALT repeats REF describes no change. It used to reach the
+    /// annotator with nothing to decompose and come out attributed to
+    /// `intergenic` from inside a gene, typed INDEL, with an
+    /// `intergenic_variant` consequence attached to it.
+    #[test]
+    fn a_reference_call_is_not_a_variant() {
+        let calls = vec![
+            VcfPosition {
+                record_start: 28,
+                ref_allele: "G".to_string(),
+                alt_allele: "G".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+                declared_phase: None,
+            },
+            VcfPosition {
+                record_start: 30,
+                ref_allele: "T".to_string(),
+                alt_allele: "C".to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+                declared_phase: None,
+            },
+        ];
+        let (kept, dropped) = super::drop_reference_calls(calls);
+        assert_eq!(dropped, 1);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].record_start, 30, "the real variant must survive");
     }
 }

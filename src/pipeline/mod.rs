@@ -13,8 +13,12 @@ pub use summary::{
     RunSummary, RunTimings,
 };
 
-use config::{configure_threads, log_run_configuration, sanitized_command_line};
-use manifest::{build_input_metadata, build_run_manifest_value, write_json_value};
+use config::{
+    configure_threads, log_run_configuration, sanitize_sample_for_path, sanitized_command_line,
+};
+use manifest::{
+    build_input_metadata, build_run_manifest_value, output_checksums_for, write_json_value,
+};
 use processing::{
     emit_contig_variants, parse_inputs, process_contig, reclassify_generic_as_validation,
     resolve_variant_input_format,
@@ -62,6 +66,37 @@ fn run_single(
     let needs_checksums = args.summary_json.is_some() || args.run_manifest.is_some();
     let inputs = build_input_metadata(args, needs_checksums)?;
     let paths = output_paths::OutputPaths::resolve(args, &parsed.base_name, sample_suffix);
+
+    // Fail fast on a missing/un-indexed BAM before any output file is created.
+    if !args.dry_run {
+        if let Some(bam_path) = args.bam_file.as_deref() {
+            config::validate_bam(bam_path)?;
+        }
+    }
+
+    // Transactional output: if the run errors after the output files are created,
+    // remove the partial files on unwind so downstream tooling never consumes a
+    // truncated VCF/TSV. Disarmed once the outputs are fully written.
+    struct OutputCleanup {
+        paths: Vec<String>,
+        armed: bool,
+    }
+    impl Drop for OutputCleanup {
+        fn drop(&mut self) {
+            if self.armed {
+                for path in &self.paths {
+                    let _ = std::fs::remove_file(path);
+                }
+            }
+        }
+    }
+    let mut output_cleanup = OutputCleanup {
+        paths: [paths.tsv.clone(), paths.vcf.clone(), paths.bcf.clone()]
+            .into_iter()
+            .flatten()
+            .collect(),
+        armed: true,
+    };
 
     let mut tsv_writer = if paths.tsv.is_some() {
         Some(output::TsvWriter::new(output::TsvWriterConfig {
@@ -180,20 +215,34 @@ fn run_single(
     summary.timings.emit_ms = emit_ms;
     summary.timings.total_ms = total_start.elapsed().as_secs_f64() * 1000.0;
 
+    if let Some(writer) = vcf_writer.as_mut() {
+        writer.flush()?;
+    }
     drop(tsv_writer);
     drop(vcf_writer);
+    // Outputs are fully written; keep them even if a post-write step (tabix/BCF
+    // index, report JSON) fails.
+    output_cleanup.armed = false;
 
     if args.index_vcf_gz {
         if let Some(vcf_path) = summary.output_vcf.as_deref() {
-            output::build_tabix_index(vcf_path)?;
-            info!("Built Tabix index for {vcf_path}");
+            if output::build_tabix_index(vcf_path)? == output::ExternalStep::Ran {
+                info!("Built Tabix index for {vcf_path}");
+            }
         }
     }
     if let (Some(vcf_path), Some(bcf_path)) =
-        (summary.output_vcf.as_deref(), summary.output_bcf.as_deref())
+        (summary.output_vcf.clone(), summary.output_bcf.clone())
     {
-        output::convert_vcf_to_bcf(vcf_path, bcf_path)?;
-        info!("Converted {vcf_path} to {bcf_path}");
+        if output::convert_vcf_to_bcf(&vcf_path, &bcf_path)? == output::ExternalStep::Ran {
+            info!("Converted {vcf_path} to {bcf_path}");
+        } else {
+            // bcftools was not there, so the file was never written. Anything
+            // downstream that trusts this path has to see the absence: the
+            // summary JSON would otherwise name a file that does not exist, and
+            // --run-manifest hashes every output the summary names.
+            summary.output_bcf = None;
+        }
     }
 
     info!(
@@ -225,6 +274,26 @@ fn run_single(
             write_json_value(run_manifest_path, &manifest)?;
             info!("Run manifest written to {run_manifest_path}");
         }
+        // Single-sample report. In `--sample all` mode `write_reports` is false
+        // for each sample and one combined report is written by the caller.
+        if let Some(report_path) = args.report.as_deref() {
+            let sample_label = summary.sample.clone().unwrap_or_else(|| {
+                std::path::Path::new(&parsed.base_name)
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "sample".to_string())
+            });
+            let tsv_path = summary.output_tsv.as_deref().ok_or_else(|| {
+                AppError::config("--report needs the TSV output; use --both instead of --convert, or drop --convert")
+            })?;
+            let mut builder = output::ReportBuilder::new();
+            builder.add_tsv(tsv_path, Some(&sample_label))?;
+            builder.write(report_path, &parsed.command_line, &report_timestamp())?;
+            info!(
+                "HTML report written to {report_path} ({} variants)",
+                builder.len()
+            );
+        }
     }
 
     if args.dry_run {
@@ -234,6 +303,71 @@ fn run_single(
     }
 
     Ok(summary)
+}
+
+/// Civil date from a count of days since the Unix epoch (Howard Hinnant's
+/// `civil_from_days`). Avoids pulling in a date dependency for the one
+/// human-readable timestamp the report header shows.
+fn civil_from_days(days: i64) -> (i64, u32, u32) {
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let year = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    (if month <= 2 { year + 1 } else { year }, month, day)
+}
+
+/// Current UTC time as `YYYY-MM-DD HH:MM UTC`, for the report header.
+fn report_timestamp() -> String {
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    let (year, month, day) = civil_from_days(days);
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02} UTC",
+        rem / 3600,
+        (rem % 3600) / 60
+    )
+}
+
+/// Build the HTML report from existing get_MNV TSV files, without running the
+/// pipeline. Each input file becomes one sample in the report.
+fn run_report_from_tsvs(args: &Args) -> AppResult<RunSummary> {
+    let report_path = args.report.as_deref().ok_or_else(|| {
+        AppError::config("--report-from requires --report to name the output HTML file")
+    })?;
+
+    // Label the whole input set at once: file names alone collide when a
+    // per-sample pipeline writes `results/<sample>/variants.MNV.tsv`.
+    let labels = output::sample_labels(&args.report_from);
+    let mut builder = output::ReportBuilder::new();
+    for (tsv_path, label) in args.report_from.iter().zip(labels.iter()) {
+        builder.add_tsv(tsv_path, Some(label))?;
+        info!("Report input: {tsv_path} (sample '{label}')");
+    }
+    if builder.is_empty() {
+        return Err(AppError::validation(
+            "The provided TSV files contain no variant rows, so there is nothing to report",
+        ));
+    }
+    builder.write(report_path, &sanitized_command_line(), &report_timestamp())?;
+    info!(
+        "HTML report written to {report_path} ({} variants from {} file(s))",
+        builder.len(),
+        args.report_from.len()
+    );
+
+    Ok(RunSummary {
+        schema_version: "1.0.0".to_string(),
+        ..RunSummary::default()
+    })
 }
 
 /// Run the pipeline (CLI entry point, no progress reporting).
@@ -246,6 +380,27 @@ pub fn run_with_progress(
     args: &Args,
     on_progress: &dyn Fn(ProgressEvent),
 ) -> AppResult<RunSummary> {
+    // Standalone report mode: aggregate existing TSVs, no pipeline run.
+    if !args.report_from.is_empty() {
+        return run_report_from_tsvs(args);
+    }
+    // Enforced here rather than by the clap ArgGroup, which cannot express
+    // "unless --report-from" (that mode needs no variant input).
+    if args.vcf_file.is_none() && args.tsv_file.is_none() {
+        return Err(AppError::config(
+            "one of --vcf or --tsv is required (or use --report-from to build a report from existing TSV files)",
+        ));
+    }
+    if args.report.is_some() {
+        if args.dry_run {
+            return Err(AppError::config("--report cannot be used with --dry-run"));
+        }
+        if args.convert && !args.both {
+            return Err(AppError::config(
+                "--report needs the TSV output; use --both instead of --convert, or drop --convert",
+            ));
+        }
+    }
     if args.vcf_gz && !(args.convert || args.both) {
         return Err(AppError::config("--vcf-gz requires --convert or --both"));
     }
@@ -273,6 +428,16 @@ pub fn run_with_progress(
     if !(0.0..=1.0).contains(&args.min_mnv_frequency) {
         return Err(AppError::config(
             "--min-mnv-frequency must be between 0 and 1",
+        ));
+    }
+    if !(0.0..=1.0).contains(&args.frameshift_min_freq) {
+        return Err(AppError::config(
+            "--frameshift-min-freq must be between 0 and 1 (it is an allele frequency, not a percentage)",
+        ));
+    }
+    if !(0.0..=1.0).contains(&args.phased_indel_min_freq) {
+        return Err(AppError::config(
+            "--phased-indel-min-freq must be between 0 and 1 (it is an allele frequency, not a percentage)",
         ));
     }
     if (args.min_snp_frequency > 0.0 || args.min_mnv_frequency > 0.0) && args.bam_file.is_none() {
@@ -312,6 +477,23 @@ pub fn run_with_progress(
         return Err(AppError::validation(
             "Requested --sample all but input VCF has no sample columns",
         ));
+    }
+
+    // Every sample writes to a file named after it, with the characters a file
+    // name cannot hold replaced. Two samples that come out the same, whether the
+    // header repeats a name or `a/b` and `a_b` both sanitize to `a_b`, would
+    // write to one file and the second would overwrite the first, leaving a
+    // cohort short one sample with nothing said about it.
+    let mut stems: std::collections::HashMap<String, &String> = std::collections::HashMap::new();
+    for sample in &sample_names {
+        let stem = sanitize_sample_for_path(sample);
+        if let Some(previous) = stems.insert(stem.clone(), sample) {
+            return Err(AppError::validation(format!(
+                "Samples '{previous}' and '{sample}' both name their output 'sample_{stem}', so one \
+                 would overwrite the other. Rename one of them in the VCF header, or process them \
+                 one at a time with --sample."
+            )));
+        }
     }
 
     let mut sample_summaries = Vec::new();
@@ -357,6 +539,23 @@ pub fn run_with_progress(
         aggregate.timings.total_ms += sample_summary.timings.total_ms;
     }
 
+    // One combined report covering every sample of the multi-sample VCF.
+    if let Some(report_path) = args.report.as_deref() {
+        let mut builder = output::ReportBuilder::new();
+        for (sample, sample_summary) in sample_names.iter().zip(sample_summaries.iter()) {
+            let tsv_path = sample_summary.output_tsv.as_deref().ok_or_else(|| {
+                AppError::config("--report needs the TSV output; use --both instead of --convert, or drop --convert")
+            })?;
+            builder.add_tsv(tsv_path, Some(sample))?;
+        }
+        builder.write(report_path, &sanitized_command_line(), &report_timestamp())?;
+        info!(
+            "HTML report written to {report_path} ({} variants across {} samples)",
+            builder.len(),
+            sample_names.len()
+        );
+    }
+
     if let Some(summary_json_path) = args.summary_json.as_deref() {
         let payload = json!({
             "schema_version": "1.0.0",
@@ -371,6 +570,21 @@ pub fn run_with_progress(
     }
     if let Some(run_manifest_path) = args.run_manifest.as_deref() {
         let timestamp_unix = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+        // Each sample carries the checksums of the files it wrote. Listing the
+        // paths without them, as this payload used to, left `--run-manifest`
+        // promising checksums and delivering none in the one mode that writes
+        // more than one output pair.
+        let mut samples = Vec::with_capacity(sample_summaries.len());
+        for sample_summary in &sample_summaries {
+            let mut value = serde_json::to_value(sample_summary)?;
+            if let Some(object) = value.as_object_mut() {
+                object.insert(
+                    "output_checksums".to_string(),
+                    output_checksums_for(sample_summary)?,
+                );
+            }
+            samples.push(value);
+        }
         let payload = json!({
             "schema_version": "1.0.0",
             "mode": "sample_all",
@@ -379,7 +593,7 @@ pub fn run_with_progress(
             "command_line": sanitized_command_line(),
             "sample_names": sample_names,
             "aggregate": aggregate,
-            "samples": sample_summaries
+            "samples": samples
         });
         write_json_value(run_manifest_path, &payload)?;
         info!("Run manifest written to {run_manifest_path}");

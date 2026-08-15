@@ -1,0 +1,14 @@
+kind	dataset	field	position	get_mnv	oracle	count	note
+rule	mtb	so	*	missense	synonymous	2	get_MNV is right, and this is the point of the tool: two SNVs share a codon, so the residue really does change. At 2282377 the codon is GTT>GCC (Val93Ala); SnpEff sees only 2282377 and calls Val93Val.
+rule	mtb	impact	*	MODERATE	LOW	2	The impact side of the codon-level MNV difference above: a real missense reported as LOW by a per-variant annotator.
+rule	mtb	so	*	missense,synonymous	missense	1	Overlapping genes. Rv0406c and pks6_Rv0405 overlap at 489935, and get_MNV annotates the variant in every gene it falls in (synonymous in one frame, missense in the other). SnpEff reports only its most severe pick.
+rule	mtb	so	*	stop_gained	splice_region,stop_gained	7	SnpEff adds splice_region_variant to the last bases of a CDS even in a single-exon prokaryotic gene with no intron anywhere (392261 is three bases from the end of Rv0325). get_MNV only emits splice terms at a real exon-exon junction.
+rule	mtb	so	*	missense	intragenic	8	Gene-model difference. get_MNV reads example/anot_genes.txt; SnpEff used its own MTB_ANC database, in which these features have no coding transcript, so it falls back to intragenic_variant. Both annotate the same genome from different sources.
+rule	mtb	so	*	synonymous	intragenic	5	Same gene-model difference as above.
+rule	mtb	so	*	stop_gained	intragenic	2	Same gene-model difference as above.
+rule	mtb	impact	*	MODERATE	MODIFIER	10	Impact side of the gene-model differences: SnpEff's intragenic_variant and non_coding_exon_variant are MODIFIER.
+rule	mtb	impact	*	LOW	MODIFIER	5	Impact side of the gene-model differences.
+rule	mtb	impact	*	HIGH	MODIFIER	2	Impact side of the gene-model differences.
+rule	mtb	so	*	missense	non_coding_exon	2	These are non-coding RNA genes (mcr11_RVnc0013 at 1413148, and 1474001). get_MNV can now be told about them through the TSV annotation's optional sixth column (biotype), but example/anot_genes.txt predates that column and declares no biotypes, so these features are still translated here. Add the column to the annotation, or use a GFF/GFF3, to get non_coding_transcript_exon_variant instead.
+rule	slippage	so	*	missense	missense,splice_region	2	Deliberate. The fixture is a ribosomal-slippage join whose CDS segments abut, so nothing is spliced out. bcftools csq warns "overlapping CDS (ribosomal slippage?)" and still applies splice-region geometry to the boundary; get_MNV does not. get_MNV used to emit splice_donor (HIGH) here, which is the bug this dataset exists to keep out.
+rule	slippage	so	*	missense	missense,splice_acceptor,splice_region	1	As above: bcftools still treats the base before the slippage boundary as an acceptor site even with no exon features in the GFF3. There is no intron, so get_MNV emits nothing.

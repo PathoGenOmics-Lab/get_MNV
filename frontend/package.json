@@ -1,11 +1,12 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "1.1.4",
+  "version": "1.1.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "demo": "vite --config vite.demo.config.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },

@@ -57,17 +57,25 @@ pub(crate) fn build_input_metadata(args: &Args, compute_checksums: bool) -> AppR
     })
 }
 
+/// SHA-256 of whatever this run wrote, for the reproducibility manifest.
+///
+/// Extracted so the `--sample all` manifest can record them per sample: it
+/// builds its own payload and used to list the per-sample output paths with no
+/// checksum beside them, while the flag's own description promises checksums.
+pub(crate) fn output_checksums_for(summary: &RunSummary) -> AppResult<Value> {
+    Ok(json!({
+        "output_tsv_sha256": summary.output_tsv.as_deref().map(compute_sha256).transpose()?,
+        "output_vcf_sha256": summary.output_vcf.as_deref().map(compute_sha256).transpose()?,
+        "output_bcf_sha256": summary.output_bcf.as_deref().map(compute_sha256).transpose()?,
+    }))
+}
+
 pub(crate) fn build_run_manifest_value(
     summary: &RunSummary,
     command_line: &str,
 ) -> AppResult<Value> {
     let timestamp_unix = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-
-    let output_checksums = json!({
-        "output_tsv_sha256": summary.output_tsv.as_deref().map(compute_sha256).transpose()?,
-        "output_vcf_sha256": summary.output_vcf.as_deref().map(compute_sha256).transpose()?,
-        "output_bcf_sha256": summary.output_bcf.as_deref().map(compute_sha256).transpose()?,
-    });
+    let output_checksums = output_checksums_for(summary)?;
 
     Ok(json!({
         "schema_version": "1.0.0",

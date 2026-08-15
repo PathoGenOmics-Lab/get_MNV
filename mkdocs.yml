@@ -1,0 +1,229 @@
+site_name: get_MNV
+site_description: >-
+  Codon-level Multi-Nucleotide Variant detection and indel annotation
+  from VCF or iVar TSV. Pure Rust, no C dependencies.
+site_author: Paula Ruiz-Rodriguez
+# Update site_url to wherever the built site is published.
+site_url: https://pathogenomics-lab.github.io/get_MNV/
+
+repo_url: https://github.com/PathoGenOmics-Lab/get_MNV
+repo_name: PathoGenOmics-Lab/get_MNV
+edit_uri: edit/main/docs/
+# The view action points at the file itself; the edit action opens it for editing.
+copyright: >-
+  Copyright &copy; Paula Ruiz-Rodriguez & Mireia Coscolla —
+  I&sup2;SysBio, University of Valencia-CSIC
+
+theme:
+  name: material
+  # The masthead already sets the name in type, so the mark beside it is the
+  # emblem rather than the wordmark: the full wordmark renders 60px wide up
+  # there, which is too small to read and says the same thing twice. Cut from
+  # the same vector as the wordmark, and entirely coloured, so it needs no
+  # dark-ground twin.
+  logo: assets/emblem.svg
+  # The tab icon is the same emblem as the mark beside the name, out of the same
+  # vector file. The wordmark itself is 2:1, so a browser drew it into a 16px
+  # square as an illegible smear. A browser too old for an SVG icon falls back
+  # to its own default, which is a smaller loss than an unreadable one.
+  favicon: assets/emblem.svg
+  language: en
+  font:
+    text: IBM Plex Sans
+    code: IBM Plex Mono
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    # Fifteen pages in four groups fit in one sidebar, so they are all shown at
+    # once as always-open sections. `navigation.tabs` was tried and put back:
+    # it moves the groups into the header and leaves the sidebar showing only
+    # the group you are in, which on a site this size hides two thirds of the
+    # map to save nothing.
+    - navigation.sections
+    - navigation.tracking
+    - navigation.top
+    - navigation.footer
+    # A breadcrumb above each page title, so a reader arriving from search knows
+    # where they landed.
+    - navigation.path
+    # `navigation.instant` is deliberately not enabled. It loads pages without a
+    # full reload, which is nice, but the i18n plugin warns that it breaks the
+    # language switcher's contextual link: switching to Spanish from a reference
+    # page would land on the Spanish home page instead of on the same page. On a
+    # bilingual site, staying on the page you are reading is worth more.
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    # Numbered notes anchored inside a code block, so a long command can be
+    # explained flag by flag without repeating it underneath.
+    - content.code.annotate
+    - content.code.select
+    # Abbreviations and links get a real tooltip instead of the browser's.
+    - content.tooltips
+    - content.action.edit
+    - content.action.view
+    - toc.follow
+  # Three states rather than two: the site follows the reader's system setting
+  # until they choose otherwise, and their choice is remembered.
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: teal
+      toggle:
+        icon: material/brightness-auto
+        name: Follow the system setting
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: es
+          name: Español
+          build: true
+          site_name: get_MNV
+          # The description is what a search engine and a shared link show, and
+          # it was going out in English on every Spanish page.
+          site_description: >-
+            Detección de variantes multinucleotídicas a nivel de codón y
+            anotación de indels desde VCF o TSV de iVar. Rust puro, sin
+            dependencias de C.
+          # Material translates its own interface strings, but not the ones
+          # written here: the palette toggle stayed in English on a page that
+          # was Spanish everywhere else. Merged entry by entry, so each keeps
+          # its media query, scheme and colours.
+          theme:
+            palette:
+              - toggle:
+                  name: Cambiar al modo claro
+              - toggle:
+                  name: Cambiar al modo oscuro
+              - toggle:
+                  name: Seguir la configuración del sistema
+          nav_translations:
+            Home: Inicio
+            # Section names
+            Get started: Empezar
+            Reference: Referencia
+            How it works: Cómo funciona
+            Help: Ayuda
+            # Pages
+            Command Line Tutorial: Tutorial de línea de comandos
+            Common Recipes: Recetas habituales
+            Desktop GUI: GUI de escritorio
+            Desktop GUI Tutorial: Tutorial de la GUI
+            CLI Reference: Referencia de CLI
+            Input Formats: Formatos de entrada
+            Output Formats: Formatos de salida
+            Example report: Informe de ejemplo
+            Scope and Compatibility: Alcance y compatibilidad
+            Indels and Local Haplotypes: Indels y haplotipos locales
+            Linkage: Ligamiento
+            Benchmarking: Rendimiento
+            Glossary: Glosario
+            Troubleshooting: Resolución de problemas
+            FAQ: Preguntas frecuentes
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      # anchor_linenums is deliberately off: no block on this site asks for line
+      # numbers, and it still emitted an empty anchor with an href in front of
+      # every line of code. Those sit in the tab order with no accessible name
+      # and nothing to see when focused, so a keyboard reader tabbed through 42
+      # invisible stops on Common Recipes alone.
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  # Keyboard keys for the desktop app's shortcuts, and the inline marks the
+  # comparison tables use.
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+extra_css:
+  - assets/extra.css
+
+extra_javascript:
+  # Keeps the search results in the language of the page being read: the i18n
+  # plugin builds one index for both locales and there is no option to split it.
+  - assets/extra.js
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/PathoGenOmics-Lab/get_MNV
+      name: get_MNV on GitHub
+
+# Under `mkdocs build --strict`, which is what CI runs, these turn a link to a
+# page or a heading that does not exist into a failure. Renaming a section is
+# then caught here instead of by a reader hitting a dead anchor.
+validation:
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
+
+# Four groups, in the order a reader meets them: run it, look something up,
+# understand what it did, get unstuck. Every entry title matches the page's own
+# H1, so the sidebar and the page agree; `linkage.md` keeps a longer H1 and is
+# listed under its short name.
+nav:
+  - Home: index.md
+  - Get started:
+      - Command Line Tutorial: getting-started.md
+      - Common Recipes: usage.md
+      - Desktop GUI: gui.md
+      - Desktop GUI Tutorial: gui-tutorial.md
+  - Reference:
+      - CLI Reference: cli-reference.md
+      - Input Formats: input-formats.md
+      - Output Formats: output-formats.md
+      - Example report: assets/example-report.html
+  - How it works:
+      - Scope and Compatibility: indel-mnv-semantics.md
+      - Indels and Local Haplotypes: indel-haplotypes.md
+      - Linkage: linkage.md
+      - Benchmarking: benchmarking.md
+  - Help:
+      - Glossary: glossary.md
+      - Troubleshooting: troubleshooting.md
+      - FAQ: faq.md

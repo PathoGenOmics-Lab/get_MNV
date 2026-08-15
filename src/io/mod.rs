@@ -10,15 +10,17 @@ pub mod vcf_fast;
 
 // Re-export public types and functions for backward compatibility.
 pub use annotation::{
-    detect_annotation_format, filter_genes_with_snps, load_genes, preload_gff_genes,
-    AnnotationFormat,
+    detect_annotation_format, filter_genes_with_snps, gene_overlaps_variant, load_genes,
+    preload_gff_genes, AnnotationFormat,
 };
 pub use fasta::{
-    load_references, reference_for_chrom, validate_vcf_reference_alleles, Reference, ReferenceMap,
+    drop_reference_calls, left_anchor_insertions, load_references, reference_for_chrom,
+    validate_vcf_reference_alleles, Reference, ReferenceMap,
 };
 pub use validation::get_base_name;
 pub use vcf::{
-    extract_original_info_headers, list_vcf_samples, load_vcf_positions_by_contig, VcfPosition,
+    extract_original_info_headers, list_vcf_samples, load_vcf_positions_by_contig,
+    parse_declared_phase, DeclaredPhase, VcfPosition,
 };
 
 #[cfg(test)]

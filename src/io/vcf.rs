@@ -1,26 +1,219 @@
-//! VCF loading via noodles (for .vcf.gz and .bcf files), metrics extraction,
+//! VCF loading for plain and BGZF-compressed VCF files, metrics extraction,
 //! allele normalisation, and original INFO field preservation.
 //!
 //! Plain `.vcf` files use the fast text parser in `vcf_fast.rs`.
 
 use super::validation::validate_vcf_allele;
 use crate::error::AppResult;
+use crate::variants::{
+    decompose_allele, substitution_components, AlleleComponent, AlleleComponentKind, AlleleEvent,
+};
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader};
 
 const GET_MNV_INFO_TAGS: &[&str] = &[
     "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
-    "FREQ", "SBP", "MSBP",
+    "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ", "SO", "IMPACT", "GD",
+    "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "DPHASE", "LD", "LDP", "NMD", "HGVSG", "HGVSC",
 ];
 
 #[derive(Debug, Clone)]
 pub struct VcfPosition {
-    pub position: usize,
+    /// The record's POS: where the record begins, which is not always where it
+    /// acts. A record may be padded with reference bases on its left, and a
+    /// left-anchored indel names the base before the change. Anything asking
+    /// where this variant *acts* wants [`VcfPosition::changed_positions`]; this
+    /// field is for writing the record back out, sorting, and messages.
+    pub record_start: usize,
     pub ref_allele: String,
     pub alt_allele: String,
     pub original_dp: Option<usize>,
     pub original_freq: Option<f64>,
     pub original_info: Option<String>,
+    /// Phase the input caller declared for this allele, from a `|`-separated
+    /// `GT` and the `PS` phase set. `None` when the record is unphased, which
+    /// is the usual case for haploid pathogen callers. get_MNV never phases on
+    /// its own, so this is the caller's claim, not an observation.
+    pub declared_phase: Option<DeclaredPhase>,
+}
+
+/// What the input VCF says about which haplotype carries this allele.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclaredPhase {
+    /// The `PS` value: only alleles sharing it were phased with each other.
+    /// `None` when the genotype is phased but no phase set was given, in which
+    /// case nothing here can be compared across records.
+    pub phase_set: Option<usize>,
+    /// Which haplotype slots of a `|`-separated `GT` carry this record's ALT.
+    /// `1|0` gives `[0]`, `0|1` gives `[1]`, `1|1` gives `[0, 1]`.
+    pub alt_haplotypes: Vec<u8>,
+    /// Whether any slot is a no-call (`.`). Such a slot might hold this ALT, so
+    /// two half-called records cannot be shown to be on different haplotypes
+    /// even when their called slots are disjoint.
+    pub has_unknown_slot: bool,
+}
+
+impl DeclaredPhase {
+    /// Whether the caller placed both alleles on at least one shared
+    /// haplotype. Comparable only within a phase set: two records phased in
+    /// different sets say nothing about each other, and neither does an
+    /// unphased one.
+    pub fn shares_haplotype_with(&self, other: &DeclaredPhase) -> Option<bool> {
+        if self.phase_set != other.phase_set {
+            return None;
+        }
+        // Phased with no phase set names no group, so two such records make no
+        // claim about each other.
+        self.phase_set?;
+        if self
+            .alt_haplotypes
+            .iter()
+            .any(|slot| other.alt_haplotypes.contains(slot))
+        {
+            return Some(true);
+        }
+        // Disjoint called slots settle it as trans only when both genotypes
+        // were fully called. A `.` could be holding this ALT.
+        if self.has_unknown_slot || other.has_unknown_slot {
+            return None;
+        }
+        Some(false)
+    }
+}
+
+/// Read `GT` and `PS` for one sample into a [`DeclaredPhase`].
+///
+/// Only a `|`-separated genotype counts: `/` means the caller did not phase,
+/// and treating it as phase would invent linkage the input never claimed. The
+/// ALT of interest is allele index `alt_index + 1`, since index 0 is REF.
+pub fn parse_declared_phase(
+    genotype: Option<&str>,
+    phase_set: Option<&str>,
+    alt_index: usize,
+) -> Option<DeclaredPhase> {
+    let genotype = genotype?;
+    if !genotype.contains('|') {
+        return None;
+    }
+    let wanted = (alt_index + 1).to_string();
+    let alt_haplotypes = genotype
+        .split('|')
+        .enumerate()
+        .filter_map(|(slot, allele)| (allele == wanted).then_some(slot as u8))
+        .collect::<Vec<_>>();
+    if alt_haplotypes.is_empty() {
+        return None;
+    }
+    Some(DeclaredPhase {
+        phase_set: phase_set.and_then(|value| value.parse::<usize>().ok()),
+        alt_haplotypes,
+        has_unknown_slot: genotype.split('|').any(|allele| allele == "."),
+    })
+}
+
+/// Whether the selected sample's genotype carries ALT number `alt_index`.
+///
+/// A VCF record lists every ALT seen at that site across the whole cohort, so a
+/// multi-sample file names alleles a given sample does not have. Annotating all
+/// of them for every sample made each sample carry every variant: the cohort
+/// matrix of `--sample all` showed a variant for a sample whose genotype reads
+/// `0/0`. A genotype that is absent, empty or partly a no-call says nothing
+/// about carriage and keeps the allele, since unknown is not absence, and so
+/// does one this parser cannot read.
+pub fn sample_carries_alt(genotype: Option<&str>, alt_index: usize) -> bool {
+    let Some(genotype) = genotype else {
+        return true;
+    };
+    let genotype = genotype.trim();
+    if genotype.is_empty() || genotype == "." {
+        return true;
+    }
+    let wanted = (alt_index + 1).to_string();
+    let mut fully_called = false;
+    for allele in genotype.split(['/', '|']) {
+        if allele == wanted {
+            return true;
+        }
+        if allele == "." || allele.parse::<usize>().is_err() {
+            return true;
+        }
+        fully_called = true;
+    }
+    !fully_called
+}
+
+impl VcfPosition {
+    pub fn event(&self) -> AlleleEvent {
+        decompose_allele(self.record_start, &self.ref_allele, &self.alt_allele)
+    }
+
+    /// Every genomic base this record's own components change.
+    ///
+    /// A record may start on a base it does not touch: `40 GCTGCTG>GCTGCTA`
+    /// changes base 46 and nothing else, and a left-anchored deletion
+    /// `90 AGT>A` removes 91 and 92 while starting at 90. Anything that asks
+    /// where a record acts, rather than where it begins, asks this.
+    pub fn changed_positions(&self) -> Vec<usize> {
+        use crate::variants::AlleleComponentKind;
+
+        let mut positions = Vec::new();
+        for component in self.event().components {
+            match component.kind {
+                AlleleComponentKind::Snp | AlleleComponentKind::Insertion => {
+                    positions.push(component.position);
+                }
+                AlleleComponentKind::Deletion
+                | AlleleComponentKind::Delins
+                | AlleleComponentKind::Symbolic => {
+                    let end = component.position + component.ref_allele.len().saturating_sub(1);
+                    positions.extend(component.position..=end);
+                }
+            }
+        }
+        if positions.is_empty() {
+            positions.push(self.record_start);
+        }
+        positions.sort_unstable();
+        positions.dedup();
+        positions
+    }
+
+    pub fn substitution_components(&self) -> Vec<AlleleComponent> {
+        substitution_components(self.record_start, &self.ref_allele, &self.alt_allele)
+    }
+
+    pub fn is_single_nucleotide_substitution(&self) -> bool {
+        let components = self.substitution_components();
+        components.len() == 1
+            && self.ref_allele.chars().count() == 1
+            && self.alt_allele.chars().count() == 1
+    }
+
+    pub fn overlaps_interval(&self, start: usize, end: usize) -> bool {
+        if start == 0 || end == 0 || start > end {
+            return false;
+        }
+        let event = self.event();
+        event
+            .components
+            .iter()
+            .any(|component| match component.kind {
+                AlleleComponentKind::Snp => {
+                    component.position >= start && component.position <= end
+                }
+                AlleleComponentKind::Insertion => {
+                    component.position >= start && component.position < end
+                }
+                AlleleComponentKind::Deletion
+                | AlleleComponentKind::Delins
+                | AlleleComponentKind::Symbolic => {
+                    let component_end = component
+                        .position
+                        .saturating_add(component.ref_allele.len().saturating_sub(1));
+                    component.position <= end && component_end >= start
+                }
+            })
+    }
 }
 
 fn parse_optional_freq_token(raw_token: &str) -> Option<f64> {
@@ -78,18 +271,56 @@ pub(crate) fn normalize_ref_alt(
         return (pos, ref_allele.to_string(), alt_allele.to_string());
     }
 
+    let untouched = || (pos, ref_allele.to_string(), alt_allele.to_string());
+    let before = crate::variants::decompose_allele(pos, ref_allele, alt_allele);
+
+    // Trimming shared context must not move the event. Inside a repeat it can:
+    // `29 CT>CTGCT` trims canonically to `29 C>CTGC`, the same insertion
+    // anchored one base earlier. get_MNV matches indel support against the exact
+    // CIGAR the aligner used, so the relocated allele found none of its own
+    // reads and a row with 20 of 20 supporting reads was reported at 0, under a
+    // warning that blamed the input for a move this flag had made. Placing an
+    // indel canonically would need reference-aware left-alignment of both sides,
+    // which this flag does not promise and cannot do from the alleles alone.
+    //
+    // So: take the most trimming that leaves the event where it was. The
+    // canonical suffix-then-prefix trim first, since that is the form other
+    // tools expect; the prefix alone when the suffix step is what moved it; and
+    // the allele untouched when neither is safe.
+    for trim_suffix in [true, false] {
+        if let Some(result) = trimmed(pos, ref_allele, alt_allele, trim_suffix) {
+            let after = crate::variants::decompose_allele(result.0, &result.1, &result.2);
+            if after.components == before.components {
+                return result;
+            }
+        }
+    }
+    untouched()
+}
+
+/// One trimming attempt: the shared suffix (optionally) then the shared prefix,
+/// always leaving at least one base in each allele. `None` when there is nothing
+/// left to describe.
+fn trimmed(
+    pos: usize,
+    ref_allele: &str,
+    alt_allele: &str,
+    trim_suffix: bool,
+) -> Option<(usize, String, String)> {
     let ref_chars: Vec<char> = ref_allele.chars().collect();
     let alt_chars: Vec<char> = alt_allele.chars().collect();
     let mut start = 0usize;
     let mut ref_end = ref_chars.len();
     let mut alt_end = alt_chars.len();
 
-    while ref_end - start > 1
-        && alt_end - start > 1
-        && ref_chars[ref_end - 1] == alt_chars[alt_end - 1]
-    {
-        ref_end -= 1;
-        alt_end -= 1;
+    if trim_suffix {
+        while ref_end - start > 1
+            && alt_end - start > 1
+            && ref_chars[ref_end - 1] == alt_chars[alt_end - 1]
+        {
+            ref_end -= 1;
+            alt_end -= 1;
+        }
     }
     while ref_end - start > 1 && alt_end - start > 1 && ref_chars[start] == alt_chars[start] {
         start += 1;
@@ -97,12 +328,10 @@ pub(crate) fn normalize_ref_alt(
 
     let norm_ref: String = ref_chars[start..ref_end].iter().collect();
     let norm_alt: String = alt_chars[start..alt_end].iter().collect();
-
     if norm_ref.is_empty() || norm_alt.is_empty() {
-        return (pos, ref_allele.to_string(), alt_allele.to_string());
+        return None;
     }
-
-    (pos + start, norm_ref, norm_alt)
+    Some((pos + start, norm_ref, norm_alt))
 }
 
 /// Parse a VCF line into fields. Returns None if the line is a header or empty.
@@ -254,12 +483,76 @@ fn parse_original_metrics_from_fields(
     (original_dp, original_freq)
 }
 
-fn extract_original_info_from_line(info: &str, own_tags: &HashSet<&str>) -> Option<String> {
-    let parts: Vec<&str> = info
+/// Read a `key=...` attribute value out of a `##INFO` header line, up to the
+/// next `,` or `>`.
+fn header_attr(line: &str, key: &str) -> Option<String> {
+    let start = line.find(key)? + key.len();
+    let rest = &line[start..];
+    let end = rest.find([',', '>']).unwrap_or(rest.len());
+    Some(rest[..end].to_string())
+}
+
+/// Parse `Number=` from `##INFO` header lines into a map of field ID → its
+/// per-allele cardinality code (`A`, `R` or `G`). Fixed-Number fields (1, 0,
+/// ., a constant) are omitted because they need no per-allele subsetting.
+pub(crate) fn per_allele_info_numbers(header_lines: &[String]) -> HashMap<String, char> {
+    let mut map = HashMap::new();
+    for line in header_lines {
+        if let (Some(id), Some(number)) = (header_attr(line, "ID="), header_attr(line, "Number=")) {
+            match number.as_str() {
+                "A" => drop(map.insert(id, 'A')),
+                "R" => drop(map.insert(id, 'R')),
+                "G" => drop(map.insert(id, 'G')),
+                _ => {}
+            }
+        }
+    }
+    map
+}
+
+/// Subset a per-allele INFO field value to a single ALT so it is valid on a
+/// single-ALT output record. `Number=A` keeps the value at `alt_idx`;
+/// `Number=R` keeps `[REF, ALT@alt_idx]`. `Number=G` and arrays too short for
+/// `alt_idx` are dropped (cannot be safely attributed to one allele).
+fn subset_per_allele_field(key: &str, value: &str, kind: char, alt_idx: usize) -> Option<String> {
+    let elems: Vec<&str> = value.split(',').collect();
+    match kind {
+        'A' => elems.get(alt_idx).map(|v| format!("{key}={v}")),
+        'R' => match (elems.first(), elems.get(alt_idx + 1)) {
+            (Some(r), Some(a)) => Some(format!("{key}={r},{a}")),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// Filter get_mnv's own INFO tags out of an original record's INFO string and
+/// subset any per-allele field to `alt_idx`, so the result is valid when copied
+/// onto a single-ALT output record (`--keep-original-info` + multiallelic
+/// input previously copied whole `Number=A/R` arrays, producing invalid VCF).
+pub(crate) fn filter_and_subset_original_info<F: Fn(&str) -> bool>(
+    info: &str,
+    is_own_tag: F,
+    per_allele: &HashMap<String, char>,
+    alt_idx: usize,
+) -> Option<String> {
+    if info.is_empty() || info == "." {
+        return None;
+    }
+    let parts: Vec<String> = info
         .split(';')
-        .filter(|field| {
-            let key = field.split_once('=').map(|(k, _)| k).unwrap_or(field);
-            !own_tags.contains(key)
+        .filter_map(|field| {
+            let (key, value) = match field.split_once('=') {
+                Some((k, v)) => (k, Some(v)),
+                None => (field, None),
+            };
+            if is_own_tag(key) {
+                return None;
+            }
+            match (per_allele.get(key), value) {
+                (Some(&kind), Some(v)) => subset_per_allele_field(key, v, kind, alt_idx),
+                _ => Some(field.to_string()),
+            }
         })
         .collect();
     if parts.is_empty() {
@@ -288,7 +581,7 @@ pub fn list_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
     // Parse header to find #CHROM line
     for line_result in reader.lines() {
         let line = line_result?;
-        if line.starts_with("#CHROM") {
+        if line.starts_with("#CHROM") || line.starts_with("#chrom") {
             let fields: Vec<&str> = line.split('\t').collect();
             if fields.len() > 9 {
                 return Ok(fields[9..].iter().map(|s| s.to_string()).collect());
@@ -383,6 +676,11 @@ pub fn load_vcf_positions_by_contig(
     let samples = list_vcf_samples(vcf_file)?;
     let sample_index = resolve_sample_index(&samples, sample_name)?;
     let own_tags: HashSet<&str> = GET_MNV_INFO_TAGS.iter().copied().collect();
+    let per_allele_info = if keep_original_info {
+        per_allele_info_numbers(&extract_original_info_headers(vcf_file)?)
+    } else {
+        HashMap::new()
+    };
 
     if vcf_file.ends_with(".bcf") {
         return Err(
@@ -401,14 +699,24 @@ pub fn load_vcf_positions_by_contig(
 
     let mut positions_by_contig: HashMap<String, Vec<VcfPosition>> = HashMap::new();
     let mut split_count = 0usize;
+    let mut not_carried = 0usize;
     let mut record_idx = 0usize;
+    let mut header_seen = false;
 
     for line_result in reader.lines() {
         let line = line_result?;
+        if line.starts_with("#CHROM") || line.starts_with("#chrom") {
+            header_seen = true;
+        }
         let fields = match parse_vcf_line(&line) {
             Some(f) => f,
             None => continue,
         };
+        // Skip any data line appearing before the #CHROM header, matching the
+        // plain-text fast parser. A well-formed VCF has no records before it.
+        if !header_seen {
+            continue;
+        }
         record_idx += 1;
 
         if fields.len() < 8 {
@@ -422,6 +730,12 @@ pub fn load_vcf_positions_by_contig(
                 record_idx, fields[1]
             )
         })?;
+        if pos == 0 {
+            return Err(format!(
+                "Invalid VCF position 0 at record {record_idx} (VCF coordinates are 1-based)"
+            )
+            .into());
+        }
         let ref_allele = fields[3];
         let alt_field = fields[4];
         let info = fields[7];
@@ -450,7 +764,18 @@ pub fn load_vcf_positions_by_contig(
             Vec::new()
         };
         let sample_field = sample_index.and_then(|idx| fields.get(9 + idx).copied());
+        let genotype = sample_field.and_then(|sample| get_format_value(&format_keys, sample, "GT"));
+        let phase_set =
+            sample_field.and_then(|sample| get_format_value(&format_keys, sample, "PS"));
 
+        // Register the contig as soon as a record for it is read, before any
+        // allele is kept or skipped. An input whose every allele is skipped, a
+        // cohort sample that carries none of them, then still reports the contig
+        // it covered, which is what separates "this run has nothing to annotate"
+        // from "this file holds no records at all". Only the second is an error.
+        positions_by_contig.entry(chrom.to_string()).or_default();
+
+        let mut pushed_here = 0usize;
         for (alt_idx, alt_allele) in alts.iter().enumerate() {
             if alt_allele.is_empty() || *alt_allele == "." {
                 return Err(format!(
@@ -458,6 +783,10 @@ pub fn load_vcf_positions_by_contig(
                     record_idx, pos, ref_allele, alt_allele
                 )
                 .into());
+            }
+            if !sample_carries_alt(genotype, alt_idx) {
+                not_carried += 1;
+                continue;
             }
             let (normalized_pos, normalized_ref, normalized_alt) = if normalize_alleles {
                 normalize_ref_alt(pos, ref_allele, alt_allele)
@@ -470,7 +799,12 @@ pub fn load_vcf_positions_by_contig(
             let (original_dp, original_freq) =
                 parse_original_metrics_from_fields(info, &format_keys, sample_field, alt_idx);
             let original_info = if keep_original_info {
-                extract_original_info_from_line(info, &own_tags)
+                filter_and_subset_original_info(
+                    info,
+                    |k| own_tags.contains(k),
+                    &per_allele_info,
+                    alt_idx,
+                )
             } else {
                 None
             };
@@ -479,25 +813,34 @@ pub fn load_vcf_positions_by_contig(
                 .entry(chrom.to_string())
                 .or_default()
                 .push(VcfPosition {
-                    position: normalized_pos,
+                    record_start: normalized_pos,
                     ref_allele: normalized_ref,
                     alt_allele: normalized_alt,
                     original_dp,
                     original_freq,
                     original_info,
+                    declared_phase: parse_declared_phase(genotype, phase_set, alt_idx),
                 });
+            pushed_here += 1;
         }
-        if alts.len() > 1 {
-            split_count += alts.len() - 1;
-        }
+        split_count += pushed_here.saturating_sub(1);
+    }
+
+    if !header_seen {
+        return Err("No #CHROM header line found in VCF".into());
     }
 
     for values in positions_by_contig.values_mut() {
-        values.sort_by_key(|v| v.position);
+        values.sort_by_key(|v| v.record_start);
     }
 
     if split_multiallelic && split_count > 0 {
         log::info!("Split {split_count} additional ALT alleles from multiallelic VCF records");
+    }
+    if not_carried > 0 {
+        log::info!(
+            "Skipped {not_carried} ALT alleles the selected sample's genotype does not carry"
+        );
     }
 
     Ok(positions_by_contig)
@@ -505,3 +848,185 @@ pub fn load_vcf_positions_by_contig(
 
 // BCF input is not supported in the pure-Rust build.
 // Use `bcftools view input.bcf > input.vcf` to convert.
+
+#[cfg(test)]
+mod tests {
+    use super::VcfPosition;
+
+    fn variant(position: usize, ref_allele: &str, alt_allele: &str) -> VcfPosition {
+        VcfPosition {
+            record_start: position,
+            ref_allele: ref_allele.to_string(),
+            alt_allele: alt_allele.to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+            declared_phase: None,
+        }
+    }
+
+    #[test]
+    fn test_sample_carries_alt_reads_the_genotype() {
+        use super::sample_carries_alt;
+        // Sin genotipo no se sabe nada, asi que se conserva el alelo.
+        assert!(sample_carries_alt(None, 0));
+        assert!(sample_carries_alt(Some("./."), 0));
+        assert!(sample_carries_alt(Some("."), 0));
+        assert!(sample_carries_alt(Some(""), 0));
+        // Una llamada completa sin ALT dice que la muestra no lo lleva.
+        assert!(!sample_carries_alt(Some("0/0"), 0));
+        assert!(!sample_carries_alt(Some("0|0"), 0));
+        assert!(!sample_carries_alt(Some("0"), 0));
+        // Y una que si lo lleva.
+        assert!(sample_carries_alt(Some("0/1"), 0));
+        assert!(sample_carries_alt(Some("1|1"), 0));
+        assert!(sample_carries_alt(Some("1"), 0));
+        // Multialelico: 1/2 lleva los dos, 1/1 solo el primero.
+        assert!(sample_carries_alt(Some("1/2"), 0));
+        assert!(sample_carries_alt(Some("1/2"), 1));
+        assert!(sample_carries_alt(Some("1/1"), 0));
+        assert!(!sample_carries_alt(Some("1/1"), 1));
+        // Un genotipo a medias no descarta nada.
+        assert!(sample_carries_alt(Some("./1"), 1));
+        assert!(sample_carries_alt(Some("0/."), 0));
+        assert!(sample_carries_alt(Some("raro"), 0));
+    }
+
+    #[test]
+    fn test_list_vcf_samples_accepts_lowercase_chrom_header() {
+        use std::io::Write;
+        let path =
+            std::env::temp_dir().join(format!("get_mnv_lc_samples_{}.vcf", std::process::id()));
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "##fileformat=VCFv4.2").unwrap();
+        writeln!(
+            f,
+            "#chrom\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE_A"
+        )
+        .unwrap();
+        drop(f);
+        let samples = super::list_vcf_samples(path.to_str().unwrap()).unwrap();
+        assert_eq!(samples, vec!["SAMPLE_A".to_string()]);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_load_vcf_accepts_lowercase_chrom_and_skips_preheader_data() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join(format!("get_mnv_lc_load_{}.vcf", std::process::id()));
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "##fileformat=VCFv4.2").unwrap();
+        // A stray data-shaped line before the header must be ignored, and a
+        // lowercase #chrom header must be accepted (parity with the fast parser).
+        writeln!(f, "chr1\t1\t.\tA\tG\t.\tPASS\t.").unwrap();
+        writeln!(f, "#chrom\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO").unwrap();
+        writeln!(f, "chr1\t5\t.\tA\tT\t.\tPASS\t.").unwrap();
+        drop(f);
+        let by_contig =
+            super::load_vcf_positions_by_contig(path.to_str().unwrap(), None, false, false, false)
+                .unwrap();
+        assert_eq!(by_contig.get("chr1").map(std::vec::Vec::len), Some(1));
+        assert_eq!(by_contig["chr1"][0].record_start, 5);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_per_allele_info_numbers_parses_number() {
+        let headers = vec![
+            "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"alt count\">".to_string(),
+            "##INFO=<ID=AD,Number=R,Type=Integer,Description=\"allele depth\">".to_string(),
+            "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"depth\">".to_string(),
+        ];
+        let map = super::per_allele_info_numbers(&headers);
+        assert_eq!(map.get("AC"), Some(&'A'));
+        assert_eq!(map.get("AD"), Some(&'R'));
+        assert_eq!(map.get("DP"), None); // fixed-Number field omitted
+    }
+
+    #[test]
+    fn test_filter_and_subset_original_info_multiallelic() {
+        let headers = vec![
+            "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"x\">".to_string(),
+            "##INFO=<ID=AF,Number=A,Type=Float,Description=\"x\">".to_string(),
+            "##INFO=<ID=AD,Number=R,Type=Integer,Description=\"x\">".to_string(),
+        ];
+        let map = super::per_allele_info_numbers(&headers);
+        let info = "AC=5,7;AF=0.5,0.7;AD=10,5,7;DP=22;FOO=bar";
+        // Split allele index 1: per-allele fields subset to that ALT.
+        let out = super::filter_and_subset_original_info(info, |k| k == "GENE", &map, 1).unwrap();
+        assert_eq!(out, "AC=7;AF=0.7;AD=10,7;DP=22;FOO=bar");
+    }
+
+    #[test]
+    fn test_filter_and_subset_original_info_biallelic_unchanged() {
+        let headers = vec![
+            "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"x\">".to_string(),
+            "##INFO=<ID=AD,Number=R,Type=Integer,Description=\"x\">".to_string(),
+        ];
+        let map = super::per_allele_info_numbers(&headers);
+        let out =
+            super::filter_and_subset_original_info("AC=5;AD=10,5", |_| false, &map, 0).unwrap();
+        assert_eq!(out, "AC=5;AD=10,5");
+    }
+
+    #[test]
+    fn insertion_overlaps_only_between_interval_bases() {
+        let insertion = variant(10, "A", "AT");
+        assert!(insertion.overlaps_interval(9, 11));
+        assert!(insertion.overlaps_interval(10, 11));
+        assert!(!insertion.overlaps_interval(11, 12));
+        assert!(!insertion.overlaps_interval(10, 10));
+    }
+
+    #[test]
+    fn anchored_deletion_overlaps_deleted_reference_span() {
+        let deletion = variant(10, "AT", "A");
+        assert!(deletion.overlaps_interval(11, 11));
+        assert!(deletion.overlaps_interval(10, 11));
+        assert!(!deletion.overlaps_interval(10, 10));
+    }
+
+    /// Trimming must not move an indel. Suffix trimming on a length-changing
+    /// allele re-anchors it: `29 CT>CTGCT` became `29 C>CTGC`, the same
+    /// insertion at a different placement inside a repeat, which no longer
+    /// matched the CIGAR the aligner used. A row with 20 of 20 supporting reads
+    /// was then reported at 0, with a warning blaming the input file.
+    #[test]
+    fn normalising_an_indel_keeps_its_anchor() {
+        let (pos, ref_allele, alt_allele) = super::normalize_ref_alt(29, "CT", "CTGCT");
+        assert_eq!(
+            (pos, ref_allele.as_str(), alt_allele.as_str()),
+            (30, "T", "TGCT"),
+            "the insertion must stay anchored after position 30"
+        );
+
+        // A deletion written with trailing shared context, same rule.
+        let (pos, ref_allele, alt_allele) = super::normalize_ref_alt(29, "CTGCT", "CT");
+        assert_eq!(
+            (pos, ref_allele.as_str(), alt_allele.as_str()),
+            (30, "TGCT", "T")
+        );
+
+        // Found by `normalising_preserves_the_decomposed_event`: here the
+        // canonical suffix-then-prefix trim IS safe, and refusing it would leave
+        // a longer allele than it needs to be. The rule is not "never trim an
+        // indel", it is "keep the trim that leaves the event where it was".
+        let (pos, ref_allele, alt_allele) = super::normalize_ref_alt(5, "CG", "CTG");
+        assert_eq!(
+            (pos, ref_allele.as_str(), alt_allele.as_str()),
+            (5, "C", "CT"),
+            "an unambiguous insertion should reach its minimal anchored form"
+        );
+    }
+
+    /// A substitution has no anchor to lose, so it is trimmed from both ends as
+    /// the canonical form requires.
+    #[test]
+    fn normalising_a_substitution_trims_both_ends() {
+        let (pos, ref_allele, alt_allele) = super::normalize_ref_alt(10, "CTA", "CGA");
+        assert_eq!(
+            (pos, ref_allele.as_str(), alt_allele.as_str()),
+            (11, "T", "G")
+        );
+    }
+}

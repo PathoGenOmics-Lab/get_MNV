@@ -1,0 +1,200 @@
+name: CI
+
+# Quality gate for get_MNV. Runs on every push and pull request. The Tauri
+# desktop GUI crate is checked in its own job, which installs the system
+# WebKit/GTK libraries it needs.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Build · test · clippy · fmt (core)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format check
+        run: cargo fmt --check
+      - name: Clippy (deny warnings)
+        run: cargo clippy -p get_mnv --all-targets -- -D warnings
+      - name: Build
+        run: cargo build -p get_mnv --locked
+      - name: Test
+        run: cargo test -p get_mnv --locked
+
+  gui:
+    name: Desktop GUI builds and matches the CLI defaults
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install WebKit and GTK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+      - name: Lint and type-check the frontend
+        run: npm --prefix frontend run lint
+      # `tauri::generate_context!` reads `frontendDist`, so the bundle has to
+      # exist before the crate will compile. This step also runs `tsc -b`.
+      - name: Build the frontend
+        run: npm --prefix frontend run build
+      # The GUI crate was excluded from CI, so it went on failing to compile
+      # unnoticed while the engine's Args gained fields, and its defaults drifted
+      # away from the CLI's. Checking it here catches both.
+      - name: Check the GUI crate
+        run: cargo check -p get-mnv-gui --locked
+      - name: Test the GUI crate
+        run: cargo test -p get-mnv-gui --bins --locked
+
+  scenarios:
+    name: End-to-end scenario suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install samtools
+        run: sudo apt-get update && sudo apt-get install -y samtools
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --locked
+      - name: Run scenario suite
+        # run.py exits non-zero if any scenario FAILs.
+        run: python3 tests/scenarios/run.py
+
+  js:
+    name: Report and desktop-form behaviour
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          # 24: the checks read the desktop app's own TypeScript helpers and run
+          # them, which needs the type stripping node enables without a flag
+          # from 22.18 on. Asking for "22" would take whatever patch the runner
+          # has, and an older one fails the whole job on the import.
+          node-version: "24"
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --locked
+      - name: Run the JavaScript behaviour checks
+        # run.mjs generates a report with the binary above, then exercises the
+        # page's own filter, sort and matrix code and the desktop form's own
+        # preset merge. It exits non-zero if any check fails.
+        run: node tests/js/run.mjs
+
+  truth:
+    name: Synthetic ground-truth validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --release --locked
+      - name: Compare against the constructed truth
+        # Exits non-zero on any disagreement with the answer the dataset was
+        # built with. Covers the codon-level MNVs the differential oracles
+        # cannot judge.
+        run: python3 tests/truth/run.py
+
+  docs:
+    name: Documentation site builds, and names only what the tool has
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the documentation dependencies
+        run: pip install -r docs/requirements.txt
+      # --strict turns a link to a page or a heading that does not exist into a
+      # failure, so a renamed section is caught here rather than by a reader.
+      - name: Build the site
+        run: mkdocs build --strict
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --locked
+      - name: Check the pages against the tool's own vocabulary
+        # Prose drifts silently: a page can promise a flag that was renamed or an
+        # INFO key that never existed. This compares the names the pages use,
+        # English and Spanish alike, against the ones the binary produces.
+        run: python3 tests/docs/run.py
+
+  phasing:
+    name: Read-level phasing vs a known mixture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install samtools
+        run: sudo apt-get update && sudo apt-get install -y samtools
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --release --locked
+      - name: Compare against the mixture the BAM was built with
+        # Exits non-zero when a linkage call disagrees with the molecule counts
+        # the alignments were constructed from.
+        run: python3 tests/phasing/run.py
+
+  pileup:
+    name: Read counting vs bcftools mpileup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install samtools and bcftools
+        run: sudo apt-get update && sudo apt-get install -y samtools bcftools
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --release --locked
+      - name: Compare depth, support and strand against mpileup
+        # Fails on any count that differs and is not explained in the suite.
+        run: python3 tests/pileup/run.py
+
+  differential:
+    name: Differential annotation vs bcftools csq and SnpEff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install bcftools
+        run: sudo apt-get update && sudo apt-get install -y bcftools
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --release --locked
+      - name: Compare against the oracles
+        # Fails only on a difference that is not explained in
+        # tests/differential/baseline.tsv.
+        run: python3 tests/differential/run.py
+
+  audit:
+    name: cargo audit (advisory, non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Audit dependencies
+        run: cargo audit

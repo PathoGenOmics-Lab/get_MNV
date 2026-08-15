@@ -44,6 +44,11 @@ pub struct AnalysisConfig {
     pub min_snp_strand_reads: Option<usize>,
     pub min_mnv_strand_reads: Option<usize>,
     pub min_strand_bias_p: Option<f64>,
+    pub frameshift_min_freq: Option<f64>,
+    pub indel_anchor_depth: Option<bool>,
+    pub phased_indel_min_reads: Option<usize>,
+    pub count_mates_separately: Option<bool>,
+    pub phased_indel_min_freq: Option<f64>,
     pub dry_run: Option<bool>,
     pub strict: Option<bool>,
     pub split_multiallelic: Option<bool>,
@@ -120,6 +125,16 @@ impl AnalysisConfig {
             min_snp_strand_reads: self.min_snp_strand_reads.unwrap_or(0),
             min_mnv_strand_reads: self.min_mnv_strand_reads.unwrap_or(0),
             min_strand_bias_p: self.min_strand_bias_p.unwrap_or(0.0),
+            // Indel-annotation knobs (exposed in the desktop UI); fall back to the
+            // CLI defaults when the frontend does not send a value. These must
+            // track `src/cli.rs`: the app runs the same engine, so a default
+            // that drifts here makes the desktop build answer differently from
+            // the command line on the same inputs.
+            frameshift_min_freq: self.frameshift_min_freq.unwrap_or(0.5),
+            indel_anchor_depth: self.indel_anchor_depth.unwrap_or(true),
+            phased_indel_min_reads: self.phased_indel_min_reads.unwrap_or(2),
+            phased_indel_min_freq: self.phased_indel_min_freq.unwrap_or(0.0),
+            count_mates_separately: self.count_mates_separately.unwrap_or(false),
             dry_run: self.dry_run.unwrap_or(false),
             strict: self.strict.unwrap_or(false),
             split_multiallelic: self.split_multiallelic.unwrap_or(false),
@@ -150,6 +165,10 @@ impl AnalysisConfig {
             },
             output_dir,
             output_prefix: self.output_prefix,
+            // The desktop app has its own results viewer, so it does not ask the
+            // engine for the standalone HTML report.
+            report: None,
+            report_from: Vec::new(),
         }
     }
 }
@@ -163,38 +182,91 @@ fn default_output_dir_for_variant_file(variant_file: &str) -> Option<String> {
     }
 }
 
-fn expected_output_paths(config: &AnalysisConfig) -> Result<Vec<String>, String> {
-    let args = config.clone().into_args();
-    if args.dry_run {
-        return Ok(Vec::new());
-    }
-
+/// Where the run's outputs go, directory and all, without the suffixes.
+fn output_stem(args: &get_mnv::cli::Args) -> Result<String, String> {
     let base_name = get_mnv::io::get_base_name(args.variant_file()).map_err(|e| e.to_string())?;
     let stem_name = args.output_prefix.clone().unwrap_or(base_name);
-    let output_stem = match &args.output_dir {
+    Ok(match &args.output_dir {
         Some(dir) => std::path::Path::new(dir)
             .join(&stem_name)
             .to_string_lossy()
             .into_owned(),
         None => stem_name,
-    };
+    })
+}
 
-    let mut paths = Vec::new();
+/// The suffixes this configuration writes, which is what decides both the
+/// preview and what an existing file has to look like to be in the way.
+fn output_suffixes(args: &get_mnv::cli::Args) -> Vec<&'static str> {
+    let mut suffixes = Vec::new();
     if args.both || !args.convert {
-        paths.push(format!("{output_stem}.MNV.tsv"));
+        suffixes.push(".MNV.tsv");
     }
     if args.both || args.convert {
-        paths.push(if args.vcf_gz {
-            format!("{output_stem}.MNV.vcf.gz")
+        suffixes.push(if args.vcf_gz {
+            ".MNV.vcf.gz"
         } else {
-            format!("{output_stem}.MNV.vcf")
+            ".MNV.vcf"
         });
     }
     if args.bcf {
-        paths.push(format!("{output_stem}.MNV.bcf"));
+        suffixes.push(".MNV.bcf");
     }
+    suffixes
+}
 
-    Ok(paths)
+fn expected_output_paths(config: &AnalysisConfig) -> Result<Vec<String>, String> {
+    let args = config.clone().into_args();
+    if args.dry_run {
+        return Ok(Vec::new());
+    }
+    let stem = output_stem(&args)?;
+    // With --sample all the run writes one file set per sample, each carrying the
+    // sample in its name, so a single stem would name a file that is never
+    // written. Listing per-sample names needs the sample list, which this preview
+    // does not read, so say the outputs are per sample instead of naming one that
+    // will not exist. The chosen directory belongs in that pattern like anywhere
+    // else: leaving it out told the user their cohort files land somewhere else.
+    if args.sample.as_deref() == Some("all") {
+        return Ok(vec![format!("{stem}.sample_<SAMPLE>.MNV.*")]);
+    }
+    Ok(output_suffixes(&args)
+        .into_iter()
+        .map(|suffix| format!("{stem}{suffix}"))
+        .collect())
+}
+
+/// The per-sample files a `--sample all` run would overwrite. The preview names
+/// a pattern, because the sample list is not read here, and a pattern is not a
+/// path: asking whether it exists always answered no, so a cohort run reported
+/// nothing in the way while its own outputs from the last run sat right there.
+/// The files can be looked for without knowing which samples the VCF holds.
+fn existing_per_sample_outputs(args: &get_mnv::cli::Args) -> Result<Vec<String>, String> {
+    let stem = output_stem(args)?;
+    let stem_path = std::path::Path::new(&stem);
+    let dir = match stem_path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => std::path::PathBuf::from("."),
+    };
+    let prefix = format!(
+        "{}.sample_",
+        stem_path.file_name().unwrap_or_default().to_string_lossy()
+    );
+    let suffixes = output_suffixes(args);
+    let entries = match std::fs::read_dir(&dir) {
+        Ok(entries) => entries,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let mut found: Vec<String> = entries
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            name.starts_with(&prefix) && suffixes.iter().any(|suffix| name.ends_with(suffix))
+        })
+        .map(|entry| entry.path().to_string_lossy().into_owned())
+        .collect();
+    found.sort();
+    Ok(found)
 }
 
 #[tauri::command]
@@ -244,6 +316,13 @@ pub fn resolve_output_paths(config: AnalysisConfig) -> Result<Vec<String>, Strin
 /// Check if any output files already exist. Returns paths that would be overwritten.
 #[tauri::command]
 pub fn check_output_conflicts(config: AnalysisConfig) -> Result<Vec<String>, String> {
+    let args = config.clone().into_args();
+    if args.dry_run {
+        return Ok(Vec::new());
+    }
+    if args.sample.as_deref() == Some("all") {
+        return existing_per_sample_outputs(&args);
+    }
     Ok(expected_output_paths(&config)?
         .into_iter()
         .filter(|p| std::path::Path::new(p).exists())
@@ -440,6 +519,7 @@ pub struct BamViewResponse {
     pub display_start: u64,
     pub display_end: u64,
     pub reference: String,
+    pub columns: Vec<BamViewColumn>,
     pub sites: Vec<BamVariantSite>,
     pub reads: Vec<BamReadView>,
     pub counts: BamSupportCounts,
@@ -447,6 +527,18 @@ pub struct BamViewResponse {
     pub truncated: bool,
     /// Per-position depth from ALL reads (not just the displayed subset).
     pub coverage: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BamViewColumn {
+    pub key: String,
+    pub position: u64,
+    pub kind: String,
+    pub insertion_index: Option<u64>,
+    pub label: String,
+    pub reference_base: String,
+    pub is_variant: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -477,6 +569,18 @@ pub struct BamSupportCounts {
     pub partial: usize,
     pub reference: usize,
     pub other: usize,
+}
+
+#[derive(Debug, Clone)]
+struct RawBamReadView {
+    name: String,
+    strand: String,
+    support: String,
+    start: u64,
+    end: u64,
+    mapq: u8,
+    reference_bases: HashMap<u64, String>,
+    insertions_after: HashMap<u64, Vec<String>>,
 }
 
 fn bam_support_rank(support: &str) -> u8 {
@@ -543,60 +647,306 @@ fn select_bam_reads_for_display(
     (selected, true)
 }
 
-/// Extract the base a read contributes at a given reference position (0-based).
-fn base_at_ref_pos(record: &bam::Record, ref_pos: u64, min_bq: u8) -> Option<String> {
+fn expected_insertion_after(
+    position: u64,
+    ref_allele: &str,
+    alt_allele: &str,
+) -> Option<(u64, usize)> {
+    let ref_chars: Vec<char> = ref_allele.chars().collect();
+    let alt_chars: Vec<char> = alt_allele.chars().collect();
+    if alt_chars.len() <= ref_chars.len() {
+        return None;
+    }
+
+    let min_len = ref_chars.len().min(alt_chars.len());
+    let mut prefix = 0usize;
+    while prefix < min_len && ref_chars[prefix].eq_ignore_ascii_case(&alt_chars[prefix]) {
+        prefix += 1;
+    }
+    let inserted_len = alt_chars.len().saturating_sub(ref_chars.len());
+    let anchor = if prefix == 0 {
+        position
+    } else {
+        position + prefix as u64 - 1
+    };
+    Some((anchor, inserted_len))
+}
+
+/// An inserted base the quality floor rejected. A read whose insertion cannot be
+/// read still carries one, which is not the same as carrying none, so the slot
+/// is kept and the allele it belongs to is withdrawn rather than shortened.
+const UNREADABLE_BASE: &str = "?";
+
+fn observed_allele_from_layout(
+    reference_bases: &HashMap<u64, String>,
+    insertions_after: &HashMap<u64, Vec<String>>,
+    position: u64,
+    ref_allele: &str,
+) -> Option<String> {
+    let ref_len = ref_allele.chars().count() as u64;
+    if ref_len == 0 {
+        return None;
+    }
+    let mut allele = String::new();
+    let mut observed_any = false;
+    for offset in 0..ref_len {
+        let pos = position + offset;
+        let base = reference_bases.get(&pos)?;
+        if base != "-" {
+            allele.push_str(base);
+            observed_any = true;
+        }
+        if let Some(inserted) = insertions_after.get(&pos) {
+            for base in inserted {
+                // An allele half of which could not be read is not an
+                // observation of a shorter allele: the read has nothing to say.
+                if base == UNREADABLE_BASE {
+                    return None;
+                }
+                allele.push_str(base);
+                observed_any = true;
+            }
+        }
+    }
+    observed_any.then_some(allele)
+}
+
+fn read_alignment_layout(
+    record: &bam::Record,
+    window_start: u64,
+    window_end: u64,
+    min_bq: u8,
+) -> (HashMap<u64, String>, HashMap<u64, Vec<String>>) {
     let read_start = record
         .alignment_start()
         .and_then(|p| p.ok())
         .map(|p| {
             let v: usize = p.into();
-            v as u64 - 1
+            v as u64
         })
-        .unwrap_or(0);
+        .unwrap_or(1);
 
     let seq = record.sequence();
     let quals = record.quality_scores();
     let cigar = record.cigar();
+    // SAM `QUAL=*` means the per-base qualities were not recorded, not that they
+    // are zero. The counting core treats such bases as passing, for the same
+    // reason a missing MAPQ is 255; reading the absence as a zero here failed
+    // every base of a quality-less BAM against the floor, so the viewer drew the
+    // reads blank and called them uninformative while the table beside it
+    // counted those very reads as support.
+    let quals_recorded = quals.iter().next().is_some();
+    let quality_at = |qi: usize| -> u8 {
+        if quals_recorded {
+            quals.iter().nth(qi).unwrap_or(0)
+        } else {
+            u8::MAX
+        }
+    };
 
     let mut r_pos = read_start;
     let mut q_pos: usize = 0;
+    let mut reference_bases: HashMap<u64, String> = HashMap::new();
+    let mut insertions_after: HashMap<u64, Vec<String>> = HashMap::new();
 
     for op_result in cigar.iter() {
         let op = match op_result {
             Ok(o) => o,
-            Err(_) => return None,
+            Err(_) => return (reference_bases, insertions_after),
         };
         let len = op.len() as u64;
         match op.kind() {
             Kind::Match | Kind::SequenceMatch | Kind::SequenceMismatch => {
-                if ref_pos >= r_pos && ref_pos < r_pos + len {
-                    let offset = (ref_pos - r_pos) as usize;
-                    let qi = q_pos + offset;
+                for offset in 0..len {
+                    let pos = r_pos + offset;
+                    if pos < window_start || pos > window_end {
+                        continue;
+                    }
+                    let qi = q_pos + offset as usize;
                     if qi < seq.len() {
-                        let bq: u8 = quals.iter().nth(qi).unwrap_or(0);
+                        let bq: u8 = quality_at(qi);
                         if bq >= min_bq {
-                            let base: u8 = seq.iter().nth(qi)?;
-                            return Some((base as char).to_string());
+                            if let Some(base) = seq.iter().nth(qi) {
+                                reference_bases
+                                    .insert(pos, (base as char).to_ascii_uppercase().to_string());
+                            }
                         }
                     }
-                    return None;
                 }
                 r_pos += len;
                 q_pos += len as usize;
             }
-            Kind::Insertion | Kind::SoftClip => {
+            Kind::Insertion => {
+                let anchor = r_pos.saturating_sub(1);
+                if anchor >= window_start && anchor <= window_end {
+                    let inserted = insertions_after.entry(anchor).or_default();
+                    for offset in 0..len {
+                        let qi = q_pos + offset as usize;
+                        if qi >= seq.len() {
+                            continue;
+                        }
+                        let bq: u8 = quality_at(qi);
+                        // Dropping a base the floor rejected shortened the
+                        // insertion this read carries, and a read whose whole
+                        // insertion was rejected came out holding none, which
+                        // counts as evidence for the reference allele. The slot
+                        // is kept and marked unreadable instead, so the read
+                        // withdraws from the judgement the way a rejected base
+                        // in a match already does.
+                        let base = match seq.iter().nth(qi) {
+                            Some(base) if bq >= min_bq => {
+                                (base as char).to_ascii_uppercase().to_string()
+                            }
+                            _ => UNREADABLE_BASE.to_string(),
+                        };
+                        inserted.push(base);
+                    }
+                }
                 q_pos += len as usize;
             }
-            Kind::Deletion | Kind::Skip => {
-                if ref_pos >= r_pos && ref_pos < r_pos + len {
-                    return Some("-".to_string());
+            Kind::SoftClip => {
+                q_pos += len as usize;
+            }
+            // A deletion is the read saying those reference bases are not in it,
+            // which is evidence about a deletion allele.
+            Kind::Deletion => {
+                for offset in 0..len {
+                    let pos = r_pos + offset;
+                    if pos >= window_start && pos <= window_end {
+                        reference_bases.insert(pos, "-".to_string());
+                    }
                 }
+                r_pos += len;
+            }
+            // A skip is the read not being there at all: an aligner writes it for
+            // an intron, and get_MNV builds spliced CDS models, so these reach the
+            // viewer. Recording it as a gap made a read that observed nothing
+            // count as carrying a deletion. Leaving the positions unset is what
+            // the viewer already draws for a base a read does not reach.
+            Kind::Skip => {
                 r_pos += len;
             }
             Kind::HardClip | Kind::Pad => {}
         }
     }
-    None
+
+    (reference_bases, insertions_after)
+}
+
+fn classify_layout_support(
+    reference_bases: &HashMap<u64, String>,
+    insertions_after: &HashMap<u64, Vec<String>>,
+    sites: &[BamVariantSite],
+) -> String {
+    let mut matches_alt = 0usize;
+    let mut matches_ref = 0usize;
+    let mut covered_sites = 0usize;
+
+    for site in sites {
+        let Some(observed) = observed_allele_from_layout(
+            reference_bases,
+            insertions_after,
+            site.position,
+            &site.reference_base,
+        ) else {
+            continue;
+        };
+        covered_sites += 1;
+        if observed.eq_ignore_ascii_case(&site.alt_base) {
+            matches_alt += 1;
+        } else if observed.eq_ignore_ascii_case(&site.reference_base) {
+            matches_ref += 1;
+        }
+    }
+
+    let n_sites = sites.len();
+    if covered_sites == 0 {
+        "other"
+    } else if matches_alt == n_sites {
+        "mnv"
+    } else if matches_alt > 0 && matches_alt < n_sites {
+        "partial"
+    } else if matches_ref == n_sites {
+        "reference"
+    } else {
+        "other"
+    }
+    .to_string()
+}
+
+fn build_bam_view_columns(
+    display_start: u64,
+    display_end: u64,
+    reference: &str,
+    sites: &[BamVariantSite],
+    insertion_widths: &HashMap<u64, usize>,
+) -> Vec<BamViewColumn> {
+    debug_assert_eq!(
+        display_end,
+        display_start + reference.chars().count().saturating_sub(1) as u64
+    );
+    let mut variant_positions = BTreeSet::new();
+    let mut variant_insertion_anchors = BTreeSet::new();
+    for site in sites {
+        let ref_len = site.reference_base.chars().count().max(1) as u64;
+        for pos in site.position..site.position + ref_len {
+            variant_positions.insert(pos);
+        }
+        if let Some((anchor, _)) =
+            expected_insertion_after(site.position, &site.reference_base, &site.alt_base)
+        {
+            variant_insertion_anchors.insert(anchor);
+        }
+    }
+    let mut columns = Vec::new();
+    for (idx, base) in reference.chars().enumerate() {
+        let pos = display_start + idx as u64;
+        let is_variant = variant_positions.contains(&pos);
+        columns.push(BamViewColumn {
+            key: format!("ref:{pos}"),
+            position: pos,
+            kind: "ref".to_string(),
+            insertion_index: None,
+            label: pos.to_string(),
+            reference_base: base.to_string(),
+            is_variant,
+        });
+
+        let width = insertion_widths.get(&pos).copied().unwrap_or(0);
+        for insertion_idx in 0..width {
+            columns.push(BamViewColumn {
+                key: format!("ins:{pos}:{}", insertion_idx + 1),
+                position: pos,
+                kind: "ins".to_string(),
+                insertion_index: Some((insertion_idx + 1) as u64),
+                label: format!("+{}", insertion_idx + 1),
+                reference_base: "+".to_string(),
+                is_variant: variant_insertion_anchors.contains(&pos),
+            });
+        }
+    }
+    columns
+}
+
+fn expand_read_bases(read: &RawBamReadView, columns: &[BamViewColumn]) -> Vec<String> {
+    columns
+        .iter()
+        .map(|column| {
+            if column.kind == "ins" {
+                let idx = column.insertion_index.unwrap_or(1).saturating_sub(1) as usize;
+                read.insertions_after
+                    .get(&column.position)
+                    .and_then(|bases| bases.get(idx))
+                    .cloned()
+                    .unwrap_or_else(|| " ".to_string())
+            } else {
+                read.reference_bases
+                    .get(&column.position)
+                    .cloned()
+                    .unwrap_or_else(|| " ".to_string())
+            }
+        })
+        .collect()
 }
 
 /// Read reference sequence from an indexed FASTA file.
@@ -673,19 +1023,41 @@ fn read_fasta_region(
     fasta_file
         .seek(SeekFrom::Start(start_byte))
         .map_err(|e| format!("FASTA seek error: {}", e))?;
-    let mut buf = vec![0u8; bytes_to_read + 100];
-    let n = fasta_file
-        .read(&mut buf)
+    // Read to the end of the span instead of keeping whatever one call returns:
+    // a short read is not a short file, and padding made the two look alike.
+    let mut buf = Vec::with_capacity(bytes_to_read + 100);
+    fasta_file
+        .by_ref()
+        .take((bytes_to_read + 100) as u64)
+        .read_to_end(&mut buf)
         .map_err(|e| format!("FASTA read error: {}", e))?;
 
-    let mut result: String = buf[..n]
+    let result: String = buf
         .iter()
+        // The span is over-read by a hundred bytes to cover line breaks. A
+        // record header can never be part of a sequence, so stopping at one
+        // keeps the next contig out of the answer.
+        .take_while(|&&b| b != b'>')
         .filter(|&&b| b != b'\n' && b != b'\r')
         .map(|&b| b.to_ascii_uppercase() as char)
         .take(window_len)
         .collect();
-    while result.len() < window_len {
-        result.push('N');
+    // Padding answered with bases the file does not hold. The index says the
+    // contig is seq_len long; when the file cannot supply that, the two
+    // disagree, and saying so is the only honest answer.
+    if result.len() < window_len {
+        return Err(format!(
+            "FASTA '{}' is shorter than its index claims: {}:{}-{} needs {} base(s) \
+             and the file supplies {}. Rebuild the index, for example with \
+             `samtools faidx '{}'`",
+            fasta_path,
+            chrom,
+            start + 1,
+            actual_end,
+            window_len,
+            result.len(),
+            fasta_path
+        ));
     }
     Ok(result)
 }
@@ -722,13 +1094,16 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         ));
     }
 
-    let mut site_map: HashMap<u64, (String, String)> = HashMap::new();
     let mut sites: Vec<BamVariantSite> = Vec::new();
+    let mut insertion_widths: HashMap<u64, usize> = HashMap::new();
     for i in 0..request.positions.len() {
         let pos = request.positions[i];
         let rb = request.ref_bases[i].clone();
         let ab = request.alt_bases[i].clone();
-        site_map.insert(pos, (rb.clone(), ab.clone()));
+        if let Some((anchor, inserted_len)) = expected_insertion_after(pos, &rb, &ab) {
+            let width = insertion_widths.entry(anchor).or_default();
+            *width = (*width).max(inserted_len);
+        }
         sites.push(BamVariantSite {
             position: pos,
             reference_base: rb,
@@ -738,7 +1113,6 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
 
     // Frontend and TSV positions are 1-based inclusive. Internally, BAM/FASTA
     // helpers use 0-based reference offsets, so convert only at IO boundaries.
-    let window_len = (request.window_end - request.window_start + 1) as usize;
     let zero_based_start = request.window_start - 1;
     let zero_based_end_exclusive = request.window_end;
     let reference = read_fasta_region(
@@ -766,7 +1140,7 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         .query(&header, &region)
         .map_err(|e| format!("BAM query error: {}", e))?;
 
-    let mut all_reads: Vec<BamReadView> = Vec::new();
+    let mut raw_reads: Vec<RawBamReadView> = Vec::new();
     let mut counts = BamSupportCounts::default();
     let mut total_reads: usize = 0;
 
@@ -795,54 +1169,14 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         }
 
         total_reads += 1;
-
-        let mut bases: Vec<String> = Vec::with_capacity(window_len);
-        for off in 0..window_len {
-            let one_based_pos = request.window_start + off as u64;
-            let zero_based_pos = one_based_pos - 1;
-            match base_at_ref_pos(&record, zero_based_pos, min_bq) {
-                Some(b) => bases.push(b),
-                None => bases.push(" ".to_string()),
-            }
+        let (reference_bases, insertions_after) =
+            read_alignment_layout(&record, request.window_start, request.window_end, min_bq);
+        for (&anchor, inserted) in &insertions_after {
+            let width = insertion_widths.entry(anchor).or_default();
+            *width = (*width).max(inserted.len());
         }
 
-        let mut matches_alt = 0usize;
-        let mut matches_ref = 0usize;
-        let mut covered_sites = 0usize;
-        for &pos in &request.positions {
-            if pos < request.window_start || pos > request.window_end {
-                continue;
-            }
-            let off = (pos - request.window_start) as usize;
-            if off < bases.len() {
-                let base = &bases[off];
-                if base == " " || base == "-" {
-                    continue;
-                }
-                covered_sites += 1;
-                if let Some((rb, ab)) = site_map.get(&pos) {
-                    if base.eq_ignore_ascii_case(ab) {
-                        matches_alt += 1;
-                    } else if base.eq_ignore_ascii_case(rb) {
-                        matches_ref += 1;
-                    }
-                }
-            }
-        }
-
-        let n_sites = request.positions.len();
-        let support = if covered_sites == 0 {
-            "other"
-        } else if matches_alt == n_sites {
-            "mnv"
-        } else if matches_alt > 0 && matches_alt < n_sites {
-            "partial"
-        } else if matches_ref == n_sites {
-            "reference"
-        } else {
-            "other"
-        }
-        .to_string();
+        let support = classify_layout_support(&reference_bases, &insertions_after, &sites);
 
         match support.as_str() {
             "mnv" => counts.mnv += 1,
@@ -884,21 +1218,43 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
             })
             .sum();
 
-        all_reads.push(BamReadView {
+        raw_reads.push(RawBamReadView {
             name: read_name,
             strand,
             support,
             start: read_start + 1,
             end: read_start + aligned_len,
             mapq,
-            bases,
+            reference_bases,
+            insertions_after,
         });
     }
 
     counts.total = total_reads;
 
+    let columns = build_bam_view_columns(
+        request.window_start,
+        request.window_end,
+        &reference,
+        &sites,
+        &insertion_widths,
+    );
+
+    let mut all_reads: Vec<BamReadView> = raw_reads
+        .iter()
+        .map(|read| BamReadView {
+            name: read.name.clone(),
+            strand: read.strand.clone(),
+            support: read.support.clone(),
+            start: read.start,
+            end: read.end,
+            mapq: read.mapq,
+            bases: expand_read_bases(read, &columns),
+        })
+        .collect();
+
     let coverage: Vec<u32> = {
-        let mut depths = vec![0u32; window_len];
+        let mut depths = vec![0u32; columns.len()];
         for read in &all_reads {
             for (i, base) in read.bases.iter().enumerate() {
                 if base != " " {
@@ -909,13 +1265,15 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         depths
     };
 
-    let (display_reads, truncated) = select_bam_reads_for_display(all_reads, max_reads);
+    let (display_reads, truncated) =
+        select_bam_reads_for_display(std::mem::take(&mut all_reads), max_reads);
 
     Ok(BamViewResponse {
         chrom: request.chrom,
         display_start: request.window_start,
         display_end: request.window_end,
         reference,
+        columns,
         sites,
         reads: display_reads,
         counts,
@@ -938,13 +1296,18 @@ pub fn write_text_file(path: String, content: String) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    /// A clock is not an identity. This asked for the time in nanoseconds and
+    /// used it as a name, but the clock does not tick that finely: over sixteen
+    /// thousand calls from eight threads, eleven thousand of them named a file
+    /// another thread had just named. Tests run in parallel, so two of them
+    /// shared a FASTA, and one truncating it failed the other.
     fn unique_temp_path(extension: &str) -> std::path::PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
         std::env::temp_dir().join(format!(
-            "get_mnv_gui_test_{}.{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos(),
+            "get_mnv_gui_test_{}_{}.{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed),
             extension
         ))
     }
@@ -960,6 +1323,296 @@ mod tests {
         path_str
     }
 
+    /// A FASTA that no longer matches its index used to answer with `N` for
+    /// every base it could not supply, so a truncated file read as a contig
+    /// that genuinely holds unknown bases there.
+    #[test]
+    fn test_read_fasta_region_reports_a_file_shorter_than_its_index() {
+        use std::io::Write;
+        let path = write_indexed_fasta(">chr1\nACGTACGTACGTACGTACGT\n");
+        let mut file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        file.set_len(">chr1\n".len() as u64 + 10).unwrap();
+        file.flush().unwrap();
+
+        // The bases the file still holds come back unchanged.
+        assert_eq!(
+            read_fasta_region(&path, "chr1", 0, 10).unwrap(),
+            "ACGTACGTAC"
+        );
+
+        let err = read_fasta_region(&path, "chr1", 0, 20)
+            .expect_err("a window past the end of a truncated file must not be padded");
+        assert!(err.contains("shorter than its index"), "{err}");
+        assert!(err.contains("needs 20 base(s)"), "{err}");
+        assert!(err.contains("supplies 10"), "{err}");
+    }
+
+    /// The read window is over-read to cover line breaks, and the slack must
+    /// never let the following record's sequence stand in for this one's.
+    #[test]
+    fn test_read_fasta_region_stops_at_the_next_record() {
+        let path = write_indexed_fasta(">chr1\nACGTACGTAC\n>chr2\nTTTTTTTTTT\n");
+        assert_eq!(
+            read_fasta_region(&path, "chr1", 0, 10).unwrap(),
+            "ACGTACGTAC"
+        );
+        assert_eq!(read_fasta_region(&path, "chr1", 5, 10).unwrap(), "CGTAC");
+        assert_eq!(
+            read_fasta_region(&path, "chr2", 0, 10).unwrap(),
+            "TTTTTTTTTT"
+        );
+    }
+
+    /// A cohort run, its output directory, and the files a previous run left.
+    fn cohort_config_in_a_fresh_dir(existing: &[&str]) -> (AnalysisConfig, std::path::PathBuf) {
+        let dir = unique_temp_path("outdir");
+        std::fs::create_dir_all(&dir).unwrap();
+        let vcf = dir.join("cohort.vcf");
+        std::fs::write(&vcf, "x").unwrap();
+        for name in existing {
+            std::fs::write(dir.join(name), "x").unwrap();
+        }
+        let mut config = minimal_config(vcf.to_str().unwrap());
+        config.output_dir = Some(dir.to_string_lossy().into_owned());
+        config.sample = Some("all".to_string());
+        (config, dir)
+    }
+
+    /// The preview names a pattern for a cohort, and a pattern never exists as a
+    /// file, so the conflict check answered that nothing was in the way while
+    /// the last run's per-sample outputs sat in the very directory chosen.
+    #[test]
+    fn test_cohort_conflicts_name_the_per_sample_files_already_there() {
+        let (config, dir) =
+            cohort_config_in_a_fresh_dir(&["cohort.sample_S1.MNV.tsv", "cohort.sample_S2.MNV.tsv"]);
+        let conflicts = check_output_conflicts(config).unwrap();
+        assert_eq!(
+            conflicts,
+            vec![
+                dir.join("cohort.sample_S1.MNV.tsv")
+                    .to_string_lossy()
+                    .into_owned(),
+                dir.join("cohort.sample_S2.MNV.tsv")
+                    .to_string_lossy()
+                    .into_owned(),
+            ]
+        );
+    }
+
+    /// Only the formats this run writes are in its way.
+    #[test]
+    fn test_cohort_conflicts_ignore_files_the_run_will_not_write() {
+        let (config, _dir) = cohort_config_in_a_fresh_dir(&[
+            "cohort.sample_S1.MNV.vcf",
+            "cohort.sample_S1.MNV.bcf",
+            "other.sample_S1.MNV.tsv",
+            "cohort.MNV.tsv",
+        ]);
+        assert!(
+            check_output_conflicts(config).unwrap().is_empty(),
+            "a default cohort run writes TSVs under its own stem and nothing else"
+        );
+    }
+
+    /// The pattern the preview shows has to point where the files land.
+    #[test]
+    fn test_cohort_preview_carries_the_output_directory() {
+        let (config, dir) = cohort_config_in_a_fresh_dir(&[]);
+        assert_eq!(
+            resolve_output_paths(config).unwrap(),
+            vec![dir
+                .join("cohort.sample_<SAMPLE>.MNV.*")
+                .to_string_lossy()
+                .into_owned()]
+        );
+    }
+
+    /// A one-read BAM, written and read back, so the layout builder can be
+    /// exercised on a real record rather than on maps written by hand.
+    fn layout_of(
+        cigar_ops: &str,
+        start: u64,
+        seq: &str,
+        window: (u64, u64),
+    ) -> (HashMap<u64, String>, HashMap<u64, Vec<String>>) {
+        layout_of_q(cigar_ops, start, seq, window, &vec![40u8; seq.len()], 20)
+    }
+
+    fn layout_of_q(
+        cigar_ops: &str,
+        start: u64,
+        seq: &str,
+        window: (u64, u64),
+        quals: &[u8],
+        min_bq: u8,
+    ) -> (HashMap<u64, String>, HashMap<u64, Vec<String>>) {
+        use noodles::sam::alignment::io::Write as _;
+        use noodles::sam::alignment::record::MappingQuality;
+        use noodles::sam::alignment::record_buf::{Cigar, QualityScores, Sequence};
+        use noodles::sam::alignment::RecordBuf;
+        use noodles::sam::header::record::value::map::ReferenceSequence;
+        use noodles::sam::header::record::value::Map;
+        use std::num::NonZeroUsize;
+
+        let header = noodles::sam::Header::builder()
+            .add_reference_sequence(
+                "chr1",
+                Map::<ReferenceSequence>::new(NonZeroUsize::try_from(10000).unwrap()),
+            )
+            .build();
+
+        let ops: Vec<noodles::sam::alignment::record::cigar::Op> = cigar_ops
+            .split(',')
+            .map(|token| {
+                let (len, kind) = token.split_at(token.len() - 1);
+                let kind = match kind {
+                    "M" => Kind::Match,
+                    "N" => Kind::Skip,
+                    "D" => Kind::Deletion,
+                    "I" => Kind::Insertion,
+                    other => panic!("unsupported cigar op {other}"),
+                };
+                noodles::sam::alignment::record::cigar::Op::new(kind, len.parse().unwrap())
+            })
+            .collect();
+
+        let record = RecordBuf::builder()
+            .set_name("r1")
+            .set_flags(noodles::sam::alignment::record::Flags::empty())
+            .set_reference_sequence_id(0)
+            .set_alignment_start(noodles::core::Position::try_from(start as usize).unwrap())
+            .set_mapping_quality(MappingQuality::try_from(60).unwrap())
+            .set_cigar(Cigar::from(ops))
+            .set_sequence(Sequence::from(seq.as_bytes().to_vec()))
+            .set_quality_scores(QualityScores::from(quals.to_vec()))
+            .build();
+
+        let path = unique_temp_path("bam");
+        {
+            let mut writer = noodles::bam::io::Writer::new(std::fs::File::create(&path).unwrap());
+            writer.write_header(&header).unwrap();
+            writer.write_alignment_record(&header, &record).unwrap();
+        }
+        let mut reader = noodles::bam::io::Reader::new(std::fs::File::open(&path).unwrap());
+        reader.read_header().unwrap();
+        let mut got = noodles::bam::Record::default();
+        reader.read_record(&mut got).unwrap();
+        read_alignment_layout(&got, window.0, window.1, min_bq)
+    }
+
+    /// A deletion is the read saying those reference bases are not in it. A skip
+    /// is the read not being there: an aligner writes N for an intron, and
+    /// get_MNV builds spliced CDS models, so both reach this viewer. Marking
+    /// them the same made a read that never observed a deletion count as
+    /// carrying it.
+    #[test]
+    fn test_a_skipped_region_is_not_read_as_a_deletion() {
+        let deleted = layout_of("1M,3D,2M", 11, "ACG", (1, 100));
+        let skipped = layout_of("1M,3N,2M", 11, "ACG", (1, 100));
+
+        // The read that deletes says so at each base it deletes.
+        assert_eq!(deleted.0.get(&12), Some(&"-".to_string()));
+        assert_eq!(deleted.0.get(&14), Some(&"-".to_string()));
+        // The read that skips says nothing there, which is what an empty cell in
+        // the viewer means, and the bases it does align are untouched.
+        assert_eq!(skipped.0.get(&12), None);
+        assert_eq!(skipped.0.get(&14), None);
+        assert_eq!(skipped.0.get(&11), Some(&"A".to_string()));
+        assert_eq!(skipped.0.get(&15), Some(&"C".to_string()));
+
+        let sites = vec![BamVariantSite {
+            position: 11,
+            reference_base: "AGGG".to_string(),
+            alt_base: "A".to_string(),
+        }];
+        assert_eq!(
+            classify_layout_support(&deleted.0, &deleted.1, &sites),
+            "mnv",
+            "the read that deletes those bases carries the deletion"
+        );
+        assert_eq!(
+            classify_layout_support(&skipped.0, &skipped.1, &sites),
+            "other",
+            "the read that skips them observed nothing about the deletion"
+        );
+    }
+
+    /// A read whose insertion the quality floor rejects still carries an
+    /// insertion. Dropping those bases left it holding none, which reads as the
+    /// reference allele, so a read that could say nothing was counted as
+    /// evidence against the variant.
+    #[test]
+    fn test_an_unreadable_insertion_is_not_evidence_for_the_reference() {
+        let sites = vec![BamVariantSite {
+            position: 11,
+            reference_base: "A".to_string(),
+            alt_base: "ATT".to_string(),
+        }];
+        let readable = layout_of_q("1M,2I,2M", 11, "ATTCG", (1, 100), &[40, 40, 40, 40, 40], 20);
+        let unreadable = layout_of_q("1M,2I,2M", 11, "ATTCG", (1, 100), &[40, 5, 5, 40, 40], 20);
+        let half = layout_of_q("1M,2I,2M", 11, "ATTCG", (1, 100), &[40, 40, 5, 40, 40], 20);
+        let without = layout_of_q("3M", 11, "ACG", (1, 100), &[40, 40, 40], 20);
+
+        // The insertion is kept whole either way, so the column keeps its width.
+        assert_eq!(
+            unreadable.1.get(&11),
+            Some(&vec![
+                UNREADABLE_BASE.to_string(),
+                UNREADABLE_BASE.to_string()
+            ])
+        );
+        assert_eq!(
+            half.1.get(&11),
+            Some(&vec!["T".to_string(), UNREADABLE_BASE.to_string()])
+        );
+
+        // Three different things, three different answers.
+        assert_eq!(
+            classify_layout_support(&readable.0, &readable.1, &sites),
+            "mnv"
+        );
+        assert_eq!(
+            classify_layout_support(&without.0, &without.1, &sites),
+            "reference"
+        );
+        for (name, layout) in [("all bases", &unreadable), ("one base", &half)] {
+            assert_eq!(
+                classify_layout_support(&layout.0, &layout.1, &sites),
+                "other",
+                "a read with {name} of its insertion rejected says nothing about it"
+            );
+        }
+    }
+
+    /// SAM `QUAL=*` means the qualities were not recorded, not that they are
+    /// zero. The counting core says so in as many words and treats such bases as
+    /// passing; reading the absence as a zero here failed every base against the
+    /// floor, so the viewer drew a quality-less BAM blank while the table beside
+    /// it counted those same reads as support.
+    #[test]
+    fn test_a_read_without_qualities_is_not_a_read_of_quality_zero() {
+        let recorded = layout_of_q("3M", 11, "ACG", (1, 100), &[40, 40, 40], 20);
+        let absent = layout_of_q("3M", 11, "ACG", (1, 100), &[], 20);
+        assert_eq!(absent.0, recorded.0, "the bases are the same either way");
+        assert_eq!(absent.0.get(&11), Some(&"A".to_string()));
+
+        // And a base that really was scored below the floor still drops out.
+        let low = layout_of_q("3M", 11, "ACG", (1, 100), &[40, 5, 40], 20);
+        assert_eq!(low.0.get(&12), None);
+        assert_eq!(low.0.get(&11), Some(&"A".to_string()));
+
+        let sites = vec![BamVariantSite {
+            position: 11,
+            reference_base: "A".to_string(),
+            alt_base: "C".to_string(),
+        }];
+        assert_eq!(
+            classify_layout_support(&absent.0, &absent.1, &sites),
+            classify_layout_support(&recorded.0, &recorded.1, &sites),
+            "the same read answers the same whether or not its qualities were stored"
+        );
+    }
+
     fn bam_read_for_test(name: &str, support: &str, start: u64) -> BamReadView {
         BamReadView {
             name: name.to_string(),
@@ -972,7 +1625,7 @@ mod tests {
         }
     }
 
-    fn minimal_config(variant_file: &str) -> AnalysisConfig {
+    pub(super) fn minimal_config(variant_file: &str) -> AnalysisConfig {
         AnalysisConfig {
             vcf_file: variant_file.to_string(),
             input_format: None,
@@ -992,6 +1645,11 @@ mod tests {
             min_snp_strand_reads: None,
             min_mnv_strand_reads: None,
             min_strand_bias_p: None,
+            frameshift_min_freq: None,
+            indel_anchor_depth: None,
+            phased_indel_min_reads: None,
+            count_mates_separately: None,
+            phased_indel_min_freq: None,
             dry_run: None,
             strict: None,
             split_multiallelic: None,
@@ -1138,6 +1796,32 @@ mod tests {
     }
 
     #[test]
+    fn test_gui_config_forwards_indel_knobs() {
+        let mut config = minimal_config("/tmp/sample.vcf");
+        config.frameshift_min_freq = Some(0.5);
+        config.indel_anchor_depth = Some(true);
+        config.phased_indel_min_reads = Some(4);
+        config.phased_indel_min_freq = Some(0.25);
+
+        let args = config.into_args();
+
+        assert_eq!(args.frameshift_min_freq, 0.5);
+        assert!(args.indel_anchor_depth);
+        assert_eq!(args.phased_indel_min_reads, 4);
+        assert_eq!(args.phased_indel_min_freq, 0.25);
+    }
+
+    #[test]
+    fn test_gui_config_indel_knobs_default_to_cli_defaults() {
+        // Superseded by `default_parity_tests`, which asks the CLI's own parser
+        // what the defaults are instead of writing them down here. This test
+        // carried its own copy of them, so when the CLI moved it went on
+        // asserting the old values and the drift passed unnoticed.
+        let args = minimal_config("/tmp/sample.vcf").into_args();
+        assert_eq!(args.phased_indel_min_freq, 0.0);
+    }
+
+    #[test]
     fn test_bam_view_balanced_truncation_keeps_partial_reads() {
         let mut reads = Vec::new();
         for i in 0..100 {
@@ -1178,6 +1862,80 @@ mod tests {
 
         assert!(!truncated);
         assert_eq!(supports, vec!["mnv", "partial", "reference", "other"]);
+    }
+
+    #[test]
+    fn test_bam_view_columns_include_insertion_slots() {
+        let sites = vec![BamVariantSite {
+            position: 11,
+            reference_base: "C".to_string(),
+            alt_base: "CTT".to_string(),
+        }];
+        let mut insertion_widths = HashMap::new();
+        let (anchor, width) = expected_insertion_after(11, "C", "CTT").expect("expected insertion");
+        insertion_widths.insert(anchor, width);
+
+        let columns = build_bam_view_columns(10, 12, "ACG", &sites, &insertion_widths);
+        let keys: Vec<&str> = columns.iter().map(|column| column.key.as_str()).collect();
+
+        assert_eq!(
+            keys,
+            vec!["ref:10", "ref:11", "ins:11:1", "ins:11:2", "ref:12"]
+        );
+        assert_eq!(columns[2].label, "+1");
+        assert!(columns[2].is_variant);
+    }
+
+    #[test]
+    fn test_bam_view_expands_reads_into_insertion_slots() {
+        let columns =
+            build_bam_view_columns(10, 12, "ACG", &[], &HashMap::from([(11_u64, 2_usize)]));
+        let read = RawBamReadView {
+            name: "read_1".to_string(),
+            strand: "+".to_string(),
+            support: "mnv".to_string(),
+            start: 10,
+            end: 12,
+            mapq: 60,
+            reference_bases: HashMap::from([
+                (10, "A".to_string()),
+                (11, "C".to_string()),
+                (12, "G".to_string()),
+            ]),
+            insertions_after: HashMap::from([(11, vec!["T".to_string(), "T".to_string()])]),
+        };
+
+        assert_eq!(
+            expand_read_bases(&read, &columns),
+            vec![
+                "A".to_string(),
+                "C".to_string(),
+                "T".to_string(),
+                "T".to_string(),
+                "G".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn test_bam_view_classifies_insertion_support_from_layout() {
+        let sites = vec![BamVariantSite {
+            position: 11,
+            reference_base: "C".to_string(),
+            alt_base: "CTT".to_string(),
+        }];
+        let reference_bases = HashMap::from([(11, "C".to_string())]);
+        let alt_insertions = HashMap::from([(11, vec!["T".to_string(), "T".to_string()])]);
+        let reference_insertions: HashMap<u64, Vec<String>> = HashMap::new();
+
+        assert_eq!(
+            classify_layout_support(&reference_bases, &alt_insertions, &sites),
+            "mnv"
+        );
+        assert_eq!(
+            classify_layout_support(&reference_bases, &reference_insertions, &sites),
+            "reference"
+        );
     }
 
     #[test]
@@ -1278,5 +2036,226 @@ mod tests {
 
         let _ = std::fs::remove_file(&fasta);
         let _ = std::fs::remove_file(format!("{fasta}.fai"));
+    }
+
+    /// Regenerates the browser demo's read-pileup fixture from the example data
+    /// shipped in `example/`, so the demo shows a real `get_bam_view` answer
+    /// rather than a hand-written imitation of one.
+    ///
+    /// Ignored by default because it writes into the working tree. Run it after
+    /// changing `BamViewResponse`:
+    ///
+    /// ```text
+    /// cargo test -p get-mnv-gui --bins -- --ignored regenerate_demo_bam_view
+    /// ```
+    ///
+    /// The locus is the `Rv2036` codon that `docs/getting-started.md` walks
+    /// through: two substitutions in one codon, carried by all 24 reads. The
+    /// request mirrors what `BamViewer.tsx` sends, including its 80 bp padding
+    /// and the form's MAPQ and base-quality floors.
+    #[test]
+    #[ignore = "writes frontend/demo/sample_bam_view.json"]
+    fn regenerate_demo_bam_view_fixture() {
+        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
+        let response = get_bam_view(BamViewRequest {
+            bam_path: format!("{root}/example/G35894.demo.bam"),
+            fasta_path: format!("{root}/example/MTB_ancestor.fas"),
+            chrom: "MTB_anc".to_string(),
+            positions: vec![2_282_376, 2_282_377],
+            ref_bases: vec!["T".to_string(), "T".to_string()],
+            alt_bases: vec!["C".to_string(), "C".to_string()],
+            min_mapq: Some(20),
+            min_base_quality: Some(20),
+            max_reads: Some(80),
+            window_start: 2_282_296,
+            window_end: 2_282_457,
+        })
+        .expect("get_bam_view failed on the example data");
+
+        assert!(
+            response.total_reads > 0,
+            "the example BAM produced no reads at the Rv2036 locus"
+        );
+        // Pretty-printed: it is checked in, so a regeneration should produce a
+        // diff a reviewer can read.
+        let path = format!("{root}/frontend/demo/sample_bam_view.json");
+        std::fs::write(&path, serde_json::to_string_pretty(&response).unwrap())
+            .unwrap_or_else(|e| panic!("cannot write {path}: {e}"));
+        println!("wrote {path} ({} reads)", response.total_reads);
+    }
+}
+
+#[cfg(test)]
+mod default_parity_tests {
+    use super::tests::minimal_config;
+    use clap::Parser;
+
+    /// Every knob the front end leaves unset must fall back to the CLI's own
+    /// default. These drifted apart once before, and the app quietly answered
+    /// differently from the CLI on the same inputs: a frameshift gate of 0.0
+    /// against 0.5, the legacy indel depth denominator, and a phased-haplotype
+    /// floor of one read against two.
+    ///
+    /// This covers the fallback layer only. The React front end sends a value
+    /// for nearly every field, so the defaults a user actually gets are the ones
+    /// in `frontend/src/types.ts`; those are checked by
+    /// `shipped_frontend_defaults_match_the_cli_except_where_intended`.
+    #[test]
+    fn unset_gui_fields_fall_back_to_the_cli_defaults() {
+        let cli = get_mnv::cli::Args::parse_from([
+            "get_mnv",
+            "--vcf",
+            "/tmp/v.vcf",
+            "--fasta",
+            "/tmp/ref.fasta",
+            "--gff",
+            "/tmp/ref.gff",
+        ]);
+        let gui = minimal_config("/tmp/v.vcf").into_args();
+
+        assert_eq!(gui.frameshift_min_freq, cli.frameshift_min_freq);
+        assert_eq!(gui.indel_anchor_depth, cli.indel_anchor_depth);
+        assert_eq!(gui.phased_indel_min_reads, cli.phased_indel_min_reads);
+        assert_eq!(gui.phased_indel_min_freq, cli.phased_indel_min_freq);
+        assert_eq!(gui.count_mates_separately, cli.count_mates_separately);
+        assert_eq!(gui.min_quality, cli.min_quality);
+        assert_eq!(gui.min_mapq, cli.min_mapq);
+        assert_eq!(gui.translation_table, cli.translation_table);
+        assert_eq!(gui.min_snp_reads, cli.min_snp_reads);
+        assert_eq!(gui.min_mnv_reads, cli.min_mnv_reads);
+    }
+
+    /// Reads `DEFAULT_CONFIG` out of the front end and compares it with the CLI.
+    ///
+    /// This is the check the fallback test above cannot make. The form ships
+    /// with a value in nearly every field, so `into_args` never reaches its
+    /// `unwrap_or`, and a test that only exercises the fallback path will pass
+    /// while the app a user opens answers differently from `get_mnv` on the same
+    /// files. The app is deliberately more conservative in a few places;
+    /// `INTENDED_DIFFERENCES` is that list, and anything outside it is drift.
+    ///
+    /// The list is checked in both directions: an entry that no longer differs
+    /// also fails, so aligning a default forces the note to be removed rather
+    /// than left behind to mislead the next reader.
+    const INTENDED_DIFFERENCES: &[(&str, &str)] = &[
+        (
+            "minMapq",
+            "the form asks for MAPQ 20, so a run started by clicking Run \
+                     ignores multi-mapping reads the CLI would count",
+        ),
+        ("minSnpReads", "the form asks for 2 supporting reads"),
+        ("minMnvReads", "the form asks for 2 supporting reads"),
+        (
+            "normalizeAlleles",
+            "the form trims shared REF/ALT context by default",
+        ),
+        (
+            "splitMultiallelic",
+            "the form splits multiallelic records rather than \
+                               failing the run in front of the user",
+        ),
+    ];
+
+    fn frontend_defaults() -> std::collections::HashMap<String, String> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../frontend/src/types.ts");
+        let source =
+            std::fs::read_to_string(path).unwrap_or_else(|e| panic!("cannot read {path}: {e}"));
+        let start = source
+            .find("DEFAULT_CONFIG: AnalysisConfig = {")
+            .expect("DEFAULT_CONFIG not found in types.ts");
+        let body = &source[start..];
+        let end = body.find("\n};").expect("unterminated DEFAULT_CONFIG");
+        let mut out = std::collections::HashMap::new();
+        for line in body[..end].lines().skip(1) {
+            let line = line.trim().trim_end_matches(',');
+            if let Some((key, value)) = line.split_once(':') {
+                out.insert(key.trim().to_string(), value.trim().to_string());
+            }
+        }
+        assert!(
+            out.len() > 20,
+            "parsed only {} fields out of DEFAULT_CONFIG; the literal's shape changed",
+            out.len()
+        );
+        out
+    }
+
+    #[test]
+    fn shipped_frontend_defaults_match_the_cli_except_where_intended() {
+        let cli = get_mnv::cli::Args::parse_from([
+            "get_mnv",
+            "--vcf",
+            "/tmp/v.vcf",
+            "--fasta",
+            "/tmp/ref.fasta",
+            "--gff",
+            "/tmp/ref.gff",
+        ]);
+        let gui = frontend_defaults();
+
+        let numeric: Vec<(&str, f64)> = vec![
+            ("minQuality", cli.min_quality as f64),
+            ("minMapq", cli.min_mapq as f64),
+            ("minSnpReads", cli.min_snp_reads as f64),
+            ("minMnvReads", cli.min_mnv_reads as f64),
+            ("minSnpFrequency", cli.min_snp_frequency),
+            ("minMnvFrequency", cli.min_mnv_frequency),
+            ("minSnpStrandReads", cli.min_snp_strand_reads as f64),
+            ("minMnvStrandReads", cli.min_mnv_strand_reads as f64),
+            ("minStrandBiasP", cli.min_strand_bias_p),
+            ("frameshiftMinFreq", cli.frameshift_min_freq),
+            ("phasedIndelMinReads", cli.phased_indel_min_reads as f64),
+            ("phasedIndelMinFreq", cli.phased_indel_min_freq),
+            ("translationTable", cli.translation_table as f64),
+        ];
+        let boolean: Vec<(&str, bool)> = vec![
+            ("indelAnchorDepth", cli.indel_anchor_depth),
+            ("normalizeAlleles", cli.normalize_alleles),
+            ("splitMultiallelic", cli.split_multiallelic),
+            ("strict", cli.strict),
+            ("emitFiltered", cli.emit_filtered),
+            ("strandBiasInfo", cli.strand_bias_info),
+            ("keepOriginalInfo", cli.keep_original_info),
+            ("excludeIntergenic", cli.exclude_intergenic),
+        ];
+
+        let mut differing = Vec::new();
+        for (key, expected) in &numeric {
+            let raw = gui
+                .get(*key)
+                .unwrap_or_else(|| panic!("{key} missing from DEFAULT_CONFIG"));
+            let actual: f64 = raw
+                .parse()
+                .unwrap_or_else(|_| panic!("{key} is not a number in types.ts: {raw}"));
+            if (actual - expected).abs() > f64::EPSILON {
+                differing.push((*key, format!("form {actual}, CLI {expected}")));
+            }
+        }
+        for (key, expected) in &boolean {
+            let raw = gui
+                .get(*key)
+                .unwrap_or_else(|| panic!("{key} missing from DEFAULT_CONFIG"));
+            let actual = raw == "true";
+            if actual != *expected {
+                differing.push((*key, format!("form {actual}, CLI {expected}")));
+            }
+        }
+
+        let intended: Vec<&str> = INTENDED_DIFFERENCES.iter().map(|(k, _)| *k).collect();
+        for (key, detail) in &differing {
+            assert!(
+                intended.contains(key),
+                "{key} drifted away from the CLI ({detail}). Either restore the CLI \
+                 default or add it to INTENDED_DIFFERENCES with the reason, and say \
+                 so in docs/gui.md."
+            );
+        }
+        for key in &intended {
+            assert!(
+                differing.iter().any(|(k, _)| k == key),
+                "{key} is listed in INTENDED_DIFFERENCES but now matches the CLI; \
+                 drop the entry and the note in docs/gui.md."
+            );
+        }
     }
 }

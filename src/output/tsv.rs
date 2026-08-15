@@ -15,6 +15,63 @@ fn is_intergenic(variant: &VariantInfo) -> bool {
     variant.gene == "intergenic"
 }
 
+/// Trailing annotation cells appended to every TSV row: SO consequence term,
+/// impact, Grantham distance (with category), MNV-vs-SNV consequence shift,
+/// COSMIC-style DBS class, BAM-derived MNV phasing support, the 50-nt-rule NMD
+/// prediction, and the HGVS genomic / coding descriptors.
+///
+/// With a BAM the phasing support is followed by the number of reads it was
+/// computed from, so a ratio of 1.0 from two reads is not mistaken for the same
+/// ratio from two hundred.
+fn annotation_cells(variant: &VariantInfo, bam_provided: bool) -> Vec<String> {
+    let grantham = match variant.annotations.grantham {
+        Some(d) => format!("{d} ({})", crate::utils::grantham_category(d)),
+        None => "-".to_string(),
+    };
+    let (so_term, impact) = super::common::so_consequence(variant);
+    let dbs = variant
+        .annotations
+        .dbs_class
+        .clone()
+        .unwrap_or_else(|| "-".to_string());
+    let phasing = super::common::mnv_phasing_support(variant)
+        .map(format_freq)
+        .unwrap_or_else(|| "-".to_string());
+    let nmd = variant
+        .annotations
+        .nmd
+        .map(|prediction| prediction.to_string())
+        .unwrap_or_else(|| "-".to_string());
+    let hgvs_g = crate::variants::hgvs::genomic(variant).unwrap_or_else(|| "-".to_string());
+    let hgvs_c = variant
+        .annotations
+        .hgvs_c
+        .clone()
+        .unwrap_or_else(|| "-".to_string());
+    let mut cells = vec![
+        so_term,
+        impact.to_string(),
+        grantham,
+        variant.annotations.consequence_shift.to_string(),
+        dbs,
+        super::common::declared_phase_field(variant),
+        phasing,
+    ];
+    if bam_provided {
+        let (d_prime, p_value) = super::common::codon_linkage_fields(variant);
+        cells.push(d_prime);
+        cells.push(p_value);
+        cells.push(
+            super::common::mnv_phasing_read_count(variant)
+                .map(|reads| reads.to_string())
+                .unwrap_or_else(|| "-".to_string()),
+        );
+        cells.push(super::common::frameshift_linkage_field(variant));
+    }
+    cells.extend([nmd, hgvs_g, hgvs_c]);
+    cells
+}
+
 /// Render a "Local …" column. Falls back to the protein-wide column when the
 /// local vector is empty (e.g. records produced before this field existed and
 /// then deserialized via `#[serde(default)]`).
@@ -28,6 +85,45 @@ fn mnv_frequency(variant: &VariantInfo, total_reads: &[usize]) -> f64 {
         variant.mnv_reads.unwrap_or(0),
         get_mnv_depth_from_variant(variant, total_reads),
     )
+}
+
+fn event_class(variant: &VariantInfo) -> String {
+    variant
+        .event_class
+        .clone()
+        .unwrap_or_else(|| variant.variant_type.to_string().to_ascii_lowercase())
+}
+
+fn event_components(variant: &VariantInfo) -> String {
+    if variant.event_components.is_empty() {
+        "-".to_string()
+    } else {
+        variant.event_components.join(" | ")
+    }
+}
+
+fn event_read_columns(variant: &VariantInfo) -> Vec<String> {
+    if variant.variant_type != VariantType::Indel {
+        return vec![
+            "-".to_string(),
+            "-".to_string(),
+            "-".to_string(),
+            "-".to_string(),
+            "-".to_string(),
+        ];
+    }
+
+    let reads = variant.mnv_reads.unwrap_or(0);
+    let forward = variant.mnv_forward_reads.unwrap_or(0);
+    let reverse = variant.mnv_reverse_reads.unwrap_or(0);
+    let depth = variant.mnv_total_reads.unwrap_or(0);
+    vec![
+        reads.to_string(),
+        forward.to_string(),
+        reverse.to_string(),
+        depth.to_string(),
+        format_freq(allele_frequency(reads, depth)),
+    ]
 }
 
 #[derive(Clone, Copy)]
@@ -49,6 +145,10 @@ impl TsvFilterConfig {
             || self.min_snp_strand_reads > 0
             || self.min_mnv_strand_reads > 0
     }
+
+    fn has_active_mnv_filters(self) -> bool {
+        self.min_mnv_reads > 0 || self.min_mnv_frequency > 0.0 || self.min_mnv_strand_reads > 0
+    }
 }
 
 pub struct TsvWriterConfig<'a> {
@@ -60,6 +160,46 @@ pub struct TsvWriterConfig<'a> {
     pub min_mnv_frequency: f64,
     pub min_snp_strand_reads: usize,
     pub min_mnv_strand_reads: usize,
+}
+
+/// Percent-encode the characters that are structurally reserved in a TSV cell:
+/// the field separator, the line separators, and a literal `%` so the encoding
+/// can be undone.
+///
+/// GFF3 percent-encodes its attribute values, so a gene named `gene%09tab` in the
+/// file arrives here holding a real tab, and writing it raw put 27 fields on a row
+/// whose header has 26, shifting every column after the gene; a `%0A` split one
+/// variant across two lines and the file then claimed a row that does not exist.
+/// The VCF writer was hardened against exactly this and its sibling was not. The
+/// substitutions match `encode_info_value` in the VCF path, so the two outputs
+/// spell an awkward name the same way.
+fn encode_tsv_cell(value: &str) -> std::borrow::Cow<'_, str> {
+    if !value
+        .bytes()
+        .any(|b| matches!(b, b'%' | b'\t' | b'\n' | b'\r'))
+    {
+        return std::borrow::Cow::Borrowed(value);
+    }
+    let mut out = String::with_capacity(value.len() + 8);
+    for c in value.chars() {
+        match c {
+            '%' => out.push_str("%25"),
+            '\t' => out.push_str("%09"),
+            '\n' => out.push_str("%0A"),
+            '\r' => out.push_str("%0D"),
+            other => out.push(other),
+        }
+    }
+    std::borrow::Cow::Owned(out)
+}
+
+/// Write one record with every cell encoded, which is the only way a row leaves
+/// this writer.
+fn write_encoded<W: std::io::Write>(
+    writer: &mut csv::Writer<W>,
+    row: &[String],
+) -> Result<(), csv::Error> {
+    writer.write_record(row.iter().map(|cell| encode_tsv_cell(cell).into_owned()))
 }
 
 fn snp_component_passes_filters(bam_vectors: &SnpBamVectors<'_>, filters: TsvFilterConfig) -> bool {
@@ -92,18 +232,34 @@ fn passes_filters(variant: &VariantInfo, filters: TsvFilterConfig) -> AppResult<
     if !filters.has_active_filters() {
         return Ok(true);
     }
-    if variant.variant_type == VariantType::Indel {
-        return Ok(true);
-    }
+    // An intergenic row is judged on its own support, like any other. Both kinds
+    // are now counted: SNPs through the window cache, indels one at a time. Only
+    // a row that reached no counter at all is exempt, since a filter cannot be
+    // applied to a measurement nobody took, and dropping it would read as a
+    // verdict on evidence that was never gathered.
     if is_intergenic(variant) {
-        // Intergenic SNPs are read-counted at their position, so filter them by
-        // their real support like any SNP. Intergenic indels carry no read
-        // counts and are kept.
-        if variant.variant_type != VariantType::Snp {
-            return Ok(true);
+        if variant.variant_type == VariantType::Snp {
+            let bam_vectors = snp_bam_vectors(variant)?;
+            return Ok(snp_component_passes_filters(&bam_vectors, filters));
         }
-        let bam_vectors = snp_bam_vectors(variant)?;
-        return Ok(snp_component_passes_filters(&bam_vectors, filters));
+        if variant.mnv_reads.is_some() || variant.mnv_total_reads.is_some() {
+            return Ok(mnv_component_passes_filters(
+                variant,
+                &[variant.mnv_total_reads.unwrap_or(0)],
+                filters,
+            ));
+        }
+        return Ok(!filters.has_active_mnv_filters());
+    }
+    if variant.variant_type == VariantType::Indel {
+        if variant.mnv_reads.is_some() || variant.mnv_total_reads.is_some() {
+            return Ok(mnv_component_passes_filters(
+                variant,
+                &[variant.mnv_total_reads.unwrap_or(0)],
+                filters,
+            ));
+        }
+        return Ok(true);
     }
 
     let bam_vectors = snp_bam_vectors(variant)?;
@@ -120,10 +276,14 @@ fn passes_filters(variant: &VariantInfo, filters: TsvFilterConfig) -> AppResult<
 
 fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
     validate_variant_shape(variant)?;
-    // Indels (genic or intergenic) have no read counts and use the placeholder
-    // layout. Intergenic SNPs are read-counted, so they fall through to the
-    // normal SNP path below and report their read support like any SNP.
-    if variant.variant_type == VariantType::Indel {
+    // Rows without recomputed read counts use the placeholder layout. That is
+    // every indel, genic or intergenic, and also an intergenic multi-base
+    // substitution: the intergenic counter only handles single-position SNPs,
+    // so an allele such as `AC>GT` outside any gene arrives uncounted. Keying
+    // this on the absence of the counts rather than on the variant type stops
+    // such a row reaching the SNP path, where it aborted the whole run.
+    // Intergenic SNPs are read-counted and fall through as before.
+    if variant.variant_type == VariantType::Indel || variant.snp_reads.is_none() {
         let pos_str = variant
             .positions
             .iter()
@@ -132,7 +292,7 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
             .join(", ");
         let ref_base_str = variant.ref_bases.join(", ");
         let base_str = variant.base_changes.join(", ");
-        return Ok(vec![
+        let mut row = vec![
             variant.chrom.clone(),
             variant.gene.clone(),
             pos_str,
@@ -156,7 +316,11 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
             "-".to_string(),
             "-".to_string(),
             "-".to_string(),
-        ]);
+        ];
+        row.push(event_class(variant));
+        row.push(event_components(variant));
+        row.extend(event_read_columns(variant));
+        return Ok(row);
     }
 
     let bam_vectors = snp_bam_vectors(variant)?;
@@ -182,19 +346,17 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
         mnv_depth.to_string()
     };
 
-    let (ref_cod, snp_cod, mnv_cod) = if variant.variant_type == VariantType::Snp {
-        (
-            variant.ref_codon.clone().unwrap_or_default(),
-            variant.snp_codon.clone().unwrap_or_default(),
-            String::new(),
-        )
-    } else {
-        (
-            variant.ref_codon.clone().unwrap_or_default(),
-            variant.snp_codon.clone().unwrap_or_default(),
-            variant.mnv_codon.clone().unwrap_or_default(),
-        )
-    };
+    // The codons describe the annotation, not the reads, so they say the same
+    // thing whether or not a BAM was supplied. This branch emptied the alternate
+    // codon of every SNP row, so passing --bam, which only adds read-support
+    // columns, silently blanked an annotation column, and the report, which
+    // takes its alternate codon from this cell alone, showed one for a SNP in a
+    // run without reads and nothing for the same variant in a run with them.
+    let (ref_cod, snp_cod, mnv_cod) = (
+        variant.ref_codon.clone().unwrap_or_default(),
+        variant.snp_codon.clone().unwrap_or_default(),
+        variant.mnv_codon.clone().unwrap_or_default(),
+    );
 
     let pos_str = variant
         .positions
@@ -228,7 +390,7 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
     let mnv_forward_reads_str = variant.mnv_forward_reads.unwrap_or(0).to_string();
     let mnv_reverse_reads_str = variant.mnv_reverse_reads.unwrap_or(0).to_string();
 
-    Ok(vec![
+    let mut row = vec![
         variant.chrom.clone(),
         variant.gene.clone(),
         pos_str,
@@ -252,7 +414,11 @@ fn build_tsv_row_with_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
         total_str,
         snp_freq.join(", "),
         mnv_freq_str,
-    ])
+    ];
+    row.push(event_class(variant));
+    row.push(event_components(variant));
+    row.extend(event_read_columns(variant));
+    Ok(row)
 }
 
 fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> {
@@ -266,7 +432,7 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
             .join(", ");
         let ref_base_str = variant.ref_bases.join(", ");
         let base_str = variant.base_changes.join(", ");
-        return Ok(vec![
+        let mut row = vec![
             variant.chrom.clone(),
             variant.gene.clone(),
             pos_str,
@@ -281,7 +447,10 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
             variant.ref_codon.clone().unwrap_or_else(|| "-".to_string()),
             variant.snp_codon.clone().unwrap_or_else(|| "-".to_string()),
             variant.mnv_codon.clone().unwrap_or_else(|| "-".to_string()),
-        ]);
+        ];
+        row.push(event_class(variant));
+        row.push(event_components(variant));
+        return Ok(row);
     }
 
     let pos_str = variant
@@ -297,7 +466,7 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
     let local_aa_str = local_aa_or_fallback(&variant.aa_changes_local, &variant.aa_changes);
     let local_snp_aa_str =
         local_aa_or_fallback(&variant.snp_aa_changes_local, &variant.snp_aa_changes);
-    Ok(vec![
+    let mut row = vec![
         variant.chrom.clone(),
         variant.gene.clone(),
         pos_str,
@@ -312,7 +481,10 @@ fn build_tsv_row_without_reads(variant: &VariantInfo) -> AppResult<Vec<String>> 
         variant.ref_codon.clone().unwrap_or_default(),
         variant.snp_codon.clone().unwrap_or_default(),
         variant.mnv_codon.clone().unwrap_or_default(),
-    ])
+    ];
+    row.push(event_class(variant));
+    row.push(event_components(variant));
+    Ok(row)
 }
 
 pub struct TsvWriter {
@@ -353,6 +525,27 @@ impl TsvWriter {
                 "Total Reads",
                 "SNP Frequencies",
                 "MNV Frequencies",
+                "Event Class",
+                "Event Components",
+                "Event Reads",
+                "Event Forward Reads",
+                "Event Reverse Reads",
+                "Event Depth",
+                "Event Frequency",
+                "SO Term",
+                "Impact",
+                "Grantham",
+                "MNV Consequence Shift",
+                "DBS Class",
+                "Declared Phase",
+                "MNV Phasing Support",
+                "Haplotype LD",
+                "Haplotype LD p",
+                "MNV Phasing Reads",
+                "Frameshift Phasing",
+                "NMD Prediction",
+                "HGVS g.",
+                "HGVS c.",
             ]
         } else {
             vec![
@@ -370,6 +563,18 @@ impl TsvWriter {
                 "Reference Codon",
                 "SNP Codon",
                 "MNV Codon",
+                "Event Class",
+                "Event Components",
+                "SO Term",
+                "Impact",
+                "Grantham",
+                "MNV Consequence Shift",
+                "DBS Class",
+                "Declared Phase",
+                "MNV Phasing Support",
+                "NMD Prediction",
+                "HGVS g.",
+                "HGVS c.",
             ]
         };
         writer.write_record(&header)?;
@@ -394,11 +599,13 @@ impl TsvWriter {
                 if !passes_filters(variant, self.filters)? {
                     continue;
                 }
-                let row = build_tsv_row_with_reads(variant)?;
-                self.writer.write_record(&row)?;
+                let mut row = build_tsv_row_with_reads(variant)?;
+                row.extend(annotation_cells(variant, true));
+                write_encoded(&mut self.writer, &row)?;
             } else {
-                let row = build_tsv_row_without_reads(variant)?;
-                self.writer.write_record(&row)?;
+                let mut row = build_tsv_row_without_reads(variant)?;
+                row.extend(annotation_cells(variant, false));
+                write_encoded(&mut self.writer, &row)?;
             }
         }
         self.writer.flush()?;
@@ -454,12 +661,16 @@ mod tests {
             total_reverse_reads: Some(vec![3, 1]),
             mnv_total_forward_reads: Some(3),
             mnv_total_reverse_reads: Some(1),
+            mnv_phasing_reads: None,
             ref_codon: Some("ACC".to_string()),
             snp_codon: Some("TCC, AGC".to_string()),
             mnv_codon: Some("TGC".to_string()),
             original_dp: None,
             original_freq: None,
             original_info: None,
+            event_class: Some("mnv".to_string()),
+            event_components: vec!["SNV:10:A>T".to_string(), "SNV:11:C>G".to_string()],
+            annotations: crate::variants::VariantAnnotations::default(),
         }
     }
 
@@ -487,6 +698,47 @@ mod tests {
             row[8], "Val26His",
             "Local SNP AA Changes should be exon-local"
         );
+    }
+
+    fn intergenic_indel() -> VariantInfo {
+        // As produced by build_intergenic_variant: no recomputed read support.
+        let mut v = variant_with_reads();
+        v.gene = "intergenic".to_string();
+        v.variant_type = VariantType::Indel;
+        v.positions = vec![10];
+        v.ref_bases = vec!["AC".to_string()];
+        v.base_changes = vec!["A".to_string()];
+        v.snp_reads = None;
+        v.snp_forward_reads = None;
+        v.snp_reverse_reads = None;
+        v.mnv_reads = None;
+        v.mnv_forward_reads = None;
+        v.mnv_reverse_reads = None;
+        v.mnv_total_reads = None;
+        v.total_reads = None;
+        v.total_forward_reads = None;
+        v.total_reverse_reads = None;
+        v.mnv_total_forward_reads = None;
+        v.mnv_total_reverse_reads = None;
+        v.event_class = Some("deletion".to_string());
+        v
+    }
+
+    #[test]
+    fn test_intergenic_indel_respects_mnv_filters() {
+        // Regression: an intergenic indel carries no recomputed read support, so
+        // it must be dropped when the relevant (MNV) filters are active, the same
+        // way an intergenic SNP is dropped under active SNP filters - instead of
+        // being kept unconditionally by the indel branch.
+        let variant = intergenic_indel();
+        // No filters -> kept.
+        assert!(passes_filters(&variant, filters(0, 0.0, 0, 0.0, 0, 0)).unwrap());
+        // Active MNV frequency / read / strand filters -> dropped.
+        assert!(!passes_filters(&variant, filters(0, 0.0, 0, 0.20, 0, 0)).unwrap());
+        assert!(!passes_filters(&variant, filters(0, 0.0, 2, 0.0, 0, 0)).unwrap());
+        assert!(!passes_filters(&variant, filters(0, 0.0, 0, 0.0, 0, 1)).unwrap());
+        // A SNP-only filter does not affect an intergenic indel.
+        assert!(passes_filters(&variant, filters(5, 0.0, 0, 0.0, 0, 0)).unwrap());
     }
 
     #[test]
@@ -562,12 +814,16 @@ mod tests {
             total_reverse_reads: Some(vec![reverse]),
             mnv_total_forward_reads: Some(forward),
             mnv_total_reverse_reads: Some(reverse),
+            mnv_phasing_reads: None,
             ref_codon: None,
             snp_codon: None,
             mnv_codon: None,
             original_dp: None,
             original_freq: None,
             original_info: None,
+            event_class: None,
+            event_components: Vec::new(),
+            annotations: crate::variants::VariantAnnotations::default(),
         }
     }
 

@@ -204,6 +204,10 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
       config.minSnpStrandReads === merged.minSnpStrandReads &&
       config.minMnvStrandReads === merged.minMnvStrandReads &&
       config.minStrandBiasP === merged.minStrandBiasP &&
+      config.frameshiftMinFreq === merged.frameshiftMinFreq &&
+      config.indelAnchorDepth === merged.indelAnchorDepth &&
+      config.phasedIndelMinReads === merged.phasedIndelMinReads &&
+      config.phasedIndelMinFreq === merged.phasedIndelMinFreq &&
       config.normalizeAlleles === merged.normalizeAlleles &&
       config.splitMultiallelic === merged.splitMultiallelic &&
       config.strict === merged.strict &&
@@ -240,6 +244,12 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
       vcfGz: config.vcfGz,
       outputDir: config.outputDir,
       outputPrefix: config.outputPrefix,
+      // Which files to write is the user's choice, like the compression flag
+      // beside it, and a preset only overrides it when it says so. Resetting the
+      // formats while preserving vcfGz left "compress the VCF" on for a VCF the
+      // run no longer wrote.
+      outputTsv: preset.config.outputTsv ?? config.outputTsv,
+      outputVcf: preset.config.outputVcf ?? config.outputVcf,
     });
   };
 
@@ -300,7 +310,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
         <ParamGroup title="Quality Filters" accent="#149389">
           <SliderField
             label="Min Phred quality"
-            tip="Minimum base quality score (Phred scale). Variants below this are filtered. 20 ≈ 99% accuracy."
+            tip="Minimum base quality score for BAM read support. Low-quality base observations are ignored. 20 ≈ 99% accuracy."
             value={config.minQuality}
             min={0}
             max={60}
@@ -466,12 +476,48 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
         </ParamGroup>
       )}
 
+      {/* ── Indel annotation knobs ── */}
+      <ParamGroup title="Indel Annotation" accent="#2D7DD2">
+        <SliderField
+          label="Frameshift min frequency"
+          tip="Minimum allele frequency an upstream indel must reach to mark downstream SNV/MNV codons as frameshifted. 0 = propagate from every indel (default); raise it (e.g. 0.5) to avoid relabelling high-frequency downstream substitutions because of a low-frequency upstream indel likely on a different molecule (intra-host data)."
+          value={config.frameshiftMinFreq}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => update("frameshiftMinFreq", v)}
+        />
+        <SliderField
+          label="Phased indel min reads"
+          tip="Minimum BAM-supporting reads required to emit a phased indel / complex (indel+SNV) haplotype row. Default 1."
+          value={config.phasedIndelMinReads}
+          min={1}
+          max={50}
+          onChange={(v) => update("phasedIndelMinReads", v)}
+        />
+        <SliderField
+          label="Phased indel min frequency"
+          tip="Minimum BAM-derived frequency required to emit a phased indel / complex haplotype row. 0 = disabled (default)."
+          value={config.phasedIndelMinFreq}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => update("phasedIndelMinFreq", v)}
+        />
+        <ToggleField
+          label="Indel anchor depth"
+          tip="Count indel locus depth (the EDP/EFREQ denominator) from every read observing the anchor base, rather than only reads that fully span the REF allele. On by default, matching the CLI; turning it off restores the older, narrower denominator, which under-counts depth and biases the frequency of a multi-base deletion."
+          checked={config.indelAnchorDepth}
+          onChange={(v) => update("indelAnchorDepth", v)}
+        />
+      </ParamGroup>
+
       {/* ── Two-column grid for toggles ── */}
       <div className="param-grid">
         <ParamGroup title="Analysis Options" accent="#149389">
           <ToggleField
             label="Normalize alleles"
-            tip="Left-align and trim VCF alleles before analysis. iVar TSV SNVs are already position-based."
+            tip="Left-align and trim VCF alleles before analysis. iVar TSV alleles are converted to VCF-like REF/ALT internally."
             checked={config.normalizeAlleles}
             onChange={(v) => update("normalizeAlleles", v)}
           />
@@ -495,7 +541,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
           />
           <ToggleField
             label="Strand bias INFO"
-            tip="Add strand bias statistics (SB, FS, SOR) to VCF INFO fields for downstream filtering."
+            tip="Add Fisher exact strand-bias p-values to VCF INFO fields (SBP for SNPs, MSBP for MNVs)."
             checked={config.strandBiasInfo}
             onChange={(v) => update("strandBiasInfo", v)}
           />

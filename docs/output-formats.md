@@ -10,6 +10,26 @@ Default file name:
 <input_name>.MNV.tsv
 ```
 
+With `--sample all`, one file is written per sample instead, carrying the sample
+in its name:
+
+```text
+<input_name>.sample_<SAMPLE>.MNV.tsv
+```
+
+Characters that cannot appear in a file name are replaced, so a sample called
+`sample/1:bad` becomes `sample_1_bad`. Two samples whose names come out the same
+after that replacement would write to one file, so the run stops and names them
+instead of letting one overwrite the other.
+
+Each file holds the variants that sample carries, not every variant in the
+cohort. A record lists every ALT seen at that site across all samples, so the
+sample's `GT` decides which of them belong to it: a genotype of `0/0` carries
+none, `1/2` carries both alleles of a multiallelic record, and a genotype that is
+absent or a no-call (`./.`) keeps the allele, since unknown is not absence. A
+sample carrying nothing gets a file with only the header. Two adjacent
+substitutions merge into an MNV only for the samples that carry both.
+
 Use this format for spreadsheets, downstream parsing, and quick inspection.
 
 Main columns:
@@ -18,30 +38,58 @@ Main columns:
 |---|---|
 | `Chromosome` | Contig name |
 | `Gene` | Gene or feature name. Intergenic variants are marked as `intergenic`. |
-| `Positions` | One position for SNPs, multiple comma-separated positions for MNVs. |
+| `Positions` | One position for SNPs, multiple comma-separated positions for MNVs, in ascending genomic order on both strands. The per-SNV columns (`Reference Bases`, `Base Changes`, `SNP AA Changes`, `SNP Codon`, `Event Components`, and the read-support columns) are parallel arrays in that same order. |
 | `Reference Bases` | Reference bases at those positions. |
 | `Base Changes` | Alternative bases. |
 | `AA Changes` | Amino acid change after combining all SNVs in the codon. |
 | `SNP AA Changes` | Amino acid change for each SNV considered separately. |
-| `Local AA Changes` | Exon/local numbering, useful for older downstream workflows. |
+| `Local AA Changes` | Exon-local numbering, which is what get_MNV reported before 1.1.2. Identical to `AA Changes` when the feature has no transcript context (a genes TSV, a prokaryotic or single-exon CDS, and the first exon of a spliced model), and different for the later exons of a spliced transcript, where `AA Changes` counts from the start of the protein and this counts from the start of the exon. |
 | `Local SNP AA Changes` | Per-SNP amino acid changes in local numbering. |
 | `Variant Type` | `SNP`, `MNV`, `SNP/MNV`, or `INDEL`. |
 | `Change Type` | Synonymous, non-synonymous, stop gained/lost, unknown, etc. |
-| `Reference Codon` | Original codon. |
-| `SNP Codon` | Codon with individual SNP substitutions. |
-| `MNV Codon` | Codon with all grouped substitutions. |
+| `Reference Codon` | Original codon, in the transcript's own orientation: on a minus-strand gene these are the coding-strand bases, not the genomic ones, so the codon always translates to the amino acid reported beside it. |
+| `SNP Codon` | Codon with individual SNP substitutions, same orientation as `Reference Codon`. |
+| `MNV Codon` | Codon with all grouped substitutions, same orientation as `Reference Codon`. |
+| `Event Class` | Canonical allele event class: `snp`, `mnv`, `insertion`, `deletion`, `delins`, `complex_indel`, or `symbolic`. |
+| `Event Components` | REF/ALT decomposition such as `SNV:10:A>G`, `INS:10:+T`, or `DEL:11-12:TG`. |
+| `SO Term` | Sequence Ontology consequence term (`missense_variant`, `synonymous_variant`, `stop_gained`, `start_lost`, `frameshift_variant`, `inframe_deletion`, `intergenic_variant`, …). Variants near an internal exon-exon junction of a spliced transcript also carry a splice term: `splice_donor_variant` / `splice_acceptor_variant` (the two essential intronic bases at each intron end, `HIGH`) or `splice_region_variant` (the exon's first or last 3 bases, or the intron's 3rd-8th bases, `LOW`). An exonic change near a junction is combined with its coding consequence, e.g. `missense_variant&splice_region_variant` for a substitution and `frameshift_variant&splice_region_variant` for an indel, as one row rather than two. A junction means a real intron: CDS segments that abut or overlap (a ribosomal-slippage join such as SARS-CoV-2 ORF1ab) are one continuous reading frame and carry no splice terms. A variant inside an intron but away from its splice sites is `intron_variant` (`MODIFIER`), reported against its gene rather than as intergenic, and a variant in a feature declared non-coding is `non_coding_transcript_exon_variant` (`MODIFIER`) with no amino-acid change. |
+| `Impact` | Predicted impact following SnpEff/VEP conventions: `HIGH`, `MODERATE`, `LOW` or `MODIFIER`. A combined splice/coding consequence keeps the more severe impact. |
+| `Grantham` | Grantham distance and conservation category of a missense change (e.g. `177 (radical)`); `-` for synonymous, nonsense or non-coding changes. |
+| `MNV Consequence Shift` | How the combined MNV compares with its individual SNVs: `MNV-gained` (more severe than any single SNV, which is what per-SNV annotators miss), `MNV-masked` (a nonsense SNV rescued by its neighbour) or `Concordant`. `-` for single SNVs. |
+| `DBS Class` | COSMIC-style doublet base substitution class for an MNV of two adjacent single-base substitutions, e.g. `CC>TT` (reverse-complement collapsed, so `GG>AA` reports as `CC>TT`). `-` for single SNVs, indels, and non-adjacent or 3-SNV MNVs. |
+| `Declared Phase` | The phase the **input VCF** declared for this row's alleles, as `cis:12345` (verdict and `PS` phase set) or just `cis` when the caller phased without a phase set. Read from a `|`-separated `GT`; a `/` genotype is the caller saying it did not resolve the phase, and is reported as `-`. `|contradicted-by-reads` is appended when the BAM leaves the claim no room: a declared cis that not one spanning read carries whole, or a declared trans that every informative read carries. This is the caller's claim, not an observation; the phasing columns beside it are the evidence. `-` for single-position rows and unphased input. |
+| `MNV Phasing Support` | BAM-derived phasing (linkage) support: among the reads that observe *every* position of the codon and carry the least-supported constituent SNV, the fraction that also carry the full MNV haplotype. `1.0000` = perfect co-occurrence (a genuine haplotype); low values mean the SNVs largely fall on different molecules (a same-codon coincidence, not a real MNV). `0.0000` is a finding: reads did span the codon and none carried both. `-` means the question could not be answered: no `--bam`, a single SNV, or no read reaching across the codon (common when a codon straddles an intron and the fragments are shorter than the intron). |
+| `Haplotype LD` | Read-level linkage disequilibrium (`D'`) between the variants this row claims travel together, over the molecules that observed them. It covers both kinds of multi-variant row: a codon MNV and a local indel haplotype. A co-occurrence ratio cannot separate a haplotype from an accident of frequency: two substitutions on 90% of molecules each are found together on 81% of them by arithmetic alone, and the ratio calls that 0.9. `D'` measures the excess over what the two frequencies predict, normalised by the most it could have been. `+1` = they travel together as far as their frequencies allow, so the MNV is one haplotype. `~0` = they co-occur exactly as chance predicts, so they merely share a codon. `-1` = they exclude each other: both present, never on one molecule, which in a haploid population is two competing lineages rather than one variant. With three or more variants the weakest pair decides, since the row claims one molecule carries all of them. It answers a different question from the read count beside it: the count is how many molecules *are* this combination, while `D'` is whether its variants co-occur more than their own frequencies predict, so a haplotype carried by few molecules can still be perfectly linked and one carried by many can be a coincidence. `-` when no molecule observed the variants together, or when one of them is on every such molecule or none, which leaves nothing to correlate. Only present with `--bam`. |
+| `Haplotype LD p` | Two-tailed Fisher exact p-value for that table, so a `D'` of 1.0 from four molecules is not read as one from four hundred. `-` under the same conditions as the column above. Only present with `--bam`. See [Linkage](linkage.md). |
+| `MNV Phasing Reads` | How many reads `MNV Phasing Support` was computed from, so `1.0000` from 3 reads is not read as `1.0000` from 300. `-` exactly when that column is `-`, which is not the same condition as the two linkage columns beside it. Only present with `--bam`. |
+| `Frameshift Phasing` | What the reads said about this codon sharing molecules with each upstream indel, as `trans:1234:0/18`: the verdict, the indel's position, and the cis reads out of the reads able to answer. Several are joined with ` | `. A codon that is not labelled frameshifted otherwise looks the same whether the reads proved the indel is on other molecules or nobody asked; `-` is that second case. Only present with `--bam`. |
+| `NMD Prediction` | Nonsense-mediated decay prediction for a premature stop under the 50-nt rule: `NMD-triggering` when the PTC is more than 50 nt upstream of the last exon-exon junction, `NMD-escaping` when it is in the last exon or within 50 nt of that junction. `-` for variants without a premature stop and for transcripts with no exon-exon junction. Requires a spliced (GFF/GTF transcript) CDS model whose segments are separated by real introns; a single CDS segment, or segments joined by ribosomal slippage, has no junction. |
+| `HGVS g.` | HGVS genomic descriptor: `g.100A>G` for an SNV, the allele-bracket `g.[28G>T;30T>A]` for an MNV, and `g.101_102del` / `g.100_101insTG` / `g.101delinsC` for indels. Not 3'-shifted (uses the input allele placement) and carries no reference-accession prefix. |
+| `HGVS c.` | HGVS coding descriptor for a coding substitution, numbered from the CDS start with coding-strand bases: `c.30A>G` (SNV) or the allele bracket `c.[28G>A;30T>C]` (MNV). `-` for indels and non-coding variants; the protein change (`p.`) in the AA columns conveys indel consequences. |
 
 Extra columns when `--bam` is used:
 
 | Column | Meaning |
 |---|---|
-| `SNP Reads` | Reads supporting each individual SNV. |
-| `SNP Forward/Reverse Reads` | Strand-specific SNP support. |
+| `SNP Reads` | Reads carrying each individual SNV **without** the full MNV haplotype. On a row where every read carries the whole haplotype this is `0` for each constituent and the count lives in `MNV Reads`, so the two columns partition the support rather than double-count it. |
+| `SNP Forward Reads` | Forward-strand count for the reads above. |
+| `SNP Reverse Reads` | Reverse-strand count for the reads above. |
 | `MNV Reads` | Reads supporting the full MNV haplotype. |
-| `MNV Forward/Reverse Reads` | Strand-specific MNV support. |
+| `MNV Forward Reads` | Forward-strand MNV support. |
+| `MNV Reverse Reads` | Reverse-strand MNV support. |
 | `Total Reads` | Depth at the variant positions. |
 | `SNP Frequencies` | Per-position SNP frequencies. |
 | `MNV Frequencies` | MNV haplotype frequency. |
+| `Event Reads` | Exact reads supporting an indel/complex event. |
+| `Event Forward Reads` | Forward-strand exact event support. |
+| `Event Reverse Reads` | Reverse-strand exact event support. |
+| `Event Depth` | Reads with an observed allele across the indel/complex event span. |
+| `Event Frequency` | Exact event reads divided by event depth. |
+
+Exact event support is CIGAR-aware. A read must reconstruct the same local ALT
+sequence and, for complex haplotypes, contain the expected insertion and
+deletion components. This prevents net-neutral insertion/deletion combinations
+from being counted as support merely because their sequence looks like an MNV.
 
 Frequency columns are calculated from BAM support. `--min-snp-frequency` and
 `--min-mnv-frequency` use these same BAM-derived values. The filters are
@@ -52,12 +100,23 @@ threshold.
 Read-count and strand-support filters (`--snp`, `--mnv`, `--min-snp-strand`,
 and `--min-mnv-strand`) follow the same independent SNP/MNV behavior.
 
+When a codon-level MNV overlaps an indel, the MNV row is kept as a positional
+context row but its amino-acid effect is marked `Unknown` with
+`Change Type = Indel overlap`. If BAM reads support the full combined event,
+get_MNV emits a separate exact `complex_indel` row with the combined REF/ALT,
+event components, and event read support.
+
+Indel overlap follows VCF interbase semantics. Deletions overlap a feature by
+their deleted reference span. Insertions overlap a feature only when the inserted
+sequence falls between two reference bases inside that feature, so an insertion
+anchored at the final feature base is reported outside that feature.
+
 Example:
 
 ```text
 Chromosome	Gene	Positions	Base Changes	AA Changes	Variant Type	Change Type
-MTB_anc	Rv0095c	104838	T	Asp126Glu	SNP	Non-synonymous
-MTB_anc	Rv0095c	104941,104942	T,G	Gly92Gln	SNP/MNV	Non-synonymous
+MTB_anc	Rv0095c_Rv0095c	104838	T	Asp126Glu	SNP	Non-synonymous
+MTB_anc	Rv0095c_Rv0095c	104941, 104942	T, G	Gly92Gln	SNP/MNV	Non-synonymous
 ```
 
 ## VCF Output
@@ -94,14 +153,32 @@ Common INFO fields:
 | `AA` | Amino acid change |
 | `CT` | Change type |
 | `TYPE` | Variant type |
+| `EC` | Canonical allele event class |
+| `COMP` | REF/ALT event components |
 | `ODP` | Original depth from the input variant file |
 | `OFREQ` | Original allele frequency from the input variant file |
 | `SR`, `SRF`, `SRR` | SNP reads: total, forward, reverse |
 | `MR`, `MRF`, `MRR` | MNV reads: total, forward, reverse |
 | `DP` | Depth recalculated from BAM |
 | `FREQ` | Frequency recalculated from BAM |
-| `SBP` | SNP strand-bias p-value |
-| `MSBP` | MNV strand-bias p-value |
+| `ER`, `ERF`, `ERR` | Exact indel/complex event reads: total, forward, reverse |
+| `EDP` | Exact event depth for indel/complex alleles |
+| `EFREQ` | Exact event frequency for indel/complex alleles |
+| `SBP` | SNP strand-bias p-value, in scientific notation (`1.923e-7`), which is the value `--min-strand-bias-p` compared |
+| `MSBP` | MNV strand-bias p-value, same notation |
+| `SO`, `IMPACT` | Sequence Ontology consequence term and predicted impact |
+| `GD` | Grantham distance of a missense change |
+| `MNVSHIFT` | Combined MNV consequence vs. its individual SNVs |
+| `DBS` | COSMIC-style doublet class for adjacent 2-SNV MNVs (e.g. `CC>TT`) |
+| `MNVPS` | MNV phasing support (of the codon-spanning reads carrying the limiting SNV, the fraction carrying the full haplotype) |
+| `MNVPR` | Reads that ratio was computed from |
+| `FSPH` | Read-level phasing with each upstream indel, as verdict:position:cis/informative |
+| `DPHASE` | Phase the input VCF declared for this row, verdict:phase_set |
+| `LD` | Linkage disequilibrium D-prime between the codon's substitutions |
+| `LDP` | Fisher exact p-value for that linkage table |
+| `NMD` | Nonsense-mediated decay prediction for a premature stop (50-nt rule) |
+| `HGVSG` | HGVS genomic descriptor (MNV allele-bracket `;` percent-encoded) |
+| `HGVSC` | HGVS coding descriptor for a coding substitution (`;` percent-encoded) |
 
 The VCF header records the get_MNV version, command line, and thresholds used.
 When `--emit-filtered` is enabled, VCF records below read-support, frequency,
@@ -118,6 +195,11 @@ Write BCF with:
 ```
 
 BCF requires VCF output mode, so use it with `--convert` or `--both`.
+This is output conversion only; BCF is not accepted as an input format.
+
+The conversion is done by `bcftools view`, taken from `PATH`. Without bcftools
+installed the run warns, writes no BCF, and still exits `0` with its TSV and VCF
+intact. `--index-vcf-gz` works the same way through `tabix`.
 
 Default file name:
 
@@ -127,6 +209,9 @@ Default file name:
 
 ## JSON Files
 
+Three flags write JSON, and every payload carries a `schema_version` so a
+consumer can tell which shape it is reading.
+
 ### Summary JSON
 
 Write with:
@@ -135,13 +220,65 @@ Write with:
 --summary-json run.summary.json
 ```
 
-Includes:
+Top-level keys:
 
-- Input file checksums
-- Per-contig variant counts
-- Global variant counts
-- Runtime timings
-- Output paths
+| Key | Meaning |
+|---|---|
+| `schema_version` | Payload version, currently `1.0.0` |
+| `sample` | The sample named with `--sample`, or `null` when the flag was not passed. `null` does not mean no sample was used: a multi-sample VCF still falls back to the first sample column, and its genotype and FORMAT fields still decide the metrics |
+| `dry_run` | Whether `--dry-run` was in force |
+| `bam_provided` | Whether a BAM was read, which is what decides the read-support fields |
+| `translation_table` | NCBI translation table number used |
+| `inputs` | The input paths: `vcf`, `fasta`, `annotation`, `bam`, plus `checksums` |
+| `output_tsv`, `output_vcf`, `output_bcf` | The files this run wrote, `null` for each one it did not |
+| `contigs` | One entry per contig, with its own counts |
+| `timings` | `parse_inputs_ms`, `process_ms`, `emit_ms`, `total_ms` |
+| `global` | The run-wide counts, below |
+
+Inside `global`:
+
+| Key | Meaning |
+|---|---|
+| `contig_count` | Contigs seen |
+| `snp_records_in_vcf` | Variant entries kept from the input on that contig. Not the file's line count: an entry the targeted sample's genotype does not carry is not counted, so the same file gives a different number under a different `--sample` |
+| `mapped_genes` | Genes that had at least one variant on them |
+| `produced_variants` | Annotated variants, before the output filters |
+| `snp_variants`, `mnv_variants`, `snp_mnv_variants`, `indel_variants`, `intergenic_variants` | The same total split by type |
+| `region_cache_hits`, `region_cache_misses` | BAM region cache, only meaningful with `--bam` |
+
+!!! warning "These counts are what get_MNV produced, before the output filters"
+    `produced_variants` and the per-type counts beside it are taken after
+    annotation and before the read-support, frequency and strand filters that
+    decide what reaches the TSV. On a filtered run the two disagree on purpose:
+    the same command can log `produced variants=941` and write a one-row TSV,
+    and the HTML report, which counts rows, will say `1`. Read the summary as
+    what the annotation found and the TSV as what passed.
+
+!!! danger "`--sample all` writes a different object, not a longer one"
+    Every key above moves. A `--sample all` summary has `mode` set to
+    `sample_all`, `sample_count`, `sample_names`, one `aggregate` object holding
+    run-wide totals, and a `samples` array holding one object per sample. Each
+    of those, and `aggregate` too, has the single-sample shape described above,
+    so `data["global"]["produced_variants"]` becomes
+    `data["aggregate"]["global"]["produced_variants"]`.
+
+    `aggregate` sums the counts across samples and names no output file of its
+    own: `aggregate.output_tsv` is `null`, and the per-sample paths are on the
+    `samples` entries. Its `contigs` array is always empty as well, because the
+    per-contig breakdown belongs to each sample; read it from the `samples`
+    entries. Branch on the key that only one shape has:
+
+    ```python
+    import json
+
+    data = json.load(open("run.summary.json"))
+    if data.get("mode") == "sample_all":
+        totals = data["aggregate"]["global"]
+        per_sample = {s["sample"]: s["global"] for s in data["samples"]}
+    else:
+        totals = data["global"]
+        per_sample = {data["sample"]: data["global"]}
+    ```
 
 ### Run Manifest
 
@@ -151,12 +288,18 @@ Write with:
 --run-manifest run.manifest.json
 ```
 
-Includes the summary plus:
+| Key | Meaning |
+|---|---|
+| `schema_version` | Payload version |
+| `tool_version` | The get_MNV version that ran |
+| `command_line` | The command with every path reduced to its file name and the program written as `get_mnv`, so the manifest can be shared without publishing the directory layout it ran in. It records what was run, not a line that can be pasted back into a shell |
+| `timestamp_unix` | Seconds since the Unix epoch |
+| `summary` | The whole summary payload, unchanged |
+| `output_checksums` | `output_tsv_sha256`, `output_vcf_sha256`, `output_bcf_sha256`, each `null` for a file this run did not write |
 
-- Command line
-- Tool version
-- Output file checksums
-- Timestamp
+With `--sample all` the manifest follows the summary: `mode`, `sample_names`,
+`aggregate` and `samples`, with no top-level `summary` key, and each entry in
+`samples` carries its own `output_checksums`.
 
 ### Error JSON
 
@@ -166,7 +309,116 @@ Write errors as JSON with:
 --error-json run.error.json
 ```
 
-This is useful in automated pipelines.
+Written only when the run fails, which makes its presence the signal:
+
+| Key | Meaning |
+|---|---|
+| `schema_version` | Payload version |
+| `code` | The stable error code, such as `E002` |
+| `exit_code` | The process exit status, matching the table in [Troubleshooting](troubleshooting.md) |
+| `message` | The same text the run printed |
+
+```json
+{
+  "schema_version": "1.0.0",
+  "code": "E002",
+  "exit_code": 3,
+  "message": "Cannot open VCF file '/no/such.vcf': No such file or directory (os error 2)"
+}
+```
+
+## Interactive HTML report
+
+`--report <FILE.html>` writes a single self-contained HTML file for exploring the
+called variants. It embeds its data, loads no external scripts or fonts, and
+therefore opens offline by double-clicking and can be attached to an email or
+archived with the results.
+
+[**Open the example report**](assets/example-report.html){ target=_blank }: 941
+variants called from the single-sample dataset bundled in `example/`, so it is the
+real output of the command below rather than a mock-up. Regenerate it with
+`scripts/build_example_report.sh`. The cohort views (the matrix rows, haplotype
+recurrence) fill out with `--sample all` or `--report-from` across several samples.
+
+```bash
+# Report for one run
+get_mnv --vcf sample.vcf --fasta ref.fasta --gff ref.gff --report sample.html
+
+# One report covering every sample of a multi-sample VCF
+get_mnv --vcf cohort.vcf --fasta ref.fasta --gff ref.gff --sample all --report cohort.html
+
+# Cohort processed one sample per run: aggregate the TSVs afterwards
+get_mnv --report-from results/*.MNV.tsv --report cohort.html
+```
+
+With `--report-from` no pipeline runs: the report is built from get_MNV TSV files
+that already exist, which is the usual shape in a Nextflow or Snakemake workflow
+that calls get_MNV once per sample. Each file becomes one sample, labelled by its
+file name with the `.MNV.tsv` suffix removed (`TB-001.MNV.tsv` becomes `TB-001`).
+
+The report contains:
+
+- **A headline count** of the variants currently shown, with supporting tiles for
+  samples, genes, MNV rows and high-impact variants, and the **consequence
+  distribution** by Sequence Ontology term. All follow the active filters.
+- **A variant matrix**, plotted as a small genome browser: samples down the side,
+  real genomic coordinates across the top, coloured by the alternate base. Scroll
+  to zoom around the cursor, drag to pan, drag on the whole-contig strip to jump,
+  and double-click to reset. Dragging across the whole-contig strip selects a
+  range; a plain click on it recentres. The region box takes `start-end`,
+  `contig:start-end`, a single coordinate, or a gene name, and frames it. Above
+  the ruler sit density lanes: one small chart each for all calls, SNP, MNV,
+  indel, HIGH impact and the number of distinct samples with a call, binned by
+  genomic position. Each lane carries its own scale and its own maximum, so a
+  rare class is readable next to a common one instead of being flattened at the
+  base of a stack, and the `Tracks` control switches between all lanes, a compact
+  set and none. A gene track marks the
+  extent of each gene's called sites (which is where calls were made, not the
+  annotated gene boundary, which the report does not carry). Zooming in far enough shows
+  the base letter inside each cell. Samples can be ordered by shared profile
+  (identical patterns land together), by variant count or by name, and each sample
+  label carries a bar of how many calls it has in the visible window, which is why
+  there is no separate per-sample chart. Colour means one thing only: the
+  nucleotide hues belong to the matrix cells, every magnitude is neutral, and the
+  reserved status colour marks HIGH impact. Positions
+  called together on the same reads (codon MNVs, phased complex indels) are marked
+  with a tick above their columns, and a contig selector appears for multi-contig
+  data, since a continuous coordinate axis cannot span contigs.
+
+    A cell is only ever "an ALT call" or **"not called"**. get_MNV output cannot
+    distinguish a reference base from a position with no coverage, so a blank
+    cell is never presented as reference. Read that state as "reference or no
+    coverage".
+
+- **Read-backed haplotypes**: the allele combinations get_MNV actually observed
+  on the same reads, that is codon-level MNVs and locally phased complex indels,
+  ranked by how many samples carry each one and shown with their phasing support
+  where a BAM was used. Long-range phasing between distant sites is not inferred
+  and is never displayed.
+- **A sortable, filterable table** of every variant, virtualised so tens of
+  thousands of rows stay responsive. Every column carries its own filter: a
+  checkbox list for sample, contig, gene, variant type, consequence and impact
+  (several values at once, with a search box when the list is long), a contains
+  match for position, base change and amino-acid change, and a min/max range for
+  Grantham and frequency. Column filters combine with each other and with the
+  free-text search box, and they drive the whole page: the headline counts, the
+  charts, the matrix and the haplotype panel all follow the same selection.
+- **A detail panel** for the selected variant with its location, consequence,
+  HGVS `g.`/`c.`/`p.` descriptors, Grantham distance, DBS class, NMD prediction,
+  codons, event components and read support.
+- **Export filtered TSV**, which downloads exactly the rows currently shown.
+- **Links to the source repository and the documentation** in the masthead. They are
+  ordinary hyperlinks: nothing is fetched when the report is opened, so it stays
+  self-contained offline.
+
+The report follows the operating-system light or dark theme and has its own
+toggle. Because it is built from the TSV, `--report` needs TSV output: it works
+with the default output mode and with `--both`, but not with `--convert` alone or
+with `--dry-run`. Read-support columns (frequency, depth) are populated only when
+the run used `--bam`.
+
+Size scales with the number of variants. Repeated fields are dictionary-encoded,
+so a cohort of tens of thousands of variants stays in the low megabytes.
 
 ## Notes
 
@@ -178,5 +430,5 @@ This is useful in automated pipelines.
 - SNP and MNV frequency filters are independent, so a strong MNV haplotype is
   not removed by a stricter SNP-frequency threshold.
 - SNP and MNV read-support and strand-support filters are also independent.
-- `--sample all` writes one output set per VCF sample.
+- `--sample all` writes one output set per VCF sample, each holding the variants that sample's genotype carries.
 - `--keep-original-info` preserves non-get_MNV INFO fields from the input VCF.

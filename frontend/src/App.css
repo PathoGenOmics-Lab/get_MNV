@@ -246,6 +246,20 @@
   background: rgba(111, 57, 141, 0.2);
 }
 
+[data-theme="dark"] .bam-cell--ref-insertion {
+  background: rgba(20, 147, 137, 0.16);
+  border-color: rgba(20, 147, 137, 0.28);
+}
+
+[data-theme="dark"] .bam-cell--insertion {
+  background: rgba(20, 147, 137, 0.07);
+}
+
+[data-theme="dark"] .bam-cell--insertion-base {
+  background: rgba(20, 147, 137, 0.24);
+  border-color: rgba(20, 147, 137, 0.36);
+}
+
 [data-theme="dark"] .bam-grid-row--codon {
   background: rgba(111, 57, 141, 0.08);
   border-bottom-color: rgba(111, 57, 141, 0.18);
@@ -289,6 +303,10 @@
 
 [data-theme="dark"] .bam-coverage-bar--variant {
   background: rgba(231, 33, 106, 0.55);
+}
+
+[data-theme="dark"] .bam-coverage-bar--insertion {
+  background: rgba(20, 147, 137, 0.5);
 }
 
 [data-theme="dark"] .bam-grid-row--strand-fwd {
@@ -3197,6 +3215,11 @@
   border: 1px dashed var(--text-muted);
 }
 
+.bam-legend-swatch--insertion {
+  background: rgba(20, 147, 137, 0.28);
+  border: 1px solid rgba(20, 147, 137, 0.45);
+}
+
 .bam-legend-swatch--variant {
   background: rgba(111, 57, 141, 0.25);
   border: 1px solid rgba(111, 57, 141, 0.4);
@@ -3423,6 +3446,15 @@
   font-weight: 700;
 }
 
+.bam-scale-tick--insertion .bam-scale-mark {
+  background: var(--mnv-m);
+}
+
+.bam-scale-tick--insertion .bam-scale-label {
+  color: var(--mnv-m);
+  font-weight: 800;
+}
+
 .bam-scale-mark {
   width: 1px;
   height: 0.65rem;
@@ -3503,6 +3535,26 @@
 /* Reference base cells with nucleotide coloring */
 .bam-cell--ref-base {
   font-weight: 800;
+}
+
+.bam-cell--ref-insertion {
+  background: rgba(20, 147, 137, 0.1);
+  color: var(--mnv-m);
+  border-color: rgba(20, 147, 137, 0.18);
+  font-size: 0.44rem;
+}
+
+.bam-cell--insertion {
+  background: rgba(20, 147, 137, 0.04);
+  border-left-color: rgba(20, 147, 137, 0.12);
+  border-right-color: rgba(20, 147, 137, 0.12);
+}
+
+.bam-cell--insertion-base {
+  background: rgba(20, 147, 137, 0.16);
+  color: var(--mnv-m);
+  border-color: rgba(20, 147, 137, 0.26);
+  font-weight: 900;
 }
 
 .bam-cell--gap {
@@ -3822,6 +3874,10 @@
 
 .bam-coverage-bar--variant {
   background: rgba(231, 33, 106, 0.5);
+}
+
+.bam-coverage-bar--insertion {
+  background: rgba(20, 147, 137, 0.45);
 }
 
 /* ── Strand-based read row coloring (IGV-style) ── */

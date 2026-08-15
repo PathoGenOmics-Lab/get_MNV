@@ -144,16 +144,20 @@ fn run_synthetic(
         strand: Strand::Plus,
         phase: 0,
         protein_offset: 0,
+        transcript_id: None,
+        cds_segments: Vec::new(),
+        biotype: get_mnv::variants::Biotype::ProteinCoding,
     };
     let snp_positions: Vec<VcfPosition> = (10..=(gene_end - 10))
         .step_by(10)
         .map(|pos| VcfPosition {
-            position: pos,
+            record_start: pos,
             ref_allele: "A".to_string(),
             alt_allele: "G".to_string(),
             original_dp: Some(30),
             original_freq: Some(0.5),
             original_info: None,
+            declared_phase: None,
         })
         .collect();
 
@@ -230,7 +234,7 @@ fn run_dataset(
     }
     let annotation_path = infer_annotation_path(dataset_dir)?;
 
-    let references = io::load_references(fasta_path.to_string_lossy().as_ref())?;
+    let references = io::load_references(fasta_path.to_string_lossy().as_ref(), None)?;
     let snp_by_contig = io::load_vcf_positions_by_contig(
         vcf_path.to_string_lossy().as_ref(),
         None,

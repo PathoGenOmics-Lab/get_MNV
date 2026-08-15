@@ -1,0 +1,355 @@
+//! Spliced-transcript codon path: transcript SNPs, codon processing, frameshift/PTC.
+
+use crate::utils::iupac_aa;
+use crate::variants::consequence::{first_residue, substitution_change_type};
+use crate::variants::{ChangeType, Gene, Snp, Strand, VariantInfo, VariantType};
+use std::collections::BTreeSet;
+
+use super::allele_apply::apply_allele_to_feature;
+use super::config::{indel_passes_frameshift_gate, IndelAnnotationConfig};
+use super::grouping::{collect_all_f64, collect_all_usize, merge_original_info};
+use super::indel_effect::coding_delta_for_variant;
+use super::protein::{complement_base, translate_cds};
+use super::transcript_model::coding_sequence_for_gene;
+
+#[derive(Debug, Clone)]
+pub(super) struct TranscriptSnp {
+    pub(super) snp: Snp,
+    pub(super) transcript_offset: usize,
+    pub(super) transcript_alt_base: char,
+}
+
+pub(super) fn transcript_oriented_base(base: &str, strand: Strand) -> Option<char> {
+    let base = base.chars().next()?;
+    Some(match strand {
+        Strand::Plus => base.to_ascii_uppercase(),
+        Strand::Minus => complement_base(base),
+    })
+}
+
+pub(super) fn construct_transcript_codon(
+    ref_codon: &str,
+    target_snps: &[&TranscriptSnp],
+) -> String {
+    let mut codon = ref_codon.chars().collect::<Vec<_>>();
+    for snp in target_snps {
+        let idx = snp.transcript_offset % 3;
+        if let Some(slot) = codon.get_mut(idx) {
+            *slot = snp.transcript_alt_base.to_ascii_uppercase();
+        }
+    }
+    codon.into_iter().collect()
+}
+
+pub(super) fn process_transcript_codon(
+    gene: &Gene,
+    chrom: &str,
+    ref_codon: &str,
+    codon_start_offset: usize,
+    codon_snps: &[TranscriptSnp],
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> VariantInfo {
+    let mnv_snps = codon_snps.iter().collect::<Vec<_>>();
+    let mnv_codon = construct_transcript_codon(ref_codon, &mnv_snps);
+    let snp_codons = codon_snps
+        .iter()
+        .map(|snp| construct_transcript_codon(ref_codon, &[snp]))
+        .collect::<Vec<_>>();
+
+    let orig_aa = genetic_code.translate_seq(ref_codon.as_bytes());
+    let mut_aa = genetic_code.translate_seq(mnv_codon.as_bytes());
+    let aa_pos = (codon_start_offset / 3) + 1;
+    // Classified from the residues themselves, not from a formatted string: the
+    // IUPAC form below is for display only, and feeding it to the classifier used
+    // to turn "Leu2Leu" into a spurious Non-synonymous.
+    let combined_change = format!("{orig_aa}{aa_pos}{mut_aa}");
+    let combined_aa = iupac_aa(&combined_change);
+    let change_type =
+        substitution_change_type(first_residue(&orig_aa), first_residue(&mut_aa), aa_pos);
+
+    let single_aas: Vec<char> = codon_snps
+        .iter()
+        .map(|snp| {
+            let single_codon = construct_transcript_codon(ref_codon, &[snp]);
+            genetic_code
+                .translate_seq(single_codon.as_bytes())
+                .chars()
+                .next()
+                .unwrap_or('X')
+        })
+        .collect();
+    let snp_changes = single_aas
+        .iter()
+        .map(|aa| iupac_aa(&format!("{orig_aa}{aa_pos}{aa}")))
+        .collect::<Vec<_>>();
+    let mut annotations =
+        super::gene_path::compute_annotations(&orig_aa, &mut_aa, &single_aas, change_type);
+    let snp_refs: Vec<&Snp> = codon_snps.iter().map(|ts| &ts.snp).collect();
+    annotations.dbs_class = super::gene_path::dbs_class_for_codon(&snp_refs);
+    let hgvs_entries: Vec<(usize, char, char)> = codon_snps
+        .iter()
+        .filter_map(|ts| {
+            let cref = transcript_oriented_base(&ts.snp.ref_base, gene.strand)?;
+            Some((ts.transcript_offset + 1, cref, ts.transcript_alt_base))
+        })
+        .collect();
+    annotations.hgvs_c = crate::variants::hgvs::coding_substitution(&hgvs_entries);
+    // Exonic bases within 3 nt of an internal junction are in the splice region;
+    // fold that into the SO term alongside the coding consequence.
+    annotations.splice = codon_snps
+        .iter()
+        .filter_map(|ts| {
+            crate::variants::splice::splice_consequence_for_position(gene, ts.snp.position)
+        })
+        .max_by_key(|consequence| consequence.severity());
+
+    let raw_snps = codon_snps
+        .iter()
+        .map(|snp| snp.snp.clone())
+        .collect::<Vec<_>>();
+
+    // The per-SNV columns are emitted in ascending genomic order, not the
+    // transcript order the codon was built in. `Positions` is a coordinate
+    // column: the genomic-coordinate path already orders it that way, and
+    // `HGVS g.` on the same row is always ascending, so keeping transcript order
+    // here made a minus-strand MNV contradict its own row and change order
+    // depending on whether the annotation was a TSV or a GFF transcript.
+    let mut output_order: Vec<usize> = (0..codon_snps.len()).collect();
+    output_order.sort_by_key(|&idx| codon_snps[idx].snp.position);
+    let snp_codon = output_order
+        .iter()
+        .map(|&idx| snp_codons[idx].clone())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let ordered_positions = output_order
+        .iter()
+        .map(|&idx| codon_snps[idx].snp.position)
+        .collect::<Vec<_>>();
+    let ordered_ref_bases = output_order
+        .iter()
+        .map(|&idx| codon_snps[idx].snp.ref_base.clone())
+        .collect::<Vec<_>>();
+    let ordered_base_changes = output_order
+        .iter()
+        .map(|&idx| codon_snps[idx].snp.base.clone())
+        .collect::<Vec<_>>();
+    let ordered_snp_changes = output_order
+        .iter()
+        .map(|&idx| snp_changes[idx].clone())
+        .collect::<Vec<_>>();
+
+    VariantInfo {
+        chrom: chrom.to_string(),
+        gene: gene.name.clone(),
+        positions: ordered_positions,
+        ref_bases: ordered_ref_bases,
+        base_changes: ordered_base_changes,
+        aa_changes: vec![combined_aa.clone()],
+        snp_aa_changes: ordered_snp_changes.clone(),
+        aa_changes_local: vec![combined_aa],
+        snp_aa_changes_local: ordered_snp_changes,
+        variant_type: if codon_snps.len() == 1 {
+            VariantType::Snp
+        } else {
+            VariantType::SnpMnv
+        },
+        change_type,
+        snp_reads: None,
+        snp_forward_reads: None,
+        snp_reverse_reads: None,
+        mnv_reads: None,
+        mnv_forward_reads: None,
+        mnv_reverse_reads: None,
+        mnv_total_reads: None,
+        total_reads: None,
+        total_forward_reads: None,
+        total_reverse_reads: None,
+        mnv_total_forward_reads: None,
+        mnv_total_reverse_reads: None,
+        mnv_phasing_reads: None,
+        ref_codon: Some(ref_codon.to_string()),
+        snp_codon: Some(snp_codon),
+        mnv_codon: Some(mnv_codon),
+        original_dp: collect_all_usize(raw_snps.iter().map(|s| s.original_dp)),
+        original_freq: collect_all_f64(raw_snps.iter().map(|s| s.original_freq)),
+        original_info: merge_original_info(&raw_snps),
+        event_class: Some(if codon_snps.len() == 1 {
+            "snp".to_string()
+        } else {
+            "mnv".to_string()
+        }),
+        event_components: output_order
+            .iter()
+            .map(|&idx| {
+                let s = &codon_snps[idx];
+                format!("SNV:{}:{}>{}", s.snp.position, s.snp.ref_base, s.snp.base)
+            })
+            .collect(),
+        annotations,
+    }
+}
+
+/// Codon number (1-based, in REFERENCE numbering) of the first premature stop a
+/// single upstream frameshift indel introduces, when it truncates the protein
+/// earlier than the natural stop. Returns `None` for the multi-indel case or when
+/// the frameshift does not introduce an earlier stop (frameshift propagation is
+/// then unchanged).
+///
+/// The stop is found by translating the alternate CDS, so it arrives as a residue
+/// of the mutant protein, and it is mapped back through the indel's length change
+/// before being returned. Its caller compares it with the codon number of a row,
+/// which is a reference codon number: handing back the mutant residue compared
+/// two different coordinate systems, so a substitution the mutant protein still
+/// translates was reported as untranslated, and one past the premature stop was
+/// reported as translated frameshift missense. A 61 nt deletion put the stop at
+/// mutant residue 14 while the row it had to be compared with was reference codon
+/// 32, and the mapping puts that stop at reference codon 34.
+pub(super) fn frameshift_ptc_protein_pos(
+    gene: &Gene,
+    reference: &crate::io::Reference<'_>,
+    indels: &[crate::io::VcfPosition],
+    genetic_code: crate::genetic_code::GeneticCode,
+    config: &IndelAnnotationConfig,
+) -> Option<usize> {
+    let fs_indels: Vec<&crate::io::VcfPosition> = indels
+        .iter()
+        .filter(|indel| !indel.alt_allele.starts_with('<'))
+        .filter(|indel| indel_passes_frameshift_gate(indel, config))
+        .filter(|indel| {
+            coding_delta_for_variant(gene, reference, indel)
+                .map(|delta| delta % 3 != 0)
+                .unwrap_or(false)
+        })
+        .collect();
+    if fs_indels.len() != 1 {
+        return None;
+    }
+    let ref_cds = coding_sequence_for_gene(gene, reference)?;
+    let alt_cds = apply_allele_to_feature(gene, reference, fs_indels[0])?;
+    let alt_protein = translate_cds(&alt_cds, genetic_code);
+    let ref_protein = translate_cds(&ref_cds, genetic_code);
+    let alt_stop = alt_protein.find('*')?;
+    // The premature stop lies downstream of the frameshift that created it, so
+    // its reference offset is its alternate offset less the length the indel
+    // added or removed. Everything below is then read on one ruler.
+    let delta = coding_delta_for_variant(gene, reference, fs_indels[0])?;
+    let reference_offset = (alt_stop * 3) as isize - delta;
+    if reference_offset < 0 {
+        return None;
+    }
+    let stop_codon = reference_offset as usize / 3 + 1;
+    // Premature means the mutant stops before the reference's own stop, both
+    // counted in reference codons. Comparing the two stops by their index in
+    // proteins of different length is what this branch already had to fix in the
+    // NMD predictor: a large frameshift insertion pushes its new stop past the
+    // reference protein's last residue, so the index test called it not
+    // premature while the mutant in fact terminates near the start, and every
+    // codon after it was reported as translated frameshift missense at HIGH.
+    let reference_stop_codon = ref_protein.find('*').unwrap_or(ref_protein.len()) + 1;
+    (stop_codon < reference_stop_codon).then_some(stop_codon)
+}
+
+/// Annotate a frameshifted downstream codon. If it lies past the premature stop
+/// (`ptc_protein_pos`) it is reported as untranslated ("downstream of premature
+/// stop"); otherwise the previous "(fs)" amino-acid annotation is kept.
+pub(super) fn apply_frameshift_labeling(
+    var_info: &mut VariantInfo,
+    ptc_protein_pos: Option<usize>,
+) {
+    // The row's codon number must be read in the same coordinates as the stop.
+    // `frameshift_ptc_protein_pos` translates this feature's coding sequence, so
+    // its answer is a residue of this feature; `aa_changes` carries the global
+    // number, `protein_offset` residues higher for a transcript whose first CDS
+    // row declares a phase. Comparing those two placed the stop `protein_offset`
+    // residues too early, so a codon the mutant protein still translates was
+    // reported as untranslated. `aa_changes_local` is the number the stop shares.
+    let codon_pos = var_info
+        .aa_changes_local
+        .first()
+        .or_else(|| var_info.aa_changes.first())
+        .and_then(|aa| {
+            aa.chars()
+                .filter(char::is_ascii_digit)
+                .collect::<String>()
+                .parse::<usize>()
+                .ok()
+        });
+    let past_ptc = matches!((ptc_protein_pos, codon_pos), (Some(ptc), Some(pos)) if pos > ptc);
+    if past_ptc {
+        const LABEL: &str = "downstream of premature stop";
+        var_info.change_type = ChangeType::FrameshiftDownstreamOfStop;
+        var_info.aa_changes = vec![LABEL.to_string()];
+        var_info.snp_aa_changes = vec![LABEL.to_string(); var_info.snp_aa_changes.len()];
+        var_info.aa_changes_local = vec![LABEL.to_string()];
+        var_info.snp_aa_changes_local =
+            vec![LABEL.to_string(); var_info.snp_aa_changes_local.len()];
+        return;
+    }
+    var_info.change_type = var_info.change_type.with_frameshift();
+    var_info.aa_changes = var_info
+        .aa_changes
+        .iter()
+        .map(|s| format!("{s} (fs)"))
+        .collect();
+    var_info.snp_aa_changes = var_info
+        .snp_aa_changes
+        .iter()
+        .map(|s| format!("{s} (fs)"))
+        .collect();
+    var_info.aa_changes_local = var_info
+        .aa_changes_local
+        .iter()
+        .map(|s| format!("{s} (fs)"))
+        .collect();
+    var_info.snp_aa_changes_local = var_info
+        .snp_aa_changes_local
+        .iter()
+        .map(|s| format!("{s} (fs)"))
+        .collect();
+}
+/// Transcript-coordinates variant of merge_snp_into_groups.
+pub(super) fn merge_transcript_snp_into_groups(
+    groups: &mut Vec<Vec<TranscriptSnp>>,
+    snp: TranscriptSnp,
+) {
+    if groups.is_empty() {
+        groups.push(vec![snp]);
+        return;
+    }
+    let mut new_groups: Vec<Vec<TranscriptSnp>> = Vec::with_capacity(groups.len() * 2);
+    let mut seen: BTreeSet<Vec<(usize, String)>> = BTreeSet::new();
+
+    let push_if_new = |g: Vec<TranscriptSnp>,
+                       new_groups: &mut Vec<Vec<TranscriptSnp>>,
+                       seen: &mut BTreeSet<Vec<(usize, String)>>| {
+        let mut key: Vec<(usize, String)> = g
+            .iter()
+            .map(|s| (s.transcript_offset, s.transcript_alt_base.to_string()))
+            .collect();
+        key.sort();
+        if seen.insert(key) {
+            new_groups.push(g);
+        }
+    };
+
+    for group in groups.iter() {
+        if let Some(idx) = group
+            .iter()
+            .position(|s| s.transcript_offset == snp.transcript_offset)
+        {
+            if group[idx].transcript_alt_base == snp.transcript_alt_base {
+                push_if_new(group.clone(), &mut new_groups, &mut seen);
+            } else {
+                push_if_new(group.clone(), &mut new_groups, &mut seen);
+                let mut alt_group = group.clone();
+                alt_group[idx] = snp.clone();
+                push_if_new(alt_group, &mut new_groups, &mut seen);
+            }
+        } else {
+            let mut new_group = group.clone();
+            new_group.push(snp.clone());
+            push_if_new(new_group, &mut new_groups, &mut seen);
+        }
+    }
+    *groups = new_groups;
+}

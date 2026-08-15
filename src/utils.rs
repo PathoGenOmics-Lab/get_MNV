@@ -33,31 +33,27 @@ fn translate_codon(codon: &[u8; 3]) -> char {
     }
 }
 
+/// Consequence label for a one-letter amino-acid change such as `M1T`.
+///
+/// A string front end over
+/// [`substitution_change_type`](crate::variants::consequence::substitution_change_type),
+/// which owns the rules. Prefer the typed function when you already hold the
+/// residues and the position: this one has to parse them back out, and passing
+/// it the three-letter IUPAC form (`Leu2Leu`) silently misclassifies the change.
 pub fn determine_change_type(aa_change: &str) -> String {
-    if aa_change.is_empty() {
-        return "Unknown".to_string();
-    }
-
-    let original = aa_change.chars().next().unwrap_or('X');
-    let mutated = aa_change.chars().last().unwrap_or('X');
-
-    // If either amino acid is unknown/ambiguous, we cannot classify the change.
-    if original == 'X' || mutated == 'X' {
-        return "Unknown".to_string();
-    }
-
-    if original == mutated {
-        "Synonymous".to_string()
-    } else if mutated == '*' {
-        "Stop gained".to_string()
-    } else if original == '*' {
-        "Stop lost".to_string()
-    } else {
-        "Non-synonymous".to_string()
-    }
+    let Some(reference) = aa_change.chars().next() else {
+        return crate::variants::ChangeType::Unknown.to_string();
+    };
+    let alternate = aa_change.chars().last().unwrap_or('X');
+    let protein_position = aa_change
+        .get(1..aa_change.len().saturating_sub(1))
+        .and_then(|digits| digits.parse::<usize>().ok())
+        .unwrap_or(0);
+    crate::variants::consequence::substitution_change_type(reference, alternate, protein_position)
+        .to_string()
 }
 
-fn aa_three_letter(code: char) -> &'static str {
+pub(crate) fn aa_three_letter(code: char) -> &'static str {
     match code {
         'A' => "Ala",
         'C' => "Cys",
@@ -104,6 +100,119 @@ pub fn iupac_aa(aa_change_1_letter: &str) -> String {
     format!("{first}{position}{last}")
 }
 
+/// Grantham (1974) physicochemical properties of the 20 standard amino acids:
+/// `(composition, polarity, molecular volume)`.
+fn grantham_properties(aa: char) -> Option<(f64, f64, f64)> {
+    let props = match aa.to_ascii_uppercase() {
+        'S' => (1.42, 9.2, 32.0),
+        'R' => (0.65, 10.5, 124.0),
+        'L' => (0.00, 4.9, 111.0),
+        'P' => (0.39, 8.0, 32.5),
+        'T' => (0.71, 8.6, 61.0),
+        'A' => (0.00, 8.1, 31.0),
+        'V' => (0.00, 5.9, 84.0),
+        'G' => (0.74, 9.0, 3.0),
+        'I' => (0.00, 5.2, 111.0),
+        'F' => (0.00, 5.2, 132.0),
+        'Y' => (0.20, 6.2, 136.0),
+        'C' => (2.75, 5.5, 55.0),
+        'H' => (0.58, 10.4, 96.0),
+        'Q' => (0.89, 10.5, 85.0),
+        'N' => (1.33, 11.6, 56.0),
+        'K' => (0.33, 11.3, 119.0),
+        'D' => (1.38, 13.0, 54.0),
+        'E' => (0.92, 12.3, 83.0),
+        'M' => (0.00, 5.7, 105.0),
+        'W' => (0.13, 5.4, 170.0),
+        _ => return None,
+    };
+    Some(props)
+}
+
+/// Grantham distance between two amino acids (single-letter codes), rounded to
+/// the nearest integer. Returns `None` unless both are standard amino acids.
+///
+/// Uses Grantham's original formula `D = ρ · sqrt(α·Δc² + β·Δp² + γ·Δv²)` with
+/// `α = 1.833`, `β = 0.1018`, `γ = 0.000399`, `ρ = 50.723`, reproducing the
+/// published matrix (Ser↔Arg ≈ 110, Leu↔Ile ≈ 5, Cys↔Trp ≈ 215).
+pub fn grantham_distance(a: char, b: char) -> Option<u16> {
+    let (ca, pa, va) = grantham_properties(a)?;
+    let (cb, pb, vb) = grantham_properties(b)?;
+    const ALPHA: f64 = 1.833;
+    const BETA: f64 = 0.1018;
+    const GAMMA: f64 = 0.000399;
+    const RHO: f64 = 50.723;
+    let d = RHO
+        * (ALPHA * (ca - cb).powi(2) + BETA * (pa - pb).powi(2) + GAMMA * (va - vb).powi(2)).sqrt();
+    Some(d.round() as u16)
+}
+
+/// Grantham's conservation category for a distance: conservative (0–50),
+/// moderately conservative (51–100), moderately radical (101–150) or
+/// radical (>150).
+pub fn grantham_category(distance: u16) -> &'static str {
+    match distance {
+        0..=50 => "conservative",
+        51..=100 => "moderately conservative",
+        101..=150 => "moderately radical",
+        _ => "radical",
+    }
+}
+
+fn is_clean_dinucleotide(dinuc: &str) -> bool {
+    dinuc.len() == 2
+        && dinuc
+            .bytes()
+            .all(|b| matches!(b, b'A' | b'C' | b'G' | b'T'))
+}
+
+/// The ten reference doublets that COSMIC's DBS78 catalogue uses as the
+/// canonical orientation; every other doublet is represented by its
+/// reverse complement.
+fn is_canonical_dbs_reference(dinuc: &str) -> bool {
+    matches!(
+        dinuc,
+        "AC" | "AT" | "CC" | "CG" | "CT" | "GC" | "TA" | "TC" | "TG" | "TT"
+    )
+}
+
+/// Canonical doublet-base-substitution (DBS) class for a pair of adjacent
+/// single-base substitutions, e.g. `CC>TT`, following the COSMIC DBS78
+/// reverse-complement collapsing convention.
+///
+/// Both arguments are same-strand (reference genome) 2-base doublets. Returns
+/// `None` unless both are clean `ACGT` doublets and *both* positions are
+/// substituted (a single changed base is an SBS, not a DBS). Reverse-complement
+/// equivalent doublets collapse to one class; for the palindromic references
+/// (`AT`, `CG`, `GC`, `TA`) the tie is broken on the smaller alternate doublet.
+pub fn dbs_class(ref_dinuc: &str, alt_dinuc: &str) -> Option<String> {
+    let refd = ref_dinuc.to_ascii_uppercase();
+    let altd = alt_dinuc.to_ascii_uppercase();
+    if !is_clean_dinucleotide(&refd) || !is_clean_dinucleotide(&altd) {
+        return None;
+    }
+    let rb = refd.as_bytes();
+    let ab = altd.as_bytes();
+    // A doublet-base substitution requires *both* positions to change.
+    if rb[0] == ab[0] || rb[1] == ab[1] {
+        return None;
+    }
+    let rc_ref = reverse_complement(&refd);
+    let rc_alt = reverse_complement(&altd);
+    let (canon_ref, canon_alt) = if is_canonical_dbs_reference(&refd) {
+        // Palindromic reference (equal to its own reverse complement): both
+        // orientations share the reference, so pick the smaller alternate.
+        if rc_ref == refd && rc_alt < altd {
+            (rc_ref, rc_alt)
+        } else {
+            (refd, altd)
+        }
+    } else {
+        (rc_ref, rc_alt)
+    };
+    Some(format!("{canon_ref}>{canon_alt}"))
+}
+
 pub fn reverse_complement(seq: &str) -> String {
     seq.bytes()
         .rev()
@@ -135,6 +244,15 @@ pub fn reverse_complement(seq: &str) -> String {
 ///
 /// **Prefer [`GeneticCode::translate_seq`](crate::genetic_code::GeneticCode::translate_seq)**
 /// which supports all NCBI translation tables via `--translation-table`.
+///
+/// Deprecated because it cannot see the table the user asked for: every call
+/// site would silently answer as if the run were table 11, and the comment above
+/// asking callers not to do that is not something a compiler reads. Nothing in
+/// the crate calls it, and the deprecation keeps it that way.
+#[deprecated(
+    since = "1.1.5",
+    note = "translates as table 11 whatever --translation-table says; use GeneticCode::translate_seq"
+)]
 pub fn process_translate(seq: &[u8]) -> String {
     if seq.len() < 3 {
         return "X".to_string();
@@ -156,6 +274,56 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_grantham_distance_and_category() {
+        // Published Grantham (1974) values, within ±1.
+        assert!((grantham_distance('S', 'R').unwrap() as i32 - 110).abs() <= 1);
+        assert!((grantham_distance('L', 'I').unwrap() as i32 - 5).abs() <= 1);
+        assert!((grantham_distance('C', 'W').unwrap() as i32 - 215).abs() <= 1);
+        assert_eq!(grantham_distance('D', 'K'), grantham_distance('K', 'D'));
+        assert_eq!(grantham_distance('*', 'A'), None);
+        assert_eq!(grantham_category(5), "conservative");
+        assert_eq!(grantham_category(110), "moderately radical");
+        assert_eq!(grantham_category(215), "radical");
+    }
+
+    #[test]
+    fn test_dbs_class_canonical_collapsing() {
+        // Canonical reference is kept as-is.
+        assert_eq!(dbs_class("CC", "TT").as_deref(), Some("CC>TT"));
+        assert_eq!(dbs_class("TC", "AT").as_deref(), Some("TC>AT"));
+        // A reverse-complement-equivalent doublet collapses to the same class:
+        // GG>AA on the forward strand is CC>TT read on the reverse strand.
+        assert_eq!(dbs_class("GG", "AA").as_deref(), Some("CC>TT"));
+        assert_eq!(
+            dbs_class("GG", "AA").as_deref(),
+            dbs_class("CC", "TT").as_deref()
+        );
+        // Non-canonical reference is flipped to its reverse complement.
+        assert_eq!(dbs_class("GA", "TC").as_deref(), Some("TC>GA"));
+    }
+
+    #[test]
+    fn test_dbs_class_palindromic_reference_tiebreak() {
+        // AT is its own reverse complement; AT>CA and AT>TG are the same DBS
+        // and both collapse to the smaller alternate.
+        assert_eq!(dbs_class("AT", "CA").as_deref(), Some("AT>CA"));
+        assert_eq!(dbs_class("AT", "TG").as_deref(), Some("AT>CA"));
+    }
+
+    #[test]
+    fn test_dbs_class_rejects_non_doublets() {
+        // Only one position changed -> an SBS, not a DBS.
+        assert_eq!(dbs_class("CC", "CT"), None);
+        assert_eq!(dbs_class("CC", "TC"), None);
+        // No change at all.
+        assert_eq!(dbs_class("CC", "CC"), None);
+        // Ambiguous / non-ACGT bases.
+        assert_eq!(dbs_class("CN", "TT"), None);
+        // Wrong length.
+        assert_eq!(dbs_class("C", "T"), None);
+    }
+
+    #[test]
     fn test_determine_change_type() {
         // Cover all major amino-acid change categories.
         assert_eq!(determine_change_type("A15T"), "Non-synonymous");
@@ -163,6 +331,18 @@ mod tests {
         assert_eq!(determine_change_type("E112*"), "Stop gained");
         assert_eq!(determine_change_type("*50Q"), "Stop lost");
         assert_eq!(determine_change_type(""), "Unknown");
+    }
+
+    #[test]
+    fn test_determine_change_type_start_lost() {
+        // Initiator Met (protein position 1) changed to another residue.
+        assert_eq!(determine_change_type("M1T"), "Start lost");
+        assert_eq!(determine_change_type("M1L"), "Start lost");
+        // Internal Met (not the start codon) is an ordinary substitution.
+        assert_eq!(determine_change_type("M50T"), "Non-synonymous");
+        // Synonymous start, and start->stop, keep their usual classification.
+        assert_eq!(determine_change_type("M1M"), "Synonymous");
+        assert_eq!(determine_change_type("M1*"), "Stop gained");
     }
 
     #[test]
@@ -191,6 +371,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_process_translate() {
         // ATG = Methionine (M), TAA = stop codon (*)
         assert_eq!(process_translate(b"ATG"), "M");
