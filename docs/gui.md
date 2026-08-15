@@ -71,7 +71,8 @@ them with the CLI's own parser, so a sixth divergence fails the build.
 ## Genomic track viewer
 
 <div style="text-align: center;" markdown>
-![get_MNV genomic track viewer: codon tracks and the read pileup for an MNV](assets/gui-06-reads.png){ width="840" }
+![get_MNV genomic track viewer: codon tracks and the read pileup for an MNV](assets/gui-06-reads.png#only-light){ width="840" }
+![get_MNV genomic track viewer: codon tracks and the read pileup for an MNV](assets/gui-06-reads-dark.png#only-dark){ width="840" }
 </div>
 
 *The track viewer for the `Rv2036` MNV (`GTT → GCC`, Val93Ala) in the bundled example: codon tracks plus the read pileup, with the ALT bases highlighted across all 24 supporting reads.*

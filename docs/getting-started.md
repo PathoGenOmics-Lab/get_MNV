@@ -167,7 +167,8 @@ get_mnv \
 ```
 
 <div style="text-align: center;" markdown>
-![The interactive HTML report get_MNV writes: summary counts, consequence breakdown, search and a variant matrix](assets/cli-01-report.png){ width="840" }
+![The interactive HTML report get_MNV writes: summary counts, consequence breakdown, search and a variant matrix](assets/cli-01-report.png#only-light){ width="840" }
+![The interactive HTML report get_MNV writes: summary counts, consequence breakdown, search and a variant matrix](assets/cli-01-report-dark.png#only-dark){ width="840" }
 </div>
 
 *The report opens in any browser with no server and travels as one attachment.

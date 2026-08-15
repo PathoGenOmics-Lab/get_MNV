@@ -19,6 +19,7 @@ binary produces:
   * every page is reachable from the nav and has a twin in the other language
   * the light and dark wordmarks are the same drawing, differing only in ink
   * the light and dark diagrams cover exactly the same pixels
+  * every screenshot the pages show has a dark twin of the same size
 
 It is deliberately narrow. It cannot tell whether a sentence is true, only
 whether the names in it are real, which is the part that rots without anybody
@@ -444,6 +445,23 @@ def artwork_problems() -> list[str]:
             "  the light and dark diagrams no longer cover the same pixels; "
             "re-cut the dark one from the light one"
         )
+
+    # Screenshots are photographs of the application, so their two versions are
+    # different renderings rather than one drawing in two inks: only their size
+    # can be compared, and a missing twin is the failure that actually happens.
+    for shot in sorted(DOCS.glob("assets/*.png")):
+        if shot.stem.endswith("-dark") or not shot.stem.startswith(("gui-", "cli-")):
+            continue
+        twin = shot.with_name(f"{shot.stem}-dark.png")
+        if not twin.exists():
+            problems.append(f"  {shot.name} has no dark twin, so the dark pages show a light screenshot")
+            continue
+        one, other = Image.open(shot).size, Image.open(twin).size
+        if one != other:
+            problems.append(
+                f"  {shot.name} and its dark twin are different sizes, {one} and {other}, "
+                "so the page reflows when the theme changes"
+            )
 
     # And the dark one has to be light: the whole point is that its ink shows on
     # a dark page. Measured on the pixels that are actually drawn.

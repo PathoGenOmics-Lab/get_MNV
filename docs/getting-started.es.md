@@ -171,7 +171,8 @@ get_mnv \
 ```
 
 <div style="text-align: center;" markdown>
-![El informe HTML interactivo que escribe get_MNV: recuentos de resumen, desglose por consecuencia, búsqueda y una matriz de variantes](assets/cli-01-report.png){ width="840" }
+![El informe HTML interactivo que escribe get_MNV: recuentos de resumen, desglose por consecuencia, búsqueda y una matriz de variantes](assets/cli-01-report.png#only-light){ width="840" }
+![El informe HTML interactivo que escribe get_MNV: recuentos de resumen, desglose por consecuencia, búsqueda y una matriz de variantes](assets/cli-01-report-dark.png#only-dark){ width="840" }
 </div>
 
 *El informe se abre en cualquier navegador sin servidor y viaja como un solo

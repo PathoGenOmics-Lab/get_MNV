@@ -29,7 +29,8 @@ folder of the repository:
 
 ## 1. Load the inputs
 
-![The Analysis tab with the four inputs filled in](assets/gui-02-inputs.png)
+![The Analysis tab with the four inputs filled in](assets/gui-02-inputs.png#only-light)
+![The Analysis tab with the four inputs filled in](assets/gui-02-inputs-dark.png#only-dark)
 
 Drop each file on its zone, or click to browse. Three are required and marked
 with a red asterisk; the counter reads **3/3 required + BAM** once they are set,
@@ -50,7 +51,8 @@ and the Run button turns on.
 
 ## 2. Set the parameters
 
-![The parameter sidebar, with the read-support floors lowered to zero](assets/gui-03-parameters.png)
+![The parameter sidebar, with the read-support floors lowered to zero](assets/gui-03-parameters.png#only-light)
+![The parameter sidebar, with the read-support floors lowered to zero](assets/gui-03-parameters-dark.png#only-dark)
 
 The sidebar groups every knob the app exposes, and the four preset chips at the
 top set them in bulk. The moment you change one, the preset chip switches to
@@ -71,7 +73,8 @@ the form does not show falls back to the CLI default.
 
 ## 3. Run
 
-![The run in progress, showing the current phase](assets/gui-04-running.png)
+![The run in progress, showing the current phase](assets/gui-04-running.png#only-light)
+![The run in progress, showing the current phase](assets/gui-04-running-dark.png#only-dark)
 
 The button reports the phase it is in as it goes. A run over this dataset takes
 well under a second; the progress bar matters on cohorts, where you can queue
@@ -79,7 +82,8 @@ several matched samples and let them run in one batch.
 
 ## 4. Read the summary
 
-![The Results tab: counts, variant breakdown, timings and per-contig figures](assets/gui-05-results.png)
+![The Results tab: counts, variant breakdown, timings and per-contig figures](assets/gui-05-results.png#only-light)
+![The Results tab: counts, variant breakdown, timings and per-contig figures](assets/gui-05-results-dark.png#only-dark)
 
 The top row is the shape of the run: **941 variants** produced from **950 VCF
 records** over **635 mapped genes** on **1 contig**. Records and variants differ
@@ -108,7 +112,8 @@ files** shows what was written, with a button to reveal it in your file manager.
 Search the locus list for `Rv2036` and open it. This is the codon that
 [Command Line Tutorial](getting-started.md) walks through.
 
-![The genomic track viewer: ruler, coverage, reference, codon tracks and the read pileup](assets/gui-06-reads.png)
+![The genomic track viewer: ruler, coverage, reference, codon tracks and the read pileup](assets/gui-06-reads.png#only-light)
+![The genomic track viewer: ruler, coverage, reference, codon tracks and the read pileup](assets/gui-06-reads-dark.png#only-dark)
 
 The tracks line up column by column over the same coordinates:
 
@@ -136,7 +141,8 @@ base at a time.
 
 ## 6. Filter and export
 
-![The variant table with per-column filters](assets/gui-07-table.png)
+![The variant table with per-column filters](assets/gui-07-table.png#only-light)
+![The variant table with per-column filters](assets/gui-07-table-dark.png#only-dark)
 
 The table holds every row of the TSV. Search across all columns, or filter one
 at a time: the dropdowns take a value, the text boxes match as you type. Sort by

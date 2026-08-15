@@ -31,7 +31,8 @@ del repositorio:
 
 ## 1. Carga las entradas
 
-![La pestaña Analysis con las cuatro entradas rellenas](assets/gui-02-inputs.png)
+![La pestaña Analysis con las cuatro entradas rellenas](assets/gui-02-inputs.png#only-light)
+![La pestaña Analysis con las cuatro entradas rellenas](assets/gui-02-inputs-dark.png#only-dark)
 
 Suelta cada archivo en su zona, o haz clic para buscarlo. Tres son obligatorios y
 llevan un asterisco rojo; el contador marca **3/3 required + BAM** en cuanto
@@ -54,7 +55,8 @@ están puestos, y el botón de ejecutar se activa.
 
 ## 2. Ajusta los parámetros
 
-![La barra lateral de parámetros, con los mínimos de lecturas bajados a cero](assets/gui-03-parameters.png)
+![La barra lateral de parámetros, con los mínimos de lecturas bajados a cero](assets/gui-03-parameters.png#only-light)
+![La barra lateral de parámetros, con los mínimos de lecturas bajados a cero](assets/gui-03-parameters-dark.png#only-dark)
 
 La barra lateral agrupa todos los ajustes que expone la app, y los cuatro chips
 de preset de arriba los cambian en bloque. En cuanto tocas uno, el chip pasa a
@@ -76,7 +78,8 @@ que el formulario no muestra cae en el valor por defecto de la CLI.
 
 ## 3. Ejecuta
 
-![La ejecución en marcha, mostrando la fase actual](assets/gui-04-running.png)
+![La ejecución en marcha, mostrando la fase actual](assets/gui-04-running.png#only-light)
+![La ejecución en marcha, mostrando la fase actual](assets/gui-04-running-dark.png#only-dark)
 
 El botón va informando de la fase en la que está. Una ejecución sobre este
 conjunto de datos tarda bastante menos de un segundo; la barra de progreso
@@ -85,7 +88,8 @@ correr en un mismo lote.
 
 ## 4. Lee el resumen
 
-![La pestaña Results: recuentos, desglose de variantes, tiempos y cifras por contig](assets/gui-05-results.png)
+![La pestaña Results: recuentos, desglose de variantes, tiempos y cifras por contig](assets/gui-05-results.png#only-light)
+![La pestaña Results: recuentos, desglose de variantes, tiempos y cifras por contig](assets/gui-05-results-dark.png#only-dark)
 
 La fila de arriba es la forma de la ejecución: **941 variantes** producidas a
 partir de **950 registros del VCF** sobre **635 genes mapeados** en **1 contig**.
@@ -116,7 +120,8 @@ archivos.
 Busca `Rv2036` en la lista de loci y ábrelo. Es el codón que recorre
 [Tutorial de línea de comandos](getting-started.es.md).
 
-![El visor de tracks genómicos: regla, cobertura, referencia, tracks de codón y el pileup de lecturas](assets/gui-06-reads.png)
+![El visor de tracks genómicos: regla, cobertura, referencia, tracks de codón y el pileup de lecturas](assets/gui-06-reads.png#only-light)
+![El visor de tracks genómicos: regla, cobertura, referencia, tracks de codón y el pileup de lecturas](assets/gui-06-reads-dark.png#only-dark)
 
 Los tracks se alinean columna a columna sobre las mismas coordenadas:
 
@@ -145,7 +150,8 @@ base.
 
 ## 6. Filtra y exporta
 
-![La tabla de variantes con filtros por columna](assets/gui-07-table.png)
+![La tabla de variantes con filtros por columna](assets/gui-07-table.png#only-light)
+![La tabla de variantes con filtros por columna](assets/gui-07-table-dark.png#only-dark)
 
 La tabla contiene todas las filas del TSV. Busca en todas las columnas a la vez,
 o filtra de una en una: los desplegables toman un valor y las cajas de texto

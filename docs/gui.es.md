@@ -73,7 +73,8 @@ sexta divergencia rompe el build.
 ## Visor de pistas genómicas
 
 <div style="text-align: center;" markdown>
-![Visor de pistas genómicas de get_MNV: pistas de codones y pileup de lecturas de un MNV](assets/gui-06-reads.png){ width="840" }
+![Visor de pistas genómicas de get_MNV: pistas de codones y pileup de lecturas de un MNV](assets/gui-06-reads.png#only-light){ width="840" }
+![Visor de pistas genómicas de get_MNV: pistas de codones y pileup de lecturas de un MNV](assets/gui-06-reads-dark.png#only-dark){ width="840" }
 </div>
 
 *El visor de pistas para el MNV de `Rv2036` (`GTT → GCC`, Val93Ala) en el ejemplo incluido: pistas de codones y el pileup de lecturas, con las bases ALT resaltadas en las 24 lecturas que dan soporte.*
