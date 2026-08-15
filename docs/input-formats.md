@@ -117,7 +117,11 @@ Important details:
   CDS sequence for each transcript. Codon grouping, MNV amino-acid effects, and
   indel frameshift context are then evaluated on the full transcript CDS.
 - If a GFF/GTF contains multiple transcripts for the same gene, one variant can
-  produce one output line per overlapping transcript.
+  produce one output line per overlapping transcript. Each is annotated on its
+  own terms, which is the honest answer when the annotation offers several. For
+  one line per variant, keep a single transcript per gene in the GFF before the
+  run, for example with [AGAT](https://github.com/NBISweden/AGAT)'s
+  `agat_sp_keep_longest_isoform.pl`.
 
 Gene names are read from common attributes such as `gene_name`, `gene`, `Name`,
 `locus_tag`, `gene_id`, and `ID`.

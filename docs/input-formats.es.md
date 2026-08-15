@@ -124,7 +124,11 @@ Detalles importantes:
   efectos sobre el aminoácido de los MNV y el contexto de frameshift de los
   indels se evalúan entonces sobre el CDS completo del transcrito.
 - Si un GFF/GTF contiene varios transcritos para el mismo gen, una sola variante
-  puede producir una línea de salida por cada transcrito solapante.
+  puede producir una línea de salida por cada transcrito solapante. Cada uno se
+  anota por su cuenta, que es la respuesta honesta cuando la anotación ofrece
+  varios. Si quieres una línea por variante, deja un solo transcrito por gen en
+  el GFF antes de ejecutar, por ejemplo con
+  `agat_sp_keep_longest_isoform.pl` de [AGAT](https://github.com/NBISweden/AGAT).
 
 Los nombres de genes se leen de atributos habituales como `gene_name`, `gene`,
 `Name`, `locus_tag`, `gene_id` e `ID`.

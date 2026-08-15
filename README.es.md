@@ -16,7 +16,7 @@
 **Detección de variantes multinucleotídicas (Multi-Nucleotide Variant) - anotación a nivel de codón a partir de VCF o TSV de iVar.**
 **Rust puro · sin dependencias de C · multiplataforma (macOS, Linux, Windows)**
 
-[Inicio rápido](#inicio-rápido) · [GUI](#gui-de-escritorio) · [Características](#características) · [Documentación](docs/) · [Citación](#citación)
+[Documentación](https://pathogenomics-lab.github.io/get_MNV/es/) · [Instalación](#instalación) · [Inicio rápido](#inicio-rápido) · [Citación](#citación)
 
 [English](README.md) · **Español**
 
@@ -31,16 +31,14 @@ __y Mireia Coscolla<sup>1</sup>__
 
 ## ¿Qué es get_MNV?
 
-get_MNV detecta los casos en que dos o más SNV caen en el mismo codón y deben interpretarse de forma conjunta. Estos cambios combinados pueden producir un efecto sobre el aminoácido distinto del de cada SNV por separado.
+get_MNV detecta los casos en los que dos o más SNV caen en el mismo codón y
+deben interpretarse de forma conjunta. Estos cambios combinados pueden producir
+un efecto sobre el aminoácido distinto al de los SNV por separado.
 
-La herramienta toma como entrada:
-
-- Llamadas de variantes: VCF o `variants.tsv` de iVar
-- Secuencia de referencia: FASTA
-- Anotación de genes: GFF/GFF3/GTF o un archivo TSV simple
-- Lecturas alineadas opcionales: BAM, que se usan para contar el soporte de eventos SNP, MNV e indel
-
-Escribe las variantes anotadas en formato TSV, VCF o ambos.
+Toma llamadas de variantes (VCF o `variants.tsv` de iVar), un FASTA de
+referencia y una anotación de genes (GFF/GFF3/GTF o un TSV sencillo),
+opcionalmente las lecturas alineadas, y escribe las variantes anotadas en TSV,
+VCF o ambos, además de un informe HTML interactivo y autocontenido.
 
 <p align="center">
   <picture>
@@ -49,24 +47,19 @@ Escribe las variantes anotadas en formato TSV, VCF o ambos.
   </picture>
 </p>
 
-**Características principales:**
-
-- Agrupa los SNV por codón y notifica llamadas SNP, MNV o SNP/MNV
-- Recalcula los cambios de aminoácido a partir del haplotipo completo del codón
-- Descompone los alelos `REF/ALT` de VCF/iVar en componentes de evento de tipo SNV, MNV, inserción, deleción,
+- Agrupa los SNV por codón y reporta llamadas SNP, MNV o SNP/MNV
+- Recalcula los cambios de aminoácido desde el haplotipo completo del codón
+- Descompone los alelos `REF/ALT` en componentes SNV, MNV, inserción, deleción,
   delins e indel complejo
-- Lee llamadas de variantes en VCF y en TSV de iVar, incluida la notación de indels
-  `+SEQ` y `-SEQ` de iVar
-- Cuando se proporciona un BAM, usa sus lecturas para contar el soporte SNP/MNV, el soporte exacto de eventos
-  indel y el sesgo de hebra
+- Cuenta el soporte de SNP, MNV e indel exacto desde un BAM, con sesgo de hebra
 - Admite 9 tablas de código genético del NCBI
-- Incluye una GUI de escritorio para analizar mediante arrastrar y soltar
+- Incluye una GUI de escritorio con arrastrar y soltar y un visor de pistas genómicas
 
 ## Instalación
 
 ### GUI de escritorio
 
-Descarga la última release para tu plataforma:
+Descarga la última versión para tu plataforma:
 
 | Plataforma | Descarga |
 |---|---|
@@ -76,9 +69,7 @@ Descarga la última release para tu plataforma:
 | 🪟 Windows | [**Página de releases**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
 
 > [!NOTE]
-> **Usuarios de macOS**: La aplicación no está firmada con un certificado de Apple Developer. La primera vez que la abras, haz clic derecho sobre ella → **Abrir** → haz clic en **Abrir** en el cuadro de diálogo. Consulta el [soporte de Apple](https://support.apple.com/en-us/HT202491) para más detalles.
-
-Todas las releases están disponibles en la [página de releases](https://github.com/PathoGenOmics-Lab/get_MNV/releases).
+> **Usuarios de macOS**: la aplicación no está firmada con un certificado de desarrollador de Apple. La primera vez, haz clic derecho sobre la app → **Abrir** → pulsa **Abrir** en el diálogo. Consulta el [soporte de Apple](https://support.apple.com/es-es/HT202491) para más detalles.
 
 ### Línea de comandos
 
@@ -104,39 +95,6 @@ cargo install --path .
 
 ## Inicio rápido
 
-### Entrada VCF
-
-```bash
-get_mnv \
-  --vcf variants.vcf \
-  --fasta reference.fasta \
-  --gff genes.gff3
-```
-
-### Entrada TSV de iVar
-
-```bash
-get_mnv \
-  --tsv sample_variants.tsv \
-  --bam reads.bam \
-  --fasta reference.fasta \
-  --gff genes.gff3
-```
-
-Usa `--tsv` para el archivo `variants.tsv` que genera `ivar variants`.
-
-### Con soporte de lecturas de BAM
-
-```bash
-get_mnv \
-  --vcf variants.vcf \
-  --bam reads.bam \
-  --fasta reference.fasta \
-  --gff genes.gff3
-```
-
-### Salida TSV y VCF
-
 ```bash
 get_mnv \
   --vcf variants.vcf \
@@ -144,171 +102,64 @@ get_mnv \
   --fasta reference.fasta \
   --gff genes.gff3 \
   --both \
-  --summary-json run.summary.json \
-  --run-manifest run.manifest.json
+  --report run.html
 ```
 
-Ejecuta `get_mnv --help` para ver la lista completa de opciones.
+`--bam` es opcional y es lo que convierte "estos dos cambios están en un codón"
+en "estos dos cambios están en una misma molécula". Usa `--tsv` en vez de
+`--vcf` para un `variants.tsv` de iVar, y `--genes` en vez de `--gff` para una
+anotación de cuatro columnas. `get_mnv --help` lista todas las opciones, y la
+[referencia de CLI](https://pathogenomics-lab.github.io/get_MNV/es/cli-reference/)
+explica qué cambia cada una en la respuesta.
 
-## Argumentos comunes
-
-| Argumento | Qué hace |
-|---|---|
-| `--vcf <FILE>` | Archivo de variantes de entrada en formato `.vcf` plano o `.vcf.gz` comprimido con BGZF. La entrada BCF debe convertirse antes a VCF. |
-| `--tsv <FILE>` | Archivo `variants.tsv` de iVar de entrada. |
-| `--bam <FILE>` | BAM ordenado e indexado, opcional, para el soporte de lecturas. |
-| `--fasta <FILE>` | FASTA de referencia. Los nombres de los contigs deben coincidir con el archivo de variantes. |
-| `--gff <FILE>` | Anotación de genes en formato GFF/GFF3/GTF. |
-| `--genes <FILE>` | Anotación de genes en TSV simple. Úsalo en lugar de `--gff`. |
-| `--gff-features <LIST>` | Tipos de feature a analizar, por ejemplo `CDS` o `gene,pseudogene`. |
-| `--quality <N>` | Calidad Phred de base mínima para el soporte de lecturas del BAM. Por defecto: `20`. |
-| `--min-mapq <N>` | Calidad de mapeo mínima de las lecturas al usar BAM. Por defecto: `0`. |
-| `--snp <N>` | Número mínimo de lecturas que soportan el SNP. Por defecto: `0`. |
-| `--min-snp-frequency <F>` | Frecuencia mínima de SNP derivada del BAM, de `0` a `1`. Por defecto: `0`. |
-| `--min-snp-strand <N>` | Número mínimo de lecturas que soportan el SNP exigido en cada hebra. Por defecto: `0`. |
-| `--mnv <N>` | Número mínimo de lecturas que soportan el MNV. Por defecto: `0`. |
-| `--min-mnv-frequency <F>` | Frecuencia mínima del haplotipo MNV derivada del BAM, de `0` a `1`. Por defecto: `0`. |
-| `--min-mnv-strand <N>` | Número mínimo de lecturas que soportan el MNV exigido en cada hebra. Por defecto: `0`. |
-| `--both` | Escribe las salidas TSV y VCF a la vez. |
-| `--summary-json <FILE>` | Escribe un resumen de la ejecución legible por máquina. |
-| `--run-manifest <FILE>` | Escribe el comando, la versión, las entradas, las salidas y las sumas de comprobación. |
-
-Los filtros de frecuencia usan el soporte de lecturas recalculado a partir de `--bam`, no el valor
-`OFREQ` original de la entrada VCF/iVar. Usa valores como `0.05` para el 5% o `0.20`
-para el 20%. Cuando se solicita salida VCF, los registros de baja frecuencia se omiten por
-defecto o se marcan con `FILTER=LowFrequency` si `--emit-filtered` está activado.
-Los filtros de frecuencia de SNP y de MNV son independientes: `--min-snp-frequency` se aplica a
-las observaciones individuales de SNP, mientras que `--min-mnv-frequency` se aplica al haplotipo
-MNV en fase. En las llamadas mixtas `SNP/MNV`, un haplotipo MNV sólido no se elimina
-solo porque las observaciones individuales de SNP queden por debajo del umbral de SNP.
-Los filtros de conteo de lecturas y de soporte por hebra son independientes del mismo modo:
-`--snp` y `--min-snp-strand` se aplican a las observaciones de SNP, mientras que `--mnv` y
-`--min-mnv-strand` se aplican al haplotipo MNV. Una fila `SNP/MNV` sobrevive cuando
-cualquiera de los dos lados supera su listón, así que con los umbrales de SNP en `0`
-el lado SNP pasa siempre y subir `--mnv` a solas no quita nada: sube los dos, o ninguno.
-
-## Salidas
-
-Por defecto, get_MNV escribe:
+La salida tiene esta pinta:
 
 ```text
-<input_name>.MNV.tsv
-```
-
-`--both` añade el VCF; `--convert` lo escribe *en lugar* del TSV, y los dos
-flags no se pueden combinar. Con `--sample all` se escribe un par de salidas por
-muestra, con el nombre `<input_name>.sample_<MUESTRA>.MNV.tsv` (y `.vcf`):
-
-```text
-<input_name>.MNV.vcf
-```
-
-Los campos de salida más importantes son:
-
-| Columna | Significado |
-|---|---|
-| `Chromosome` | Nombre del contig |
-| `Gene` | Nombre del gen o de la feature |
-| `Positions` | Una posición para los SNP, varias posiciones para los MNV |
-| `Base Changes` | Bases alternativas |
-| `AA Changes` | Cambio de aminoácido tras combinar los SNV del codón |
-| `Variant Type` | `SNP`, `MNV`, `SNP/MNV` o `INDEL` |
-| `Change Type` | Sinónimo, no sinónimo, ganancia/pérdida de codón de stop, desconocido, etc. |
-
-Cuando se proporciona un BAM, hay columnas adicionales que indican la profundidad de lecturas, el soporte SNP, el soporte MNV, la frecuencia y los conteos por hebra.
-
-## Características
-
-| Característica | Descripción |
-|---|---|
-| 🧬 Detección de MNV | Agrupa los SNV del mismo codón y los reclasifica como MNV |
-| 🔬 Cambios de AA precisos | Calcula los cambios de aminoácido a partir del haplotipo completo del codón |
-| 📊 Soporte de lecturas | Conteos de lecturas SNP/MNV basados en BAM, con métricas específicas por hebra |
-| 🔍 Sesgo de hebra | Valores p de la prueba exacta de Fisher para el soporte de sesgo de hebra de SNP y MNV (`SBP`/`MSBP` en el campo INFO del VCF) |
-| 📁 Múltiples salidas | TSV, VCF (plano/BGZF+Tabix), BCF, resumen JSON, manifiesto de ejecución |
-| ⚡ Paralelo | Procesamiento de contigs multihilo con Rayon |
-| 🧪 Códigos genéticos | 9 tablas de traducción del NCBI (1, 2, 3, 4, 5, 6, 11, 12, 25) |
-| 🧩 Entrada flexible | Llamadas de variantes en VCF o TSV de iVar; anotaciones GFF3/GTF o TSV; VCF multicontig y multimuestra |
-| ✅ Validación | Modo de simulación (dry-run), métricas estrictas, sumas de comprobación de las entradas, JSON de errores |
-| 🖥️ GUI de escritorio | Aplicación nativa de Tauri con arrastrar y soltar, visor de pistas genómicas y modo oscuro |
-
-## GUI de escritorio
-
-La aplicación de escritorio ofrece el mismo flujo de trabajo de análisis en una interfaz visual:
-
-- Suelta los archivos de variantes VCF o TSV de iVar
-- Suelta los archivos FASTA, GFF/GTF/GFF3 y el BAM opcional
-- Elige los parámetros comunes en el formulario
-- Ejecuta una muestra o varias muestras emparejadas
-- Inspecciona, filtra y exporta los resultados
-
-```bash
-bash scripts/dev.sh   # desarrollo
-bash scripts/build_gui_bundle.sh  # paquete de producción .app + .dmg
-```
-
-## Ejemplo de salida
-
-```
 Chromosome  Gene      Positions       Base Changes  AA Changes  Variant Type  Change Type
 MTB_anc     Rv0095c   104838          T             Asp126Glu   SNP           Non-synonymous
 MTB_anc     Rv0095c   104941,104942   T,G           Gly92Gln    SNP/MNV       Non-synonymous
 MTB_anc     esxL      1341102,1341103 T,C           Arg33Ser    SNP/MNV       Non-synonymous
 ```
 
-**Tipos de variante:**
-- **SNP**: cambio de un solo nucleótido, un SNV por codón
-- **MNV**: varios SNV se representan como un único haplotipo de codón combinado
-- **SNP/MNV**: fila a nivel de codón con el contexto del SNV individual y el del haplotipo MNV combinado a la vez; con BAM, las columnas de soporte distinguen la evidencia
-- **INDEL**: inserción, deleción, delins o alelo complejo; se notifica con los componentes del evento, el soporte exacto del BAM cuando está disponible y el efecto codificante cuando solapa con una feature CDS/gen anotada
-
-En [`example/`](example/README.es.md) tienes un conjunto de datos de *M. tuberculosis* listo para ejecutar (referencia, genes, VCF y un BAM
-de demostración diminuto para el visor de lecturas).
+En [`example/`](example/README.md) hay un conjunto de datos de *M. tuberculosis*
+listo para ejecutar (referencia, genes, VCF y un BAM de demostración pequeño
+para el visor de lecturas). El
+[tutorial](https://pathogenomics-lab.github.io/get_MNV/es/getting-started/) lo
+recorre entero.
 
 ## Documentación
 
-Se puede navegar en <https://pathogenomics-lab.github.io/get_MNV/>, en inglés y
-español. Las mismas páginas, agrupadas igual, están en [`docs/`](docs/).
+**<https://pathogenomics-lab.github.io/get_MNV/es/>** es el manual, en español y
+en inglés: cada opción con su valor por defecto, qué significa cada columna de
+salida, y qué hace y qué no hace la herramienta. Las mismas páginas están en
+[`docs/`](docs/) en este repositorio.
 
-**Empezar**
-
-| Documento | Descripción |
+| Empieza por aquí | |
 |---|---|
-| [Tutorial de línea de comandos](docs/getting-started.es.md) | Una primera ejecución completa con los datos de ejemplo, y cómo leer lo que devuelve |
-| [Recetas habituales](docs/usage.es.md) | Comandos listos para ejecutar de las tareas más frecuentes |
-| [GUI de escritorio](docs/gui.es.md) | La aplicación de escritorio y su visor de tracks genómicos |
+| [Tutorial de línea de comandos](https://pathogenomics-lab.github.io/get_MNV/es/getting-started/) | Una primera ejecución completa con los datos incluidos, explicando la salida línea a línea |
+| [Recetas habituales](https://pathogenomics-lab.github.io/get_MNV/es/usage/) | Comandos listos para los trabajos de siempre |
+| [Tutorial de la GUI](https://pathogenomics-lab.github.io/get_MNV/es/gui-tutorial/) | La misma ejecución en la aplicación, pantalla por pantalla |
 
-**Referencia**
-
-| Documento | Descripción |
+| Referencia | |
 |---|---|
-| [Referencia de CLI](docs/cli-reference.es.md) | Cada opción, con su valor por defecto y su significado |
-| [Formatos de entrada](docs/input-formats.es.md) | Especificaciones de VCF, FASTA, GFF, TSV, BAM |
-| [Formatos de salida](docs/output-formats.es.md) | TSV, VCF, BCF, JSON y el informe HTML interactivo |
+| [Referencia de CLI](https://pathogenomics-lab.github.io/get_MNV/es/cli-reference/) | Todas las opciones, con su valor por defecto y qué cambian |
+| [Formatos de entrada](https://pathogenomics-lab.github.io/get_MNV/es/input-formats/) | Cómo tienen que ser el VCF, el FASTA, la anotación y el BAM |
+| [Formatos de salida](https://pathogenomics-lab.github.io/get_MNV/es/output-formats/) | Cada columna del TSV, clave INFO del VCF y campo JSON |
+| [Informe de ejemplo](https://pathogenomics-lab.github.io/get_MNV/assets/example-report.html) | Un informe HTML real: ábrelo y trastea |
 
-**Cómo funciona**
-
-| Documento | Descripción |
+| Cómo funciona | |
 |---|---|
-| [Alcance y compatibilidad](docs/indel-mnv-semantics.es.md) | De qué se responsabiliza get_MNV, qué deja al llamador y dónde están sus límites |
-| [Indels y haplotipos locales](docs/indel-haplotypes.es.md) | Cómo se lee un indel de los alineamientos y qué cuenta cada número de la salida |
-| [Ligamiento](docs/linkage.es.md) | Distinguir un haplotipo real de una coincidencia |
-| [Benchmarking](docs/benchmarking.es.md) | Pruebas de rendimiento |
+| [Alcance y compatibilidad](https://pathogenomics-lab.github.io/get_MNV/es/indel-mnv-semantics/) | De qué se ocupa get_MNV, qué deja a tu llamador de variantes y dónde están sus límites |
+| [Indels y haplotipos locales](https://pathogenomics-lab.github.io/get_MNV/es/indel-haplotypes/) | Cómo se lee un indel de los alineamientos y qué cuenta cada número |
+| [Ligamiento](https://pathogenomics-lab.github.io/get_MNV/es/linkage/) | Distinguir un haplotipo real de dos variantes que solo comparten codón |
+| [Resolución de problemas](https://pathogenomics-lab.github.io/get_MNV/es/troubleshooting/) | Los errores que detienen una ejecución, y qué te está diciendo cada aviso |
 
-**Ayuda**
-
-| Documento | Descripción |
-|---|---|
-| [Resolución de problemas](docs/troubleshooting.es.md) | Errores comunes y soluciones |
-| [FAQ](docs/faq.es.md) | Respuestas breves a las preguntas más habituales |
-| [Changelog](CHANGELOG.md) | Historial de versiones |
+El historial de versiones está en [CHANGELOG.md](CHANGELOG.md).
 
 ## Para desarrolladores
 
-La CLI y la biblioteca principales están en `src/`. La aplicación de escritorio usa Tauri en
-`src-tauri/` y React/TypeScript en `frontend/`.
-
-Comandos útiles:
+La CLI y la biblioteca principales están en `src/`. La aplicación de escritorio
+usa Tauri en `src-tauri/` y React/TypeScript en `frontend/`.
 
 ```bash
 cargo test --workspace
@@ -317,34 +168,16 @@ bash scripts/build_get_mnv.sh
 bash scripts/build_gui_bundle.sh
 ```
 
-### Pruebas de escenarios de extremo a extremo
-
-`tests/scenarios/` contiene un arnés en Python que construye entradas sintéticas de FASTA,
-GFF, VCF (o TSV de iVar) y BAM a partir de escenarios declarativos, ejecuta
-el binario `get_mnv` compilado y comprueba cada salida TSV frente a las
-filas esperadas. La suite cubre actualmente 57 escenarios, entre ellos
-la agrupación SNP/MNV a nivel de codón, la propagación de frameshift, la emisión de
-haplotipos complex_indel, la anotación de CDS en hebra negativa y multiexón,
-la división de multialélicos y la entrada de TSV de iVar.
+`tests/scenarios/` es un arnés en Python que construye entradas sintéticas de
+FASTA, GFF, VCF y BAM a partir de escenarios declarativos, ejecuta el binario
+compilado y comprueba cada fila de la salida; necesita `samtools` en el `PATH`.
+Consulta [tests/scenarios/README.es.md](tests/scenarios/README.es.md) para ver
+los casos que cubre y cómo añadir uno.
 
 ```bash
 cargo build                                # produce target/debug/get_mnv
 python3 tests/scenarios/run.py             # ejecuta todos los escenarios
-python3 tests/scenarios/run.py 22 27       # ejecuta un subconjunto por prefijo de nombre
 ```
-
-Requiere `samtools` en el `PATH` (o `SAMTOOLS=/path/to/samtools`). Consulta
-[tests/scenarios/README.md](tests/scenarios/README.es.md) para ver la lista completa
-de casos validados, la disposición del mini-genoma y cómo añadir nuevos escenarios.
-
-## Limitaciones
-
-- Está diseñado para eventos pequeños de tipo SNV/MNV/indel frente a una secuencia de referencia
-- Con `--gff-features CDS`, los registros GFF/GTF que aportan `transcript_id` o `Parent` se reconstruyen como modelos de CDS empalmados, lo que permite anotar codones en uniones de exones y el contexto de frameshift de los indels a nivel de transcrito.
-- Las variantes heterocigotas eucariotas sin fase siguen requiriendo cuidado: get_MNV reanota los alelos del llamador de variantes, pero no reestima la ploidía, las verosimilitudes de genotipo ni la fase de largo alcance.
-- Los registros VCF multialélicos requieren `--split-multiallelic` o una división previa (`bcftools norm -m -`)
-- Los nombres de los contigs de las variantes deben coincidir exactamente con el FASTA y el GFF
-- **Múltiples transcritos por gen**: al usar `--gff-features CDS` con un archivo GFF que contiene varios transcritos para el mismo gen, cada transcrito se anota de forma independiente, lo que produce una línea de salida por transcrito y por variante. Si quieres una sola línea por variante, filtra tu GFF para conservar solo el transcrito canónico antes de ejecutar get_MNV (por ejemplo, con [AGAT](https://github.com/NBISweden/AGAT) `agat_sp_keep_longest_isoform.pl` o una herramienta similar)
 
 ## Citación
 
