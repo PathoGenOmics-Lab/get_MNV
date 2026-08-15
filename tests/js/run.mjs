@@ -802,6 +802,65 @@ function checkPresets() {
 }
 
 // ---------------------------------------------------------------------------
+// The read viewer's selection
+// ---------------------------------------------------------------------------
+
+/// The viewer's own selection rule, run rather than described.
+async function viewerSelection(work) {
+  const source = readFileSync(
+    join(REPO, "frontend", "src", "components", "BamViewer.tsx"), "utf8");
+  const header =
+    "function resolveSelection(loci: readonly Pick<ViewerLocus, \"id\">[], clickedId: string | null): string | null ";
+  const path = join(work, "selection.ts");
+  writeFileSync(path, `export ${declaration(source, header)}\n`);
+  return importGenerated(path);
+}
+
+async function checkViewerSelection(work) {
+  const { resolveSelection } = await viewerSelection(work);
+  const list = (...ids) => ids.map((id) => ({ id }));
+
+  // The viewer shows one locus at a time, so an empty list has to mean nothing
+  // is shown rather than something stale staying on screen.
+  check("selection: an empty list selects nothing",
+    resolveSelection([], null), null);
+  check("selection: an empty list drops even a locus the user had chosen",
+    resolveSelection([], "b"), null);
+
+  // Opening the viewer, and every search that leaves something to show, has to
+  // land on a locus without the user asking.
+  check("selection: with nothing chosen, the first locus is shown",
+    resolveSelection(list("a", "b", "c"), null), "a");
+  check("selection: the first locus is the first of the list, not of the data",
+    resolveSelection(list("c", "b", "a"), null), "c");
+
+  // What the user clicked wins whenever it is still on offer, whatever position
+  // it holds. Picking by index instead of by id would move the selection to
+  // another locus every time the search changed the list.
+  check("selection: a chosen locus that is still listed stays chosen",
+    resolveSelection(list("a", "b", "c"), "b"), "b");
+  check("selection: it stays chosen after the list is reordered around it",
+    resolveSelection(list("c", "b", "a"), "b"), "b");
+
+  // A search that hides the chosen locus still has to show something.
+  check("selection: a chosen locus that is filtered away falls back to the first",
+    resolveSelection(list("x", "y"), "b"), "x");
+
+  // The consequence of deriving this instead of storing a corrected copy, pinned
+  // deliberately: the choice is not erased by a search that hid it, so clearing
+  // the search returns to the user's own locus rather than to the first row.
+  // An automatic pick is not a choice and does not survive the list it came from.
+  const chosen = "b";
+  check("selection: a search that hides the choice does not erase it",
+    resolveSelection(list("a", "b", "c"), resolveSelection(list("x", "y"), chosen) === "x" ? chosen : "wrong"),
+    "b");
+  check("selection: an automatic pick lasts only as long as its list",
+    resolveSelection(list("a", "b", "c"), null) === "a"
+      && resolveSelection(list("b", "c"), null) === "b",
+    true);
+}
+
+// ---------------------------------------------------------------------------
 
 const work = mkdtempSync(join(tmpdir(), "get_mnv_js_"));
 try {
@@ -811,6 +870,7 @@ try {
   checkHaplotypes(work);
   await checkVariantTable(work);
   await checkBamPairing(work);
+  await checkViewerSelection(work);
   checkPresets();
 } finally {
   rmSync(work, { recursive: true, force: true });
