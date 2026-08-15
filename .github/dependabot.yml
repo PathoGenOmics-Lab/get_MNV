@@ -88,5 +88,9 @@ updates:
     commit-message:
       prefix: "actions"
     groups:
-      actions-all:
+      actions-routine:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
+      actions-major:
+        patterns: ["*"]
+        update-types: ["major"]

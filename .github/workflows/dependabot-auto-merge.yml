@@ -29,26 +29,34 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # A grouped pull request reports its group rather than a single update
-      # type, so both are consulted: the groups whose names end in `-routine`
-      # carry only minor and patch bumps, by the rules in dependabot.yml.
+      # Named rather than excluded: merge a `-routine` group, or an ungrouped
+      # update that says in so many words that it is a patch or a minor.
+      #
+      # Asking instead whether the update was "not major" let one through. A pip
+      # requirement bump, `pillow ~=11.0` to `~=12.3`, reports no update type at
+      # all, and an empty string is not equal to major, so the rule said yes to
+      # a major on its first day. Anything this condition cannot positively
+      # identify now waits for a person.
       - name: Queue the merge
         if: >-
           endsWith(steps.metadata.outputs.dependency-group, '-routine') ||
           (steps.metadata.outputs.dependency-group == '' &&
-           steps.metadata.outputs.update-type != 'version-update:semver-major')
+           (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+            steps.metadata.outputs.update-type == 'version-update:semver-minor'))
         run: gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Say why a major was left alone
+      - name: Say why this one was left alone
         if: >-
-          endsWith(steps.metadata.outputs.dependency-group, '-major') ||
-          steps.metadata.outputs.update-type == 'version-update:semver-major'
+          !(endsWith(steps.metadata.outputs.dependency-group, '-routine') ||
+            (steps.metadata.outputs.dependency-group == '' &&
+             (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+              steps.metadata.outputs.update-type == 'version-update:semver-minor')))
         run: |
           gh pr comment "$PR_URL" --body \
-            "Left for review: this is a major update, and those change APIs. Routine minor and patch updates merge themselves once CI passes."
+            "Left for review. Only a \`-routine\` group, or an update that identifies itself as patch or minor, merges on its own once CI passes. This one is a major update or does not say which it is."
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
