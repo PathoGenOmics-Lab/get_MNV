@@ -141,10 +141,11 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "get_MNV ${{ github.ref_name }}"
-          releaseBody: |
-            get_MNV ${{ github.ref_name }} updates the project metadata and refreshes security-sensitive Rust and frontend dependencies for the 1.1.5 release line.
-
-            See [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for the full list of changes.
+          # No release notes here. They were a fixed paragraph that described one
+          # particular release ("refreshes security-sensitive Rust and frontend
+          # dependencies for the 1.1.5 release line") and would have been a false
+          # description of every release after it. The `finalize` job below writes
+          # the notes once, from the tag, and overwrites whatever ends up here.
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           args: ${{ matrix.args }}
@@ -171,13 +172,16 @@ jobs:
   # written at all: `needs` skips this job if any platform failed, and a
   # checksums file that silently covered three platforms out of four would be
   # worse than none.
-  checksums:
-    name: Publish checksums covering every asset
+  finalize:
+    name: Publish checksums and write the release notes
     needs: release
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Checksum every asset on the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -185,17 +189,17 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          mkdir -p assets
+          mkdir -p release-assets
           # The release is still a draft at this point. Draft assets are
           # downloadable by an authenticated token, which is what makes this
           # possible before the release is published.
-          gh release download "$TAG" --repo "$REPO" --dir assets --pattern '*' --clobber
+          gh release download "$TAG" --repo "$REPO" --dir release-assets --pattern '*' --clobber
 
           # On a rerun the previous SHA256SUMS is itself an asset, and would be
           # checksummed into its own successor.
-          rm -f assets/SHA256SUMS
+          rm -f release-assets/SHA256SUMS
 
-          count=$(find assets -maxdepth 1 -type f | wc -l)
+          count=$(find release-assets -maxdepth 1 -type f | wc -l)
           if [ "$count" -eq 0 ]; then
             echo "the release carries no assets: refusing to publish an empty checksums file" >&2
             exit 1
@@ -203,13 +207,92 @@ jobs:
 
           # LC_ALL=C so the order of the lines does not depend on the runner's
           # locale, and `--` so a name beginning with a dash stays a name.
-          (cd assets && LC_ALL=C sha256sum -- * > ../SHA256SUMS)
+          (cd release-assets && LC_ALL=C sha256sum -- * > ../SHA256SUMS)
 
           # Read the file back and check it against the bytes on disk, rather
           # than trusting that writing it worked.
-          (cd assets && sha256sum -c ../SHA256SUMS)
+          (cd release-assets && sha256sum -c ../SHA256SUMS)
 
           echo "checksummed $count assets"
           cat SHA256SUMS
 
           gh release upload "$TAG" SHA256SUMS --repo "$REPO" --clobber
+
+      # The notes used to be a paragraph typed into this file, describing what
+      # one release contained. It outlived that release and would have described
+      # every later one wrongly. These notes say only what is true of any
+      # release and derive the rest from the tag, so there is nothing to keep in
+      # step by hand.
+      - name: Write the release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+
+          # Cutting a release with nothing written about it in the changelog is
+          # a mistake rather than a decision, and the notes below link to that
+          # entry. Fail here, where the draft is still unpublished and the entry
+          # can be added, rather than link a reader to a version the changelog
+          # never mentions.
+          if ! grep -q "^## \[${version}\]" CHANGELOG.md; then
+            echo "CHANGELOG.md has no '## [${version}]' entry: refusing to announce a release the changelog does not describe" >&2
+            exit 1
+          fi
+
+          # Quoted heredoc: the body is written literally, backticks and all,
+          # and the two placeholders are filled afterwards. An unquoted one
+          # would run the fenced commands instead of printing them.
+          cat > NOTES.template <<'MARKDOWN'
+          ## get_MNV @TAG@
+
+          Everything that changed in this version is listed in the
+          [changelog](https://github.com/@REPO@/blob/@TAG@/CHANGELOG.md), pinned to
+          this release. Full documentation lives at
+          <https://pathogenomics-lab.github.io/get_MNV/>.
+
+          ### Install
+
+          ```bash
+          conda install -c bioconda get_mnv
+          ```
+
+          Or take an asset below: the `_cli` archives hold the command line tool,
+          and the rest are desktop app installers. On macOS the app is not signed
+          with an Apple Developer certificate, so on first launch right-click it,
+          choose **Open**, then **Open** again in the dialog.
+
+          ### Check what you downloaded
+
+          `SHA256SUMS` below covers every asset in this release. Download it next
+          to the file you took and check the two together:
+
+          ```bash
+          sha256sum --ignore-missing -c SHA256SUMS
+          ```
+
+          Each file it finds prints `OK`. On macOS, `shasum -a 256
+          --ignore-missing -c SHA256SUMS` does the same.
+          MARKDOWN
+
+          # YAML strips the block's own indentation, so the heredoc arrives at
+          # column zero and nothing needs dedenting here. Only the placeholders
+          # are left to fill. Plain `sed` into a second file rather than `sed
+          # -i`, whose spelling differs between GNU and BSD: this way the step
+          # can be run and checked on a laptop, not only on the runner.
+          sed "s|@TAG@|${TAG}|g; s|@REPO@|${REPO}|g" NOTES.template > NOTES.md
+
+          if grep -q '@TAG@\|@REPO@' NOTES.md; then
+            echo "a placeholder survived into the notes" >&2
+            exit 1
+          fi
+
+          echo "--- notes ---"
+          cat NOTES.md
+          echo "-------------"
+
+          # Overwrites whatever created the draft put there, so there is one
+          # source for the notes and not two.
+          gh release edit "$TAG" --repo "$REPO" --notes-file NOTES.md
