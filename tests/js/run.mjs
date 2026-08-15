@@ -135,11 +135,20 @@ function buildReport(work) {
 /// script whose type says JSON is data by definition and is the one thing left
 /// out; `type="module"` and anything else is code and is kept.
 ///
-/// Case-insensitive because tag names are. The first version of this repair was
-/// not, and CodeQL said so about the very change that made it: allowing
-/// attributes and then missing `<SCRIPT>` is the same oversight one step along.
+/// Case-insensitive because tag names are, and the closing tag allows space
+/// before its `>` because HTML does. Neither was in the first version of this
+/// repair, and CodeQL named them one at a time, each against the change that had
+/// just fixed the one before: allowing attributes and then missing `<SCRIPT>`,
+/// and then missing `</script >`, is the same oversight three times.
+///
+/// What is actually being relied on is narrow, and worth stating so that the
+/// next person knows what would break it. This reads a page written by
+/// `src/output/report_template.html` in this same repository, minutes earlier,
+/// by the binary these checks are about. It is not a sanitiser and it never sees
+/// a page from anywhere else. If that ever stops being true, this should stop
+/// being a regular expression.
 function pageScripts(page) {
-  return [...page.matchAll(/<script(\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
+  return [...page.matchAll(/<script(\s[^>]*)?>([\s\S]*?)<\/script\s*>/gi)]
     .filter((m) => !/type\s*=\s*["']application\/json["']/i.test(m[1] ?? ""))
     .map((m) => m[2])
     .join("\n");
