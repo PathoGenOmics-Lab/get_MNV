@@ -63,8 +63,11 @@ jobs:
       - name: Install WebKit and GTK
         run: |
           sudo apt-get update
+          # python3-yaml is here rather than in a pip step because the checks
+          # below read .github/dependabot.yml, and nothing else in this job puts
+          # a Python environment on the runner.
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
-            libayatana-appindicator3-dev librsvg2-dev
+            libayatana-appindicator3-dev librsvg2-dev python3-yaml
       # One dependency spelled in two ecosystems: Tauri refuses to bundle when
       # the crate and the npm package are on different minors, and that check
       # lives inside `tauri build`, which only runs when a release is being
@@ -73,6 +76,16 @@ jobs:
       # second and moves the failure to the pull request that causes it.
       - name: Tauri crate and npm package agree
         run: python3 tools/check_tauri_versions.py
+      # The other half of the same idea, one level up: two npm packages joined
+      # by a peerDependencies range have to be updated together, and Dependabot
+      # only knows what dependabot.yml tells it. Grouping the frontend by update
+      # type alone once put eslint and the plugin that widened its peer range in
+      # two different pull requests, neither of which could pass without the
+      # other. The groups are matched in file order, so this stays correct only
+      # for as long as nobody reorders them, which is exactly the kind of thing
+      # a person does not notice.
+      - name: Coupled npm packages share a Dependabot group
+        run: python3 tools/check_dependency_groups.py
       - name: Install frontend dependencies
         run: npm --prefix frontend ci
       - name: Lint and type-check the frontend
