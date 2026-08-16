@@ -151,6 +151,11 @@ this repository.
 
 Version history is in [CHANGELOG.md](CHANGELOG.md).
 
+If the manual does not answer it, ask in **[Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a)**. Questions about why a
+variant came out the way it did belong there rather than in the issue tracker,
+and an answer marked as the answer is the one the next person finds. Issues are
+for something that crashed, refused to run, or is plainly wrong.
+
 ## For developers
 
 The core CLI and library live in `src/`. The desktop app uses Tauri in
