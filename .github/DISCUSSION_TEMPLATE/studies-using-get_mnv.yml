@@ -1,0 +1,64 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If get_MNV was part of an analysis, this is the place to say so. A
+        published paper, a preprint, a thesis or an unpublished dataset all
+        count, and there is no need to wait until something is out.
+
+        Two reasons this is worth the two minutes it takes. It is the only way
+        the people who maintain it find out where it is being used, since a
+        citation in a paper reaches nobody here on its own. And the last field
+        is where a real analysis says what the tool made harder than it had to
+        be, which is worth more than any feature request written from the
+        outside.
+
+  - type: input
+    attributes:
+      label: The work
+      description: >-
+        A DOI, a preprint link, a repository, or just a title if there is
+        nothing to link to yet.
+      placeholder: https://doi.org/10.1000/example
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Which version of get_MNV
+      description: >-
+        The output of `get_mnv --version` if you still have the environment, or
+        the release you installed. It matters, and not only for tidiness: the
+        amino acid reported for a mitochondrial `ATA` codon was corrected after
+        1.1.5, so an analysis run with tables 2, 3 or 5 before that fix wants
+        reading with it in mind.
+      placeholder: get_mnv 1.1.5
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Organism and reference
+      description: >-
+        Which genome, and the annotation you gave it. get_MNV is not built for
+        any one organism, and knowing what it is actually run against is how the
+        defaults get chosen well.
+      placeholder: Mycobacterium tuberculosis, NC_000962.3, GFF3 from NCBI
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: What you used it for
+      description: >-
+        The question it helped answer. A sentence is plenty.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: What was awkward
+      description: >-
+        Anything you had to work around, a number you had to explain to a
+        reviewer, output you ended up reshaping yourself. This is the most
+        useful field on the form and the only optional one.
