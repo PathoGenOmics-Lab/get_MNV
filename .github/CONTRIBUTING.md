@@ -79,17 +79,20 @@ python3 -m venv .venv-docs
 
 ### Publishing
 
-The site is published to GitHub Pages on the `gh-pages` branch and served at
-`https://pathogenomics-lab.github.io/get_MNV/`. The **Docs** workflow
-(`.github/workflows/docs.yml`) deploys automatically on pushes to the default
-branch that touch the docs, and can also be run manually. To publish from any
-branch locally:
+The site is served at `https://pathogenomics-lab.github.io/get_MNV/`. The **Docs**
+workflow (`.github/workflows/docs.yml`) builds it and hands it to GitHub Pages on
+pushes to the default branch that touch the docs, and can also be run manually.
+
+There is no `gh-pages` branch any more. The repository's Pages source is **GitHub
+Actions**, so the workflow uploads the built site as an artifact and GitHub's own
+action publishes it. That means `mkdocs gh-deploy` no longer reaches the
+published site: it would push a branch nothing serves, and say it succeeded.
+
+To see the production build without publishing anything:
 
 ```bash
-.venv-docs/bin/mkdocs gh-deploy --force
+.venv-docs/bin/mkdocs build --strict   # into ./site
 ```
-
-Enable serving once under **Settings → Pages → Source: Deploy from a branch → `gh-pages` / `(root)`**. To surface the docs from another website, just link to that URL.
 
 ## Submitting a Pull Request
 1. Ensure that your code follows the coding guidelines and passes all tests.
