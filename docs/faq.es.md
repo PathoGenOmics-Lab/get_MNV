@@ -87,3 +87,10 @@ La aplicación de escritorio no está firmada con un certificado de Apple
 Developer. En el primer arranque, haz clic derecho en la app → **Abrir** → haz
 clic en **Abrir** en el cuadro de diálogo. Consulta la guía de la
 [GUI de escritorio](gui.es.md).
+
+
+## Mi pregunta no está aquí
+
+Pregúntala en [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a). Las preguntas sobre por qué una variante salió anotada
+de una forma concreta son bienvenidas ahí, y se responden mucho mejor con el
+registro y el comando que la produjeron.

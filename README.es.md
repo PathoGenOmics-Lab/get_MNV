@@ -152,6 +152,11 @@ salida, y qué hace y qué no hace la herramienta. Las mismas páginas están en
 
 El historial de versiones está en [CHANGELOG.md](CHANGELOG.md).
 
+Si el manual no lo responde, pregunta en **[Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a)**. Las preguntas sobre por
+qué una variante ha salido de una forma concreta van ahí, no al gestor de issues,
+y una respuesta marcada como tal es la que encuentra el siguiente. Las issues son
+para algo que se rompió, se negó a ejecutar o está claramente mal.
+
 ## Para desarrolladores
 
 La CLI y la biblioteca principales están en `src/`. La aplicación de escritorio

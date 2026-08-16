@@ -288,3 +288,11 @@ El cuarto por sí solo no cambia nada.
 | `14` | Error de análisis de enteros |
 | `15` | Error de análisis de números en coma flotante |
 | `16` | Error de JSON |
+
+
+## Si sigues atascado
+
+Arriba está cada mensaje que la herramienta puede dar y qué pide cada uno. Si lo
+que ves no aparece, o la respuesta no encaja con tus datos, pregunta en
+[Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a). Las respuestas se marcan como tales, así que la siguiente persona con
+tu mismo problema la encuentra sin tener que preguntar.

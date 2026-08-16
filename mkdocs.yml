@@ -192,6 +192,11 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/PathoGenOmics-Lab/get_MNV
       name: get_MNV on GitHub
+    # In the footer of every page, because the moment someone needs to ask is
+    # whichever page they were reading when it stopped answering them.
+    - icon: material/comment-question-outline
+      link: https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a
+      name: Ask a question
 
 # Under `mkdocs build --strict`, which is what CI runs, these turn a link to a
 # page or a heading that does not exist into a failure. Renaming a section is
