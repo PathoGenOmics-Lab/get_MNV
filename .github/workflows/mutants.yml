@@ -66,6 +66,7 @@ jobs:
     # worth assembling from the ones that finished, and it says which did not.
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Collect the shard reports
         uses: actions/download-artifact@v7

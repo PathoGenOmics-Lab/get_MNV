@@ -26,6 +26,7 @@ jobs:
   review:
     name: No new dependency with a known vulnerability
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/dependency-review-action@v4
