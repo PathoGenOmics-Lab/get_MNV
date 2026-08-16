@@ -2,6 +2,14 @@ name: Feature request
 description: Suggest something get_MNV should be able to do
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        > [!TIP]
+        > If you are not sure whether get_MNV already does this, ask in
+        > [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a) first. It is a shorter path to an answer than a feature
+        > request for something that turns out to be a flag.
+
   - type: textarea
     id: problem
     attributes:

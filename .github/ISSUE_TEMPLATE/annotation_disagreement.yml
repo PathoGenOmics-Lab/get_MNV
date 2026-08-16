@@ -5,6 +5,18 @@ body:
   - type: markdown
     attributes:
       value: |
+        > [!IMPORTANT]
+        > **Most reports of this kind are questions, and questions go to
+        > [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a).**
+        >
+        > Use this form when you can already show the answer is wrong: you know
+        > what the amino acid should be, or another tool you trust disagrees and
+        > you can paste what it said.
+        >
+        > If you are asking *why* a variant came out the way it did, ask in Q&A
+        > instead. It is the same information either way, and there the answer is
+        > marked as the answer and found by whoever hits it next.
+
         This form asks for the records themselves. An annotation call can almost
         never be judged from a description of it, and with the lines below it can
         usually be reproduced in one run.
