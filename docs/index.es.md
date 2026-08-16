@@ -202,7 +202,7 @@ del repositorio.
 ## Cita
 
 Si usas get_MNV, cítalo mediante su
-[DOI de Zenodo](https://doi.org/10.5281/zenodo.13907423).
+[DOI de Zenodo](https://doi.org/10.5281/zenodo.13907422).
 
 ## Licencia
 

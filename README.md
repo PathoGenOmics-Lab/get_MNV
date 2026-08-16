@@ -8,7 +8,7 @@
 <a href="LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/license-AGPL%20v3-%23af64d1?style=flat-square&amp;labelColor=21262d"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL%20v3-%23af64d1?style=flat-square"></picture></a>
 <a href="https://anaconda.org/bioconda/get_mnv"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/conda/dn/bioconda/get_mnv.svg?style=flat-square&amp;label=bioconda&amp;labelColor=21262d"><img alt="Bioconda" src="https://img.shields.io/conda/dn/bioconda/get_mnv.svg?style=flat-square&amp;label=bioconda"></picture></a>
 <a href="https://github.com/PathoGenOmics-Lab/get_MNV/releases"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/version-1.1.5-%23149389?style=flat-square&amp;labelColor=21262d"><img alt="Version" src="https://img.shields.io/badge/version-1.1.5-%23149389?style=flat-square"></picture></a>
-<a href="https://doi.org/10.5281/zenodo.13907423"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13907423-%23ff0077?style=flat-square&amp;labelColor=21262d"><img alt="DOI" src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13907423-%23ff0077?style=flat-square"></picture></a>
+<a href="https://doi.org/10.5281/zenodo.13907422"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13907422-%23ff0077?style=flat-square&amp;labelColor=21262d"><img alt="DOI" src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13907422-%23ff0077?style=flat-square"></picture></a>
 <a href="https://github.com/PathoGenOmics-Lab"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/PathoGenOmics-lab-%23E52421?style=flat-square&amp;labelColor=21262d"><img alt="PGO" src="https://img.shields.io/badge/PathoGenOmics-lab-%23E52421?style=flat-square"></picture></a>
 
 **Multi-Nucleotide Variant detection - codon-level annotation from VCF or iVar TSV.**
@@ -178,14 +178,14 @@ python3 tests/scenarios/run.py             # run every scenario
 
 If you use get_MNV in your research, please cite:
 
-> Ruiz-Rodriguez P, Coscolla M. **get_MNV: Multi-Nucleotide Variant detection tool.** Zenodo. doi: [10.5281/zenodo.13907423](https://doi.org/10.5281/zenodo.13907423)
+> Ruiz-Rodriguez P, Coscolla M. **get_MNV: Multi-Nucleotide Variant detection tool.** Zenodo. doi: [10.5281/zenodo.13907422](https://doi.org/10.5281/zenodo.13907422)
 
 ```bibtex
 @software{ruiz-rodriguez_get_mnv_2026,
   title     = {get\_MNV: Multi-Nucleotide Variant detection tool},
   author    = {Ruiz-Rodriguez, Paula and Coscoll{\'a}, Mireia},
   year      = {2026},
-  doi       = {10.5281/zenodo.13907423},
+  doi       = {10.5281/zenodo.13907422},
   url       = {https://github.com/PathoGenOmics-Lab/get_MNV},
   version   = {1.1.5},
   license   = {AGPL-3.0}
