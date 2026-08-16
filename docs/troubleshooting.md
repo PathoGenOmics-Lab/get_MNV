@@ -282,9 +282,11 @@ its own.
 | `16` | JSON error |
 
 
-## Still stuck
+!!! question "Still stuck?"
 
-Everything above is a message the tool can produce and what it is asking for. If
-what you are seeing is not here, or the answer here did not fit your data, ask in
-[Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a). Answers there get marked as answers, so the next person with your
-problem finds it before they have to ask.
+    Everything above is a message the tool can produce and what it is asking
+    for. If what you are seeing is not here, or the answer here did not fit your
+    data, ask in [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a).
+
+    Answers there get marked as answers, so the next person with your problem
+    finds it before they have to ask.

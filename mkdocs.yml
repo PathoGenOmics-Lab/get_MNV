@@ -143,6 +143,7 @@ plugins:
             Glossary: Glosario
             Troubleshooting: Resolución de problemas
             FAQ: Preguntas frecuentes
+            Ask a question: Pregunta algo
 
 markdown_extensions:
   - abbr
@@ -232,3 +233,7 @@ nav:
       - Glossary: glossary.md
       - Troubleshooting: troubleshooting.md
       - FAQ: faq.md
+      # The only entry here that leaves the site, and it is deliberate: someone
+      # reading Help has already failed to find their answer, and the place to
+      # ask should not need finding.
+      - Ask a question: https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a
