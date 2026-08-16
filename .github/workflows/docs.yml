@@ -1,14 +1,26 @@
 name: Docs
 
-# Build the bilingual Material for MkDocs site and publish it to the gh-pages
-# branch, which GitHub Pages serves at https://pathogenomics-lab.github.io/get_MNV/.
+# Build the bilingual Material for MkDocs site and hand it to GitHub Pages.
+#
+# This used to run `mkdocs gh-deploy --force`, which builds the site and
+# force-pushes it onto a `gh-pages` branch that Pages then served. That stopped
+# working the moment the repository's Pages source was switched to GitHub
+# Actions: the branch still receives the site and Pages no longer looks at it, so
+# the workflow would go on succeeding while the published pages quietly stayed as
+# they were. A green deploy that publishes nothing is worse than a failing one.
+#
+# The site is now uploaded as an artifact and deployed by GitHub's own action,
+# which is what the `workflow` source expects. Three things come with that: no
+# `gh-pages` branch and no force-push, no git identity to configure, and a real
+# deployment in the `github-pages` environment, which records what was published
+# and can be rolled back.
 #
 # Triggers:
 #   - push to the default branch touching docs/, mkdocs.yml or this workflow
-#   - manual run (workflow_dispatch), selectable on any branch that has this file
+#   - manual run (workflow_dispatch)
 #
-# You can also publish from any branch locally, without CI:
-#   .venv-docs/bin/mkdocs gh-deploy --force
+# To publish from a laptop without CI, `mkdocs build` and upload the `site/`
+# directory; `mkdocs gh-deploy` no longer reaches the published site.
 
 on:
   push:
@@ -19,32 +31,52 @@ on:
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
+# Read the repository to build it. The deploy job asks for what it needs on its
+# own, rather than every step in the file holding the right to publish.
 permissions:
-  contents: write
+  contents: read
 
+# One deployment at a time, and never cancel one halfway: an interrupted publish
+# leaves the site in whatever state it reached.
 concurrency:
-  group: docs-pages
+  group: pages
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Build and deploy docs
+  build:
+    name: Build the site
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
       - name: Install build dependencies
         run: pip install -r docs/requirements.txt
-      - name: Validate (strict build)
+      # --strict turns a link to a page or a heading that does not exist into a
+      # failure, so a renamed section is caught here rather than by a reader.
+      - name: Build, strictly
         run: mkdocs build --strict
-      - name: Configure git identity
-        run: |
-          git config user.name "Paururo"
-          git config user.email "50167687+Paururo@users.noreply.github.com"
-      - name: Deploy to gh-pages
-        run: mkdocs gh-deploy --force
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Publish to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Only this job can publish, and only it holds the rights to do so.
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
