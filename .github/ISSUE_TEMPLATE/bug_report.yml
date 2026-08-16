@@ -5,6 +5,17 @@ body:
   - type: markdown
     attributes:
       value: |
+        > [!IMPORTANT]
+        > **Is this a question rather than a defect?**
+        >
+        > The test is not how serious it is, it is what you are saying. If you can
+        > show the tool is wrong, this is the right form. If you are asking
+        > *whether* it is wrong, or why it did what it did, that is a question and
+        > it belongs in [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a), where the answer gets marked as the answer and
+        > the next person finds it.
+        >
+        > A question filed here gets an answer that only you ever see.
+
         Thanks for taking the time to report this.
 
         If the tool ran fine but annotated a variant differently from what you
