@@ -18,9 +18,9 @@ body:
 
         Thanks for taking the time to report this.
 
-        If the tool ran fine but annotated a variant differently from what you
-        expected, use **Annotation disagreement** instead: that form asks for the
-        records needed to reproduce the call.
+        If the tool ran fine and you disagree with how a variant was annotated,
+        that goes to [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a) as well, with the record and the command that
+        produced it.
 
   - type: input
     id: version
