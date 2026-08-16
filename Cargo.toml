@@ -7,6 +7,35 @@ name = "get_mnv"
 version = "1.1.5"
 edition = "2021"
 license = "AGPL-3.0-only"
+description = "Codon-level Multi-Nucleotide Variant detection and indel annotation from VCF or iVar TSV"
+repository = "https://github.com/PathoGenOmics-Lab/get_MNV"
+homepage = "https://pathogenomics-lab.github.io/get_MNV/"
+documentation = "https://pathogenomics-lab.github.io/get_MNV/"
+readme = "README.md"
+authors = ["Paula Ruiz-Rodriguez", "Mireia Coscolla"]
+keywords = ["bioinformatics", "genomics", "variant", "vcf", "annotation"]
+categories = ["science", "command-line-utilities"]
+
+# An allowlist, not an exclude list. Packaging everything swept in 249 files and
+# 6.6 MiB compressed, against a 10 MiB limit: a 4.4 MB reference genome from
+# example/, the whole documentation site with its screenshots, and the desktop
+# frontend, none of which a crate consumer receives any use from.
+#
+# Only one file outside the sources is needed to build, and it lives inside them:
+# src/output/report_template.html, embedded with include_str!. So the list can be
+# this short, and `cargo publish` verifies it by building from the tarball, which
+# means leaving something out fails loudly rather than shipping a broken crate.
+# Anchored with a leading slash, every one of them. Cargo matches these like
+# gitignore patterns, so an unanchored `LICENSE` means `**/LICENSE`: the first
+# attempt packaged the LICENSE file of every Python package in a local docs
+# virtualenv, none of which is even tracked by git, and 284 files of that kind
+# rode along invisibly inside a crate that still built and still looked fine.
+include = [
+    "/src/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE",
+]
 default-run = "get_mnv"
 
 [[bin]]

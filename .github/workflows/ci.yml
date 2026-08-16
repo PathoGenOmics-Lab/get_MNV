@@ -65,6 +65,13 @@ jobs:
         run: cargo build -p get_mnv --locked
       - name: Test
         run: cargo test -p get_mnv --locked
+      # Packaging breaks in ways nothing else here notices: a file the build
+      # needs left out of `include`, metadata crates.io refuses, a size over the
+      # limit. Every one of those fails at release time, after the tag is pushed,
+      # which is the expensive moment to find out. This packages the crate and
+      # builds it from the resulting tarball on every pull request instead.
+      - name: The crate still packages and builds from its own tarball
+        run: cargo publish --dry-run -p get_mnv --locked
 
   gui:
     name: Desktop GUI builds and matches the CLI defaults
