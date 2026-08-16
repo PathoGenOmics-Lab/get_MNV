@@ -26,7 +26,7 @@ use processing::{
 use summary::update_global_summary;
 
 use crate::cli::{Args, VariantInputFormat};
-use crate::error::{AppError, AppResult};
+use crate::error::{AppError, AppResult, IoResultExt};
 use crate::io;
 use crate::output;
 use log::info;
@@ -71,6 +71,20 @@ fn run_single(
     if !args.dry_run {
         if let Some(bam_path) = args.bam_file.as_deref() {
             config::validate_bam(bam_path)?;
+        }
+    }
+
+    // The same fail-fast idea for --output-dir: create it here, before the run,
+    // rather than discovering at the moment of writing that the directory does
+    // not exist. On a cohort that moment arrives after every sample has been
+    // annotated, and the work is lost for the sake of a missing folder.
+    //
+    // create_dir_all rather than create_dir, so `--output-dir results/run3`
+    // works without the caller having made `results` first, and it succeeds
+    // quietly when the directory is already there.
+    if !args.dry_run {
+        if let Some(dir) = args.output_dir.as_deref() {
+            std::fs::create_dir_all(dir).with_path(dir)?;
         }
     }
 

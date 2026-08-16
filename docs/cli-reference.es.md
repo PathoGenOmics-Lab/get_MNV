@@ -102,6 +102,8 @@ Estas solo aplican cuando se proporciona `--bam`.
 
 | Opción | Descripción |
 |---|---|
+| `--output-dir <DIR>` | Dónde escribir el TSV, el VCF y el BCF. Se crea si no existe. Sin esta opción van al directorio actual. |
+| `--output-prefix <PREFIX>` | Nombre base de esos ficheros, en lugar del de la entrada. Con `--sample all` se sigue añadiendo el nombre de la muestra. |
 | `--convert` | Escribe salida VCF (`.MNV.vcf`) en lugar de TSV. |
 | `--both` | Escribe TSV y VCF en una sola ejecución. |
 | `--vcf-gz` | Escribe `.vcf.gz` comprimido con BGZF (modo de salida VCF). |

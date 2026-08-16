@@ -255,12 +255,22 @@ pub struct Args {
     #[arg(long, conflicts_with = "convert")]
     pub both: bool,
 
-    /// Optional output directory (used by desktop app)
-    #[arg(skip)]
+    // These two existed before as fields the desktop app could set, marked
+    // `#[arg(skip)]` so the command line could not reach them. The app could put
+    // its results wherever the user chose and the command line could not, and
+    // every pipeline integration paid for that: the Snakemake wrapper written
+    // for this tool runs it in a scratch directory and moves the files
+    // afterwards, purely because it could not say where they should go.
+    /// Directory to write the TSV, VCF and BCF into. Created if it does not
+    /// exist. Without it they go to the current directory
+    #[arg(long = "output-dir", value_name = "DIR")]
     pub output_dir: Option<String>,
 
-    /// Optional output filename prefix (used by desktop app)
-    #[arg(skip)]
+    /// Base name for the output files, replacing the one taken from the input.
+    /// `--output-prefix sample1` writes `sample1.MNV.tsv`. With --sample all the
+    /// sample name is still appended, so a cohort does not write every sample
+    /// over the same file
+    #[arg(long = "output-prefix", value_name = "PREFIX")]
     pub output_prefix: Option<String>,
 }
 
