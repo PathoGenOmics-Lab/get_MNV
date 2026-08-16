@@ -9,12 +9,14 @@
 <a href="https://anaconda.org/bioconda/get_mnv"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/conda/dn/bioconda/get_mnv.svg?style=flat-square&amp;label=bioconda&amp;labelColor=21262d"><img alt="Bioconda" src="https://img.shields.io/conda/dn/bioconda/get_mnv.svg?style=flat-square&amp;label=bioconda"></picture></a>
 <a href="https://github.com/PathoGenOmics-Lab/get_MNV/releases"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/version-1.1.5-%23149389?style=flat-square&amp;labelColor=21262d"><img alt="Version" src="https://img.shields.io/badge/version-1.1.5-%23149389?style=flat-square"></picture></a>
 <a href="https://doi.org/10.5281/zenodo.13907422"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13907422-%23ff0077?style=flat-square&amp;labelColor=21262d"><img alt="DOI" src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13907422-%23ff0077?style=flat-square"></picture></a>
+<a href="https://pathogenomics-lab.github.io/get_MNV/es/"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/docs-en%20l%C3%ADnea-%230a7ea4?style=flat-square&amp;labelColor=21262d"><img alt="Documentación" src="https://img.shields.io/badge/docs-en%20l%C3%ADnea-%230a7ea4?style=flat-square"></picture></a>
+<a href="https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/pregunta-una%20duda-%23f5a623?style=flat-square&amp;labelColor=21262d"><img alt="Pregunta una duda" src="https://img.shields.io/badge/pregunta-una%20duda-%23f5a623?style=flat-square"></picture></a>
 <a href="https://github.com/PathoGenOmics-Lab"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/PathoGenOmics-lab-%23E52421?style=flat-square&amp;labelColor=21262d"><img alt="PGO" src="https://img.shields.io/badge/PathoGenOmics-lab-%23E52421?style=flat-square"></picture></a>
 
 **Detección de variantes multinucleotídicas (Multi-Nucleotide Variant) - anotación a nivel de codón a partir de VCF o TSV de iVar.**
 **Rust puro · sin dependencias de C · multiplataforma (macOS, Linux, Windows)**
 
-[Documentación](https://pathogenomics-lab.github.io/get_MNV/es/) · [Instalación](#instalación) · [Inicio rápido](#inicio-rápido) · [Citación](#citación)
+[Documentación](https://pathogenomics-lab.github.io/get_MNV/es/) · [Instalación](#instalación) · [Inicio rápido](#inicio-rápido) · [Citación](#citación) · [Pregunta una duda](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a)
 
 [English](README.md) · **Español**
 
