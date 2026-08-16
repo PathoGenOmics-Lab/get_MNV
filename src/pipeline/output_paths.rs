@@ -69,6 +69,53 @@ mod tests {
     use super::OutputPaths;
     use clap::Parser;
 
+    /// Both of these were fields the desktop app set and clap never exposed,
+    /// marked `#[arg(skip)]`. Parsing them from an argument list is the whole
+    /// point, and a test that only set the fields directly would have passed
+    /// throughout the years they were unreachable from a terminal.
+    #[test]
+    fn the_command_line_can_say_where_output_goes() {
+        let args = crate::cli::Args::parse_from([
+            "get_mnv",
+            "--vcf",
+            "v.vcf",
+            "--fasta",
+            "r.fasta",
+            "--genes",
+            "g.txt",
+            "--output-dir",
+            "results/run3",
+            "--output-prefix",
+            "sample1",
+        ]);
+        assert_eq!(args.output_dir.as_deref(), Some("results/run3"));
+        assert_eq!(args.output_prefix.as_deref(), Some("sample1"));
+
+        let paths = OutputPaths::resolve(&args, "ignored", None);
+        assert_eq!(paths.tsv.as_deref(), Some("results/run3/sample1.MNV.tsv"));
+    }
+
+    /// A cohort writes one file per sample, and the directory must not flatten
+    /// that back into one.
+    #[test]
+    fn a_directory_and_a_cohort_still_give_one_file_per_sample() {
+        let args = crate::cli::Args::parse_from([
+            "get_mnv",
+            "--vcf",
+            "v.vcf",
+            "--fasta",
+            "r.fasta",
+            "--genes",
+            "g.txt",
+            "--output-dir",
+            "out",
+        ]);
+        let one = OutputPaths::resolve(&args, "cohort", Some("S1"));
+        let two = OutputPaths::resolve(&args, "cohort", Some("S2"));
+        assert_eq!(one.tsv.as_deref(), Some("out/cohort.sample_S1.MNV.tsv"));
+        assert_ne!(one.tsv, two.tsv);
+    }
+
     #[test]
     fn test_output_prefix_keeps_the_sample_suffix() {
         let mut args = crate::cli::Args::parse_from([

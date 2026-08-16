@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`--output-dir` and `--output-prefix` say where the output goes.** The TSV,
+  VCF and BCF were written next to nothing but the input, under a name taken
+  from it, so directing them anywhere else meant copying files afterwards.
+  `--output-dir` names a directory, created if it does not exist, and
+  `--output-prefix` replaces the base name. With `--sample all` the sample name
+  is still appended, so a cohort does not write every sample over one file.
+
+  Both fields already existed, hidden from the command line with `#[arg(skip)]`
+  and reachable only from the desktop app. Anything driving the tool from a
+  workflow manager had to work around their absence.
+
 ### Fixed
 
 - **`ATA` is Methionine in the mitochondrial tables.** Tables 2, 3 and 5
