@@ -4,7 +4,7 @@ use crate::utils::aa_three_letter;
 
 pub(super) fn translate_cds(seq: &str, genetic_code: crate::genetic_code::GeneticCode) -> String {
     let mut protein = String::with_capacity(seq.len() / 3);
-    for codon in seq.as_bytes().chunks_exact(3) {
+    for codon in seq.as_bytes().as_chunks::<3>().0 {
         let codon = [
             codon[0].to_ascii_uppercase(),
             codon[1].to_ascii_uppercase(),
