@@ -302,7 +302,7 @@ jobs:
       # For a tool that gets cited, that is the difference between "this is the
       # file the page offered me" and "this is what the source says it is".
       - name: Attest that these binaries came from this commit
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           # The same set the checksums cover: the step above leaves them in
           # release-assets/, with the previous SHA256SUMS already removed.
