@@ -55,7 +55,19 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
         .map_err(reclassify_generic_as_validation)?;
     let contigs = selected_contigs(args, &snp_by_contig)?;
     validate_strict_original_metrics(&contigs, &snp_by_contig, args.strict)?;
-    validate_contig_inputs(&contigs, &references, &snp_by_contig, annotation_format)?;
+    let tsv_rows_without_contig = if annotation_format == AnnotationFormat::Tsv && contigs.len() > 1
+    {
+        io::tsv_rows_without_contig(args.genes_file()).map_err(reclassify_generic_as_validation)?
+    } else {
+        0
+    };
+    validate_contig_inputs(
+        &contigs,
+        &references,
+        &snp_by_contig,
+        annotation_format,
+        tsv_rows_without_contig,
+    )?;
 
     // Auto-select the phase/splice-aware CDS model when the user did not set
     // --gff-features and the GFF actually contains CDS features; otherwise a

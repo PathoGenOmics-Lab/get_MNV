@@ -124,8 +124,8 @@ transcrito con splicing.
 - El parseo de TSV de iVar conserva las filas SNV e indel que pasan los filtros.
   La notación de indels tipo `+SEQ` o `-SEQ` se convierte a alelos `REF/ALT`
   anclados al estilo VCF usando el FASTA de referencia.
-- Si usas `--genes`, el TSV de anotación no tiene columna de contig. Para datos
-  con varios contigs, mejor `--gff`.
+- Si usas `--genes` con datos de varios contigs, nombra el contig de cada gen en
+  la séptima columna del TSV de anotación, o usa `--gff`.
 - El comportamiento con indels y frameshift tiene sus propios ajustes, y dos de
   sus valores por defecto se apartan a propósito del comportamiento original de
   la herramienta. El razonamiento está en

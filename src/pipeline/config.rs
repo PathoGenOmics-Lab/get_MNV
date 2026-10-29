@@ -55,11 +55,16 @@ pub(crate) fn validate_contig_inputs(
     references: &ReferenceMap,
     snp_by_contig: &HashMap<String, Vec<VcfPosition>>,
     annotation_format: AnnotationFormat,
+    tsv_rows_without_contig: usize,
 ) -> AppResult<()> {
-    if matches!(annotation_format, AnnotationFormat::Tsv) && contigs.len() > 1 {
-        return Err(AppError::validation(
-            "TSV annotation does not include contig names; for multi-contig VCF use --gff or restrict with --chrom",
-        ));
+    if matches!(annotation_format, AnnotationFormat::Tsv)
+        && contigs.len() > 1
+        && tsv_rows_without_contig > 0
+    {
+        return Err(AppError::validation(format!(
+            "TSV annotation has {tsv_rows_without_contig} row(s) without a contig, which cannot be placed in a multi-contig VCF; \
+             name each row's contig in a seventh column, use --gff, or restrict with --chrom"
+        )));
     }
 
     let missing_in_vcf = contigs
@@ -370,9 +375,13 @@ mod tests {
             [("chr1".into(), vec![]), ("chr2".into(), vec![])]
                 .into_iter()
                 .collect();
-        let result = validate_contig_inputs(&contigs, &refs, &snps, AnnotationFormat::Tsv);
+        let result = validate_contig_inputs(&contigs, &refs, &snps, AnnotationFormat::Tsv, 2);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("TSV annotation"));
+        assert!(result.unwrap_err().to_string().contains("without a contig"));
+
+        // Every row naming its contig is what makes the same run valid.
+        validate_contig_inputs(&contigs, &refs, &snps, AnnotationFormat::Tsv, 0)
+            .expect("a TSV that names every row's contig places each gene");
     }
 
     #[test]

@@ -195,10 +195,24 @@ se asume codificante, que es lo que es una fila `gene` bacteriana. Ten en cuenta
 que la lista por defecto de `--gff-features` es `gene,pseudogene`, así que los
 pseudogenes entran por defecto y no se traducen.
 
-Limitaciones de la anotación TSV:
+Séptima columna opcional con el contig:
 
-- No tiene columna de contig.
-- Para datos multi-contig, usa GFF/GTF o limita la ejecución con `--chrom`.
+```text
+GeneName	GeneStart	GeneEnd	Strand	Phase	Biotype	Contig
+```
+
+```text
+Rv0007_Rv0007	9914	10828	+	0	protein_coding	NC_000962.3
+geneD	1	300	+	0	protein_coding	plasmid1
+```
+
+Una fila que nombra un contig solo se aplica a las variantes de ese contig. Una
+fila sin él, como en los formatos más cortos, se aplica al contig que se esté
+anotando, que es todo lo que necesita un archivo de un solo contig. Por eso un
+VCF con más de un contig necesita que todas las filas nombren su contig; si no,
+la ejecución se detiene en vez de poner los genes de un contig sobre las
+variantes de otro. Para usarla hay que escribir también las columnas de fase y
+biotipo: `.` vale como fase desconocida.
 
 ## 4. Lecturas BAM (opcional)
 

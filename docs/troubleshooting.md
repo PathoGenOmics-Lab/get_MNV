@@ -88,13 +88,18 @@ get_mnv --vcf input.vcf ...
 Example:
 
 ```text
-TSV annotation does not include contig names
+TSV annotation has 2 row(s) without a contig, which cannot be placed in a multi-contig VCF
 ```
 
 Fix:
 
-- Use `--gff` for multi-contig data.
+- Name each row's contig in a seventh column (see
+  [Input formats](input-formats.md)).
+- Or use `--gff` for multi-contig data.
 - Or restrict the run to one contig with `--chrom`.
+
+Versions before 1.1.6 had no contig column and gave
+`TSV annotation does not include contig names` instead.
 
 ## Fewer Rows Than Records in the VCF
 

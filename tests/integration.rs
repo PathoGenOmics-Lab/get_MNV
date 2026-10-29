@@ -1337,6 +1337,63 @@ fn test_e2e_split_multiallelic_flag() {
 }
 
 // ---------------------------------------------------------------------------
+// TSV annotation that names each gene's contig
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_tsv_annotation_contig_column_places_each_gene_on_its_contig() {
+    let tmp = temp_dir("e2e_tsv_contig");
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+    let vcf_path = tmp.join("in.vcf");
+    // Same coordinates on both contigs, so a gene laid on the wrong contig
+    // would still overlap the variant there: only the contig column tells them
+    // apart.
+    fs::write(&ref_path, ">chr1\nATGAAATTTCCC\n>chr2\nATGAAATTTCCC\n").unwrap();
+    fs::write(
+        &genes_path,
+        "geneA\t1\t12\t+\t0\tprotein_coding\tchr1\ngeneB\t1\t12\t+\t0\tprotein_coding\tchr2\n",
+    )
+    .unwrap();
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n##contig=<ID=chr1>\n##contig=<ID=chr2>\n\
+         #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+         chr1\t4\t.\tA\tC\t50\tPASS\tDP=10\n\
+         chr2\t7\t.\tT\tG\t50\tPASS\tDP=10\n",
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.threads = Some(1);
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("contigs".to_string());
+
+    let summary = pipeline::run(&args).expect("a TSV that names every contig runs multi-contig");
+    assert_eq!(summary.global.contig_count, 2);
+
+    let rows = read_tsv_rows(&tmp.join("contigs.MNV.tsv"));
+    let genes_on = |chrom: &str| -> Vec<String> {
+        rows.iter()
+            .filter(|row| row["Chromosome"] == chrom)
+            .map(|row| row["Gene"].clone())
+            .collect()
+    };
+    assert_eq!(genes_on("chr1"), vec!["geneA".to_string()]);
+    assert_eq!(genes_on("chr2"), vec!["geneB".to_string()]);
+
+    // The same file without the column is refused rather than guessed at.
+    fs::write(&genes_path, "geneA\t1\t12\t+\ngeneB\t1\t12\t+\n").unwrap();
+    let err = pipeline::run(&args).expect_err("rows without a contig cannot be placed");
+    assert!(err.to_string().contains("without a contig"), "{err}");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
 // T3: --sample all with multi-sample VCF
 // ---------------------------------------------------------------------------
 

@@ -1,4 +1,9 @@
-//! Loading genes from the simple 4/5-column TSV annotation format.
+//! Loading genes from the simple 4 to 7-column TSV annotation format.
+//!
+//! The seventh column, when present, names the contig a gene lives on. A row
+//! without it applies to whichever contig is being annotated, which is the only
+//! reading a single-contig file ever needed; a multi-contig run refuses such
+//! rows rather than lay one contig's genes over another's variants.
 
 use crate::error::AppResult;
 use crate::io::VcfPosition;
@@ -9,9 +14,39 @@ use std::io::{BufRead, BufReader};
 use super::gff_parse::{parse_gff_phase, parse_interval, parse_strand};
 use super::has_snp_in_interval;
 
+/// The contig a TSV row names in its seventh column, if it names one. `.` and
+/// an empty cell name none, as they do in the phase column.
+fn row_contig<'a>(fields: &[&'a str]) -> Option<&'a str> {
+    fields
+        .get(6)
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty() && *value != ".")
+}
+
+/// How many annotation rows name no contig. A multi-contig run needs this to
+/// be zero, because such a row cannot be placed on one contig rather than
+/// another.
+pub fn tsv_rows_without_contig(genes_file: &str) -> AppResult<usize> {
+    let reader = BufReader::new(File::open(genes_file)?);
+    let mut without = 0usize;
+    for line in reader.lines() {
+        let entry = line?;
+        let trimmed = entry.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let fields: Vec<&str> = trimmed.split('\t').collect();
+        if row_contig(&fields).is_none() {
+            without += 1;
+        }
+    }
+    Ok(without)
+}
+
 pub(super) fn load_genes_from_tsv(
     genes_file: &str,
     snp_list: &[VcfPosition],
+    expected_chrom: Option<&str>,
 ) -> AppResult<Vec<Gene>> {
     log::info!("Loading TSV gene file: {genes_file}");
     let file = File::open(genes_file)?;
@@ -20,6 +55,7 @@ pub(super) fn load_genes_from_tsv(
     let mut parsed_entries = 0usize;
     let mut genes_with_snps = 0usize;
     let mut genes_without_snps = 0usize;
+    let mut on_other_contigs = 0usize;
 
     for (line_idx, line) in reader.lines().enumerate() {
         let line_number = line_idx + 1;
@@ -61,6 +97,13 @@ pub(super) fn load_genes_from_tsv(
             crate::variants::Biotype::default()
         };
 
+        if let (Some(contig), Some(expected)) = (row_contig(&fields), expected_chrom) {
+            if contig != expected {
+                on_other_contigs += 1;
+                continue;
+            }
+        }
+
         if has_snp_in_interval(snp_list, start, end) {
             genes_with_snps += 1;
             genes.push(crate::variants::Gene {
@@ -80,7 +123,7 @@ pub(super) fn load_genes_from_tsv(
     }
 
     log::info!(
-        "TSV gene entries parsed: {parsed_entries} | mapped to SNPs: {genes_with_snps} | without SNPs: {genes_without_snps}"
+        "TSV gene entries parsed: {parsed_entries} | mapped to SNPs: {genes_with_snps} | without SNPs: {genes_without_snps} | on other contigs: {on_other_contigs}"
     );
 
     Ok(genes)

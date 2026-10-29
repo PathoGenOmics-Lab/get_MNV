@@ -120,8 +120,8 @@ features, especially for eukaryotic GFF/GTF files. CDS rows with
 - iVar TSV parsing keeps passing SNV and indel rows. Indel notation such as
   `+SEQ` or `-SEQ` is converted to VCF-like anchored `REF/ALT` alleles using
   the FASTA reference.
-- If you use `--genes`, the annotation TSV has no contig column. For
-  multi-contig data, prefer `--gff`.
+- If you use `--genes` with multi-contig data, name each gene's contig in the
+  seventh column of the annotation TSV, or use `--gff`.
 - Indel and frameshift behaviour has its own knobs, and two of their defaults
   deliberately differ from the tool's original behaviour. The reasoning is in
   [Scope and Compatibility](indel-mnv-semantics.md#tuning-knobs).

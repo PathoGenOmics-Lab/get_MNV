@@ -17,6 +17,14 @@ All notable changes to this project are documented in this file.
   and reachable only from the desktop app. Anything driving the tool from a
   workflow manager had to work around their absence.
 
+- **The TSV gene annotation can name each gene's contig.** An optional seventh
+  column, after phase and biotype, says which contig a row belongs to, and the
+  row is then applied only to variants there. Without it the format had no way
+  to tell contigs apart, so a multi-contig VCF with `--genes` was refused
+  outright. It now runs when every row names its contig; a row without one
+  still fails such a run, with a message pointing at the column, instead of
+  being laid over every contig at the same coordinates.
+
 ### Changed
 
 - **Multiallelic records are split without being asked.** A VCF record with

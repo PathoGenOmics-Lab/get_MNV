@@ -40,6 +40,7 @@ pub(crate) use gff_parse::{
 use cds_model::warn_if_multi_exon_cds_detected;
 use gff_load::gff_has_non_zero_phase_cds;
 use tsv::load_genes_from_tsv;
+pub use tsv::tsv_rows_without_contig;
 
 /// Return true when any variant event overlaps the interval. Insertions only
 /// overlap when their inserted bases fall between bases inside the interval;
@@ -97,7 +98,7 @@ pub fn load_genes(
     feature_types: &[String],
 ) -> AppResult<Vec<Gene>> {
     match detect_annotation_format(genes_file)? {
-        AnnotationFormat::Tsv => load_genes_from_tsv(genes_file, snp_list),
+        AnnotationFormat::Tsv => load_genes_from_tsv(genes_file, snp_list, expected_chrom),
         AnnotationFormat::Gff => {
             load_genes_from_gff(genes_file, snp_list, expected_chrom, feature_types)
         }

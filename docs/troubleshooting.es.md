@@ -89,13 +89,18 @@ entrada.
 Ejemplo:
 
 ```text
-TSV annotation does not include contig names
+TSV annotation has 2 row(s) without a contig, which cannot be placed in a multi-contig VCF
 ```
 
 Solución:
 
-- Usa `--gff` para datos de múltiples contigs.
+- Nombra el contig de cada fila en una séptima columna (consulta
+  [Formatos de entrada](input-formats.es.md)).
+- O usa `--gff` para datos de múltiples contigs.
 - O restringe la ejecución a un solo contig con `--chrom`.
+
+Las versiones anteriores a la 1.1.6 no tenían columna de contig y daban en su
+lugar `TSV annotation does not include contig names`.
 
 ## Salen menos filas que registros tiene el VCF
 

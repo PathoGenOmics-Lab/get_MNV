@@ -189,10 +189,24 @@ protein-coding, which is what a bacterial `gene` row is. Note that the default
 `--gff-features` list is `gene,pseudogene`, so pseudogenes are selected by
 default and are not translated.
 
-Limitations of TSV annotation:
+Optional seventh column with the contig:
 
-- It has no contig column.
-- For multi-contig data, use GFF/GTF or restrict the run with `--chrom`.
+```text
+GeneName	GeneStart	GeneEnd	Strand	Phase	Biotype	Contig
+```
+
+```text
+Rv0007_Rv0007	9914	10828	+	0	protein_coding	NC_000962.3
+geneD	1	300	+	0	protein_coding	plasmid1
+```
+
+A row that names a contig is only applied to variants on that contig. A row
+without one, as in the shorter formats, is applied to whichever contig is being
+annotated, which is all a single-contig file needs. A VCF with more than one
+contig therefore needs every row to name its contig; otherwise the run stops
+rather than lay one contig's genes over another's variants. Using it means
+writing the phase and biotype columns too: `.` is accepted for an unknown
+phase.
 
 ## 4. BAM Reads (Optional)
 
