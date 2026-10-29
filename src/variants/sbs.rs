@@ -66,13 +66,24 @@ pub fn sbs96_class(sequence: &str, position: usize, ref_base: u8, alt_base: u8) 
 
 /// One SBS96 class (or [`NO_CONTEXT`]) per substitution component of the row,
 /// in Event Components order. Empty when the row has no substitution.
-pub fn sbs96_for_variant(variant: &VariantInfo, sequence: &str) -> Vec<String> {
+///
+/// A base that belongs to a run of adjacent substitutions (`run_lengths`, by
+/// position) is a doublet or a multi-base substitution, not a single-base one,
+/// and is written `DBS` or `MBS` so the single-base spectrum leaves it out.
+pub fn sbs96_for_variant(
+    variant: &VariantInfo,
+    sequence: &str,
+    run_lengths: &std::collections::HashMap<usize, usize>,
+) -> Vec<String> {
     variant
         .event_components
         .iter()
         .filter_map(|label| parse_component_label(label))
         .filter(|component| component.kind == AlleleComponentKind::Snp)
         .map(|component| {
+            if let Some(&length) = run_lengths.get(&component.position) {
+                return super::runs::run_marker(length).to_string();
+            }
             match (
                 component.ref_allele.as_bytes(),
                 component.alt_allele.as_bytes(),

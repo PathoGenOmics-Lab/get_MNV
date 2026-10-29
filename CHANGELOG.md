@@ -79,6 +79,17 @@ All notable changes to this project are documented in this file.
   normal run, with `--sample all` and with `--report-from`, and `--report-from`
   now accepts `--matrix` without `--report`.
 
+- **A doublet across a codon boundary is one event.** Each codon row only sees
+  its own codon, so two adjacent substitutions on either side of a boundary
+  came out as two unrelated SNVs with no doublet class, even when the caller
+  wrote them as one record. A pass over every row of a contig now finds each
+  run of adjacent substituted bases: the rows it touches share its descriptor
+  in a new `Adjacent Substitutions` column (`g.103_104delinsAT`) and `ADJSUB`
+  INFO key, a run of exactly two gets its DBS78 class on every row, in genes or
+  out of them, and a run of three or more is no longer called a doublet. Their
+  bases are marked `DBS` or `MBS` in `SBS96 Context` instead of being counted as
+  single-base substitutions.
+
 ### Changed
 
 - **Multiallelic records are split without being asked.** A VCF record with

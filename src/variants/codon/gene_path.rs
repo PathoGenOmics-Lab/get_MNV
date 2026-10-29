@@ -55,6 +55,8 @@ pub(super) fn compute_annotations(
         linkage: None,
         // Filled in per contig by the pipeline, which has the sequence.
         sbs96: Vec::new(),
+        // Filled in per contig by the pipeline, which sees every row at once.
+        adjacent_substitutions: Vec::new(),
     }
 }
 

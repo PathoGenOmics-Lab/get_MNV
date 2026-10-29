@@ -263,6 +263,12 @@ pub struct VariantAnnotations {
     /// row with no substitution. See [`crate::variants::sbs`].
     #[serde(default)]
     pub sbs96: Vec<String>,
+    /// HGVS genomic descriptor of every run of two or more adjacent substituted
+    /// bases this row's substitutions belong to (`g.103_104delinsAT`), shared by
+    /// every row the run touches, which is how two codon rows of one event are
+    /// tied together. See [`crate::variants::runs`].
+    #[serde(default)]
+    pub adjacent_substitutions: Vec<String>,
 }
 
 /// The input caller's phase claim for one row, and whether the reads refute it.

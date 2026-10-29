@@ -4460,6 +4460,64 @@ fn test_e2e_symbolic_deletions_and_duplications_are_spelled_out() {
     fs::remove_dir_all(&tmp).ok();
 }
 
+/// Two adjacent substitutions on either side of a codon boundary are one event.
+///
+/// Each codon row only sees its own codon, so the pair came out as two unrelated
+/// SNVs with no doublet class, and the single-base spectrum counted both bases.
+/// They now share the run's descriptor and its DBS78 class, whether the caller
+/// wrote them as two records or as one MNP.
+#[test]
+fn test_e2e_a_doublet_across_a_codon_boundary_is_one_event() {
+    let tmp = temp_dir("e2e_boundary_doublet");
+    // CDS 101-400: ATG then GCT repeats, so codon 1 ends at 103 and codon 2
+    // starts at 104, both G.
+    let flank = "ACGTTGCA".repeat(13);
+    let cds = format!("ATG{}TAA", "GCT".repeat(98));
+    let bases = format!("{}{cds}{}", &flank[..100], &flank[..100]);
+    fs::write(tmp.join("ref.fas"), format!(">chr1\n{bases}\n")).unwrap();
+    fs::write(
+        tmp.join("genes.gff3"),
+        "##gff-version 3\nchr1\tsyn\tCDS\t101\t400\t.\t+\t0\tID=c1;Name=geneB\n",
+    )
+    .unwrap();
+    let header = "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=500>\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
+    let inputs = [
+        (
+            "two_records",
+            "chr1\t103\t.\tG\tA\t50\tPASS\tDP=30\nchr1\t104\t.\tG\tT\t50\tPASS\tDP=30\n",
+        ),
+        ("one_mnp", "chr1\t103\t.\tGG\tAT\t50\tPASS\tDP=30\n"),
+    ];
+    for (name, records) in inputs {
+        fs::write(
+            tmp.join(format!("{name}.vcf")),
+            format!("{header}{records}"),
+        )
+        .unwrap();
+        let mut args = base_args();
+        args.vcf_file = Some(tmp.join(format!("{name}.vcf")).to_string_lossy().into());
+        args.fasta_file = tmp.join("ref.fas").to_string_lossy().into();
+        args.genes_file_tsv = None;
+        args.gff_file = Some(tmp.join("genes.gff3").to_string_lossy().into());
+        args.gff_features_raw = Some("CDS".to_string());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+        pipeline::run(&args).unwrap_or_else(|e| panic!("{name}: {e}"));
+
+        let rows = read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")));
+        assert_eq!(rows.len(), 2, "{name}: one row per codon");
+        for row in &rows {
+            assert_eq!(row["Adjacent Substitutions"], "g.103_104delinsAT", "{name}");
+            assert_eq!(row["DBS Class"], "CC>AT", "{name}");
+            assert_eq!(
+                row["SBS96 Context"], "DBS",
+                "{name}: a doublet base is not a single-base substitution"
+            );
+        }
+    }
+    fs::remove_dir_all(&tmp).ok();
+}
+
 /// An insertion inside the terminal stop codon truncates nothing, so it gets no
 /// NMD prediction, on either strand.
 ///

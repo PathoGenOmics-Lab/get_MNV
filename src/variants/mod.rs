@@ -9,6 +9,7 @@ pub mod hgvs;
 pub mod linkage;
 #[cfg(test)]
 mod property_tests;
+pub mod runs;
 pub mod sbs;
 pub mod splice;
 mod types;

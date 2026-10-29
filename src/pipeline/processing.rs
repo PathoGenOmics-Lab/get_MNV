@@ -893,11 +893,14 @@ pub(crate) fn process_contig(
         }
     }
 
+    // Adjacent substitutions are one event even when a codon boundary splits
+    // them into two rows, which only a pass over every row can see.
+    let run_lengths = crate::variants::runs::annotate_adjacent_substitutions(&mut all_variants);
     // Every row, whichever path built it, gets the trinucleotide context of its
     // substitutions here, where the contig's sequence is at hand.
     for variant in &mut all_variants {
         variant.annotations.sbs96 =
-            crate::variants::sbs::sbs96_for_variant(variant, reference.sequence);
+            crate::variants::sbs::sbs96_for_variant(variant, reference.sequence, &run_lengths);
     }
 
     sort_variants(&mut all_variants);

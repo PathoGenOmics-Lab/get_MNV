@@ -49,6 +49,7 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "HGVSG"
             | "HGVSC"
             | "SBS96"
+            | "ADJSUB"
     )
 }
 
@@ -437,6 +438,12 @@ pub(crate) fn build_info_string(
     }
     if !variant.annotations.sbs96.is_empty() {
         builder.push_text("SBS96", &variant.annotations.sbs96.join(","));
+    }
+    if !variant.annotations.adjacent_substitutions.is_empty() {
+        builder.push_text(
+            "ADJSUB",
+            &variant.annotations.adjacent_substitutions.join(","),
+        );
     }
 
     if let Some((sr, srf, srr)) = snp_metrics {
@@ -846,7 +853,11 @@ pub(crate) fn write_info_header(
     )?;
     writeln!(
         writer,
-        "##INFO=<ID=SBS96,Number=.,Type=String,Description=\"COSMIC SBS96 class of each single-base substitution, in COMP order, written from the pyrimidine strand (e.g. A[C>T]G); '-' where the trinucleotide context cannot be read\">"
+        "##INFO=<ID=SBS96,Number=.,Type=String,Description=\"COSMIC SBS96 class of each single-base substitution, in COMP order, written from the pyrimidine strand (e.g. A[C>T]G); '-' where the trinucleotide context cannot be read, DBS or MBS for a base of a run of adjacent substitutions\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=ADJSUB,Number=.,Type=String,Description=\"HGVS genomic descriptor of each run of two or more adjacent substituted bases this record's substitutions belong to, shared by every record of the run\">"
     )?;
     writeln!(
         writer,
