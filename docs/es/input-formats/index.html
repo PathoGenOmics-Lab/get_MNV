@@ -112,7 +112,7 @@
 <div class="code" data-lang="bash"><pre><code>--fasta reference.fasta</code></pre></div>
 <p>Requisitos:</p>
 <ul><li>Los IDs de registro del FASTA deben coincidir con los nombres de contig de las variantes.</li><li>Las bases deben ser bases de ADN IUPAC válidas.</li><li>No se admiten nombres de contig duplicados.</li></ul>
-<h2 id="3-anotación-de-genes">3. Anotación de genes<a class="anchor" href="#3-anotación-de-genes" aria-hidden="true" tabindex="-1">#</a></h2>
+<h2 id="3-anotación-de-genes"><span class="alias" id="3-anotacion-de-genes"></span>3. Anotación de genes<a class="anchor" href="#3-anotación-de-genes" aria-hidden="true" tabindex="-1">#</a></h2>
 <p>Proporciona <code>--gff</code> o <code>--genes</code>.</p>
 <h3 id="gffgff3gtf">GFF/GFF3/GTF<a class="anchor" href="#gffgff3gtf" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>Recomendado para la mayoría de los conjuntos de datos:</p>
@@ -122,7 +122,7 @@
 <p>Detalles importantes:</p>
 <ul><li>Las coordenadas se leen de las columnas 4 y 5.</li><li>La hebra se lee de la columna 7.</li><li>En las features <code>CDS</code>, se usa la fase de la columna 8 cuando está presente.</li><li>En las filas <code>CDS</code> con <code>transcript_id</code> o <code>Parent</code>, get_MNV construye la secuencia CDS empalmada de cada transcrito. La agrupación de codones, los efectos sobre el aminoácido de los MNV y el contexto de frameshift de los indels se evalúan entonces sobre el CDS completo del transcrito.</li><li>Si un GFF/GTF contiene varios transcritos para el mismo gen, una sola variante puede producir una línea de salida por cada transcrito solapante. Cada uno se anota por su cuenta, que es la respuesta honesta cuando la anotación ofrece varios. Si quieres una línea por variante, deja un solo transcrito por gen en el GFF antes de ejecutar, por ejemplo con <code>agat_sp_keep_longest_isoform.pl</code> de <a href="https://github.com/NBISweden/AGAT">AGAT</a>.</li></ul>
 <p>Los nombres de genes se leen de atributos habituales como <code>gene_name</code>, <code>gene</code>, <code>Name</code>, <code>locus_tag</code>, <code>gene_id</code> e <code>ID</code>.</p>
-<h3 id="anotación-tsv-simple">Anotación TSV simple<a class="anchor" href="#anotación-tsv-simple" aria-hidden="true" tabindex="-1">#</a></h3>
+<h3 id="anotación-tsv-simple"><span class="alias" id="anotacion-tsv-simple"></span>Anotación TSV simple<a class="anchor" href="#anotación-tsv-simple" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>Usa <code>--genes</code> para un archivo de anotación pequeño y sencillo:</p>
 <div class="code" data-lang="bash"><pre><code>--genes genes.tsv</code></pre></div>
 <p>Formato de cuatro columnas:</p>
@@ -155,7 +155,7 @@ geneD	1	300	+	0	protein_coding	plasmid1</code></pre></div>
 <ul><li>El archivo debe estar ordenado por coordenadas.</li><li>Debe estar indexado: <code>.bai</code> (o <code>.csi</code>) para un BAM, <code>.crai</code> para un CRAM. <code>samtools index</code> escribe cualquiera de los dos.</li><li>Los nombres de contig deben coincidir con los del archivo de variantes y los del FASTA.</li><li>Un CRAM guarda las lecturas como diferencias con una referencia, así que se decodifica con el <code>--fasta</code> de la ejecución. Tiene que ser la referencia con la que se escribió el CRAM; una distinta falla con un error de suma de comprobación en vez de dar bases equivocadas. Un <code>.fai</code> junto al FASTA permite leer la secuencia bajo demanda; sin él se carga entera.</li></ul>
 <p>Un CRAM da los mismos recuentos que el BAM del que sale: la batería de pruebas ejecuta cada escenario de las dos maneras y compara las salidas byte a byte.</p>
 <ul><li>Las lecturas duplicadas, secundarias, suplementarias y marcadas como QC-fail se ignoran, igual que las descarta <code>samtools mpileup</code> por defecto.</li></ul>
-<h2 id="5-catálogo-de-variantes-conocidas-opcional">5. Catálogo de variantes conocidas (opcional)<a class="anchor" href="#5-catálogo-de-variantes-conocidas-opcional" aria-hidden="true" tabindex="-1">#</a></h2>
+<h2 id="5-catálogo-de-variantes-conocidas-opcional"><span class="alias" id="5-catalogo-de-variantes-conocidas-opcional"></span>5. Catálogo de variantes conocidas (opcional)<a class="anchor" href="#5-catálogo-de-variantes-conocidas-opcional" aria-hidden="true" tabindex="-1">#</a></h2>
 <p><code>--catalogue conocidas.tsv</code> marca las llamadas que coinciden con una tabla de variantes de las que ya sabes algo: mutaciones de resistencia, marcadores de linaje, cambios patogénicos conocidos. Va separada por tabuladores, con una cabecera que nombra una columna <code>gene</code> y otra <code>variant</code> y, de forma opcional, <code>label</code>; las demás columnas se ignoran y las líneas que empiezan por <code>#</code> son comentarios.</p>
 <div class="code" data-lang="text"><pre><code>gene	variant	label
 rpoB	p.Ser450Leu	RIF: Assoc w R

@@ -192,6 +192,10 @@ a:hover { color: var(--accent-strong); }
 .prose h3 { font-size: 1.15rem; margin: 30px 0 8px; font-weight: 600; }
 .prose h4 { font-size: 1rem; margin: 24px 0 6px; font-weight: 600; }
 .prose h2:first-child, .prose h1 + h2 { margin-top: 24px; }
+/* The anchors the MkDocs site gave the same headings, kept so old links still
+   land on their section: at the top of the heading's padding, as its own does. */
+.alias { display: block; }
+.prose h2 > .alias { scroll-margin-top: 18px; }
 .anchor { margin-left: 8px; color: var(--muted); text-decoration: none; opacity: 0; font-weight: 400; }
 .prose :is(h2, h3, h4):hover .anchor { opacity: 1; }
 .prose p, .prose ul, .prose ol { margin: 0 0 14px; }

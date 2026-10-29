@@ -14,13 +14,15 @@ no longer match the markdown, which is what CI runs.
     python3 tools/build_docs.py           # write the pages
     python3 tools/build_docs.py --check   # exit 1 if any page is stale
 
-Only the markdown these pages use is supported: headings, paragraphs, lists
-(nested, loose or tight, with code inside), tables, block quotes and GitHub's
-alerts (> [!NOTE], whose first bold line is the title), fenced code, rules,
-images (a `#gh-light-mode-only` / `#gh-dark-mode-only` fragment shows the image
-in that theme only, as GitHub does), inline code, emphasis, links, a few inline
-tags and raw HTML blocks. Anything else shows up as text, and
-tools/check_site.py catches what that breaks.
+Only the markdown these pages use is supported, read the way GitHub reads it:
+headings, paragraphs, lists (nested, loose or tight, with code inside), tables,
+block quotes and GitHub's alerts (> [!NOTE], titled by a first line that is
+bold and nothing else), fenced code, rules, images (a `#gh-light-mode-only` /
+`#gh-dark-mode-only` fragment shows the image in that theme only, as GitHub
+does), inline code, backslash escapes, emphasis, links, URLs written out, a few
+inline tags and raw HTML blocks. Reference links, footnotes and task lists are
+not, and tools/check_site.py stops on them; a table row with more cells than
+its header stops the build.
 
 Standard library only.
 """
@@ -33,6 +35,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -215,25 +218,130 @@ def title_in(title: str, lang: str) -> str:
 # ── Markdown ──
 
 
-def slugify(text: str, seen: dict[str, int]) -> str:
-    """GitHub's anchor for a heading, so links written for GitHub land here too."""
-    slug = re.sub(r"[^\w\- ]", "", text.strip().lower()).replace(" ", "-")
-    if slug in seen:
-        seen[slug] += 1
-        slug = f"{slug}-{seen[slug]}"
-    else:
-        seen[slug] = 0
-    return slug
+class DocsError(Exception):
+    """Markdown the site cannot render the way GitHub does."""
+
+
+ASCII_PUNCTUATION = set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")
+
+FENCE = re.compile(r"^(\s*)(```+|~~~+)\s*(.*)$")
+# A closing run of #s only counts after a space, so `## C#` keeps its #.
+HEADING = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
+SETEXT = re.compile(r"^ {0,3}(=+|-+)[ \t]*$")
+RULE = re.compile(r"^ {0,3}((\*[ \t]*){3,}|(-[ \t]*){3,}|(_[ \t]*){3,})$")
+LIST_ITEM = re.compile(r"^(\s*)([-*+]|\d+\.)(\s+)")
+# The tags that open or close an HTML block, which runs to the next blank line.
+HTML_BLOCK = re.compile(
+    r"^</?(address|article|aside|blockquote|caption|center|dd|details|dialog|div|dl|dt|fieldset"
+    r"|figcaption|figure|footer|form|h[1-6]|header|hr|li|main|nav|ol|p|picture|section|summary"
+    r"|table|tbody|td|tfoot|th|thead|tr|ul)(\s|/?>|$)",
+    re.I,
+)
+TABLE_DELIMITER = re.compile(r"^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?$")
+# A link's destination may hold one level of parentheses, as Wikipedia's do
+# (Codon_(biology)), and may be followed by a "title".
+DESTINATION = r"((?:[^()\s]|\([^()\s]*\))+)"
+TITLE = r'(?:\s+"([^"]*)")?'
+IMAGE = re.compile(r"!\[([^\]]*)\]\(\s*" + DESTINATION + TITLE + r"\s*\)")
+LINK = re.compile(r"\[([^\]]+)\]\(\s*" + DESTINATION + TITLE + r"\s*\)")
+# A URL written out in the text, which GitHub links.
+BARE_URL = re.compile(r"(?<![\w/@])https?://[^\s<\x00-\x03]+")
+
+
+def code_and_escapes(text: str, code, escaped) -> str:
+    """Reads code spans and backslash escapes left to right, as CommonMark
+    does: a backslash makes any ASCII punctuation literal, a run of backticks
+    opens a code span only where a run of the same length closes it, and
+    nothing inside a code span is markup. `code` and `escaped` say what each
+    becomes."""
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        char = text[i]
+        if char == "\\" and i + 1 < n and text[i + 1] in ASCII_PUNCTUATION:
+            out.append(escaped(text[i + 1]))
+            i += 2
+        elif char == "`":
+            opening = re.match(r"`+", text[i:]).group(0)
+            closing = re.compile(rf"(?<!`){opening}(?!`)").search(text, i + len(opening))
+            if closing is None:
+                out.append(opening)
+                i += len(opening)
+                continue
+            content = text[i + len(opening) : closing.start()].replace("\n", " ")
+            # One space comes off each end when both ends have one, which is
+            # how a span can start with a backtick; any other space is the
+            # code's own, as in `; `.
+            if content.startswith(" ") and content.endswith(" ") and content.strip(" "):
+                content = content[1:-1]
+            out.append(code(content))
+            i = closing.end()
+        else:
+            out.append(char)
+            i += 1
+    return "".join(out)
+
+
+def table_cells(row: str) -> list[str]:
+    """A table row's cells. A | inside a cell, in code too, is written \\|, as
+    GitHub asks."""
+    row = row.strip()
+    row = row[1:] if row.startswith("|") else row
+    row = row[:-1] if row.endswith("|") and not row.endswith("\\|") else row
+    return [cell.strip().replace("\\|", "|") for cell in re.split(r"(?<!\\)\|", row)]
 
 
 def plain(markdown_inline: str) -> str:
-    """The text of an inline span, without its markup."""
-    text = re.sub(r"`([^`]*)`", r"\1", markdown_inline)
-    text = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    """The text of an inline span, without its markup: what a heading's anchor,
+    the page contents and the search index are made of."""
+    keep: list[str] = []
+
+    def stash(fragment: str) -> str:
+        keep.append(fragment)
+        return f"\x00{len(keep) - 1}\x00"
+
+    text = code_and_escapes(markdown_inline, stash, stash)
+    text = re.sub(r"<(https?://[^>\s]+)>", r"\1", text)
+    text = IMAGE.sub(lambda m: m.group(1), text)
+    text = LINK.sub(lambda m: m.group(1), text)
     text = INLINE_TAGS.sub("", text)
     text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"(?<![\w_])__(?!\s)(.+?)(?<!\s)__(?![\w_])", r"\1", text)
     text = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])", r"\1", text)
-    return re.sub(r"(?<!\w)_(?!\s)(.+?)(?<!\s)_(?!\w)", r"\1", text)
+    text = re.sub(r"(?<!\w)_(?!\s)(.+?)(?<!\s)_(?!\w)", r"\1", text)
+    text = html.unescape(text)
+    return re.sub(r"\x00(\d+)\x00", lambda m: keep[int(m.group(1))], text)
+
+
+def github_slug(text: str) -> str:
+    """GitHub's anchor for a heading, so links written for GitHub land here too."""
+    return re.sub(r"[^\w\- ]", "", text.strip().lower()).replace(" ", "-")
+
+
+def unique_slug(slug: str, seen: dict[str, int]) -> str:
+    """`slug`, numbered the way GitHub numbers a repeated heading. A numbered
+    anchor is taken too, so "Foo", "Foo" and "Foo 1" get foo, foo-1 and foo-1-1
+    rather than two foo-1."""
+    result = slug
+    while result in seen:
+        seen[slug] += 1
+        result = f"{slug}-{seen[slug]}"
+    seen[result] = 0
+    return result
+
+
+def mkdocs_slug(text: str, taken: set[str]) -> str:
+    """The anchor the MkDocs site gave the same heading: accents folded to
+    ASCII, runs of spaces and hyphens joined, and a repeat numbered _1, _2.
+    Links to the old site's sections are out in the world, and each page keeps
+    these as well, so they still land on their section."""
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[-\s]+", "-", re.sub(r"[^\w\s-]", "", text).strip().lower())
+    while slug in taken or not slug:
+        numbered = re.match(r"^(.*)_([0-9]+)$", slug)
+        slug = f"{numbered.group(1)}_{int(numbered.group(2)) + 1}" if numbered else f"{slug}_1"
+    taken.add(slug)
+    return slug
 
 
 class Renderer:
@@ -242,8 +350,13 @@ class Renderer:
         self.lang = lang
         self.page = output_of(source, lang)
         self.seen: dict[str, int] = {}
+        self.old_anchors: set[str] = set()
         self.headings: list[tuple[int, str, str]] = []
         self.sections: list[dict] = []
+
+    @property
+    def markdown(self) -> str:
+        return f"docs/{localized(self.source, self.lang)}"
 
     # Links
 
@@ -254,16 +367,19 @@ class Renderer:
         suffix = f"#{anchor}" if anchor else ""
         if anchor in ("gh-light-mode-only", "gh-dark-mode-only"):
             suffix = ""
-        if path.endswith(".md"):
-            spanish = path.endswith(".es.md")
-            english = path[: -len(".es.md")] + ".md" if spanish else path
-            lang = "es" if spanish else "en"
-            if english in {p[1] for p in PAGES}:
-                return relative(self.page, output_of(english, lang)) + suffix
-        resolved = (DOCS / path).resolve()
+        # A path from / starts at the repository's root, as GitHub reads it.
+        resolved = (ROOT / path.lstrip("/") if path.startswith("/") else DOCS / path).resolve()
         if resolved.is_relative_to(DOCS):
-            return relative(self.page, resolved.relative_to(DOCS).as_posix()) + suffix
-        return f"{REPO}/blob/main/{resolved.relative_to(ROOT).as_posix()}" + suffix
+            inside = resolved.relative_to(DOCS).as_posix()
+            if inside.endswith(".md"):
+                spanish = inside.endswith(".es.md")
+                english = inside[: -len(".es.md")] + ".md" if spanish else inside
+                if english in {p[1] for p in PAGES}:
+                    return relative(self.page, output_of(english, "es" if spanish else "en")) + suffix
+            return relative(self.page, inside) + suffix
+        if resolved.is_relative_to(ROOT):
+            return f"{REPO}/blob/main/{resolved.relative_to(ROOT).as_posix()}" + suffix
+        raise DocsError(f"{self.markdown} links to {target}, which is outside the repository")
 
     # Inline
 
@@ -274,32 +390,50 @@ class Renderer:
             keep.append(fragment)
             return f"\x00{len(keep) - 1}\x00"
 
-        text = re.sub(r"(`+)(.+?)\1", lambda m: stash(f"<code>{html.escape(m.group(2).strip())}</code>"), text)
-        text = re.sub(r"\\([\\`*_{}\[\]()#+\-.!|<>])", lambda m: stash(html.escape(m.group(1))), text)
+        text = code_and_escapes(
+            text, lambda code: stash(f"<code>{html.escape(code)}</code>"), lambda char: stash(html.escape(char))
+        )
         text = re.sub(r"<(https?://[^>\s]+)>", lambda m: stash(f'<a href="{html.escape(m.group(1))}">{html.escape(m.group(1))}</a>'), text)
         text = INLINE_TAGS.sub(lambda m: stash(m.group(0)), text)
 
         def image(m: re.Match) -> str:
-            alt, target = m.group(1), m.group(2).strip()
+            alt, target, title = m.groups()
             theme = ""
             if target.endswith("#gh-light-mode-only"):
                 theme = ' class="only-light"'
             elif target.endswith("#gh-dark-mode-only"):
                 theme = ' class="only-dark"'
+            titled = f' title="{html.escape(title)}"' if title else ""
             src = self.link(target)
-            return stash(f'<img{theme} src="{html.escape(src)}" alt="{html.escape(alt)}" loading="lazy">')
+            return stash(f'<img{theme} src="{html.escape(src)}" alt="{html.escape(plain(alt))}"{titled} loading="lazy">')
 
-        text = re.sub(r"!\[([^\]]*)\]\(([^)\s]+)\)", image, text)
+        text = IMAGE.sub(image, text)
 
         def link(m: re.Match) -> str:
-            label, target = m.group(1), m.group(2).strip().split(" ")[0]
-            return stash(f'<a href="{html.escape(self.link(target))}">') + label + stash("</a>")
+            label, target, title = m.groups()
+            titled = f' title="{html.escape(title)}"' if title else ""
+            # The label is fenced off, so a URL written in it is not linked twice.
+            return stash(f'<a href="{html.escape(self.link(target))}"{titled}>') + f"\x02{label}\x03" + stash("</a>")
 
-        text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", link, text)
+        def bare(m: re.Match) -> str:
+            # As on GitHub, trailing punctuation and an unmatched ) are the
+            # sentence's, not the URL's.
+            url, trail = m.group(0), ""
+            while url and (url[-1] in "?!.,:*_~" or (url[-1] == ")" and url.count(")") > url.count("("))):
+                url, trail = url[:-1], url[-1] + trail
+            return stash(f'<a href="{html.escape(url)}">{html.escape(url)}</a>') + trail
+
+        text = LINK.sub(link, text)
+        text = "".join(
+            part if part.startswith("\x02") else BARE_URL.sub(bare, part)
+            for part in re.split(r"(\x02.*?\x03)", text, flags=re.S)
+        )
         text = re.sub(r"&(?!#?\w+;)", "&amp;", text).replace("<", "&lt;").replace(">", "&gt;")
         text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+        text = re.sub(r"(?<![\w_])__(?!\s)(.+?)(?<!\s)__(?![\w_])", r"<strong>\1</strong>", text)
         text = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])", r"<em>\1</em>", text)
         text = re.sub(r"(?<![\w])_(?!\s)(.+?)(?<!\s)_(?![\w])", r"<em>\1</em>", text)
+        text = text.replace("\x02", "").replace("\x03", "")
         while "\x00" in text:
             text = re.sub(r"\x00(\d+)\x00", lambda m: keep[int(m.group(1))], text)
         return text
@@ -320,7 +454,7 @@ class Renderer:
                     i += 1
                 i += 1
                 continue
-            fence = re.match(r"^(\s*)(```+|~~~+)\s*(.*)$", line)
+            fence = FENCE.match(line)
             if fence:
                 indent, marker, info = len(fence.group(1)), fence.group(2), fence.group(3).strip()
                 body = []
@@ -331,24 +465,20 @@ class Renderer:
                 i += 1
                 out.append(self.code(info, body))
                 continue
-            heading = re.match(r"^(#{1,6})\s+(.*?)\s*#*$", line)
+            heading = HEADING.match(line)
             if heading:
-                level, text = len(heading.group(1)), heading.group(2)
-                slug = slugify(plain(text), self.seen)
-                self.headings.append((level, plain(text), slug))
-                self.sections.append({"heading": plain(text), "slug": slug, "level": level, "text": []})
-                anchor = f'<a class="anchor" href="#{slug}" aria-hidden="true" tabindex="-1">#</a>' if level > 1 else ""
-                out.append(f'<h{level} id="{slug}">{self.inline(text)}{anchor}</h{level}>')
+                out.append(self.heading(len(heading.group(1)), heading.group(2)))
                 i += 1
                 continue
-            if re.match(r"^(-{3,}|\*{3,}|_{3,})$", stripped):
+            if RULE.match(line):
                 out.append("<hr>")
                 i += 1
                 continue
-            if stripped.startswith("|") and i + 1 < len(lines) and re.match(r"^\|?\s*:?-{2,}", lines[i + 1].strip()):
-                rows = []
-                while i < len(lines) and lines[i].strip().startswith("|"):
-                    rows.append(lines[i].strip())
+            if self.starts_table(lines, i):
+                rows = [lines[i], lines[i + 1]]
+                i += 2
+                while i < len(lines) and lines[i].strip() and not self.starts_block(lines, i):
+                    rows.append(lines[i])
                     i += 1
                 out.append(self.table(rows))
                 continue
@@ -359,22 +489,35 @@ class Renderer:
                     i += 1
                 out.append(self.quote(quoted))
                 continue
-            if re.match(r"^<(picture|div|details|table|p|figure)\b", stripped):
+            # An HTML block runs to the next blank line, and its closing tag can
+            # open one of its own, so markdown can sit between the two, as in
+            # GitHub's <details> with a blank line after its <summary>.
+            if HTML_BLOCK.match(stripped):
                 chunk = []
                 while i < len(lines) and lines[i].strip():
                     chunk.append(lines[i])
                     i += 1
                 out.append(self.raw_html("\n".join(chunk)))
                 continue
-            if re.match(r"^(\s*)([-*+]|\d+\.)\s+", line):
+            if LIST_ITEM.match(line):
                 i, rendered = self.list_block(lines, i)
                 out.append(rendered)
                 continue
-            para = []
-            while i < len(lines) and lines[i].strip() and not self.starts_block(lines, i):
+            para: list[str] = []
+            level = 0
+            while i < len(lines) and lines[i].strip():
+                if para and SETEXT.match(lines[i]):
+                    level = 1 if lines[i].strip().startswith("=") else 2
+                    i += 1
+                    break
+                if para and self.starts_block(lines, i):
+                    break
                 para.append(lines[i].strip())
                 i += 1
             text = " ".join(para)
+            if level:
+                out.append(self.heading(level, text))
+                continue
             self.note(text)
             rendered = self.inline(text)
             # A paragraph of nothing but images is a figure.
@@ -384,16 +527,44 @@ class Renderer:
                 out.append(f"<p>{rendered}</p>")
         return "\n".join(out)
 
+    @staticmethod
+    def starts_table(lines: list[str], i: int) -> bool:
+        if i + 1 >= len(lines) or "|" not in lines[i] or "|" not in lines[i + 1]:
+            return False
+        delimiter = lines[i + 1].strip()
+        return bool(TABLE_DELIMITER.match(delimiter)) and len(table_cells(lines[i])) == len(table_cells(delimiter))
+
     def starts_block(self, lines: list[str], i: int) -> bool:
+        """Whether line `i` ends the paragraph or list item above it. GitHub
+        starts a new block at a heading, rule, fence, quote, comment, HTML
+        block or table, and at a list item with text, an ordered one only when
+        it counts from 1, so a wrapped line that begins `2024.` stays text."""
         line = lines[i]
-        s = line.strip()
-        return bool(
-            re.match(r"^(\s*)(```|~~~)", line)
-            or re.match(r"^#{1,6}\s", line)
-            or re.match(r"^(\s*)([-*+]|\d+\.)\s+", line)
-            or s.startswith(">")
-            or (s.startswith("|") and i + 1 < len(lines) and re.match(r"^\|?\s*:?-{2,}", lines[i + 1].strip()))
-        )
+        stripped = line.strip()
+        if (
+            FENCE.match(line)
+            or HEADING.match(line)
+            or RULE.match(line)
+            or stripped.startswith((">", "<!--"))
+            or HTML_BLOCK.match(stripped)
+            or self.starts_table(lines, i)
+        ):
+            return True
+        item = LIST_ITEM.match(line)
+        if not item:
+            return False
+        marker = item.group(2)
+        return bool(line[item.end() :].strip()) and (not marker[0].isdigit() or marker == "1.")
+
+    def heading(self, level: int, text: str) -> str:
+        name = plain(text)
+        slug = unique_slug(github_slug(name), self.seen)
+        old = mkdocs_slug(name, self.old_anchors)
+        self.headings.append((level, name, slug))
+        self.sections.append({"heading": name, "slug": slug, "level": level, "text": []})
+        alias = f'<span class="alias" id="{old}"></span>' if old != slug else ""
+        anchor = f'<a class="anchor" href="#{slug}" aria-hidden="true" tabindex="-1">#</a>' if level > 1 else ""
+        return f'<h{level} id="{slug}">{alias}{self.inline(text)}{anchor}</h{level}>'
 
     def note(self, text: str) -> None:
         if self.sections:
@@ -401,7 +572,7 @@ class Renderer:
 
     def quote(self, quoted: list[str]) -> str:
         """A block quote, or one of GitHub's alerts (> [!WARNING]) as a callout
-        whose first bold line, if it has one, is its title."""
+        whose title is its first line when that line is bold and nothing else."""
         first = next((q.strip() for q in quoted if q.strip()), "")
         alert = re.match(r"^\[!(\w+)\]$", first)
         notes = UI[self.lang]["notes"]
@@ -412,9 +583,10 @@ class Renderer:
         while body and not body[0].strip():
             body = body[1:]
         title = notes[kind]
-        if body and re.match(r"^\*\*(.+)\*\*$", body[0].strip()):
-            title = self.inline(body[0].strip()[2:-2])
-            self.note(plain(body[0].strip()))
+        bold = re.fullmatch(r"\*\*((?:(?!\*\*).)+)\*\*", body[0].strip()) if body else None
+        if bold:
+            title = self.inline(bold.group(1))
+            self.note(bold.group(1))
             body = body[1:]
         return (
             f'<div class="callout callout-{kind.lower()}"><p class="callout-title">{title}</p>'
@@ -422,7 +594,7 @@ class Renderer:
         )
 
     def list_block(self, lines: list[str], i: int) -> tuple[int, str]:
-        first = re.match(r"^(\s*)([-*+]|\d+\.)\s+", lines[i])
+        first = LIST_ITEM.match(lines[i])
         base = len(first.group(1))
         ordered = first.group(2)[0].isdigit()
         start = int(first.group(2)[:-1]) if ordered else 1
@@ -430,7 +602,7 @@ class Renderer:
         loose = False
         while i < len(lines):
             line = lines[i]
-            m = re.match(r"^(\s*)([-*+]|\d+\.)(\s+)", line)
+            m = LIST_ITEM.match(line)
             if m and len(m.group(1)) == base and (m.group(2)[0].isdigit()) == ordered:
                 content_indent = len(m.group(1)) + len(m.group(2)) + len(m.group(3))
                 items.append([line[content_indent:]])
@@ -455,7 +627,9 @@ class Renderer:
                         items[-1].append(nxt[min(indent, content_indent):])
                         i += 1
                         continue
-                    if re.match(r"^(\s*)([-*+]|\d+\.)\s+", nxt):
+                    # A line as far left as the marker continues the item's
+                    # text, unless it starts an item or a block of its own.
+                    if LIST_ITEM.match(nxt) or self.starts_block(lines, i):
                         break
                     items[-1].append(nxt.strip())
                     i += 1
@@ -472,13 +646,19 @@ class Renderer:
         return i, f"<{tag}{attrs}>" + "".join(rendered) + f"</{tag}>"
 
     def table(self, rows: list[str]) -> str:
-        def cells(row: str) -> list[str]:
-            row = row.strip().strip("|")
-            return [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", row)]
-
-        head = cells(rows[0])
-        aligns = cells(rows[1])
-        body = [cells(r) for r in rows[2:]]
+        head = table_cells(rows[0])
+        aligns = table_cells(rows[1])
+        body = []
+        for row in rows[2:]:
+            cells = table_cells(row)
+            # GitHub drops the cells past the header's; here they would break
+            # the table, so a row like that is an error to fix in the markdown.
+            if len(cells) > len(head):
+                raise DocsError(
+                    f"{self.markdown}: a table row has {len(cells)} cells under a header of {len(head)}. "
+                    f"Write a | inside a cell, in code too, as \\|:\n  {row.strip()[:120]}"
+                )
+            body.append(cells + [""] * (len(head) - len(cells)))
         for row in body:
             self.note(" ".join(row))
 
@@ -497,7 +677,7 @@ class Renderer:
         lang = info.split()[0] if info else ""
         data_lang = f' data-lang="{html.escape(lang)}"' if lang else ""
         text = html.escape("\n".join(body))
-        self.note(" ".join(body)[:300])
+        self.note(" ".join(body))
         return f'<div class="code"{data_lang}><pre><code>{text}</code></pre></div>'
 
     def raw_html(self, chunk: str) -> str:
@@ -640,13 +820,18 @@ def doc_page(position: int, lang: str) -> tuple[Path, str, list[dict]]:
     renderer = Renderer(source, lang)
     lines = (DOCS / localized(source, lang)).read_text(encoding="utf-8").splitlines()
     content = renderer.blocks(lines)
+    # An old anchor that is now a heading's own stays that heading's.
+    taken = {slug for _, _, slug in renderer.headings}
+    content = re.sub(
+        r'<span class="alias" id="([^"]+)"></span>', lambda m: "" if m.group(1) in taken else m.group(0), content
+    )
     toc = "".join(
         f'<li class="toc-{level}"><a href="#{slug}">{html.escape(text)}</a></li>'
         for level, text, slug in renderer.headings
         if level in (2, 3)
     )
     ui = UI[lang]
-    order = [p for p in built_pages()]
+    order = built_pages()
     at = [n for n, _ in order].index(position)
     pager = '<nav class="pager" aria-label="Previous and next page">'
     if at > 0:
@@ -679,7 +864,7 @@ def doc_page(position: int, lang: str) -> tuple[Path, str, list[dict]]:
             "page": shown,
             "section": s["heading"] if s["level"] > 1 else "",
             "url": page + (f"#{s['slug']}" if s["level"] > 1 else ""),
-            "text": " ".join(s["text"])[:500],
+            "text": " ".join(s["text"]),
         }
         for s in renderer.sections
     ]
@@ -719,12 +904,12 @@ def home_page(lang: str) -> tuple[Path, str, list[dict]]:
 
     shown = title_in("Home", lang)
     hero = re.search(r'<p class="lede">(.*?)</p>', template, re.S)
-    entries = [{"lang": lang, "page": shown, "section": "", "url": page, "text": text_of(hero.group(1))[:500]}]
+    entries = [{"lang": lang, "page": shown, "section": "", "url": page, "text": text_of(hero.group(1))}]
     for slug, heading, rest in re.findall(
         r'<section class="sec" id="([\w-]+)".*?<h2[^>]*>(.*?)</h2>(.*?)</section>', template, re.S
     ):
         entries.append(
-            {"lang": lang, "page": shown, "section": text_of(heading), "url": f"{page}#{slug}", "text": text_of(rest)[:500]}
+            {"lang": lang, "page": shown, "section": text_of(heading), "url": f"{page}#{slug}", "text": text_of(rest)}
         )
     html_text = page_html(page, lang, ui["home_title"], ui["description"], body, twin, ("assets/home.js",))
     html_text = html_text.replace(
@@ -777,24 +962,55 @@ def build() -> dict[Path, str]:
     return files
 
 
+GENERATED = "Generated by tools/build_docs.py"
+
+
+def leftovers(files: dict[Path, str]) -> list[Path]:
+    """Pages this script wrote that nothing writes now, such as the old page
+    of a markdown file that was renamed. Committed, they would still be served
+    and found, with nothing left to update them."""
+    return sorted(
+        p
+        for p in DOCS.rglob("*.html")
+        if p not in files and GENERATED in p.read_text(encoding="utf-8", errors="replace")
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--check", action="store_true", help="exit 1 if a generated page differs from what is committed")
     args = parser.parse_args()
-    files = build()
+    try:
+        files = build()
+    except DocsError as error:
+        print(error, file=sys.stderr)
+        return 1
     stale = [p for p, text in files.items() if not p.exists() or p.read_text(encoding="utf-8") != text]
+    orphans = leftovers(files)
     if args.check:
         if stale:
             print("These pages no longer match their markdown; run python3 tools/build_docs.py:", file=sys.stderr)
             for p in stale:
                 print(f"  {p.relative_to(ROOT)}", file=sys.stderr)
+        if orphans:
+            print("These pages have no markdown any more; run python3 tools/build_docs.py to remove them:", file=sys.stderr)
+            for p in orphans:
+                print(f"  {p.relative_to(ROOT)}", file=sys.stderr)
+        if stale or orphans:
             return 1
         print(f"docs/: {len(files)} generated files match their markdown")
         return 0
     for p in stale:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(files[p], encoding="utf-8")
-    print(f"docs/: wrote {len(stale)} of {len(files)} generated files")
+    for p in orphans:
+        p.unlink()
+        folder = p.parent
+        while folder != DOCS and not any(folder.iterdir()):
+            folder.rmdir()
+            folder = folder.parent
+    removed = f", removed {len(orphans)} with no markdown" if orphans else ""
+    print(f"docs/: wrote {len(stale)} of {len(files)} generated files{removed}")
     return 0
 
 

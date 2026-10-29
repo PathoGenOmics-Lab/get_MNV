@@ -4,13 +4,16 @@
 The pages are written by tools/build_docs.py and committed. What a strict build
 caught, this catches, over the pages as a reader receives them:
 
-  * every link and image inside the site points at a file that exists, and
-    every `#anchor` at a heading or element that the target page has;
+  * every link and image inside the site points at a file that exists inside
+    docs/, the folder Pages publishes, a folder only when it has an index.html,
+    and every `#anchor` at a heading or element that the target page has;
   * every markdown page in docs/ is in the sidebar, in both languages, and
     nothing in the sidebar is missing its page;
   * no MkDocs Material syntax is left in the markdown, where GitHub and this
     builder would both show it as text (`!!!`, `=== "`, `{ .class }`,
-    `:material-icon:`, `markdown` attributes);
+    `:material-icon:`, `markdown` attributes, `--8<--`), and none of the
+    markdown tools/build_docs.py does not render (reference links, footnotes,
+    task lists);
   * the two languages have the same headings structure page by page, so a
     section added in one is not forgotten in the other;
   * the home page, written from tools/site/home.<lang>.html, has the same
@@ -36,12 +39,17 @@ sys.path.insert(0, str(ROOT / "tools"))
 import build_docs  # noqa: E402
 
 LEFTOVERS = [
-    (re.compile(r"^\s*(!!!|\?\?\?)\s"), "an MkDocs admonition (use a GitHub alert: > [!NOTE])"),
-    (re.compile(r'^\s*=== "'), "an MkDocs content tab"),
-    (re.compile(r"\{\s*([.#][\w-]+|[\w-]+=)[^}]*\}"), "an attribute list ({ .class }, { target=_blank })"),
-    (re.compile(r":(material|octicons|fontawesome)-[\w-]+:"), "an MkDocs icon shortcode"),
-    (re.compile(r"\smarkdown(=\"1\")?>"), "a markdown attribute on raw HTML"),
+    (re.compile(r"^\s*(!!!|\?\?\?\+?)\s"), "an MkDocs admonition (use a GitHub alert: > [!NOTE])"),
+    (re.compile(r'^\s*===\+? "'), "an MkDocs content tab"),
+    (re.compile(r"\{:?\s*([.#][\w-]+|[\w-]+=)[^}]*\}"), "an attribute list ({ .class }, {: .class }, { target=_blank })"),
+    (re.compile(r":(material|octicons|fontawesome|simple)-[\w-]+:"), "an MkDocs icon shortcode"),
+    (re.compile(r"\smarkdown(=\"(1|block|span)\")?[\s>]"), "a markdown attribute on raw HTML"),
     (re.compile(r"#only-(light|dark)\)"), "a Material theme fragment (use #gh-light-mode-only / #gh-dark-mode-only)"),
+    (re.compile(r"^\s*-{2}8<-{2}"), "an MkDocs snippet include"),
+    (re.compile(r"\]\[[^\]]*\]"), "a reference link, which the site does not render (write [text](target))"),
+    (re.compile(r"^ {0,3}\[[^\]^]+\]:\s*\S"), "a link reference definition, which the site does not render"),
+    (re.compile(r"\[\^[^\]]+\]"), "a footnote, which the site does not render"),
+    (re.compile(r"^\s*[-*+]\s+\[[ xX]\]\s"), "a task list, which the site does not render"),
 ]
 
 
@@ -75,9 +83,21 @@ def link_problems(pages: dict[Path, Page]) -> list[str]:
             if parts.scheme or ref.startswith(("//", "mailto:", "data:")):
                 continue
             target = (path.parent / unquote(parts.path)).resolve() if parts.path else path.resolve()
+            # Pages publishes docs/ and nothing around it, so a file of the
+            # repository outside it, even one that exists, is a 404 there.
+            if not target.is_relative_to(DOCS):
+                problems.append(f"  {here}: <{tag}> points at {ref}, outside docs/, which is not published")
+                continue
             if not target.exists():
                 problems.append(f"  {here}: <{tag}> points at {ref}, which does not exist")
                 continue
+            # A folder is served only through its index.html, and its anchors
+            # are that page's.
+            if target.is_dir():
+                if not (target / "index.html").exists():
+                    problems.append(f"  {here}: <{tag}> points at {ref}, a folder with no index.html")
+                    continue
+                target = target / "index.html"
             if parts.fragment and target.suffix == ".html":
                 target_page = pages.get(target) or parse(target)
                 if unquote(parts.fragment) not in target_page.ids:
@@ -107,11 +127,14 @@ def syntax_problems() -> list[str]:
     for md in sorted(DOCS.glob("*.md")):
         fence = False
         for number, line in enumerate(md.read_text(encoding="utf-8").splitlines(), 1):
-            if re.match(r"^\s*(```|~~~)", line):
+            # A fence inside a quote or an alert opens code just the same.
+            if re.match(r"^\s*(```|~~~)", re.sub(r"^\s*(>\s?)+", "", line)):
                 fence = not fence
                 continue
             if fence:
                 continue
+            # What sits in code is shown as code, whatever it looks like.
+            line = re.sub(r"(`+).+?\1", "", line)
             for pattern, what in LEFTOVERS:
                 if pattern.search(line):
                     problems.append(f"  docs/{md.name}:{number}: {what}")

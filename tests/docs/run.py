@@ -40,13 +40,11 @@ REPO = Path(__file__).resolve().parents[2]
 DOCS = REPO / "docs"
 EXAMPLE = REPO / "example"
 
-# Flags of other tools that legitimately appear in the pages: the docs show
-# cargo, npm, samtools, bcftools and sha256sum commands beside get_MNV's own.
-# The lines that introduce a table of TSV column names, in both languages.
 # The headings that open the JSON reference, in both languages. Everything
 # tabulated under them names a key of a payload the tool writes.
 JSON_SECTION_HEADINGS = ("## JSON Files", "## Archivos JSON")
 
+# The lines that introduce a table of TSV column names, in both languages.
 COLUMN_TABLE_MARKERS = (
     "Main columns",
     "Extra columns when",
@@ -61,13 +59,12 @@ COLUMN_TABLE_MARKERS = (
 # get blamed for naming something the tool does not have.
 FLAG_PATTERN = r"(?<![\w-])(--[a-z0-9][a-z0-9-]*)"
 
-FOREIGN_FLAGS = {
-    "--release", "--bin", "--path", "--locked", "--all-targets", "--nocapture",
-    "--force", "--workspace", "--prefix", "--strict", "--site-dir", "--version",
-    "--help", "--warmup", "--iters", "--no-deps", "--open", "--frozen",
-    "--depth", "--branch", "--recursive", "--set-upstream-to", "--global",
-    "--ignore-missing",
-}
+# Flags of other tools that the pages name beside get_MNV's own: cargo's in
+# the build and benchmark commands, sha256sum's in the checksum one. Only those
+# the pages use, and none that get_MNV has too: `--strict`, kept here from
+# `mkdocs build --strict`, let the pages go on naming get_MNV's `--strict`
+# whatever the tool called it.
+FOREIGN_FLAGS = {"--bin", "--ignore-missing", "--path", "--release"}
 
 
 def newest_source_mtime() -> float:
@@ -242,32 +239,6 @@ def tables_introduced_by(text: str, needles: tuple[str, ...]) -> list[str]:
     return out
 
 
-def info_tables(text: str) -> list[str]:
-    """The tables that list get_MNV's own VCF INFO keys.
-
-    Found by the line that introduces them rather than by a heading, because
-    they sit inside the VCF output section beside prose. Scoping matters: the
-    same pages tabulate the input VCF's fixed columns and iVar's, and `REF`,
-    `POS` and `PASS` there belong to the input, not to this tool.
-    """
-    lines = text.split("\n")
-    out = []
-    for index, line in enumerate(lines):
-        if "INFO" not in line or line.lstrip().startswith("|"):
-            continue
-        start = next(
-            (k for k in range(index + 1, min(index + 4, len(lines))) if lines[k].startswith("|")),
-            None,
-        )
-        if start is None:
-            continue
-        end = start
-        while end < len(lines) and lines[end].startswith("|"):
-            end += 1
-        out.append("\n".join(lines[start:end]))
-    return out
-
-
 def json_section(text: str) -> str:
     """The part of a page that documents the JSON payloads, or nothing."""
     for heading in JSON_SECTION_HEADINGS:
@@ -303,7 +274,7 @@ def documented_names(columns: set[str], info: set[str]) -> tuple[set, set, set, 
         # INFO column. A capitalised word anywhere else is a VCF field name, an
         # iVar column, or ordinary prose: `REF`, `POS` and `PASS` all appear in
         # the input-format tables and belong to the input, not to this tool.
-        for table in info_tables(text):
+        for table in tables_introduced_by(text, ("INFO",)):
             for row in table.split("\n"):
                 first_cell = row.split("|")[1] if row.count("|") >= 2 else ""
                 for token in re.findall(r"`([A-Z][A-Z0-9]{1,9})`", first_cell):

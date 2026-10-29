@@ -94,8 +94,11 @@
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         if (!links.length) return;
         event.preventDefault();
-        picked = (picked + (event.key === "ArrowDown" ? 1 : -1) + links.length) % links.length;
+        // From nothing picked, down goes to the first result and up to the last.
+        if (picked < 0) picked = event.key === "ArrowDown" ? 0 : links.length - 1;
+        else picked = (picked + (event.key === "ArrowDown" ? 1 : -1) + links.length) % links.length;
         links.forEach(function (a, i) { a.classList.toggle("on", i === picked); });
+        links[picked].scrollIntoView({ block: "nearest" });
       } else if (event.key === "Enter" && links.length) {
         location.href = links[Math.max(0, picked)].href;
       } else if (event.key === "Escape") {
