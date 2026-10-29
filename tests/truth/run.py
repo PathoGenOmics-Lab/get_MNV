@@ -47,8 +47,9 @@ WORK = Path(__file__).resolve().parent / "work"
 
 # The standard genetic code, written out rather than imported, so this file does
 # not share a table with the implementation under test. Internal codons are
-# identical in NCBI tables 1 and 11; every gene here starts with ATG so the
-# alternative bacterial initiation codons never come up.
+# identical in NCBI tables 1 and 11. Every gene here starts with ATG, but a
+# mutation can turn that into another of table 11's initiation codons, which
+# still starts the protein as Met, so those are written out too.
 BASES = "TCAG"
 AMINO_ACIDS = (
     "FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG"
@@ -74,11 +75,20 @@ def revcomp(sequence: str) -> str:
     return "".join(COMPLEMENT[base] for base in reversed(sequence))
 
 
+# NCBI table 11, the default the runs use: the codons that can start a protein.
+INITIATION_CODONS = {"TTG", "CTG", "ATT", "ATC", "ATA", "ATG", "GTG"}
+
+
 def translate(sequence: str) -> str:
-    return "".join(
+    """A CDS translated from its start: the first codon, when it is one of the
+    table's initiation codons, is Met however it reads elsewhere."""
+    protein = "".join(
         CODON_TABLE.get(sequence[i : i + 3], "X")
         for i in range(0, len(sequence) - len(sequence) % 3, 3)
     )
+    if protein and sequence[:3] in INITIATION_CODONS:
+        protein = "M" + protein[1:]
+    return protein
 
 
 @dataclass
@@ -307,8 +317,12 @@ def expected_for(genome: str, gene: Gene, changes: list[tuple[int, str]]) -> Cas
         ref_bases=[genome[position - 1] for position, _ in ordered],
         alt_bases=[alternate for _, alternate in ordered],
         gene=gene.name,
+        # HGVS writes a lost initiator as Met1?: where translation then starts
+        # cannot be predicted, so no residue is named for position 1.
         aa_change=(
-            f"{THREE_LETTER[reference_aa]}{position_1based}{THREE_LETTER[alternate_aa]}"
+            "Met1?"
+            if change_type == "Start lost"
+            else f"{THREE_LETTER[reference_aa]}{position_1based}{THREE_LETTER[alternate_aa]}"
         ),
         change_type=change_type,
         ref_codon=reference_cds[codon_index * 3 : codon_index * 3 + 3],
