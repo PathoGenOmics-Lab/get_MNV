@@ -83,7 +83,7 @@ chmod +x get_mnv
 ./get_mnv --help
 ```
 
-or build from source:
+or build from source, with Rust 1.89 or newer:
 
 ```bash
 git clone https://github.com/PathoGenOmics-Lab/get_MNV.git

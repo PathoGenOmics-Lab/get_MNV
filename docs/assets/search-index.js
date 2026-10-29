@@ -54,7 +54,7 @@ window.GET_MNV_DOCS_INDEX = [
 "page": "Home",
 "section": "Command line",
 "url": "index.html#command-line",
-"text": "conda install -c bioconda get_mnv Or build from source: git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV cargo install --path ."
+"text": "conda install -c bioconda get_mnv Or build from source, with Rust 1.89 or newer: git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV cargo install --path ."
 },
 {
 "lang": "en",
@@ -1153,7 +1153,7 @@ window.GET_MNV_DOCS_INDEX = [
 "page": "Inicio",
 "section": "Línea de comandos",
 "url": "es/index.html#línea-de-comandos",
-"text": "conda install -c bioconda get_mnv O compílala desde el código fuente: git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV cargo install --path ."
+"text": "conda install -c bioconda get_mnv O compílala desde el código fuente, con Rust 1.89 o posterior: git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV cargo install --path ."
 },
 {
 "lang": "es",

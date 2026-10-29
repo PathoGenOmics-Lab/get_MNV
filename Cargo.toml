@@ -6,6 +6,9 @@ resolver = "2"
 name = "get_mnv"
 version = "1.1.6"
 edition = "2021"
+# The oldest compiler this builds with, because noodles, which reads every input
+# format, requires it. The `msrv` CI job builds and tests on exactly this one.
+rust-version = "1.89"
 license = "AGPL-3.0-only"
 description = "Codon-level Multi-Nucleotide Variant detection and indel annotation from VCF or iVar TSV"
 repository = "https://github.com/PathoGenOmics-Lab/get_MNV"

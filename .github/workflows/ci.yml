@@ -73,6 +73,26 @@ jobs:
       - name: The crate still packages and builds from its own tarball
         run: cargo publish --dry-run -p get_mnv --locked
 
+  # The oldest compiler the crate promises to build with, `rust-version` in
+  # Cargo.toml. Every other job uses the newest stable, which says nothing about
+  # an older one. The version is the action's input, not its ref: Dependabot
+  # reads a ref like `@1.89` as a release of the action and bumps it, and the
+  # job would go on passing while checking a compiler nobody declared.
+  msrv:
+    name: Builds and passes on the declared minimum Rust
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: The job checks the version Cargo.toml declares
+        run: grep -qx 'rust-version = "1.89"' Cargo.toml
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.89"
+      - uses: Swatinem/rust-cache@v2
+      - name: Test on the declared minimum
+        run: cargo test -p get_mnv --locked
+
   gui:
     name: Desktop GUI builds and matches the CLI defaults
     runs-on: ubuntu-latest

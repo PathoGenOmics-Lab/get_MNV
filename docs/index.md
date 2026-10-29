@@ -108,7 +108,7 @@ Download the latest release for your platform from the
 conda install -c bioconda get_mnv
 ```
 
-Or build from source:
+Or build from source, with Rust 1.89 or newer:
 
 ```bash
 git clone https://github.com/PathoGenOmics-Lab/get_MNV.git

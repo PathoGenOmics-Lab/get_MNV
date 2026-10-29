@@ -118,6 +118,10 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- **The minimum Rust is declared: 1.89.** `rust-version` in `Cargo.toml` says
+  what noodles already required, so cargo names it up front, and a CI job builds
+  and tests on exactly that compiler, so a change that needs a newer one is
+  caught before a release. The README says so beside the build instructions.
 - **HGVS descriptors follow the standard more closely.** A lost initiator is
   written `Met1?` instead of naming the residue now at position 1 (`Met1Thr`),
   since where translation then starts cannot be predicted. Indels in `HGVS g.`
