@@ -134,7 +134,8 @@ Estas solo aplican cuando se proporciona `--bam`.
 | Opción | Descripción |
 |---|---|
 | `--report <HTML_FILE>` | Escribe un informe HTML interactivo y autocontenido de las variantes llamadas. Necesita la salida TSV, que es la de por defecto. `--convert` escribe el VCF *en lugar* del TSV, y los dos flags son mutuamente excluyentes, así que usa `--both` en vez de `--convert` cuando quieras un informe junto a la salida VCF. Con `--sample all` el informe cubre todas las muestras. |
-| `--report-from <TSV>...` | Construye el informe a partir de TSV de get_MNV ya existentes, sin ejecutar el pipeline, para cohortes procesadas muestra a muestra. Cada fichero es una muestra, etiquetada con su nombre de archivo. Requiere `--report` para la ruta de salida. |
+| `--report-from <TSV>...` | Construye el informe a partir de TSV de get_MNV ya existentes, sin ejecutar el pipeline, para cohortes procesadas muestra a muestra. Cada fichero es una muestra, etiquetada con su nombre de archivo. Requiere `--report`, `--matrix` o ambos para la salida. |
+| `--matrix <TSV_FILE>` | Escribe una matriz de variantes por muestra en TSV: una fila por variante y una columna por muestra, con la frecuencia alélica que dieron las lecturas, `called` para una llamada sin frecuencia medida, o `NA` donde la muestra no tiene llamada. Funciona en una ejecución normal, con `--sample all` y con `--report-from`; necesita la salida TSV, igual que `--report`. |
 
 Consulta [Formatos de salida](output-formats.es.md#informe-html-interactivo) para saber qué contiene el informe.
 

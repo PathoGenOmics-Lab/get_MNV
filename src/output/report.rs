@@ -243,6 +243,11 @@ impl ReportBuilder {
         self.rows.len()
     }
 
+    /// How many samples the added TSVs covered.
+    pub fn sample_count(&self) -> usize {
+        self.samples.values.len()
+    }
+
     pub fn is_empty(&self) -> bool {
         self.rows.is_empty()
     }
@@ -371,6 +376,103 @@ impl ReportBuilder {
         }
 
         Ok(())
+    }
+
+    /// Write the variant-by-sample matrix to `path` and return how many variants
+    /// it holds.
+    ///
+    /// One row per variant, keyed by contig, gene, positions, REF and ALT, so a
+    /// codon MNV and a lone SNV at one of its bases stay separate variants, as
+    /// they are in the TSVs. One column per sample, in the order the samples were
+    /// added. A cell holds the allele frequency the reads gave, `called` for a
+    /// call with no measured frequency (a run without a BAM), and `NA` where the
+    /// sample has no call: the TSVs cannot tell a reference base from a position
+    /// nobody covered, so an empty cell is never written as 0.
+    pub fn write_matrix(&self, path: &str) -> AppResult<usize> {
+        type Key = (usize, usize, String, String, String);
+        let mut order: Vec<Key> = Vec::new();
+        let mut first_row: HashMap<Key, &Row> = HashMap::new();
+        let mut cells: HashMap<Key, HashMap<usize, Option<f64>>> = HashMap::new();
+        for row in &self.rows {
+            let key = (
+                row.chrom,
+                row.gene,
+                row.positions.clone(),
+                row.ref_bases.clone(),
+                row.alt_bases.clone(),
+            );
+            if !first_row.contains_key(&key) {
+                first_row.insert(key.clone(), row);
+                order.push(key.clone());
+            }
+            let slot = cells
+                .entry(key)
+                .or_default()
+                .entry(row.sample)
+                .or_insert(None);
+            // Two rows for one variant in one sample (two overlapping genes
+            // would differ in the key, so this is a repeated TSV) keep the
+            // measured value.
+            if slot.is_none() {
+                *slot = row.freq;
+            }
+        }
+        let first_position = |positions: &str| -> usize {
+            positions
+                .split(',')
+                .next()
+                .and_then(|value| value.trim().parse().ok())
+                .unwrap_or(usize::MAX)
+        };
+        order.sort_by(|a, b| {
+            self.chroms.values[a.0]
+                .cmp(&self.chroms.values[b.0])
+                .then(first_position(&a.2).cmp(&first_position(&b.2)))
+                .then(self.genes.values[a.1].cmp(&self.genes.values[b.1]))
+                .then(a.3.cmp(&b.3))
+                .then(a.4.cmp(&b.4))
+        });
+
+        let mut out = String::new();
+        out.push_str(
+            "Chromosome\tGene\tPositions\tReference Bases\tBase Changes\tAA Changes\t\
+             Variant Type\tSO Term\tImpact\tSamples Called",
+        );
+        for sample in &self.samples.values {
+            out.push('\t');
+            out.push_str(sample);
+        }
+        out.push('\n');
+        for key in &order {
+            let row = first_row[key];
+            let called = &cells[key];
+            let fields = [
+                self.chroms.values[row.chrom].as_str(),
+                self.genes.values[row.gene].as_str(),
+                row.positions.as_str(),
+                row.ref_bases.as_str(),
+                row.alt_bases.as_str(),
+                row.aa_change.as_str(),
+                self.types.values[row.variant_type].as_str(),
+                self.so_terms.values[row.so_term].as_str(),
+                self.impacts.values[row.impact].as_str(),
+            ];
+            out.push_str(&fields.join("\t"));
+            out.push('\t');
+            out.push_str(&called.len().to_string());
+            for sample in 0..self.samples.values.len() {
+                out.push('\t');
+                match called.get(&sample) {
+                    Some(Some(freq)) if freq.is_finite() => out.push_str(&format!("{freq:.4}")),
+                    Some(_) => out.push_str("called"),
+                    None => out.push_str("NA"),
+                }
+            }
+            out.push('\n');
+        }
+        std::fs::write(path, out)
+            .map_err(|e| AppError::validation(format!("Cannot write matrix file '{path}': {e}")))?;
+        Ok(order.len())
     }
 
     /// Render the report to `path`. `command` is the sanitized command line shown
@@ -693,6 +795,53 @@ mod tests {
         assert_eq!(interner.intern("b"), 1);
         assert_eq!(interner.intern("a"), 0);
         assert_eq!(interner.values.len(), 2);
+    }
+
+    #[test]
+    fn matrix_has_a_column_per_sample_and_never_writes_a_missing_call_as_zero() {
+        let dir = std::env::temp_dir().join(format!("get_mnv_matrix_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let header = "Chromosome\tGene\tPositions\tReference Bases\tBase Changes\tAA Changes\t\
+                      Variant Type\tSO Term\tImpact\tSNP Frequencies\n";
+        let with_bam = dir.join("S1.MNV.tsv");
+        std::fs::write(
+            &with_bam,
+            format!(
+                "{header}chr1\tgeneA\t90\tA\tG\tLys30Arg\tSNP\tmissense_variant\tMODERATE\t0.9000\n\
+                 chr1\tgeneA\t28\tG\tT\tAla10Ser\tSNP\tmissense_variant\tMODERATE\t0.4500\n"
+            ),
+        )
+        .expect("write S1");
+        // A run without a BAM has no frequency to give.
+        let without_bam = dir.join("S2.MNV.tsv");
+        std::fs::write(
+            &without_bam,
+            "Chromosome\tGene\tPositions\tReference Bases\tBase Changes\tAA Changes\t\
+             Variant Type\tSO Term\tImpact\n\
+             chr1\tgeneA\t28\tG\tT\tAla10Ser\tSNP\tmissense_variant\tMODERATE\n",
+        )
+        .expect("write S2");
+
+        let mut builder = ReportBuilder::new();
+        builder
+            .add_tsv(with_bam.to_str().unwrap(), Some("S1"))
+            .unwrap();
+        builder
+            .add_tsv(without_bam.to_str().unwrap(), Some("S2"))
+            .unwrap();
+        let out = dir.join("matrix.tsv");
+        assert_eq!(builder.write_matrix(out.to_str().unwrap()).unwrap(), 2);
+
+        let text = std::fs::read_to_string(&out).unwrap();
+        let lines: Vec<Vec<&str>> = text.lines().map(|l| l.split('\t').collect()).collect();
+        assert_eq!(lines[0][9..], ["Samples Called", "S1", "S2"]);
+        // Sorted by position, not by the order the first TSV listed them.
+        assert_eq!(lines[1][2], "28");
+        assert_eq!(lines[1][9..], ["2", "0.4500", "called"]);
+        assert_eq!(lines[2][2], "90");
+        assert_eq!(lines[2][9..], ["1", "0.9000", "NA"]);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

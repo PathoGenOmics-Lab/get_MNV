@@ -451,3 +451,29 @@ megabytes.
 - Los filtros de soporte de lecturas y de soporte de hebra de SNP y MNV también son independientes.
 - `--sample all` escribe un conjunto de salida por cada muestra del VCF, con las variantes que lleva el genotipo de esa muestra.
 - `--keep-original-info` conserva los campos INFO del VCF de entrada que no son de get_MNV.
+
+## Matriz de variantes por muestra
+
+`--matrix <FICHERO.tsv>` escribe las mismas variantes que muestra el informe como
+una tabla con una columna por muestra, para cargarla en R o en pandas:
+
+```bash
+get_mnv --report-from resultados/*.MNV.tsv --matrix matriz_cohorte.tsv
+get_mnv --vcf cohorte.vcf --fasta ref.fasta --gff ref.gff --sample all --matrix matriz_cohorte.tsv
+```
+
+Se construye a partir de los mismos TSV que el informe, así que funciona en una
+ejecución normal, con `--sample all` y con `--report-from`, con o sin `--report`
+al lado.
+
+| Columna | Descripción |
+|---|---|
+| `Chromosome`, `Gene`, `Positions`, `Reference Bases`, `Base Changes` | La variante. Un MNV de codón y un SNV suelto en una de sus bases son variantes distintas aquí, igual que en el TSV. |
+| `AA Changes`, `Variant Type`, `SO Term`, `Impact` | Tomadas de la primera muestra que lleva la variante. |
+| `Samples Called` | Cuántas muestras tienen llamada. |
+| una columna por muestra | La frecuencia alélica que dieron las lecturas (`0.4500`); `called` para una llamada sin frecuencia medida, que es toda llamada de una ejecución sin BAM; `NA` donde la muestra no tiene llamada. |
+
+`NA` nunca se escribe como 0 a propósito: un TSV de get_MNV no distingue una base
+de referencia de una posición que no cubrió ninguna lectura, así que una llamada
+que falta significa "referencia o sin cobertura". Las filas van ordenadas por
+contig y después por posición.

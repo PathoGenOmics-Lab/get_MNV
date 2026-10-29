@@ -68,6 +68,7 @@ fn base_args() -> Args {
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
         convert: false,
         both: false,
         output_dir: None,
@@ -1336,6 +1337,47 @@ fn test_e2e_split_multiallelic_flag() {
     fs::remove_dir_all(&tmp).ok();
 }
 
+#[test]
+fn test_e2e_report_from_writes_a_matrix_without_a_report() {
+    let tmp = temp_dir("e2e_matrix");
+    // Two per-sample runs of the example, as a per-sample pipeline would leave them.
+    let mut tsvs = Vec::new();
+    for prefix in ["TB-001", "TB-002"] {
+        let mut args = base_args();
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(prefix.to_string());
+        pipeline::run(&args).expect("per-sample run");
+        tsvs.push(
+            tmp.join(format!("{prefix}.MNV.tsv"))
+                .to_string_lossy()
+                .into_owned(),
+        );
+    }
+
+    let mut args = base_args();
+    args.vcf_file = None;
+    args.report_from = tsvs.clone();
+    args.matrix = Some(tmp.join("cohort.tsv").to_string_lossy().into());
+    pipeline::run(&args).expect("--matrix alone is a valid output for --report-from");
+
+    let rows = read_tsv_rows(&tmp.join("cohort.tsv"));
+    assert!(rows.len() > 900, "{} variants", rows.len());
+    assert!(rows.iter().all(|row| row["Samples Called"] == "2"));
+    assert!(rows
+        .iter()
+        .all(|row| row["TB-001"] == "called" && row["TB-002"] == "called"));
+
+    // With neither output named there is nothing to write.
+    args.matrix = None;
+    let err = pipeline::run(&args).expect_err("no output named");
+    assert!(
+        err.to_string().contains("--report, --matrix or both"),
+        "{err}"
+    );
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
 // ---------------------------------------------------------------------------
 // TSV annotation that names each gene's contig
 // ---------------------------------------------------------------------------
@@ -1465,6 +1507,7 @@ chr1\t300\t.\tG\tA\t.\tPASS\t.\tGT:DP\t1/1:25\t1/1:30
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -1552,6 +1595,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT:DP\t1/1:20\t0/0:15
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -1630,6 +1674,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT\t1/1
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -1712,6 +1757,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -2024,6 +2070,7 @@ fn test_invalid_translation_table_fails() {
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
         convert: false,
         both: false,
         translation_table: 99, // invalid
@@ -2088,6 +2135,7 @@ fn test_translation_table_1_standard() {
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
         convert: false,
         both: false,
         translation_table: 1, // Standard
@@ -2167,6 +2215,7 @@ fn test_empty_vcf_no_records() {
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
         convert: false,
         both: false,
         translation_table: 11,
@@ -2251,6 +2300,7 @@ fn test_truncated_vcf_record() {
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
         convert: false,
         both: false,
         translation_table: 11,
@@ -2336,6 +2386,7 @@ fn test_vcf_no_header() {
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
         convert: false,
         both: false,
         translation_table: 11,
@@ -2417,6 +2468,7 @@ fn test_error_json_written_on_failure() {
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
         convert: false,
         both: false,
         translation_table: 11,

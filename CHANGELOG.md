@@ -70,6 +70,15 @@ All notable changes to this project are documented in this file.
   MutationalPatterns read. On the example run all 951 classes match an
   independent count from the FASTA.
 
+- **`--matrix` writes the cohort as a variant-by-sample table.** The report's
+  matrix could only be looked at. `--matrix cohort.tsv` writes one row per
+  variant and one column per sample, holding the allele frequency the reads
+  gave, `called` for a call without a measured frequency, or `NA` where the
+  sample has no call, never 0, since the TSVs cannot tell reference from no
+  coverage. It is built from the same TSVs as the report, so it works in a
+  normal run, with `--sample all` and with `--report-from`, and `--report-from`
+  now accepts `--matrix` without `--report`.
+
 ### Changed
 
 - **Multiallelic records are split without being asked.** A VCF record with

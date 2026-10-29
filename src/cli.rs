@@ -228,14 +228,18 @@ pub struct Args {
 
     /// Build the HTML report from existing get_MNV TSV files instead of running
     /// the pipeline, for cohorts processed one sample per run. Each file becomes
-    /// one sample, labelled by its file name. Requires --report for the output.
-    #[arg(
-        long = "report-from",
-        value_name = "TSV",
-        num_args = 1..,
-        requires = "report"
-    )]
+    /// one sample, labelled by its file name. Requires --report, --matrix or both
+    /// for the output.
+    #[arg(long = "report-from", value_name = "TSV", num_args = 1..)]
     pub report_from: Vec<String>,
+
+    /// Write a variant-by-sample matrix as TSV: one row per variant, one column
+    /// per sample, holding the allele frequency the reads gave, `called` for a
+    /// call with no measured frequency, or `NA` where the sample has no call.
+    /// Built from the same TSVs as --report, so it works in a normal run, with
+    /// --sample all, and with --report-from.
+    #[arg(long = "matrix", value_name = "TSV_FILE")]
+    pub matrix: Option<String>,
 
     /// NCBI translation table number for codon-to-amino-acid mapping
     /// (default: 11 = Bacterial/Archaeal/Plant Plastid).

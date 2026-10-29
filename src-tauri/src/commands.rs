@@ -169,6 +169,7 @@ impl AnalysisConfig {
             // engine for the standalone HTML report.
             report: None,
             report_from: Vec::new(),
+            matrix: None,
         }
     }
 }

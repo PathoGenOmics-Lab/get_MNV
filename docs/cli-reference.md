@@ -131,7 +131,8 @@ These apply only when `--bam` is provided.
 | Option | Description |
 |---|---|
 | `--report <HTML_FILE>` | Write a self-contained interactive HTML report of the called variants. Needs the TSV output, which is the default. `--convert` writes the VCF *instead* of the TSV, and the two flags are mutually exclusive, so use `--both` rather than `--convert` when you want a report alongside VCF output. With `--sample all` the report covers every sample. |
-| `--report-from <TSV>...` | Build the report from existing get_MNV TSV files instead of running the pipeline, for cohorts processed one sample per run. Each file becomes one sample, labelled by its file name. Requires `--report` for the output path. |
+| `--report-from <TSV>...` | Build the report from existing get_MNV TSV files instead of running the pipeline, for cohorts processed one sample per run. Each file becomes one sample, labelled by its file name. Requires `--report`, `--matrix` or both for the output. |
+| `--matrix <TSV_FILE>` | Write a variant-by-sample matrix as TSV: one row per variant, one column per sample, holding the allele frequency the reads gave, `called` for a call with no measured frequency, or `NA` where the sample has no call. Works in a normal run, with `--sample all`, and with `--report-from`; needs the TSV output like `--report`. |
 
 See [Output formats](output-formats.md#interactive-html-report) for what the report contains.
 

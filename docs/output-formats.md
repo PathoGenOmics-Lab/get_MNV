@@ -439,3 +439,27 @@ so a cohort of tens of thousands of variants stays in the low megabytes.
 - SNP and MNV read-support and strand-support filters are also independent.
 - `--sample all` writes one output set per VCF sample, each holding the variants that sample's genotype carries.
 - `--keep-original-info` preserves non-get_MNV INFO fields from the input VCF.
+
+## Variant-by-sample matrix
+
+`--matrix <FILE.tsv>` writes the same variants the report shows as one table
+with a column per sample, for loading into R or pandas:
+
+```bash
+get_mnv --report-from results/*.MNV.tsv --matrix cohort_matrix.tsv
+get_mnv --vcf cohort.vcf --fasta ref.fasta --gff ref.gff --sample all --matrix cohort_matrix.tsv
+```
+
+It is built from the same TSVs as the report, so it works in a normal run, with
+`--sample all` and with `--report-from`, with or without `--report` beside it.
+
+| Column | Description |
+|---|---|
+| `Chromosome`, `Gene`, `Positions`, `Reference Bases`, `Base Changes` | The variant. A codon MNV and a lone SNV at one of its bases are different variants here, as they are in the TSV. |
+| `AA Changes`, `Variant Type`, `SO Term`, `Impact` | Taken from the first sample that carries the variant. |
+| `Samples Called` | How many samples have a call. |
+| one column per sample | The allele frequency the reads gave (`0.4500`); `called` for a call with no measured frequency, which is every call of a run without a BAM; `NA` where the sample has no call. |
+
+`NA` is never written as 0 on purpose: a get_MNV TSV cannot tell a reference
+base from a position no read covered, so a missing call means "reference or no
+coverage". Rows are sorted by contig, then position.

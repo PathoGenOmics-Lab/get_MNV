@@ -290,7 +290,7 @@ fn run_single(
         }
         // Single-sample report. In `--sample all` mode `write_reports` is false
         // for each sample and one combined report is written by the caller.
-        if let Some(report_path) = args.report.as_deref() {
+        if args.report.is_some() || args.matrix.is_some() {
             let sample_label = summary.sample.clone().unwrap_or_else(|| {
                 std::path::Path::new(&parsed.base_name)
                     .file_name()
@@ -298,15 +298,11 @@ fn run_single(
                     .unwrap_or_else(|| "sample".to_string())
             });
             let tsv_path = summary.output_tsv.as_deref().ok_or_else(|| {
-                AppError::config("--report needs the TSV output; use --both instead of --convert, or drop --convert")
+                AppError::config("--report and --matrix need the TSV output; use --both instead of --convert, or drop --convert")
             })?;
             let mut builder = output::ReportBuilder::new();
             builder.add_tsv(tsv_path, Some(&sample_label))?;
-            builder.write(report_path, &parsed.command_line, &report_timestamp())?;
-            info!(
-                "HTML report written to {report_path} ({} variants)",
-                builder.len()
-            );
+            write_report_outputs(args, &builder, &parsed.command_line)?;
         }
     }
 
@@ -351,12 +347,38 @@ fn report_timestamp() -> String {
     )
 }
 
-/// Build the HTML report from existing get_MNV TSV files, without running the
-/// pipeline. Each input file becomes one sample in the report.
+/// Write whichever of the HTML report and the variant matrix were asked for,
+/// both from the same parsed TSVs.
+fn write_report_outputs(
+    args: &Args,
+    builder: &output::ReportBuilder,
+    command_line: &str,
+) -> AppResult<()> {
+    let samples = builder.sample_count();
+    if let Some(report_path) = args.report.as_deref() {
+        builder.write(report_path, command_line, &report_timestamp())?;
+        info!(
+            "HTML report written to {report_path} ({} variants across {samples} sample(s))",
+            builder.len()
+        );
+    }
+    if let Some(matrix_path) = args.matrix.as_deref() {
+        let variants = builder.write_matrix(matrix_path)?;
+        info!(
+            "Variant matrix written to {matrix_path} ({variants} variants x {samples} sample(s))"
+        );
+    }
+    Ok(())
+}
+
+/// Build the HTML report, the variant matrix or both from existing get_MNV TSV
+/// files, without running the pipeline. Each input file becomes one sample.
 fn run_report_from_tsvs(args: &Args) -> AppResult<RunSummary> {
-    let report_path = args.report.as_deref().ok_or_else(|| {
-        AppError::config("--report-from requires --report to name the output HTML file")
-    })?;
+    if args.report.is_none() && args.matrix.is_none() {
+        return Err(AppError::config(
+            "--report-from needs --report, --matrix or both to name an output",
+        ));
+    }
 
     // Label the whole input set at once: file names alone collide when a
     // per-sample pipeline writes `results/<sample>/variants.MNV.tsv`.
@@ -371,12 +393,7 @@ fn run_report_from_tsvs(args: &Args) -> AppResult<RunSummary> {
             "The provided TSV files contain no variant rows, so there is nothing to report",
         ));
     }
-    builder.write(report_path, &sanitized_command_line(), &report_timestamp())?;
-    info!(
-        "HTML report written to {report_path} ({} variants from {} file(s))",
-        builder.len(),
-        args.report_from.len()
-    );
+    write_report_outputs(args, &builder, &sanitized_command_line())?;
 
     Ok(RunSummary {
         schema_version: "1.0.0".to_string(),
@@ -405,13 +422,15 @@ pub fn run_with_progress(
             "one of --vcf or --tsv is required (or use --report-from to build a report from existing TSV files)",
         ));
     }
-    if args.report.is_some() {
+    if args.report.is_some() || args.matrix.is_some() {
         if args.dry_run {
-            return Err(AppError::config("--report cannot be used with --dry-run"));
+            return Err(AppError::config(
+                "--report and --matrix cannot be used with --dry-run",
+            ));
         }
         if args.convert && !args.both {
             return Err(AppError::config(
-                "--report needs the TSV output; use --both instead of --convert, or drop --convert",
+                "--report and --matrix need the TSV output; use --both instead of --convert, or drop --convert",
             ));
         }
     }
@@ -553,21 +572,16 @@ pub fn run_with_progress(
         aggregate.timings.total_ms += sample_summary.timings.total_ms;
     }
 
-    // One combined report covering every sample of the multi-sample VCF.
-    if let Some(report_path) = args.report.as_deref() {
+    // One combined report and matrix covering every sample of the multi-sample VCF.
+    if args.report.is_some() || args.matrix.is_some() {
         let mut builder = output::ReportBuilder::new();
         for (sample, sample_summary) in sample_names.iter().zip(sample_summaries.iter()) {
             let tsv_path = sample_summary.output_tsv.as_deref().ok_or_else(|| {
-                AppError::config("--report needs the TSV output; use --both instead of --convert, or drop --convert")
+                AppError::config("--report and --matrix need the TSV output; use --both instead of --convert, or drop --convert")
             })?;
             builder.add_tsv(tsv_path, Some(sample))?;
         }
-        builder.write(report_path, &sanitized_command_line(), &report_timestamp())?;
-        info!(
-            "HTML report written to {report_path} ({} variants across {} samples)",
-            builder.len(),
-            sample_names.len()
-        );
+        write_report_outputs(args, &builder, &sanitized_command_line())?;
     }
 
     if let Some(summary_json_path) = args.summary_json.as_deref() {
