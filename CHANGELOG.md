@@ -38,8 +38,12 @@ All notable changes to this project are documented in this file.
   viewer opens one too. Every read-support path works on BAM records, so a CRAM
   record is handed over in that shape rather than read by a second copy of the
   counting code, and the scenario suite now runs every scenario with the BAM and
-  with a CRAM made from it and requires the two TSVs to match byte for byte. A
-  CRAM decoded against the wrong reference stops with a checksum error instead
+  with a CRAM made from it, in small containers of several slices and once more
+  with every read unnamed, and requires the TSVs to match byte for byte. A query
+  decodes only the containers that overlap it, each once, and keeps the reads of
+  the contig it asked for, where noodles' own query decoded every container of
+  the contig, once per slice, and kept reads of any contig at those positions.
+  A CRAM decoded against the wrong reference stops with a checksum error instead
   of counting the wrong bases. Read errors now say `Alignment read error` rather
   than `BAM read error`, since the file may be either.
 
@@ -152,17 +156,43 @@ All notable changes to this project are documented in this file.
   source and GitHub renders it; `tools/build_docs.py`, standard library only,
   writes the bilingual site from it, with the sidebar, theme switch, search in
   the page's own language and a language switch to the twin page. The pages are
-  committed at the addresses the old site used, so every existing link still
-  works, and the site opens from a clone with no server. CI checks that the
-  pages match their markdown and, with `tools/check_site.py`, that every one of
-  their 1,780 links, images and anchors resolves, which is what
-  `mkdocs build --strict` used to catch. The pages moved from Material's syntax
+  committed at the addresses the old site used, and every heading keeps the
+  anchor the old site gave it beside GitHub's (`#que-mide-d` as well as
+  `#qué-mide-d`), so every existing link still works, and the site opens from a
+  clone with no server. CI checks that the pages match their markdown, that no
+  page is left over from a markdown file that is gone and, with
+  `tools/check_site.py`, that every link, image and anchor in them resolves
+  inside the published folder, which is what `mkdocs build --strict` used to
+  catch. The pages moved from Material's syntax
   to GitHub's (alerts instead of admonitions, theme-specific images by the
   `#gh-light-mode-only` fragment), so they also read properly on GitHub, and
   three Spanish anchors that pointed nowhere were fixed on the way.
 
 ### Fixed
 
+- **A missing count inside `AD` or `AO` no longer gives an ALT another ALT's
+  reads.** Missing values were dropped before the ALT's count was looked up, so
+  with `AD=.,5,3` the first ALT took the second one's 3 reads and was reported
+  at 3/8. Each count now keeps its place: an ALT whose own count or REF's is
+  missing has no frequency, and another ALT's missing count adds nothing, which
+  is what `bcftools merge` writes for an allele the sample was not called with.
+- **A `.vcf.gz` or BCF without its end-of-file block stops the run.** A file cut
+  between two BGZF blocks, by a copy or a download that did not finish, decoded
+  cleanly up to the cut, so the run annotated part of the input and succeeded.
+  It now stops with a message saying the file was most likely cut short.
+- **A `*` allele is skipped instead of stopping the run.** A `*` stands for a
+  deletion that starts upstream and is annotated at its own record; GATK writes
+  one beside a real ALT whenever one sample's deletion overlaps another
+  sample's SNV. With multiallelic records split by default, such a record
+  stopped a `--sample all` run at the first sample that carried it. The skipped
+  alleles are counted in the log.
+- **A plain `.vcf` reads like the same `.vcf.gz`.** The reader for plain text
+  stopped on a trailing blank line and found no samples under a lowercase
+  `#chrom` header, so `--sample all` failed on a file the `.vcf.gz` reader
+  took. Both readers now ask one function what the header line is.
+- **Index files dropped on the desktop app are left out.** `x.snp.bam.bai`,
+  `x.vcf.gz.tbi` or `x.bcf.csi` matched the name hints for variant files and
+  became samples of their own, which failed when the run started.
 - **DBS classes use COSMIC's names for the CG and TA references.** A doublet
   and its reverse complement are one class, and for the four palindromic
   reference doublets the tie was broken on the smaller alternate. COSMIC breaks
