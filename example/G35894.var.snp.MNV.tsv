@@ -302,14 +302,14 @@ MTB_anc	Rv1251c_Rv1251c	1397201	G	A	Asn680Asn	Asn680Asn	Asn680Asn	Asn680Asn	SNP	
 MTB_anc	deaD_Rv1253	1400396	G	A	Val143Met	Val143Met	Val143Met	Val143Met	SNP	Non-synonymous	GTG	ATG	ATG	snp	SNV:1400396:G>A	missense_variant	MODERATE	22 (conservative)	-	-	-	-	-	g.1400396G>A	c.427G>A	A[C>T]A	-	-	-
 MTB_anc	Rv1255c_Rv1255c	1403235	A	C	Leu51Arg	Leu51Arg	Leu51Arg	Leu51Arg	SNP	Non-synonymous	CTG	CGG	CGG	snp	SNV:1403235:A>C	missense_variant	MODERATE	102 (moderately radical)	-	-	-	-	-	g.1403235A>C	c.152T>G	C[T>G]G	-	-	-
 MTB_anc	Rv1262c_Rv1262c	1410062	C	G	Arg104Pro	Arg104Pro	Arg104Pro	Arg104Pro	SNP	Non-synonymous	CGG	CCG	CCG	snp	SNV:1410062:C>G	missense_variant	MODERATE	103 (moderately radical)	-	-	-	-	-	g.1410062C>G	c.311G>C	C[C>G]G	-	-	-
-MTB_anc	mcr11_RVnc0013	1413148	T	C	Asp26Gly	Asp26Gly	Asp26Gly	Asp26Gly	SNP	Non-synonymous	GAC	GGC	GGC	snp	SNV:1413148:T>C	missense_variant	MODERATE	94 (moderately conservative)	-	-	-	-	-	g.1413148T>C	c.77A>G	G[T>C]C	-	-	-
+MTB_anc	mcr11_RVnc0013	1413148	T	C	-	-	-	-	SNP	Unknown				snp	SNV:1413148:T>C	non_coding_transcript_exon_variant	MODIFIER	-	-	-	-	-	-	g.1413148T>C	-	G[T>C]C	-	-	-
 MTB_anc	intergenic	1417554	C	G	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1417554:C>G	intergenic_variant	MODIFIER	-	-	-	-	-	-	g.1417554C>G	-	G[C>G]G	-	-	-
 MTB_anc	lprB_Rv1274	1424699	C	T	Pro168Leu	Pro168Leu	Pro168Leu	Pro168Leu	SNP	Non-synonymous	CCG	CTG	CTG	snp	SNV:1424699:C>T	missense_variant	MODERATE	98 (moderately conservative)	-	-	-	-	-	g.1424699C>T	c.503C>T	C[C>T]G	-	-	-
 MTB_anc	Rv1291c_Rv1291c	1445781	G	A	Ala18Ala	Ala18Ala	Ala18Ala	Ala18Ala	SNP	Synonymous	GCC	GCT	GCT	snp	SNV:1445781:G>A	synonymous_variant	LOW	-	-	-	-	-	-	g.1445781G>A	c.54C>T	C[C>T]A	-	-	-
 MTB_anc	Rv1301_Rv1301	1458144	A	C	Gln196Pro	Gln196Pro	Gln196Pro	Gln196Pro	SNP	Non-synonymous	CAG	CCG	CCG	snp	SNV:1458144:A>C	missense_variant	MODERATE	75 (moderately conservative)	-	-	-	-	-	g.1458144A>C	c.587A>C	C[T>G]G	-	-	-
 MTB_anc	intergenic	1461309	C	T	-	-	-	-	SNP	Unknown	-	-	-	snp	SNV:1461309:C>T	intergenic_variant	MODIFIER	-	-	-	-	-	-	g.1461309C>T	-	G[C>T]A	-	-	-
 MTB_anc	atpC_Rv1311	1467344	C	T	Ala10Ala	Ala10Ala	Ala10Ala	Ala10Ala	SNP	Synonymous	GCC	GCT	GCT	snp	SNV:1467344:C>T	synonymous_variant	LOW	-	-	-	-	-	-	g.1467344C>T	c.30C>T	C[C>T]G	-	-	-
-MTB_anc	rrl_Rvnr02	1474001	C	T	Pro115Leu	Pro115Leu	Pro115Leu	Pro115Leu	SNP	Non-synonymous	CCG	CTG	CTG	snp	SNV:1474001:C>T	missense_variant	MODERATE	98 (moderately conservative)	-	-	-	-	-	g.1474001C>T	c.344C>T	C[C>T]G	-	-	-
+MTB_anc	rrl_Rvnr02	1474001	C	T	-	-	-	-	SNP	Unknown				snp	SNV:1474001:C>T	non_coding_transcript_exon_variant	MODIFIER	-	-	-	-	-	-	g.1474001C>T	-	C[C>T]G	-	-	-
 MTB_anc	alkA_Rv1317c	1479085	C	T	Val12Ile	Val12Ile	Val12Ile	Val12Ile	SNP	Non-synonymous	GTC	ATC	ATC	snp	SNV:1479085:C>T	missense_variant	MODERATE	30 (conservative)	-	-	-	-	-	g.1479085C>T	c.34G>A	A[C>T]C	-	-	-
 MTB_anc	glgB_Rv1326c	1490905	G	A	Pro470Ser	Pro470Ser	Pro470Ser	Pro470Ser	SNP	Non-synonymous	CCT	TCT	TCT	snp	SNV:1490905:G>A	missense_variant	MODERATE	73 (moderately conservative)	-	-	-	-	-	g.1490905G>A	c.1408C>T	G[C>T]C	-	-	-
 MTB_anc	glgB_Rv1326c	1490911	A	G	Ser468Pro	Ser468Pro	Ser468Pro	Ser468Pro	SNP	Non-synonymous	TCG	CCG	CCG	snp	SNV:1490911:A>G	missense_variant	MODERATE	73 (moderately conservative)	-	-	-	-	-	g.1490911A>G	c.1402T>C	G[T>C]C	-	-	-

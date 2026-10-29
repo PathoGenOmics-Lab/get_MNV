@@ -61,7 +61,7 @@ window.GET_MNV_DOCS_INDEX = [
 "page": "Command Line Tutorial",
 "section": "1. Get the example data",
 "url": "getting-started/index.html#1-get-the-example-data",
-"text": "The example/ folder of the repository ships everything you need: MTB_ancestor.fas Reference (single contig MTB_anc) anot_genes.txt Gene table (name, start, end, strand) G35894.var.snp.vcf VarScan-style variant calls G35894.demo.bam Tiny aligned-read subset for read support git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV/example"
+"text": "The example/ folder of the repository ships everything you need: MTB_ancestor.fas Reference (single contig MTB_anc) anot_genes.txt Gene table (name, start, end, strand, and for its RNA genes phase and biotype) G35894.var.snp.vcf VarScan-style variant calls G35894.demo.bam Tiny aligned-read subset for read support git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV/example"
 },
 {
 "lang": "en",
@@ -1125,7 +1125,7 @@ window.GET_MNV_DOCS_INDEX = [
 "page": "Tutorial de línea de comandos",
 "section": "1. Consigue los datos de ejemplo",
 "url": "es/getting-started/index.html#1-consigue-los-datos-de-ejemplo",
-"text": "La carpeta example/ del repositorio trae todo lo necesario: MTB_ancestor.fas Referencia (un único contig, MTB_anc) anot_genes.txt Tabla de genes (nombre, inicio, fin, hebra) G35894.var.snp.vcf Llamadas de variantes al estilo VarScan G35894.demo.bam Subconjunto diminuto de lecturas alineadas git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV/example"
+"text": "La carpeta example/ del repositorio trae todo lo necesario: MTB_ancestor.fas Referencia (un único contig, MTB_anc) anot_genes.txt Tabla de genes (nombre, inicio, fin, hebra y, en sus genes de ARN, fase y biotipo) G35894.var.snp.vcf Llamadas de variantes al estilo VarScan G35894.demo.bam Subconjunto diminuto de lecturas alineadas git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV/example"
 },
 {
 "lang": "es",

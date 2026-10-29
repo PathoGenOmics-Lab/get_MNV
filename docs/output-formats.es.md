@@ -235,10 +235,12 @@ registro de entrada.
 
 La entrada del ejemplo incluido se anotó con snpEff 4.1, y en sus 802 bases que
 anotan los dos, la entrada de get_MNV da la misma consecuencia, impacto,
-`HGVS.c` y `HGVS.p` que la de snpEff salvo en tres casos: snpEff 4.1 llama
-también región de splicing a las últimas bases de un gen de un solo exón, la
-tabla de genes del ejemplo no marca sus genes de ARN como tales, y el primer
-codón anotado de un gen no es un codón de inicio.
+`HGVS.c` y `HGVS.p` que la de snpEff salvo en dos casos: snpEff 4.1 llama
+también región de splicing a las últimas bases de un gen de un solo exón, y el
+primer codón anotado de un gen no es un codón de inicio. En las dos bases que
+caen en genes de ARN los dos dicen lo mismo con dos nombres para un término:
+`non_coding_transcript_exon_variant` es como Sequence Ontology renombró el
+`non_coding_exon_variant` de snpEff.
 
 ## Salida BCF
 

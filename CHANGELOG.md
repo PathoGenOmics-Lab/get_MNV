@@ -112,8 +112,8 @@ All notable changes to this project are documented in this file.
   record the combined change, marked `INFO_COMPOUND_ANNOTATION`. On the 802
   bases of the bundled example that snpEff 4.1 also annotated, the consequence,
   impact, `HGVS.c` and `HGVS.p` are snpEff's, apart from its splice region at
-  the end of single-exon genes, the example's unmarked RNA genes and one first
-  codon that is not a start codon. An `ANN` already in the input follows
+  the end of single-exon genes and one first codon that is not a start codon.
+  An `ANN` already in the input follows
   get_MNV's entry under `--keep-original-info`, for the same allele only.
 
 ### Changed
@@ -181,6 +181,12 @@ All notable changes to this project are documented in this file.
 - **A frameshift that destroys the start codon says so.** It was reported as a
   plain `frameshift_variant`, while a substitution at the same initiator was
   `start_lost`. It is now `frameshift_variant&start_lost`.
+- **The example's RNA genes are declared as RNA.** `example/anot_genes.txt`
+  had no biotype column, so its 70 RNA genes (45 tRNA, 3 rRNA, 16 small RNAs,
+  4 antisense RNAs, tmRNA and RNase P RNA) were translated as proteins: the
+  example reported `Pro115Leu` in the 23S rRNA and `Asp26Gly` in the mcr11
+  sRNA. Their rows now carry a phase and a biotype, and those two variants are
+  `non_coding_transcript_exon_variant` with no amino-acid change.
 - **Under `--keep-original-info` each base of a codon keeps its own INFO.**
   Every record of a codon carried the INFO of its first base, so the second
   base's record repeated the first base's depth, and anything else its caller

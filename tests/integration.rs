@@ -1506,6 +1506,7 @@ fn test_e2e_ann_matches_snpeff_on_every_base_of_the_example() {
 
     let output = fs::read_to_string(tmp.join("ann.MNV.vcf")).unwrap();
     let mut compared = 0;
+    let mut rna = 0;
     for cols in output
         .lines()
         .filter(|l| !l.starts_with('#'))
@@ -1525,9 +1526,18 @@ fn test_e2e_ann_matches_snpeff_on_every_base_of_the_example() {
         let Some(theirs) = snpeff.get(&key) else {
             continue;
         };
-        // RNA genes: snpEff's database knows it, the example's gene table does
-        // not say so, and get_MNV translates them.
+        // RNA genes, which the example's gene table declares non-coding: no
+        // protein to change, and the same term, which snpEff 4.1 writes under
+        // its name from before Sequence Ontology renamed it. get_MNV writes no
+        // `n.` descriptor, so HGVS.c is not compared.
         if theirs[1] == "non_coding_exon_variant" {
+            assert_eq!(
+                [ours[1], ours[2], ours[7], ours[10]],
+                ["non_coding_transcript_exon_variant", "MODIFIER", "Noncoding", ""],
+                "{}",
+                cols.join("\t")
+            );
+            rna += 1;
             continue;
         }
         // A first codon that is not a start codon, made into one: get_MNV reads
@@ -1547,6 +1557,7 @@ fn test_e2e_ann_matches_snpeff_on_every_base_of_the_example() {
         );
     }
     assert!(compared > 790, "only {compared} bases compared");
+    assert_eq!(rna, 2, "the sample's two variants in RNA genes");
 
     fs::remove_dir_all(&tmp).ok();
 }

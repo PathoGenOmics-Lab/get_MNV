@@ -17,7 +17,7 @@ del repositorio trae todo lo necesario:
 | Archivo | Papel |
 |---|---|
 | `MTB_ancestor.fas` | Referencia (un único contig, `MTB_anc`) |
-| `anot_genes.txt` | Tabla de genes (`nombre`, `inicio`, `fin`, `hebra`) |
+| `anot_genes.txt` | Tabla de genes (`nombre`, `inicio`, `fin`, `hebra` y, en sus genes de ARN, `fase` y `biotipo`) |
 | `G35894.var.snp.vcf` | Llamadas de variantes al estilo VarScan |
 | `G35894.demo.bam` | Subconjunto diminuto de lecturas alineadas |
 

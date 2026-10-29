@@ -16,7 +16,7 @@ folder of the repository ships everything you need:
 | File | Role |
 |---|---|
 | `MTB_ancestor.fas` | Reference (single contig `MTB_anc`) |
-| `anot_genes.txt` | Gene table (`name`, `start`, `end`, `strand`) |
+| `anot_genes.txt` | Gene table (`name`, `start`, `end`, `strand`, and for its RNA genes `phase` and `biotype`) |
 | `G35894.var.snp.vcf` | VarScan-style variant calls |
 | `G35894.demo.bam` | Tiny aligned-read subset for read support |
 

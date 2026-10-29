@@ -232,10 +232,11 @@ codon's record, whose allele no input record had.
 
 The bundled example's input was annotated by snpEff 4.1, and on its 802 bases
 both annotate, get_MNV's entry gives the same consequence, impact, `HGVS.c` and
-`HGVS.p` as snpEff's apart from three cases: snpEff 4.1 also calls the last
-bases of a single-exon gene a splice region, the example's gene table does not
-mark its RNA genes as such, and one gene's annotated first codon is not a start
-codon.
+`HGVS.p` as snpEff's apart from two cases: snpEff 4.1 also calls the last bases
+of a single-exon gene a splice region, and one gene's annotated first codon is
+not a start codon. On the two bases in RNA genes both say the same thing, under
+two names for one term: `non_coding_transcript_exon_variant` is what Sequence
+Ontology renamed snpEff's `non_coding_exon_variant` to.
 
 ## BCF Output
 
