@@ -57,9 +57,10 @@ BCF mediante `--bcf`. Consulta [Solución de problemas](troubleshooting.es.md).
 
 ## Mi VCF tiene registros multialélicos: ¿qué ocurre?
 
-Por defecto get_MNV se detiene para que decidas cómo manejarlos. Pasa
-`--split-multiallelic` para dividir cada registro en alelos ALT independientes, o
-divídelos previamente con `bcftools norm -m -`.
+get_MNV divide cada registro en alelos ALT independientes, con una fila anotada
+por ALT, que es la misma salida que da `bcftools norm -m -`. Antes de la 1.1.6 la
+ejecución se detenía salvo que se pasara `--split-multiallelic`; la opción se
+sigue aceptando y no cambia nada.
 
 ## ¿Se admiten indels?
 

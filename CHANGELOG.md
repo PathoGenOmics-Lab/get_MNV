@@ -17,6 +17,15 @@ All notable changes to this project are documented in this file.
   and reachable only from the desktop app. Anything driving the tool from a
   workflow manager had to work around their absence.
 
+### Changed
+
+- **Multiallelic records are split without being asked.** A VCF record with
+  several ALT alleles stopped the run unless `--split-multiallelic` was passed,
+  while the desktop app split them by default, so the same input failed on the
+  command line and ran in the app. Splitting is now the default in both, giving
+  one annotated row per ALT, the same output `bcftools norm -m -` produces. The
+  flag is still accepted, so existing commands keep working.
+
 ### Fixed
 
 - **`ATA` is Methionine in the mitochondrial tables.** Tables 2, 3 and 5

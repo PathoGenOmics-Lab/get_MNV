@@ -56,26 +56,13 @@ Fix:
 
 ## Multiallelic VCF Records
 
-Example:
+Since 1.1.6 these are split for you, so the error
+`Multiallelic VCF record is not supported` no longer appears. An older version
+needs `--split-multiallelic`, or a VCF pre-split with
+`bcftools norm -m - input.vcf > split.vcf`.
 
-```text
-Multiallelic VCF record is not supported
-```
-
-Fix:
-
-```bash
-get_mnv ... --split-multiallelic
-```
-
-or pre-split the VCF:
-
-```bash
-bcftools norm -m - input.vcf > split.vcf
-```
-
-`--split-multiallelic` emits one annotated row per ALT, even when multiple
-alts share the same codon position. Each row reports its own amino-acid
+Splitting emits one annotated row per ALT, even when multiple alts share the
+same codon position. Each row reports its own amino-acid
 effect, codon, and BAM-derived read support. Pre-splitting the VCF with
 `bcftools norm -m -` produces the same output.
 

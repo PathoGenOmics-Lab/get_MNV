@@ -52,9 +52,10 @@ Not directly. Convert it to VCF first, for example with
 
 ## My VCF has multiallelic records: what happens?
 
-By default get_MNV stops so you can decide how to handle them. Pass
-`--split-multiallelic` to split each record into independent ALT alleles, or
-pre-split with `bcftools norm -m -`.
+get_MNV splits each record into independent ALT alleles, one annotated row per
+ALT, which is the same output `bcftools norm -m -` gives. Before 1.1.6 the run
+stopped instead unless `--split-multiallelic` was passed; the flag is still
+accepted and changes nothing.
 
 ## Are indels supported?
 

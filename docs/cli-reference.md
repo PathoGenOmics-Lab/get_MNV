@@ -94,7 +94,7 @@ These apply only when `--bam` is provided.
 | `--count-mates-separately` | off | Count the two mates of a paired-end fragment as two observations instead of one molecule. |
 | `--phased-indel-min-freq <F>` | `0.0` | Minimum BAM-derived frequency to emit a phased indel/complex haplotype row. |
 | `--normalize-alleles` | off | Trim shared REF/ALT prefix/suffix before processing. |
-| `--split-multiallelic` | off | Split multiallelic VCF records into independent ALT alleles instead of failing. |
+| `--split-multiallelic` | on | Split multiallelic VCF records into independent ALT alleles. On by default since 1.1.6; still accepted so existing commands keep working. |
 
 ## Output
 

@@ -99,7 +99,7 @@ DESC = {
     "19_start_codon_altered": "SNV in the start codon ATG: pos 2 T>C → ACG (Met1Thr) → Change Type 'Start lost'.",
     "20_stop_lost": "Stop-lost: codon 100 TAA→CAA (pos 298 T>C, Ter100Gln).",
     "21_intron_variant": "SNV in the geneC intron (pos 950 T>A): reported as intergenic under --gff-features CDS.",
-    "22_multiallelic_split": "Multiallelic SNV pos 28 G>A,T with --split-multiallelic: 2 independent SNV rows (G>A Ala10Thr + G>T Ala10Ser).",
+    "22_multiallelic_split": "Multiallelic SNV pos 28 G>A,T, split by default: 2 independent SNV rows (G>A Ala10Thr + G>T Ala10Ser).",
     "23_delins_subst_plus_del": "Delins REF=GCT ALT=GA at pos 28 (substitution pos 29 C>A + deletion pos 30): frameshift.",
     "24_large_inframe_insertion": "In-frame 9 bp insertion (GCTGCTGCT = 3 Ala) between pos 30 and 31.",
     "25_large_inframe_deletion": "In-frame 6 bp deletion (2 consecutive Ala) at pos 31-36.",

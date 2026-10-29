@@ -32,8 +32,7 @@ Requirements:
 
 - VCF contig names must match the FASTA and GFF/GTF contig names.
 - REF alleles must match the FASTA sequence.
-- Multiallelic records should be pre-split, or run with
-  `--split-multiallelic`.
+- Multiallelic records are split into one row per ALT allele.
 
 get_MNV can read original depth/frequency metrics from common INFO or FORMAT
 fields, including `DP`, `AF`, `FREQ`, `AD`, `AO`, and `RO`.

@@ -56,26 +56,13 @@ Solución:
 
 ## Registros VCF multialélicos
 
-Ejemplo:
+Desde la 1.1.6 se dividen solos, así que el error
+`Multiallelic VCF record is not supported` ya no aparece. Una versión anterior
+necesita `--split-multiallelic`, o un VCF dividido de antemano con
+`bcftools norm -m - input.vcf > split.vcf`.
 
-```text
-Multiallelic VCF record is not supported
-```
-
-Solución:
-
-```bash
-get_mnv ... --split-multiallelic
-```
-
-o divide el VCF de antemano:
-
-```bash
-bcftools norm -m - input.vcf > split.vcf
-```
-
-`--split-multiallelic` emite una fila anotada por cada ALT, incluso cuando
-varios alts comparten la misma posición de codón. Cada fila indica su propio
+La división emite una fila anotada por cada ALT, incluso cuando varios alts
+comparten la misma posición de codón. Cada fila indica su propio
 efecto sobre el aminoácido, su codón y el soporte de lecturas derivado del BAM.
 Dividir el VCF de antemano con `bcftools norm -m -` produce la misma salida.
 

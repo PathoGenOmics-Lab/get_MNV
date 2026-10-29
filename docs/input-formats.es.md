@@ -36,8 +36,7 @@ Requisitos:
 - Los nombres de contig del VCF deben coincidir con los del FASTA y los del
   GFF/GTF.
 - Los alelos REF deben coincidir con la secuencia del FASTA.
-- Los registros multialélicos deben dividirse previamente, o bien hay que
-  ejecutar con `--split-multiallelic`.
+- Los registros multialélicos se dividen en una fila por alelo ALT.
 
 get_MNV puede leer las métricas originales de profundidad y frecuencia desde
 campos INFO o FORMAT habituales, como `DP`, `AF`, `FREQ`, `AD`, `AO` y `RO`.

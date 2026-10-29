@@ -137,7 +137,7 @@ impl AnalysisConfig {
             count_mates_separately: self.count_mates_separately.unwrap_or(false),
             dry_run: self.dry_run.unwrap_or(false),
             strict: self.strict.unwrap_or(false),
-            split_multiallelic: self.split_multiallelic.unwrap_or(false),
+            split_multiallelic: self.split_multiallelic.unwrap_or(true),
             emit_filtered: self.emit_filtered.unwrap_or(false),
             vcf_gz: self.vcf_gz.unwrap_or(false),
             index_vcf_gz: self.index_vcf_gz.unwrap_or(self.vcf_gz.unwrap_or(false)),
@@ -2148,11 +2148,6 @@ mod default_parity_tests {
         (
             "normalizeAlleles",
             "the form trims shared REF/ALT context by default",
-        ),
-        (
-            "splitMultiallelic",
-            "the form splits multiallelic records rather than \
-                               failing the run in front of the user",
         ),
     ];
 

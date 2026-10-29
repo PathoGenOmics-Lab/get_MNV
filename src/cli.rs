@@ -176,8 +176,10 @@ pub struct Args {
     #[arg(long)]
     pub strict: bool,
 
-    /// Split multiallelic VCF records into independent ALT alleles instead of failing
-    #[arg(long = "split-multiallelic")]
+    /// Split multiallelic VCF records into independent ALT alleles. On by
+    /// default since 1.1.6, when a multiallelic record stopped failing the run;
+    /// the flag is still accepted so existing commands keep working.
+    #[arg(long = "split-multiallelic", default_value_t = true)]
     pub split_multiallelic: bool,
 
     /// In VCF output, emit records that fail read/frequency/strand/strand-bias thresholds with FILTER tags instead of skipping them
@@ -368,6 +370,20 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(args.translation_table, 11);
+    }
+
+    #[test]
+    fn test_split_multiallelic_is_the_default_and_the_flag_still_parses() {
+        let base = [
+            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--genes", "g.txt",
+        ];
+        let args = Args::try_parse_from(base).unwrap();
+        assert!(args.split_multiallelic);
+
+        let mut with_flag = base.to_vec();
+        with_flag.push("--split-multiallelic");
+        let args = Args::try_parse_from(with_flag).unwrap();
+        assert!(args.split_multiallelic);
     }
 
     #[test]
