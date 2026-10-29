@@ -35,7 +35,7 @@ import build_docs  # noqa: E402
 LEFTOVERS = [
     (re.compile(r"^\s*(!!!|\?\?\?)\s"), "an MkDocs admonition (use a GitHub alert: > [!NOTE])"),
     (re.compile(r'^\s*=== "'), "an MkDocs content tab"),
-    (re.compile(r"\{\s*[.#][\w-]+[^}]*\}"), "an attribute list ({ .class })"),
+    (re.compile(r"\{\s*([.#][\w-]+|[\w-]+=)[^}]*\}"), "an attribute list ({ .class }, { target=_blank })"),
     (re.compile(r":(material|octicons|fontawesome)-[\w-]+:"), "an MkDocs icon shortcode"),
     (re.compile(r"\smarkdown(=\"1\")?>"), "a markdown attribute on raw HTML"),
     (re.compile(r"#only-(light|dark)\)"), "a Material theme fragment (use #gh-light-mode-only / #gh-dark-mode-only)"),

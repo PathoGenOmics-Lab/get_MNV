@@ -164,7 +164,7 @@ else:
 }</code></pre></div>
 <h2 id="informe-html-interactivo">Informe HTML interactivo<a class="anchor" href="#informe-html-interactivo" aria-hidden="true" tabindex="-1">#</a></h2>
 <p><code>--report &lt;FICHERO.html&gt;</code> escribe un único fichero HTML autocontenido para explorar las variantes llamadas. Incrusta sus datos y no carga scripts ni fuentes externas, así que se abre sin conexión con un doble clic y se puede adjuntar en un correo o archivar junto a los resultados.</p>
-<p><a href="../../assets/example-report.html"><strong>Abrir el informe de ejemplo</strong></a>{ target=_blank }: 941 variantes llamadas sobre el conjunto de una muestra incluido en <code>example/</code>, o sea la salida real del comando de abajo y no una maqueta. Se regenera con <code>scripts/build_example_report.sh</code>. Las vistas de cohorte (las filas de la matriz, la recurrencia de haplotipos) se llenan con <code>--sample all</code> o <code>--report-from</code> sobre varias muestras.</p>
+<p><a href="../../assets/example-report.html"><strong>Abrir el informe de ejemplo</strong></a>: 941 variantes llamadas sobre el conjunto de una muestra incluido en <code>example/</code>, o sea la salida real del comando de abajo y no una maqueta. Se regenera con <code>scripts/build_example_report.sh</code>. Las vistas de cohorte (las filas de la matriz, la recurrencia de haplotipos) se llenan con <code>--sample all</code> o <code>--report-from</code> sobre varias muestras.</p>
 <div class="code" data-lang="bash"><pre><code># Informe de un run
 get_mnv --vcf muestra.vcf --fasta ref.fasta --gff ref.gff --report muestra.html
 

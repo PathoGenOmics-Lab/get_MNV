@@ -544,7 +544,7 @@ window.GET_MNV_DOCS_INDEX = [
 "page": "Output Formats",
 "section": "Interactive HTML report",
 "url": "output-formats/index.html#interactive-html-report",
-"text": "--report <FILE.html> writes a single self-contained HTML file for exploring the called variants. It embeds its data, loads no external scripts or fonts, and therefore opens offline by double-clicking and can be attached to an email or archived with the results. Open the example report{ target=_blank }: 941 variants called from the single-sample dataset bundled in example/, so it is the real output of the command below rather than a mock-up. Regenerate it with scripts/build_example_report.sh. The"
+"text": "--report <FILE.html> writes a single self-contained HTML file for exploring the called variants. It embeds its data, loads no external scripts or fonts, and therefore opens offline by double-clicking and can be attached to an email or archived with the results. Open the example report: 941 variants called from the single-sample dataset bundled in example/, so it is the real output of the command below rather than a mock-up. Regenerate it with scripts/build_example_report.sh. The cohort views (th"
 },
 {
 "lang": "en",
@@ -1643,7 +1643,7 @@ window.GET_MNV_DOCS_INDEX = [
 "page": "Formatos de salida",
 "section": "Informe HTML interactivo",
 "url": "es/output-formats/index.html#informe-html-interactivo",
-"text": "--report <FICHERO.html> escribe un único fichero HTML autocontenido para explorar las variantes llamadas. Incrusta sus datos y no carga scripts ni fuentes externas, así que se abre sin conexión con un doble clic y se puede adjuntar en un correo o archivar junto a los resultados. Abrir el informe de ejemplo{ target=_blank }: 941 variantes llamadas sobre el conjunto de una muestra incluido en example/, o sea la salida real del comando de abajo y no una maqueta. Se regenera con scripts/build_exampl"
+"text": "--report <FICHERO.html> escribe un único fichero HTML autocontenido para explorar las variantes llamadas. Incrusta sus datos y no carga scripts ni fuentes externas, así que se abre sin conexión con un doble clic y se puede adjuntar en un correo o archivar junto a los resultados. Abrir el informe de ejemplo: 941 variantes llamadas sobre el conjunto de una muestra incluido en example/, o sea la salida real del comando de abajo y no una maqueta. Se regenera con scripts/build_example_report.sh. Las "
 },
 {
 "lang": "es",

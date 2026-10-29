@@ -164,7 +164,7 @@ else:
 }</code></pre></div>
 <h2 id="interactive-html-report">Interactive HTML report<a class="anchor" href="#interactive-html-report" aria-hidden="true" tabindex="-1">#</a></h2>
 <p><code>--report &lt;FILE.html&gt;</code> writes a single self-contained HTML file for exploring the called variants. It embeds its data, loads no external scripts or fonts, and therefore opens offline by double-clicking and can be attached to an email or archived with the results.</p>
-<p><a href="../assets/example-report.html"><strong>Open the example report</strong></a>{ target=_blank }: 941 variants called from the single-sample dataset bundled in <code>example/</code>, so it is the real output of the command below rather than a mock-up. Regenerate it with <code>scripts/build_example_report.sh</code>. The cohort views (the matrix rows, haplotype recurrence) fill out with <code>--sample all</code> or <code>--report-from</code> across several samples.</p>
+<p><a href="../assets/example-report.html"><strong>Open the example report</strong></a>: 941 variants called from the single-sample dataset bundled in <code>example/</code>, so it is the real output of the command below rather than a mock-up. Regenerate it with <code>scripts/build_example_report.sh</code>. The cohort views (the matrix rows, haplotype recurrence) fill out with <code>--sample all</code> or <code>--report-from</code> across several samples.</p>
 <div class="code" data-lang="bash"><pre><code># Report for one run
 get_mnv --vcf sample.vcf --fasta ref.fasta --gff ref.gff --report sample.html
 
