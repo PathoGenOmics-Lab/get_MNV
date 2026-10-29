@@ -20,7 +20,7 @@ and needs none of them.
 |---|---|
 | `-v, --vcf <FILE>` | Variant input in plain VCF, BGZF-compressed VCF or BCF (SNVs/MNVs and indels). |
 | `--tsv <FILE>` | iVar `variants.tsv` input. |
-| `-b, --bam <FILE>` | Optional aligned reads for read support. Must be coordinate-sorted and indexed. |
+| `-b, --bam <FILE>` | Optional aligned reads for read support, as BAM or CRAM. Must be coordinate-sorted and indexed; a CRAM is decoded against `--fasta`. |
 | `-f, --fasta <FILE>` | Reference FASTA (required). |
 | `--sample <NAME>` | Sample to annotate in a multi-sample VCF (default: first sample; `all` for all). Its FORMAT metrics become the original depth and frequency, and its genotype decides which ALT alleles it carries. |
 | `--chrom <NAME>` | Restrict processing to one contig (default: all contigs in the input). |

@@ -32,6 +32,7 @@ const EXT_MAP: Record<string, keyof AnalysisConfig> = {
   csv: "genesFile",
   txt: "genesFile",
   bam: "bamFile",
+  cram: "bamFile",
 };
 
 /** Keyword patterns in filenames → config field (fallback when extension fails) */
@@ -39,7 +40,7 @@ const NAME_HINTS: [RegExp, keyof AnalysisConfig][] = [
   [/vcf|variant|snp/i, "vcfFile"],
   [/\.fa$|fasta|refseq|reference|genome/i, "fastaFile"],
   [/gene|annot|gff|gtf|feature|cds/i, "genesFile"],
-  [/\.bam$|align|mapping/i, "bamFile"],
+  [/\.(bam|cram)$|align|mapping/i, "bamFile"],
 ];
 
 function classifyFile(path: string): keyof AnalysisConfig | null {
@@ -105,7 +106,7 @@ function preferredGffFeatures(available: string[]): string[] {
 
 /** Extract filename stem — removes path and known bioinformatics extensions */
 function filenameStem(path: string): string {
-  return (path.split(/[\\/]/).pop() ?? "").replace(/\.(vcf\.gz|vcf|bcf|tsv|txt|bam)$/i, "");
+  return (path.split(/[\\/]/).pop() ?? "").replace(/\.(vcf\.gz|vcf|bcf|tsv|txt|bam|cram)$/i, "");
 }
 
 /** Extract the core sample ID (first dot-segment) from a filename */
@@ -1005,7 +1006,7 @@ function App() {
                         bamFile: path.length > 0 ? path : undefined,
                       }))
                     }
-                    filters={[{ name: "BAM", extensions: ["bam"] }]}
+                    filters={[{ name: "BAM or CRAM", extensions: ["bam", "cram"] }]}
                     isDragActive={dragActive}
                     justAssigned={justAssigned.has("bamFile")}
                     fileType="BAM"

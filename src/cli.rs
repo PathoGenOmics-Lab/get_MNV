@@ -47,7 +47,7 @@ pub struct Args {
     #[arg(long = "input-format", value_enum, default_value_t = VariantInputFormat::Auto, hide = true)]
     pub input_format: VariantInputFormat,
 
-    /// BAM file with aligned reads (optional)
+    /// BAM or CRAM file with aligned reads (optional). A CRAM is decoded against --fasta
     #[arg(short = 'b', long = "bam")]
     pub bam_file: Option<String>,
 

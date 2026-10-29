@@ -214,15 +214,16 @@ la ejecución se detiene en vez de poner los genes de un contig sobre las
 variantes de otro. Para usarla hay que escribir también las columnas de fase y
 biotipo: `.` vale como fase desconocida.
 
-## 4. Lecturas BAM (opcional)
+## 4. Lecturas BAM o CRAM (opcional)
 
-Pasa las lecturas BAM con:
+Pasa las lecturas alineadas con:
 
 ```bash
 --bam reads.bam
+--bam reads.cram
 ```
 
-Cuando se proporciona un BAM, get_MNV calcula:
+Cuando se proporcionan lecturas, get_MNV calcula:
 
 - El soporte de lecturas de los SNP
 - El soporte de lecturas del haplotipo MNV
@@ -232,10 +233,19 @@ Cuando se proporciona un BAM, get_MNV calcula:
 
 Requisitos:
 
-- El BAM debe estar ordenado.
-- El BAM debe estar indexado (`.bai`).
-- Los nombres de contig del BAM deben coincidir con los del archivo de variantes
-  y los del FASTA.
+- El archivo debe estar ordenado por coordenadas.
+- Debe estar indexado: `.bai` (o `.csi`) para un BAM, `.crai` para un CRAM.
+  `samtools index` escribe cualquiera de los dos.
+- Los nombres de contig deben coincidir con los del archivo de variantes y los
+  del FASTA.
+- Un CRAM guarda las lecturas como diferencias con una referencia, así que se
+  decodifica con el `--fasta` de la ejecución. Tiene que ser la referencia con
+  la que se escribió el CRAM; una distinta falla con un error de suma de
+  comprobación en vez de dar bases equivocadas. Un `.fai` junto al FASTA permite
+  leer la secuencia bajo demanda; sin él se carga entera.
+
+Un CRAM da los mismos recuentos que el BAM del que sale: la batería de pruebas
+ejecuta cada escenario de las dos maneras y compara las salidas byte a byte.
 - Las lecturas duplicadas, secundarias, suplementarias y marcadas como QC-fail se ignoran, igual que las descarta `samtools mpileup` por defecto.
 
 ## Nombres de contig

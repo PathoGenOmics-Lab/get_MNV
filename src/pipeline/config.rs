@@ -97,26 +97,27 @@ pub(crate) fn validate_contig_inputs(
     Ok(())
 }
 
-/// Validate the BAM file up front: it exists, is openable as a coordinate-sorted
-/// indexed BAM, and its header is readable. Run this before any output file is
-/// created so a missing/un-indexed BAM fails fast with an actionable message
-/// instead of erroring lazily inside a worker thread after partial output.
-pub(crate) fn validate_bam(bam_path: &str) -> AppResult<()> {
+/// Validate the BAM or CRAM file up front: it exists, opens as a
+/// coordinate-sorted indexed file, and its header is readable. Run this before
+/// any output file is created so a missing/un-indexed file fails fast with an
+/// actionable message instead of erroring lazily inside a worker thread after
+/// partial output.
+pub(crate) fn validate_bam(bam_path: &str, fasta_path: &str) -> AppResult<()> {
+    let kind = if io::is_cram_path(bam_path) {
+        "CRAM"
+    } else {
+        "BAM"
+    };
     if !std::path::Path::new(bam_path).exists() {
         return Err(AppError::validation(format!(
-            "BAM file not found: '{bam_path}'"
+            "{kind} file not found: '{bam_path}'"
         )));
     }
-    let mut reader = noodles::bam::io::indexed_reader::Builder::default()
-        .build_from_path(bam_path)
-        .map_err(|e| {
-            AppError::validation(format!(
-                "Cannot open BAM '{bam_path}'. It must be coordinate-sorted and indexed \
-                 (run `samtools index {bam_path}`). Underlying error: {e}"
-            ))
-        })?;
-    reader.read_header().map_err(|e| {
-        AppError::validation(format!("Cannot read BAM header from '{bam_path}': {e}"))
+    io::AlignmentReader::open(bam_path, fasta_path).map_err(|e| {
+        AppError::validation(format!(
+            "Cannot open {kind} '{bam_path}'. It must be coordinate-sorted and indexed \
+             (run `samtools index {bam_path}`). Underlying error: {e}"
+        ))
     })?;
     Ok(())
 }

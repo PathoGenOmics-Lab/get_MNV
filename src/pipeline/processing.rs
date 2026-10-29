@@ -14,7 +14,6 @@ use crate::read_count::{self, RegionObservationCache};
 use crate::variants::{self, Gene, VariantInfo, VariantType};
 use log::info;
 use lru::LruCache;
-use noodles::bam;
 use noodles::sam::Header;
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -50,7 +49,7 @@ struct RegionCacheKey {
 }
 
 struct WorkerState {
-    bam: Option<bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>>,
+    bam: Option<crate::io::AlignmentReader>,
     bam_header: Option<Header>,
     region_cache: LruCache<RegionCacheKey, RegionObservationCache>,
 }
@@ -331,16 +330,12 @@ fn count_intergenic_variant_reads(
     }
     snp_indices.sort_by_key(|i| site_of[i].0[0]);
 
-    let mut reader = bam::io::indexed_reader::Builder::default()
-        .build_from_path(bam_path)
-        .map_err(|e| {
+    let (mut reader, header) =
+        io::AlignmentReader::open(bam_path, &args.fasta_file).map_err(|e| {
             AppError::validation(format!(
-                "Failed to open BAM '{bam_path}' for intergenic read counting: {e}"
+                "Failed to open '{bam_path}' for intergenic read counting: {e}"
             ))
         })?;
-    let header = reader.read_header().map_err(|e| {
-        AppError::validation(format!("Failed to read BAM header from '{bam_path}': {e}"))
-    })?;
 
     let mut start = 0usize;
     while start < snp_indices.len() {
@@ -484,18 +479,12 @@ pub(crate) fn process_contig(
             || -> AppResult<WorkerState> {
                 let (bam, bam_header) = if should_count_reads {
                     if let Some(path) = bam_path.as_ref() {
-                        let mut reader = bam::io::indexed_reader::Builder::default()
-                            .build_from_path(path)
+                        let (reader, header) = io::AlignmentReader::open(path, &args.fasta_file)
                             .map_err(|e| {
                                 AppError::validation(format!(
-                                    "Failed to open BAM '{path}' in worker thread: {e}"
+                                    "Failed to open '{path}' in worker thread: {e}"
                                 ))
                             })?;
-                        let header = reader.read_header().map_err(|e| {
-                            AppError::validation(format!(
-                                "Failed to read BAM header from '{path}': {e}"
-                            ))
-                        })?;
                         (Some(reader), Some(header))
                     } else {
                         (None, None)

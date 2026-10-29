@@ -1122,12 +1122,11 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         zero_based_end_exclusive,
     )?;
 
-    let mut bam_reader = bam::io::indexed_reader::Builder::default()
-        .build_from_path(&request.bam_path)
-        .map_err(|e| format!("Cannot open BAM: {}", e))?;
-    let header = bam_reader
-        .read_header()
-        .map_err(|e| format!("Cannot read BAM header: {}", e))?;
+    // BAM or CRAM, decoded against the run's FASTA when it is a CRAM; either
+    // way the records arrive as `bam::Record`, so the layout code below is one.
+    let (mut bam_reader, header) =
+        get_mnv::io::AlignmentReader::open(&request.bam_path, &request.fasta_path)
+            .map_err(|e| format!("Cannot open alignments: {}", e))?;
 
     let region_str = format!(
         "{}:{}-{}",
@@ -1147,7 +1146,7 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
     let mut record = bam::Record::default();
     while query
         .read_record(&mut record)
-        .map_err(|e| format!("BAM read error: {}", e))?
+        .map_err(|e| format!("Alignment read error: {}", e))?
         != 0
     {
         let flags = record.flags();

@@ -716,6 +716,54 @@ def _check_bgzipped_input_agrees(
     return ["  el .vcf y el .vcf.gz del mismo contenido anotan distinto:\n" + detalle]
 
 
+def _check_cram_agrees(
+    scenario, work, variant_input, fasta, gff, bam, extra_args, input_flag, bam_out
+) -> list[str]:
+    """The same reads, as BAM and as CRAM, have to annotate identically.
+
+    get_MNV hands a CRAM record to the read counters in the shape of a BAM
+    record, so every count, frequency and phasing call has to come out the same
+    whichever container the reads arrived in. The comparison is byte for byte
+    over the whole TSV, so it covers every column without naming them.
+    """
+    if not scenario.reads:
+        return []
+    cram = work / "reads.cram"
+    proc = subprocess.run(
+        [SAMTOOLS, "view", "-C", "-T", str(fasta), "-o", str(cram), str(bam)],
+        capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        return [f"  no se pudo convertir el BAM a CRAM: {proc.stderr.strip()}"]
+    proc = subprocess.run([SAMTOOLS, "index", str(cram)], capture_output=True, text=True)
+    if proc.returncode != 0:
+        return [f"  no se pudo indexar el CRAM: {proc.stderr.strip()}"]
+
+    # A copy of the input under another name, so the CRAM run writes its own
+    # outputs instead of overwriting the ones being compared against.
+    cram_input = work / ("variants_cram" + "".join(variant_input.suffixes))
+    shutil.copyfile(variant_input, cram_input)
+    cram_out = run_get_mnv(
+        work, cram_input, fasta, gff, cram,
+        gff_features=scenario.gff_features,
+        extra_args=extra_args or None,
+        input_flag=input_flag,
+    )
+    bam_body = bam_out.read_text()
+    cram_body = cram_out.read_text()
+    if bam_body == cram_body:
+        return []
+    detalle = next(
+        (
+            f"      BAM:  {a}\n      CRAM: {b}"
+            for a, b in zip(bam_body.split("\n"), cram_body.split("\n"))
+            if a != b
+        ),
+        "      distinto numero de lineas",
+    )
+    return ["  el BAM y el CRAM de las mismas lecturas anotan distinto:\n" + detalle]
+
+
 def run_scenario(scenario: Scenario, base_work: Path) -> tuple[bool, list[str], Path]:
     work = base_work / scenario.name
     if work.exists():
@@ -756,6 +804,8 @@ def run_scenario(scenario: Scenario, base_work: Path) -> tuple[bool, list[str], 
     errors = compare(scenario.expected, rows)
     errors.extend(_check_bgzipped_input_agrees(scenario, work, variant_input, fasta, gff, bam,
                                                extra_args, input_flag, out))
+    errors.extend(_check_cram_agrees(scenario, work, variant_input, fasta, gff, bam,
+                                     extra_args, input_flag, out))
     vcf_path = out.parent / (out.name[: -len(".tsv")] + ".vcf")
     if "--convert" not in extra_args:
         if not vcf_path.exists():

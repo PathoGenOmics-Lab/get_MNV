@@ -70,7 +70,7 @@ fn run_single(
     // Fail fast on a missing/un-indexed BAM before any output file is created.
     if !args.dry_run {
         if let Some(bam_path) = args.bam_file.as_deref() {
-            config::validate_bam(bam_path)?;
+            config::validate_bam(bam_path, &args.fasta_file)?;
         }
     }
 

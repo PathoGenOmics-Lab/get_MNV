@@ -7,7 +7,6 @@
 
 use crate::error::{AppError, AppResult};
 use crate::variants::AlleleComponent;
-use noodles::bam;
 use noodles::sam::Header;
 
 mod cache;
@@ -72,7 +71,7 @@ pub struct IndelReadCountRequest<'a> {
 
 #[allow(clippy::too_many_arguments)]
 pub fn count_reads_per_position(
-    bam_reader: &mut bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>,
+    bam_reader: &mut crate::io::AlignmentReader,
     header: &Header,
     chrom: &str,
     positions: &[usize],

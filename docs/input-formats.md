@@ -209,15 +209,16 @@ rather than lay one contig's genes over another's variants. Using it means
 writing the phase and biotype columns too: `.` is accepted for an unknown
 phase.
 
-## 4. BAM Reads (Optional)
+## 4. BAM or CRAM Reads (Optional)
 
-Pass BAM reads with:
+Pass aligned reads with:
 
 ```bash
 --bam reads.bam
+--bam reads.cram
 ```
 
-When a BAM is provided, get_MNV calculates:
+When reads are provided, get_MNV calculates:
 
 - SNP read support
 - MNV haplotype read support
@@ -227,9 +228,18 @@ When a BAM is provided, get_MNV calculates:
 
 Requirements:
 
-- BAM must be sorted.
-- BAM must be indexed (`.bai`).
-- BAM contig names must match the variant file and FASTA.
+- The file must be coordinate-sorted.
+- It must be indexed: `.bai` (or `.csi`) for a BAM, `.crai` for a CRAM.
+  `samtools index` writes either.
+- Contig names must match the variant file and FASTA.
+- A CRAM stores reads as differences from a reference, so it is decoded
+  against the `--fasta` of the run. That has to be the reference the CRAM was
+  written against; a different one fails with a checksum error rather than
+  giving wrong bases. A `.fai` next to the FASTA lets the sequence be read on
+  demand; without one it is loaded whole.
+
+A CRAM gives the same counts as the BAM it was made from: the test suite runs
+every scenario both ways and compares the outputs byte for byte.
 - Duplicate, secondary, supplementary and QC-fail reads are ignored, matching what `samtools mpileup` excludes by default.
 
 ## Contig Names

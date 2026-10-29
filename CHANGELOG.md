@@ -33,6 +33,16 @@ All notable changes to this project are documented in this file.
   same TSV byte for byte from either. A BCF cut short fails with an
   `invalid BCF record` error instead of reading as a VCF with fewer records.
 
+- **CRAM is read as well as BAM.** `--bam` takes a coordinate-sorted CRAM with
+  its `.crai` index, decoded against the run's `--fasta`; the desktop app's read
+  viewer opens one too. Every read-support path works on BAM records, so a CRAM
+  record is handed over in that shape rather than read by a second copy of the
+  counting code, and the scenario suite now runs every scenario with the BAM and
+  with a CRAM made from it and requires the two TSVs to match byte for byte. A
+  CRAM decoded against the wrong reference stops with a checksum error instead
+  of counting the wrong bases. Read errors now say `Alignment read error` rather
+  than `BAM read error`, since the file may be either.
+
 ### Changed
 
 - **Multiallelic records are split without being asked.** A VCF record with

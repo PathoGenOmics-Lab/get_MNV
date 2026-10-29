@@ -1,6 +1,7 @@
-//! Input parsing: VCF loading, FASTA reference reading, GFF/TSV gene
-//! annotation, allele validation, and original metrics extraction.
+//! Input parsing: VCF/BCF loading, BAM/CRAM opening, FASTA reference reading,
+//! GFF/TSV gene annotation, allele validation, and original metrics extraction.
 
+pub mod alignment;
 pub mod annotation;
 pub mod fasta;
 pub mod ivar;
@@ -9,6 +10,7 @@ pub mod vcf;
 pub mod vcf_fast;
 
 // Re-export public types and functions for backward compatibility.
+pub use alignment::{is_cram_path, AlignmentQuery, AlignmentReader};
 pub use annotation::{
     detect_annotation_format, filter_genes_with_snps, gene_overlaps_variant, load_genes,
     preload_gff_genes, tsv_rows_without_contig, AnnotationFormat,

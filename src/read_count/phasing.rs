@@ -70,7 +70,7 @@ impl IndelSnvLinkage {
 /// [`IndelSnvLinkage::is_trans`], which never asserts cis.
 #[allow(clippy::too_many_arguments)]
 pub fn indel_snv_linkage(
-    bam_reader: &mut bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>,
+    bam_reader: &mut crate::io::AlignmentReader,
     header: &Header,
     chrom: &str,
     indel_position: usize,
@@ -94,7 +94,9 @@ pub fn indel_snv_linkage(
     let end = indel_end.max(snv_position);
     let region = build_region(chrom, start, end)?;
     let mut query = bam_reader.query(header, &region).map_err(|e| {
-        AppError::validation(format!("BAM query failed for {chrom}:{start}-{end}: {e}"))
+        AppError::validation(format!(
+            "Alignment query failed for {chrom}:{start}-{end}: {e}"
+        ))
     })?;
 
     // Gathered per molecule, not per record: with paired-end reads the mate
@@ -116,7 +118,7 @@ pub fn indel_snv_linkage(
     let mut record = bam::Record::default();
     while query
         .read_record(&mut record)
-        .map_err(|e| AppError::validation(format!("BAM read error: {e}")))?
+        .map_err(|e| AppError::validation(format!("Alignment read error: {e}")))?
         != 0
     {
         record_index += 1;

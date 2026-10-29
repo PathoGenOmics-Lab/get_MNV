@@ -75,7 +75,7 @@ pub struct LocalHaplotypeObservations {
 }
 
 pub fn observe_local_haplotypes(
-    bam_reader: &mut bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>,
+    bam_reader: &mut crate::io::AlignmentReader,
     header: &Header,
     request: LocalHaplotypeRequest<'_>,
 ) -> AppResult<LocalHaplotypeObservations> {
@@ -100,7 +100,9 @@ pub fn observe_local_haplotypes(
 
     let region = build_region(chrom, start, end)?;
     let mut query = bam_reader.query(header, &region).map_err(|e| {
-        AppError::validation(format!("BAM query failed for {chrom}:{start}-{end}: {e}"))
+        AppError::validation(format!(
+            "Alignment query failed for {chrom}:{start}-{end}: {e}"
+        ))
     })?;
 
     // Each variant is judged on its own reference span, so a molecule read from
@@ -123,7 +125,7 @@ pub fn observe_local_haplotypes(
     let mut record = bam::Record::default();
     while query
         .read_record(&mut record)
-        .map_err(|e| AppError::validation(format!("BAM read error: {e}")))?
+        .map_err(|e| AppError::validation(format!("Alignment read error: {e}")))?
         != 0
     {
         record_index += 1;
