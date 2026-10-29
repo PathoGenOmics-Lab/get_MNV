@@ -91,8 +91,8 @@
   var T = es ? {
     head: ["Leído como", "Codón", "Aminoácido"],
     reference: "Referencia",
-    alone: "Posición {i} sola, {r}&gt;{a}",
-    single: "Posición {i}, {r}&gt;{a}",
+    alone: "Posición {i} sola, {r}>{a}",
+    single: "Posición {i}, {r}>{a}",
     whole: ["", "", "Las dos, como lo lee get_MNV", "Las tres, como lo lee get_MNV"],
     kinds: { syn: "sinónima", mis: "missense", gain: "stop ganado", lost: "stop perdido" },
     position: "Posición {i}",
@@ -112,8 +112,8 @@
   } : {
     head: ["Read as", "Codon", "Amino acid"],
     reference: "Reference",
-    alone: "Position {i} alone, {r}&gt;{a}",
-    single: "Position {i}, {r}&gt;{a}",
+    alone: "Position {i} alone, {r}>{a}",
+    single: "Position {i}, {r}>{a}",
     whole: ["", "", "Both, as get_MNV reads it", "All three, as get_MNV reads it"],
     kinds: { syn: "synonymous", mis: "missense", gain: "stop gained", lost: "stop lost" },
     position: "Position {i}",
@@ -154,8 +154,20 @@
   var out = playground.querySelector("[data-out]");
   var presets = Array.prototype.slice.call(playground.querySelectorAll("[data-preset]"));
 
+  // Everything below is built as nodes with text in them, never as markup: the
+  // bases come from an input box and from attributes, and none of it is ever
+  // read as HTML, whatever it holds.
+  var el = function (tag, attrs, children) {
+    var node = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (key) { node.setAttribute(key, attrs[key]); });
+    (children || []).forEach(function (child) {
+      node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+    });
+    return node;
+  };
+
   // The editor: three positions, each with the four bases to choose from.
-  editor.innerHTML = "";
+  editor.textContent = "";
   var picks = [];
   var tiles = [];
   [0, 1, 2].forEach(function (p) {
@@ -198,10 +210,11 @@
     col.appendChild(group);
     editor.appendChild(col);
   });
-  var refLabel = document.createElement("label");
-  refLabel.className = "play-ref";
-  refLabel.innerHTML = '<span>' + T.refInput + '</span><input type="text" inputmode="text" maxlength="3" spellcheck="false" autocomplete="off" autocapitalize="characters">';
-  var refInput = refLabel.querySelector("input");
+  var refInput = el("input", {
+    type: "text", inputmode: "text", maxlength: "3", spellcheck: "false",
+    autocomplete: "off", autocapitalize: "characters",
+  });
+  var refLabel = el("label", { class: "play-ref" }, [el("span", null, [T.refInput]), refInput]);
   refInput.addEventListener("input", function () {
     var value = refInput.value.toUpperCase().replace(/U/g, "T");
     refInput.setAttribute("aria-invalid", /^[ACGT]{3}$/.test(value) ? "false" : "true");
@@ -228,31 +241,39 @@
       });
       tiles[p].dataset.b = cur[p];
       tiles[p].classList.toggle("changed", cur[p] !== ref[p]);
-      tiles[p].innerHTML = cur[p] + (cur[p] !== ref[p] ? "<small>" + ref[p] + "&gt;" + cur[p] + "</small>" : "<small>" + T.refTag + "</small>");
+      tiles[p].textContent = cur[p];
+      tiles[p].appendChild(el("small", null, [cur[p] !== ref[p] ? ref[p] + ">" + cur[p] : T.refTag]));
     });
     if (document.activeElement !== refInput) refInput.value = ref.join("");
 
-    var codonHtml = function (codon) {
-      return "<code>" + codon.split("").map(function (b, p) {
-        return b !== ref[p] ? "<i>" + b + "</i>" : b;
-      }).join("") + "</code>";
+    var codonNode = function (codon) {
+      return el("code", null, codon.split("").map(function (b, p) {
+        return b !== ref[p] ? el("i", null, [b]) : b;
+      }));
     };
-    var aaHtml = function (aa) {
+    var aaNodes = function (aa) {
       var kind = kindOf(refAa, aa);
-      return NAME[aa] + ' <span class="kind kind-' + kind + '">' + T.kinds[kind] + "</span>";
+      return [NAME[aa] + " ", el("span", { class: "kind kind-" + kind }, [T.kinds[kind]])];
     };
-    var rows = ["<tr><th scope=\"row\">" + T.reference + "</th><td>" + codonHtml(ref.join("")) + "</td><td>" + NAME[refAa] + "</td></tr>"];
+    var row = function (label, codon, aa, whole) {
+      return el("tr", whole ? { class: "whole" } : null, [
+        el("th", { scope: "row" }, [label]),
+        el("td", null, [codonNode(codon)]),
+        el("td", null, aa),
+      ]);
+    };
+    var rows = [row(T.reference, ref.join(""), [NAME[refAa]], false)];
     var singles = changed.map(function (p) {
       var codon = ref.slice();
       codon[p] = cur[p];
       codon = codon.join("");
       var aa = aaOf(codon);
       var label = fill(changed.length > 1 ? T.alone : T.single, { i: p + 1, r: ref[p], a: cur[p] });
-      rows.push("<tr" + (changed.length === 1 ? ' class="whole"' : "") + '><th scope="row">' + label + "</th><td>" + codonHtml(codon) + "</td><td>" + aaHtml(aa) + "</td></tr>");
+      rows.push(row(label, codon, aaNodes(aa), changed.length === 1));
       return { p: p, aa: aa };
     });
     if (changed.length > 1) {
-      rows.push('<tr class="whole"><th scope="row">' + T.whole[changed.length] + "</th><td>" + codonHtml(whole) + "</td><td>" + aaHtml(wholeAa) + "</td></tr>");
+      rows.push(row(T.whole[changed.length], whole, aaNodes(wholeAa), true));
     }
 
     var verdict;
@@ -272,10 +293,10 @@
       }
     }
 
-    out.innerHTML =
-      '<table class="readout"><thead><tr><th scope="col">' + T.head[0] + '</th><th scope="col">' + T.head[1] +
-      '</th><th scope="col">' + T.head[2] + "</th></tr></thead><tbody>" + rows.join("") + "</tbody></table>" +
-      '<p class="verdict">' + verdict + "</p>";
+    var head = el("thead", null, [el("tr", null, T.head.map(function (h) { return el("th", { scope: "col" }, [h]); }))]);
+    out.textContent = "";
+    out.appendChild(el("table", { class: "readout" }, [head, el("tbody", null, rows)]));
+    out.appendChild(el("p", { class: "verdict" }, [verdict]));
   }
 
   function choose(preset) {
