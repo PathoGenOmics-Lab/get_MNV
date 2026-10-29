@@ -1533,7 +1533,12 @@ fn test_e2e_ann_matches_snpeff_on_every_base_of_the_example() {
         if theirs[1] == "non_coding_exon_variant" {
             assert_eq!(
                 [ours[1], ours[2], ours[7], ours[10]],
-                ["non_coding_transcript_exon_variant", "MODIFIER", "Noncoding", ""],
+                [
+                    "non_coding_transcript_exon_variant",
+                    "MODIFIER",
+                    "Noncoding",
+                    ""
+                ],
                 "{}",
                 cols.join("\t")
             );
