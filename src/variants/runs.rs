@@ -35,7 +35,16 @@ impl SubstitutionRun {
     pub fn descriptor(&self) -> String {
         format!("g.{}_{}delins{}", self.start, self.end, self.alt_bases)
     }
+}
 
+/// The first and last base of a run, read back from its descriptor.
+pub fn run_span(descriptor: &str) -> Option<(usize, usize)> {
+    let span = descriptor.strip_prefix("g.")?.split("delins").next()?;
+    let (start, end) = span.split_once('_')?;
+    Some((start.parse().ok()?, end.parse().ok()?))
+}
+
+impl SubstitutionRun {
     /// COSMIC DBS78 class, for a run of exactly two bases.
     pub fn dbs_class(&self) -> Option<String> {
         if self.length() != 2 {
@@ -75,17 +84,19 @@ fn substitutions(variant: &VariantInfo) -> impl Iterator<Item = (usize, char, ch
         })
 }
 
-/// Every run of two or more adjacent substitutions among `variants`.
+/// Every run of two or more adjacent substitutions among the rows of
+/// `variants` that `joins` lets in.
 ///
 /// Indel rows are left out: a complex indel's substitution parts are part of an
 /// indel event, and a substitution that also stands on its own has its own row.
 /// A position with two different alternates (a split multiallelic site) is not
 /// one base of a run, since the two cannot both be on the molecule.
-pub fn find_runs(variants: &[VariantInfo]) -> Vec<SubstitutionRun> {
+pub fn find_runs(variants: &[VariantInfo], joins: &[bool]) -> Vec<SubstitutionRun> {
     let mut by_position: BTreeMap<usize, Option<(char, char)>> = BTreeMap::new();
-    for variant in variants
+    for (variant, _) in variants
         .iter()
-        .filter(|v| v.variant_type != VariantType::Indel)
+        .zip(joins)
+        .filter(|(v, &joins)| joins && v.variant_type != VariantType::Indel)
     {
         for (position, r, a) in substitutions(variant) {
             by_position
@@ -131,8 +142,16 @@ pub fn find_runs(variants: &[VariantInfo]) -> Vec<SubstitutionRun> {
 /// Annotate every row with the runs its substitutions belong to, and give the
 /// doublet class to every row of a doublet. Returns, by position, the length of
 /// the run each base belongs to, for the single-base spectrum to leave out.
-pub fn annotate_adjacent_substitutions(variants: &mut [VariantInfo]) -> HashMap<usize, usize> {
-    let runs = find_runs(variants);
+///
+/// Only the rows `joins` marks are part of a run: a row the output will drop
+/// for want of read support is not a call, and a base next to it is a single
+/// substitution in the output, not half of a doublet. Rows left out are left
+/// as they are.
+pub fn annotate_adjacent_substitutions(
+    variants: &mut [VariantInfo],
+    joins: &[bool],
+) -> HashMap<usize, usize> {
+    let runs = find_runs(variants, joins);
     let mut run_at: HashMap<usize, usize> = HashMap::new();
     for (index, run) in runs.iter().enumerate() {
         for position in run.start..=run.end {
@@ -140,7 +159,7 @@ pub fn annotate_adjacent_substitutions(variants: &mut [VariantInfo]) -> HashMap<
         }
     }
 
-    for variant in variants.iter_mut() {
+    for (variant, _) in variants.iter_mut().zip(joins).filter(|(_, &joins)| joins) {
         if variant.variant_type == VariantType::Indel {
             continue;
         }
@@ -160,14 +179,19 @@ pub fn annotate_adjacent_substitutions(variants: &mut [VariantInfo]) -> HashMap<
         // The doublet class comes from the run, not from the codon: two
         // substituted bases of one codon next to a third in the neighbouring
         // codon are a run of three, which COSMIC does not call a doublet, and a
-        // doublet split by a codon boundary is one.
+        // doublet split by a codon boundary is one. One class per doublet, in
+        // the order of the doublets among the runs, `-` for a doublet with no
+        // class (a base that is not A, C, G or T): dropping it put the next
+        // doublet's class against the wrong run.
         let classes: Vec<String> = touched
             .iter()
-            .filter_map(|&index| runs[index].dbs_class())
+            .filter(|&&index| runs[index].length() == 2)
+            .map(|&index| runs[index].dbs_class().unwrap_or_else(|| "-".to_string()))
             .collect();
         let in_a_run = !touched.is_empty();
         if in_a_run {
-            variant.annotations.dbs_class = (!classes.is_empty()).then(|| classes.join(", "));
+            variant.annotations.dbs_class =
+                classes.iter().any(|c| c != "-").then(|| classes.join(", "));
         } else if variant.annotations.dbs_class.is_some() {
             // A codon's own doublet that is not a run here: one of its two bases
             // also carries another alternate, so the two are not one molecule.
@@ -231,7 +255,7 @@ mod tests {
             row(VariantType::Snp, &["SNV:104:G>T"]),
             row(VariantType::Snp, &["SNV:200:C>T"]),
         ];
-        let members = annotate_adjacent_substitutions(&mut rows);
+        let members = annotate_adjacent_substitutions(&mut rows, &[true; 3]);
         for r in &rows[..2] {
             assert_eq!(
                 r.annotations.adjacent_substitutions,
@@ -254,7 +278,7 @@ mod tests {
             row(VariantType::Snp, &["SNV:30:T>G"]),
         ];
         rows[0].annotations.dbs_class = Some("GC>TA".to_string());
-        let members = annotate_adjacent_substitutions(&mut rows);
+        let members = annotate_adjacent_substitutions(&mut rows, &[true; 2]);
         assert_eq!(
             rows[0].annotations.adjacent_substitutions,
             vec!["g.28_30delinsTAG"]
@@ -264,6 +288,23 @@ mod tests {
         assert_eq!(run_marker(members[&29]), "MBS");
     }
 
+    /// A doublet with no class keeps its place in the list, so each class
+    /// still stands beside its own doublet.
+    #[test]
+    fn a_doublet_with_no_class_keeps_its_place() {
+        let mut rows = vec![row(
+            VariantType::SnpMnv,
+            &["SNV:36:A>N", "SNV:37:A>C", "SNV:39:C>T", "SNV:40:T>C"],
+        )];
+        annotate_adjacent_substitutions(&mut rows, &[true]);
+        assert_eq!(
+            rows[0].annotations.adjacent_substitutions,
+            vec!["g.36_37delinsNC", "g.39_40delinsTC"]
+        );
+        assert_eq!(rows[0].annotations.dbs_class.as_deref(), Some("-, CT>TC"));
+        assert_eq!(run_span("g.39_40delinsTC"), Some((39, 40)));
+    }
+
     #[test]
     fn a_split_multiallelic_base_breaks_the_run() {
         let mut rows = vec![
@@ -271,10 +312,24 @@ mod tests {
             row(VariantType::Snp, &["SNV:10:A>G"]),
             row(VariantType::Snp, &["SNV:11:T>A"]),
         ];
-        annotate_adjacent_substitutions(&mut rows);
+        annotate_adjacent_substitutions(&mut rows, &[true; 3]);
         assert!(rows
             .iter()
             .all(|r| r.annotations.adjacent_substitutions.is_empty()));
+    }
+
+    /// A base whose row the output drops for want of reads is no partner: the
+    /// base beside it is a single substitution, not half of a doublet.
+    #[test]
+    fn a_row_left_out_of_the_output_joins_no_run() {
+        let mut rows = vec![
+            row(VariantType::Snp, &["SNV:36:A>G"]),
+            row(VariantType::Snp, &["SNV:37:A>C"]),
+        ];
+        let members = annotate_adjacent_substitutions(&mut rows, &[false, true]);
+        assert!(rows[1].annotations.adjacent_substitutions.is_empty());
+        assert_eq!(rows[1].annotations.dbs_class, None);
+        assert!(members.is_empty());
     }
 
     #[test]
@@ -283,7 +338,7 @@ mod tests {
             row(VariantType::Indel, &["DEL:9:AT", "SNV:12:C>T"]),
             row(VariantType::Snp, &["SNV:13:G>A"]),
         ];
-        annotate_adjacent_substitutions(&mut rows);
+        annotate_adjacent_substitutions(&mut rows, &[true; 2]);
         assert!(rows
             .iter()
             .all(|r| r.annotations.adjacent_substitutions.is_empty()));

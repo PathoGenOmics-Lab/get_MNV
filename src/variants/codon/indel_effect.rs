@@ -80,8 +80,7 @@ pub(super) fn protein_effect_for_indel(
     // A feature that begins at the protein's first codon is read from its
     // initiator, so a GTG start is Met and removing it is seen as such. A CDS row
     // further into the protein, or one that starts mid-codon, has no initiator.
-    let starts_protein =
-        gene.phase == 0 && (!gene.cds_segments.is_empty() || gene.protein_offset == 0);
+    let starts_protein = gene.starts_protein();
     let translate = |seq: &str| {
         if starts_protein {
             translate_from_start(seq, genetic_code)

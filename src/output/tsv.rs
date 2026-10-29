@@ -151,14 +151,15 @@ fn event_read_columns(variant: &VariantInfo) -> Vec<String> {
     ]
 }
 
+/// The read-support thresholds a row has to clear to be written.
 #[derive(Clone, Copy)]
-struct TsvFilterConfig {
-    min_snp_reads: usize,
-    min_snp_frequency: f64,
-    min_mnv_reads: usize,
-    min_mnv_frequency: f64,
-    min_snp_strand_reads: usize,
-    min_mnv_strand_reads: usize,
+pub(crate) struct TsvFilterConfig {
+    pub(crate) min_snp_reads: usize,
+    pub(crate) min_snp_frequency: f64,
+    pub(crate) min_mnv_reads: usize,
+    pub(crate) min_mnv_frequency: f64,
+    pub(crate) min_snp_strand_reads: usize,
+    pub(crate) min_mnv_strand_reads: usize,
 }
 
 impl TsvFilterConfig {
@@ -251,6 +252,13 @@ fn mnv_component_passes_filters(
         && mnv_frequency(variant, total_reads) >= filters.min_mnv_frequency
         && variant.mnv_forward_reads.unwrap_or(0) >= filters.min_mnv_strand_reads
         && variant.mnv_reverse_reads.unwrap_or(0) >= filters.min_mnv_strand_reads
+}
+
+/// Whether a row with reads counted clears `filters`, so that the TSV writes it.
+/// A row whose counts cannot be read is kept, as the writer would then fail on
+/// it rather than drop it.
+pub(crate) fn passes_read_filters(variant: &VariantInfo, filters: TsvFilterConfig) -> bool {
+    passes_filters(variant, filters).unwrap_or(true)
 }
 
 fn passes_filters(variant: &VariantInfo, filters: TsvFilterConfig) -> AppResult<bool> {

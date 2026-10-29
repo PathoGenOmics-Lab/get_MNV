@@ -13,9 +13,10 @@
 //!   breakpoint (`M`): how many bases at one end of the deleted sequence are
 //!   repeated on the other side of it.
 //!
-//! The copies are counted on both sides of the event, so the class is the same
-//! wherever in a repeat the caller placed it, as it would be after
-//! left-alignment.
+//! The event is counted where the HGVS 3' rule puts it, and the copies on both
+//! sides of it, so the class is the same wherever in a repeat the caller placed
+//! it: deleting AA from AAAA is one event whether the record says so at the
+//! first A or the second.
 
 fn same(a: u8, b: u8) -> bool {
     a.eq_ignore_ascii_case(&b)
@@ -94,6 +95,14 @@ pub fn id83_class(
 ) -> Option<String> {
     let seq = sequence.as_bytes();
     let (start, removed, added) = crate::variants::hgvs::indel_core(pos, ref_allele, alt_allele);
+    if start == 0
+        || !removed
+            .bytes()
+            .chain(added.bytes())
+            .all(|b| b"ACGT".contains(&b))
+    {
+        return None;
+    }
     let (kind, unit, first, last) = match (removed.is_empty(), added.is_empty()) {
         (false, true) => {
             let end = start + removed.len() - 1;
@@ -105,16 +114,19 @@ pub fn id83_class(
             {
                 return None;
             }
-            ("Del", removed, start, end)
+            let (first, last) = crate::variants::hgvs::shift_deletion(seq, start, end, seq.len());
+            let unit = String::from_utf8_lossy(&seq[first - 1..last]).to_ascii_uppercase();
+            ("Del", unit, first, last)
         }
-        // An insertion falls between `start - 1` and `start`: no base of the
+        // An insertion falls between `after` and `after + 1`: no base of the
         // reference is inside it.
-        (true, false) => ("Ins", added, start, start - 1),
+        (true, false) => {
+            let (after, unit) =
+                crate::variants::hgvs::shift_insertion(seq, start - 1, &added, seq.len());
+            ("Ins", unit, after + 1, after)
+        }
         _ => return None,
     };
-    if !unit.bytes().all(|b| b"ACGT".contains(&b)) || first == 0 {
-        return None;
-    }
     let size = unit.len();
     let copies = flanking_copies(seq, unit.as_bytes(), first, last);
     if size == 1 {
@@ -196,6 +208,29 @@ mod tests {
             id83_class("AAGCTTTT", 2, "AGC", "A").as_deref(),
             Some("2:Del:R:0")
         );
+    }
+
+    /// Where in a repeat the caller wrote the indel does not change its class.
+    #[test]
+    fn the_class_does_not_depend_on_where_in_a_repeat_the_record_sits() {
+        //               1234567890123456789
+        let sequence = "TTTTTTTTTCCGAAAAGCC";
+        // Deleting AA from AAAA (13-16), written at three places.
+        for (pos, r) in [(12, "GAA"), (13, "AAA"), (14, "AAA")] {
+            assert_eq!(
+                id83_class(sequence, pos, r, &r[..1]).as_deref(),
+                Some("2:Del:R:1"),
+                "{pos} {r}"
+            );
+        }
+        // Inserting AA next to it: two copies already there.
+        for (pos, r) in [(12, "G"), (13, "A"), (14, "A"), (16, "A")] {
+            assert_eq!(
+                id83_class(sequence, pos, r, &format!("{r}AA")).as_deref(),
+                Some("2:Ins:R:2"),
+                "{pos} {r}"
+            );
+        }
     }
 
     #[test]

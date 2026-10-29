@@ -67,6 +67,10 @@ pub(super) fn compute_annotations(
         id83: None,
         // Set by the caller, which has each base's coding position.
         single_bases: Vec::new(),
+        // Filled in per contig by the pipeline, which has the catalogue.
+        catalogue_bases: Vec::new(),
+        // A codon row's bases are each their own record.
+        combines_records: false,
     }
 }
 
@@ -305,15 +309,19 @@ pub fn process_codon(
     // The protein's first codon is read as an initiator: GTG and TTG start a
     // bacterial protein as methionine, so a change that keeps an initiation
     // codon keeps the Met, and one that loses it loses the protein's start.
+    // Only a feature that begins at the protein's first codon has one: the
+    // first complete codon of a CDS that starts mid-codon is an ordinary
+    // residue, so the initiator rules see no position 1 there.
+    let rule_pos = if codon_info.starts_protein { aa_pos } else { 0 };
     let (orig_aa, mut_aa) = (
-        genetic_code.translate_seq_at(ref_codon.as_bytes(), aa_pos),
-        genetic_code.translate_seq_at(mnv_codon.as_bytes(), aa_pos),
+        genetic_code.translate_seq_at(ref_codon.as_bytes(), rule_pos),
+        genetic_code.translate_seq_at(mnv_codon.as_bytes(), rule_pos),
     );
 
-    let combined_aa = describe_substitution(&orig_aa, aa_pos, &mut_aa, aa_pos);
-    let combined_aa_local = describe_substitution(&orig_aa, aa_pos, &mut_aa, local_aa_pos);
+    let combined_aa = describe_substitution(&orig_aa, rule_pos, &mut_aa, aa_pos);
+    let combined_aa_local = describe_substitution(&orig_aa, rule_pos, &mut_aa, local_aa_pos);
     let change_type =
-        substitution_change_type(first_residue(&orig_aa), first_residue(&mut_aa), aa_pos);
+        substitution_change_type(first_residue(&orig_aa), first_residue(&mut_aa), rule_pos);
 
     // Single-residue result of each SNV on its own (reused for the per-SNP
     // columns and the MNV-vs-SNV consequence comparison).
@@ -323,7 +331,7 @@ pub fn process_codon(
         .map(|snp| {
             let single = oriented(&construct_codon(&codon_info, &[snp]));
             genetic_code
-                .translate_seq_at(single.as_bytes(), aa_pos)
+                .translate_seq_at(single.as_bytes(), rule_pos)
                 .chars()
                 .next()
                 .unwrap_or('X')
@@ -331,11 +339,11 @@ pub fn process_codon(
         .collect();
     let snp_changes: Vec<String> = single_aas
         .iter()
-        .map(|aa| describe_substitution(&orig_aa, aa_pos, &aa.to_string(), aa_pos))
+        .map(|aa| describe_substitution(&orig_aa, rule_pos, &aa.to_string(), aa_pos))
         .collect();
     let snp_changes_local: Vec<String> = single_aas
         .iter()
-        .map(|aa| describe_substitution(&orig_aa, aa_pos, &aa.to_string(), local_aa_pos))
+        .map(|aa| describe_substitution(&orig_aa, rule_pos, &aa.to_string(), local_aa_pos))
         .collect();
 
     let mut annotations = compute_annotations(&orig_aa, &mut_aa, &single_aas, change_type);
@@ -346,7 +354,7 @@ pub fn process_codon(
         .iter()
         .zip(&single_aas)
         .map(|(snp, &single)| SingleBaseEffect {
-            change_type: substitution_change_type(first_residue(&orig_aa), single, aa_pos),
+            change_type: substitution_change_type(first_residue(&orig_aa), single, rule_pos),
             hgvs_c: coding_entry(&codon_info, snp, strand)
                 .and_then(|entry| crate::variants::hgvs::coding_substitution(&[entry])),
             // This path builds single-segment genes, which have no junction.

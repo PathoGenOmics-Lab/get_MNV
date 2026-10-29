@@ -668,9 +668,6 @@ pub(crate) fn process_contig(
                         }
                     }
                     for (class, members) in groups {
-                        if matches!(class, FallbackClass::Intergenic) && args.exclude_intergenic {
-                            continue;
-                        }
                         let mut variant = match &class {
                             FallbackClass::Splice(gene_name, splice) => {
                                 variants::build_splice_variant(contig, snp, gene_name, *splice)
@@ -725,14 +722,10 @@ pub(crate) fn process_contig(
                                 &gene.name,
                                 variants::NonCodingReason::IncompleteCodon,
                             ),
-                            None => {
-                                // Genuinely outside every feature: this is the
-                                // only kind `--exclude-intergenic` removes.
-                                if args.exclude_intergenic {
-                                    continue;
-                                }
-                                variants::build_intergenic_variant(contig, snp)
-                            }
+                            // Genuinely outside every feature: the only kind
+                            // `--exclude-intergenic` removes, once the runs of
+                            // adjacent substitutions have been read.
+                            None => variants::build_intergenic_variant(contig, snp),
                         },
                     },
                 };
@@ -896,17 +889,59 @@ pub(crate) fn process_contig(
     }
 
     // Adjacent substitutions are one event even when a codon boundary splits
-    // them into two rows, which only a pass over every row can see.
-    let run_lengths = crate::variants::runs::annotate_adjacent_substitutions(&mut all_variants);
+    // them into two rows, which only a pass over every row can see. Every row
+    // the output keeps is part of it, an intergenic one too: a doublet whose
+    // second base lies past the end of a gene is still a doublet when
+    // `--exclude-intergenic` leaves that base out. A row the output drops for
+    // want of read support is not a call, and is no partner.
+    let read_filters = should_count_reads.then_some(crate::output::TsvFilterConfig {
+        min_snp_reads: args.min_snp_reads,
+        min_snp_frequency: args.min_snp_frequency,
+        min_mnv_reads: args.min_mnv_reads,
+        min_mnv_frequency: args.min_mnv_frequency,
+        min_snp_strand_reads: args.min_snp_strand_reads,
+        min_mnv_strand_reads: args.min_mnv_strand_reads,
+    });
+    let joins: Vec<bool> = all_variants
+        .iter()
+        .map(|variant| {
+            read_filters.is_none_or(|filters| crate::output::passes_read_filters(variant, filters))
+        })
+        .collect();
+    let run_lengths =
+        crate::variants::runs::annotate_adjacent_substitutions(&mut all_variants, &joins);
     // Every row, whichever path built it, gets the trinucleotide context of its
     // substitutions and its HGVS genomic descriptor here, where the contig's
     // sequence is at hand. A row inside a gene with no codon of its own (an
     // intron, a splice site) gets its coding descriptor too, numbered from the
     // nearer exon.
-    let genes_by_name: HashMap<&str, &Gene> = genes.iter().map(|g| (g.name.as_str(), g)).collect();
+    // Transcripts of one gene share its name, so a row is numbered against the
+    // one whose intron holds the change: the transcript the row came from. Any
+    // transcript of that name will do only when none does.
+    let transcript_of = |variant: &VariantInfo| -> Option<&Gene> {
+        let changed = match (
+            variant.positions.first(),
+            variant.ref_bases.first(),
+            variant.base_changes.first(),
+        ) {
+            (Some(&pos), Some(r), Some(a)) => crate::variants::hgvs::indel_core(pos, r, a).0,
+            _ => return None,
+        };
+        let mut named = genes.iter().filter(|g| g.name == variant.gene);
+        named
+            .clone()
+            .find(|g| variants::intron_span(g, changed).is_some())
+            .or_else(|| named.next())
+    };
     for variant in &mut all_variants {
-        variant.annotations.sbs96 =
-            crate::variants::sbs::sbs96_for_variant(variant, reference.sequence, &run_lengths);
+        // A complex indel's substitution is part of the indel event, as it is
+        // for the runs: counting it as a single-base substitution too would
+        // count one event in two spectra.
+        variant.annotations.sbs96 = if variant.variant_type == crate::variants::VariantType::Indel {
+            Vec::new()
+        } else {
+            crate::variants::sbs::sbs96_for_variant(variant, reference.sequence, &run_lengths)
+        };
         variant.annotations.hgvs_g =
             crate::variants::hgvs::genomic_normalized(variant, reference.sequence);
         if variant.variant_type == crate::variants::VariantType::Indel {
@@ -924,7 +959,7 @@ pub(crate) fn process_contig(
         let without_codon = variant.annotations.splice.is_some()
             || variant.annotations.non_coding == Some(crate::variants::NonCodingReason::Intron);
         if without_codon && variant.annotations.hgvs_c.is_none() {
-            if let Some(gene) = genes_by_name.get(variant.gene.as_str()) {
+            if let Some(gene) = transcript_of(variant) {
                 variant.annotations.hgvs_c =
                     variants::noncodon_hgvs_c(gene, variant, reference.sequence);
             }
@@ -954,6 +989,9 @@ pub(crate) fn process_contig(
         }
     }
 
+    if args.exclude_intergenic {
+        all_variants.retain(|variant| variant.gene != "intergenic");
+    }
     sort_variants(&mut all_variants);
     let summary = summarize_contig_variants(
         contig,

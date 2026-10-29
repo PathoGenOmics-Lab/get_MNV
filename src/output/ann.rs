@@ -112,7 +112,10 @@ pub(crate) fn ann_value(
     } else {
         ("transcript", "protein_coding")
     };
-    let compound = base.is_none() && variant.positions.len() > 1;
+    // A codon's record joins its bases, and a local haplotype joins the input
+    // records it was read from: either effect comes from combining variants.
+    let compound =
+        (base.is_none() && variant.positions.len() > 1) || variant.annotations.combines_records;
 
     [
         field(alt),

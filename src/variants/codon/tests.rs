@@ -286,6 +286,54 @@ fn a_gtg_start_codon_is_read_as_methionine_on_both_paths() {
     }
 }
 
+/// A CDS that starts mid-codon (a 5'-partial feature, phase 1 or 2) does not
+/// begin at the protein's first codon, so its first complete codon is not an
+/// initiator: a GTG there is valine, on the substitution and indel paths alike.
+/// The substitution path used to call any change to it a lost start, HIGH,
+/// while the indel path, at the same codon, already read it as valine.
+#[test]
+fn a_cds_that_starts_mid_codon_has_no_initiator() {
+    let snv = |position: usize, ref_allele: &str, alt_allele: &str| crate::io::VcfPosition {
+        record_start: position,
+        ref_allele: ref_allele.to_string(),
+        alt_allele: alt_allele.to_string(),
+        original_dp: None,
+        original_freq: None,
+        original_info: None,
+        declared_phase: None,
+    };
+    // Phase 1: base 1 belongs to the previous codon; codon 1 is GTG at 2-4.
+    let reference = crate::io::Reference {
+        sequence: "AGTGAAATTTA",
+    };
+    let genomic = crate::test_support::single_exon_gene_with_phase("cds", 1, 10, Strand::Plus, 1);
+    let transcript = crate::test_support::gene_from_gff(
+        "chr1\ttest\tCDS\t1\t10\t.\t+\t1\tID=cds-tx;Parent=tx;Name=tx\n",
+    );
+    for gene in [&genomic, &transcript] {
+        assert!(!gene.starts_protein(), "{}", gene.name);
+        let variants = crate::variants::get_mnv_variants_for_gene(
+            gene,
+            &[snv(3, "T", "C")],
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+        assert_eq!(
+            variants[0].change_type,
+            ChangeType::NonSynonymous,
+            "{}",
+            gene.name
+        );
+        assert_eq!(
+            variants[0].aa_changes,
+            vec!["Val1Ala".to_string()],
+            "{}",
+            gene.name
+        );
+    }
+}
+
 /// The initiator rule is for the protein's first codon only: the same GTG
 /// inside the protein is valine, and a change to it is an ordinary missense.
 #[test]
@@ -1211,6 +1259,7 @@ fn test_process_codon_mnv_two_snps_in_codon() {
         codon_start: 100,
         codon_end: 102,
         protein_offset: 0,
+        starts_protein: true,
     };
     let result = process_codon(
         codon_info,
@@ -1242,6 +1291,7 @@ fn test_process_codon_emits_expected_variant_type_for_single_snp() {
         codon_start: 100,
         codon_end: 102,
         protein_offset: 0,
+        starts_protein: true,
     };
 
     let result = process_codon(
@@ -1282,6 +1332,7 @@ fn test_construct_codon_uppercase_alt() {
         codon_start: 100,
         codon_end: 102,
         protein_offset: 0,
+        starts_protein: true,
     };
     let result = process_codon(
         codon_info,

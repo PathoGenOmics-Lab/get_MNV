@@ -293,6 +293,15 @@ pub struct VariantAnnotations {
     /// for a row that is not a codon.
     #[serde(default)]
     pub single_bases: Vec<SingleBaseEffect>,
+    /// For a row of several substituted bases, the `--catalogue` entries each
+    /// base matches on its own, in `positions` order: what the VCF record of
+    /// that base alone says. The row's own `catalogue` stays the codon's.
+    #[serde(default)]
+    pub catalogue_bases: Vec<Vec<String>>,
+    /// The row's one allele joins several input records: a local haplotype
+    /// read off the reads. Its effect comes from combining them.
+    #[serde(default)]
+    pub combines_records: bool,
 }
 
 /// One substituted base of a codon read on its own, the codon's other
@@ -667,6 +676,14 @@ pub struct Intron {
 }
 
 impl Gene {
+    /// Whether this feature begins at the protein's first codon, so that the
+    /// codon at protein position 1 is the initiator. A feature further into the
+    /// protein, or one that starts mid-codon (a 5'-partial CDS with phase 1 or
+    /// 2), has no initiator: its first complete codon is an ordinary residue.
+    pub fn starts_protein(&self) -> bool {
+        self.phase == 0 && (!self.cds_segments.is_empty() || self.protein_offset == 0)
+    }
+
     /// Whether a real intron separates two consecutive CDS segments given in
     /// transcript order.
     ///
@@ -778,6 +795,10 @@ pub struct CodonInfo {
     /// `protein_offset + local_aa_pos`.
     #[serde(default)]
     pub protein_offset: usize,
+    /// The feature begins at the protein's first codon (see
+    /// [`Gene::starts_protein`]), so its codon 1 is read as the initiator.
+    #[serde(default)]
+    pub starts_protein: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -16,6 +16,7 @@
 //! does not make).
 
 use crate::error::{AppError, AppResult};
+use crate::variants::CodingNumbering;
 use crate::variants::{parse_component_label, AlleleComponentKind, Gene, Strand, VariantInfo};
 use std::collections::HashMap;
 
@@ -25,9 +26,12 @@ pub enum CatalogueVariant {
     /// A protein change in get_MNV's own three-letter form (`Ser450Leu`,
     /// `Met1?`), or a frameshift reduced to its first residue (`Ala11fs`).
     Protein(String),
-    /// A single-base substitution at a coding position, in coding-strand bases.
+    /// A single-base substitution at a coding position, in coding-strand bases:
+    /// `c.N`, or `c.N+d` / `c.N-d` for a base `d` into the intron or flank
+    /// beside coding base `N` (`offset` is then `d` or `-d`).
     CodingSubstitution {
         position: CodingAnchor,
+        offset: isize,
         reference: char,
         alternate: char,
     },
@@ -184,15 +188,30 @@ pub fn parse_variant(text: &str) -> Option<CatalogueVariant> {
     }
     if let Some(rest) = text.strip_prefix("c.") {
         if let Some((position, reference, alternate)) = parse_substitution(rest) {
-            let anchor = if let Some(n) = position.strip_prefix('-') {
+            // An intronic or flanking base is written from the coding base
+            // beside it: c.30+20, c.31-11, c.-15-3. The sign that opens the
+            // number belongs to the anchor; the one after a digit, to the offset.
+            let split = position
+                .char_indices()
+                .skip(1)
+                .find(|&(i, c)| {
+                    (c == '+' || c == '-') && position[..i].ends_with(|d: char| d.is_ascii_digit())
+                })
+                .map(|(i, _)| i);
+            let (anchor, offset) = match split {
+                Some(i) => (&position[..i], position[i..].parse::<isize>().ok()?),
+                None => (position.as_str(), 0),
+            };
+            let anchor = if let Some(n) = anchor.strip_prefix('-') {
                 CodingAnchor::Upstream(n.parse().ok()?)
-            } else if let Some(n) = position.strip_prefix('*') {
+            } else if let Some(n) = anchor.strip_prefix('*') {
                 CodingAnchor::Downstream(n.parse().ok()?)
             } else {
-                CodingAnchor::Cds(position.parse().ok()?)
+                CodingAnchor::Cds(anchor.parse().ok()?)
             };
             return Some(CatalogueVariant::CodingSubstitution {
                 position: anchor,
+                offset,
                 reference,
                 alternate,
             });
@@ -287,39 +306,44 @@ fn complement(base: char) -> char {
 }
 
 /// The genomic position and genomic bases of a coding substitution, from the
-/// gene objects that carry the gene's name on this contig.
+/// gene objects that carry the gene's name on this contig, each with its coding
+/// numbering (`c.` number to genomic position).
 fn place_coding(
-    genes: &[&Gene],
+    genes: &[(&Gene, &CodingNumbering)],
     anchor: CodingAnchor,
+    offset: isize,
     reference: char,
     alternate: char,
 ) -> Option<(usize, char, char)> {
-    let strand = genes.first()?.strand;
+    let strand = genes.first()?.0.strand;
+    // Along the transcript: downstream is up the genome on the plus strand and
+    // down it on the minus.
+    let along = |position: usize, by: isize| -> Option<usize> {
+        let by = match strand {
+            Strand::Plus => by,
+            Strand::Minus => -by,
+        };
+        position.checked_add_signed(by).filter(|&p| p >= 1)
+    };
     let position = match anchor {
         CodingAnchor::Cds(n) => genes
             .iter()
-            .find_map(|g| crate::variants::genomic_for_cds(g, n))?,
+            .find_map(|(_, numbering)| numbering.genomic(n))?,
         CodingAnchor::Upstream(n) => {
             let first = genes
                 .iter()
-                .find_map(|g| crate::variants::genomic_for_cds(g, 1))?;
-            match strand {
-                Strand::Plus => first.checked_sub(n)?,
-                Strand::Minus => first + n,
-            }
+                .find_map(|(_, numbering)| numbering.genomic(1))?;
+            along(first, -(n as isize))?
         }
         CodingAnchor::Downstream(n) => {
-            let (gene, last) = genes
+            let (_, end) = genes
                 .iter()
-                .filter_map(|g| Some((*g, crate::variants::last_cds_position(g)?)))
-                .max_by_key(|(_, last)| *last)?;
-            let end = crate::variants::genomic_for_cds(gene, last)?;
-            match strand {
-                Strand::Plus => end + n,
-                Strand::Minus => end.checked_sub(n)?,
-            }
+                .filter_map(|(_, numbering)| numbering.last())
+                .max_by_key(|(last, _)| *last)?;
+            along(end, n as isize)?
         }
     };
+    let position = along(position, offset)?;
     Some(match strand {
         Strand::Plus => (position, reference, alternate),
         Strand::Minus => (position, complement(reference), complement(alternate)),
@@ -370,29 +394,57 @@ pub fn annotate_catalogue(
     sequence: &str,
 ) -> usize {
     let mut other_reference = 0usize;
+    // Each gene's coding numbering, built once per contig however many entries
+    // name the gene: building it per entry made a catalogue of tens of
+    // thousands of entries cost a pass over the gene each.
+    let mut numberings: HashMap<usize, CodingNumbering> = HashMap::new();
+    // The genes by every name they answer to (see `gene_matches`), so an entry
+    // finds its gene without comparing names with every gene of the contig.
+    let mut genes_by_name: HashMap<&str, Vec<usize>> = HashMap::new();
+    for (i, gene) in genes.iter().enumerate() {
+        for name in std::iter::once(gene.name.as_str()).chain(gene.name.split('_')) {
+            let list = genes_by_name.entry(name).or_default();
+            if list.last() != Some(&i) {
+                list.push(i);
+            }
+        }
+    }
     // Resolve the positional entries once per contig.
     let mut by_position: HashMap<(usize, char), Vec<usize>> = HashMap::new();
     for (index, entry) in catalogue.entries.iter().enumerate() {
+        let named: Vec<usize> = genes_by_name
+            .get(entry.gene.as_str())
+            .cloned()
+            .unwrap_or_default();
         let placed = match &entry.variant {
             CatalogueVariant::CodingSubstitution {
                 position,
+                offset,
                 reference,
                 alternate,
             } => {
-                let named: Vec<&Gene> = genes
-                    .iter()
-                    .filter(|g| gene_matches(&g.name, &entry.gene))
-                    .collect();
                 if named.is_empty() {
                     continue;
                 }
-                place_coding(&named, *position, *reference, *alternate)
+                for &i in &named {
+                    numberings
+                        .entry(i)
+                        .or_insert_with(|| CodingNumbering::of(&genes[i]));
+                }
+                let named: Vec<(&Gene, &CodingNumbering)> = named
+                    .iter()
+                    .map(|&i| (&genes[i], &numberings[&i]))
+                    .collect();
+                place_coding(&named, *position, *offset, *reference, *alternate)
             }
+            // A genomic position means nothing without its contig, and the
+            // entry's gene is what says which one: on any other contig the same
+            // number is another base.
             CatalogueVariant::GenomicSubstitution {
                 position,
                 reference,
                 alternate,
-            } => Some((*position, *reference, *alternate)),
+            } if !named.is_empty() => Some((*position, *reference, *alternate)),
             _ => continue,
         };
         let Some((position, reference, alternate)) = placed else {
@@ -412,6 +464,24 @@ pub fn annotate_catalogue(
             .push(index);
     }
 
+    // The entries each row is compared with, by the gene name they give: a row
+    // looks up its own name and each `_`-separated part of it, and meets them
+    // in the catalogue's own order.
+    let mut by_gene: HashMap<&str, Vec<usize>> = HashMap::new();
+    for (index, entry) in catalogue.entries.iter().enumerate() {
+        by_gene.entry(entry.gene.as_str()).or_default().push(index);
+    }
+    // get_MNV's own labels are not protein changes: a codon read in a shifted
+    // frame (`Ala20Thr (fs)`) has no frameshift of its own at that codon, and
+    // reading the label as one matched every frameshift entry there.
+    let protein_changes = |changes: &[String]| -> Vec<String> {
+        changes
+            .iter()
+            .filter(|change| !change.contains(char::is_whitespace))
+            .filter_map(|change| normalize_protein(change))
+            .collect()
+    };
+
     for variant in variants.iter_mut() {
         let mut hits: Vec<String> = Vec::new();
         for (position, alternate) in substitutions_of(variant) {
@@ -429,23 +499,22 @@ pub fn annotate_catalogue(
             .hgvs_g
             .clone()
             .or_else(|| crate::variants::hgvs::genomic(variant));
-        for entry in &catalogue.entries {
-            if !gene_matches(&variant.gene, &entry.gene) {
-                continue;
-            }
+        let codon_changes = protein_changes(&variant.aa_changes);
+        let single_changes = protein_changes(&variant.snp_aa_changes);
+        let mut indices: Vec<usize> = std::iter::once(variant.gene.as_str())
+            .chain(variant.gene.split('_'))
+            .filter_map(|name| by_gene.get(name))
+            .flatten()
+            .copied()
+            .collect();
+        indices.sort_unstable();
+        indices.dedup();
+        for entry in indices.iter().map(|&index| &catalogue.entries[index]) {
             match &entry.variant {
                 CatalogueVariant::Protein(change) => {
-                    let codon = variant
-                        .aa_changes
-                        .iter()
-                        .filter_map(|a| normalize_protein(a))
-                        .any(|a| &a == change);
+                    let codon = codon_changes.iter().any(|a| a == change);
                     let single = variant.snp_aa_changes.len() > 1
-                        && variant
-                            .snp_aa_changes
-                            .iter()
-                            .filter_map(|a| normalize_protein(a))
-                            .any(|a| &a == change);
+                        && single_changes.iter().any(|a| a == change);
                     let several = variant.snp_aa_changes.len() > 1;
                     let note = match (codon, single) {
                         (true, false) if several => Some("codon reading only"),
@@ -478,6 +547,64 @@ pub fn annotate_catalogue(
         }
         hits.dedup();
         variant.annotations.catalogue = hits;
+
+        // Each base of a row of several, on its own: its position, its own
+        // residue and consequence, its own descriptors.
+        if variant.positions.len() > 1 {
+            let mut bases: Vec<Vec<String>> = vec![Vec::new(); variant.positions.len()];
+            for (i, base_hits) in bases.iter_mut().enumerate() {
+                let position = variant.positions[i];
+                let reference = variant.ref_bases.get(i).map(String::as_str).unwrap_or("");
+                let alternate = variant
+                    .base_changes
+                    .get(i)
+                    .map(String::as_str)
+                    .unwrap_or("");
+                if let Some(alt) = alternate.chars().next().filter(|_| alternate.len() == 1) {
+                    for &index in by_position
+                        .get(&(position, alt.to_ascii_uppercase()))
+                        .into_iter()
+                        .flatten()
+                    {
+                        base_hits.push(describe(&catalogue.entries[index], None));
+                    }
+                }
+                let single = variant.annotations.single_bases.get(i);
+                let own_change =
+                    protein_changes(variant.snp_aa_changes.get(i..=i).unwrap_or_default());
+                let own_term = single.map(|effect| {
+                    crate::output::so_consequence_for(
+                        variant,
+                        effect.in_context(variant.change_type),
+                        effect.splice,
+                    )
+                    .0
+                });
+                let own_genomic = format!(
+                    "g.{position}{}>{}",
+                    reference.to_ascii_uppercase(),
+                    alternate.to_ascii_uppercase()
+                );
+                for entry in indices.iter().map(|&index| &catalogue.entries[index]) {
+                    let hit = match &entry.variant {
+                        CatalogueVariant::Protein(change) => own_change.iter().any(|a| a == change),
+                        CatalogueVariant::CodingOther(written) => {
+                            single.and_then(|e| e.hgvs_c.as_deref()) == Some(written.as_str())
+                        }
+                        CatalogueVariant::GenomicOther(written) => &own_genomic == written,
+                        CatalogueVariant::LossOfFunction => own_term.as_deref().is_some_and(|t| {
+                            t.split('&').any(|term| LOSS_OF_FUNCTION.contains(&term))
+                        }),
+                        _ => false,
+                    };
+                    if hit {
+                        base_hits.push(describe(entry, None));
+                    }
+                }
+                base_hits.dedup();
+            }
+            variant.annotations.catalogue_bases = bases;
+        }
     }
     other_reference
 }
@@ -525,6 +652,7 @@ mod tests {
             parse_variant("c.-15C>T"),
             Some(CatalogueVariant::CodingSubstitution {
                 position: CodingAnchor::Upstream(15),
+                offset: 0,
                 reference: 'C',
                 alternate: 'T'
             })
@@ -533,6 +661,7 @@ mod tests {
             parse_variant("c.1349C>T"),
             Some(CatalogueVariant::CodingSubstitution {
                 position: CodingAnchor::Cds(1349),
+                offset: 0,
                 reference: 'C',
                 alternate: 'T'
             })
@@ -541,6 +670,7 @@ mod tests {
             parse_variant("c.*3G>A"),
             Some(CatalogueVariant::CodingSubstitution {
                 position: CodingAnchor::Downstream(3),
+                offset: 0,
                 reference: 'G',
                 alternate: 'A'
             })
@@ -558,6 +688,29 @@ mod tests {
             Some(CatalogueVariant::CodingOther("c.517_519dup".into()))
         );
         assert_eq!(parse_variant("LoF"), Some(CatalogueVariant::LossOfFunction));
+    }
+
+    /// A base in an intron or a flank is written from the coding base beside it,
+    /// as get_MNV writes it itself; such an entry stopped the whole run.
+    #[test]
+    fn intronic_and_flanking_coding_entries_carry_their_offset() {
+        for (written, position, offset) in [
+            ("c.30+20A>G", CodingAnchor::Cds(30), 20),
+            ("c.31-11A>G", CodingAnchor::Cds(31), -11),
+            ("c.-15-3A>G", CodingAnchor::Upstream(15), -3),
+            ("c.*2+1A>G", CodingAnchor::Downstream(2), 1),
+        ] {
+            assert_eq!(
+                parse_variant(written),
+                Some(CatalogueVariant::CodingSubstitution {
+                    position,
+                    offset,
+                    reference: 'A',
+                    alternate: 'G'
+                }),
+                "{written}"
+            );
+        }
     }
 
     #[test]

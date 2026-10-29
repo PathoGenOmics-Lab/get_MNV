@@ -6,54 +6,12 @@ use crate::variants::{VariantInfo, VariantType};
 use std::io::Write;
 
 /// INFO keys emitted by get_mnv itself. Original VCF fields with these names
-/// are silently skipped when `--keep-original-info` is active to prevent
-/// duplicate INFO keys in the output VCF.
+/// are skipped when `--keep-original-info` is active, so the output VCF never
+/// holds a key twice: the readers' list of get_MNV's own keys, and `ANN`, whose
+/// input entries are merged into get_MNV's own instead. One list for readers
+/// and writer, so a key added to one cannot be missing from the other.
 fn is_reserved_info_key(key: &str) -> bool {
-    matches!(
-        key,
-        "GENE"
-            | "AA"
-            | "CT"
-            | "TYPE"
-            | "SR"
-            | "SRF"
-            | "SRR"
-            | "MR"
-            | "MRF"
-            | "MRR"
-            | "SBP"
-            | "MSBP"
-            | "ODP"
-            | "OFREQ"
-            | "DP"
-            | "FREQ"
-            | "EC"
-            | "COMP"
-            | "ER"
-            | "ERF"
-            | "ERR"
-            | "EDP"
-            | "EFREQ"
-            | "SO"
-            | "IMPACT"
-            | "GD"
-            | "MNVSHIFT"
-            | "DBS"
-            | "MNVPS"
-            | "MNVPR"
-            | "FSPH"
-            | "DPHASE"
-            | "LD"
-            | "LDP"
-            | "NMD"
-            | "HGVSG"
-            | "HGVSC"
-            | "SBS96"
-            | "ADJSUB"
-            | "CAT"
-            | "ID83"
-            | "ANN"
-    )
+    crate::io::vcf::header_written_by_get_mnv(key)
 }
 
 /// Severity rank of an impact level, for keeping the more severe of two.
@@ -192,6 +150,16 @@ impl InfoBuilder {
     fn push_text(&mut self, key: &str, value: &str) {
         self.fields
             .push((key.to_string(), encode_info_value(value)));
+    }
+
+    /// Push a list: each value encoded on its own, joined by the comma that
+    /// separates the values of a `Number=.` key. Nothing is pushed for an empty
+    /// list.
+    fn push_list<'a>(&mut self, key: &str, values: impl IntoIterator<Item = &'a str>) {
+        let encoded: Vec<String> = values.into_iter().map(encode_info_value).collect();
+        if !encoded.is_empty() {
+            self.fields.push((key.to_string(), encoded.join(",")));
+        }
     }
 
     fn build(self) -> String {
@@ -421,6 +389,15 @@ pub(crate) fn build_info_string(
     original_info: Option<&str>,
 ) -> String {
     let mut builder = InfoBuilder::default();
+    // The record of one base of a row that has several describes that base: of
+    // the row's runs, doublets and catalogue matches, only those of its base.
+    let base = original_index.filter(|_| variant.positions.len() > 1);
+    let base_position = base.and_then(|i| variant.positions.get(i).copied());
+    let holds = |descriptor: &str| {
+        base_position.is_none_or(|p| {
+            crate::variants::runs::run_span(descriptor).is_some_and(|(s, e)| s <= p && p <= e)
+        })
+    };
     builder.push_text("GENE", &variant.gene);
     if let Some(aa_change) = aa {
         builder.push_text("AA", aa_change);
@@ -437,7 +414,28 @@ pub(crate) fn build_info_string(
         builder.push_text("MNVSHIFT", variant.annotations.consequence_shift.as_str());
     }
     if let Some(dbs) = variant.annotations.dbs_class.as_deref() {
-        builder.push_text("DBS", dbs);
+        let classes: Vec<&str> = dbs.split(", ").collect();
+        let runs = &variant.annotations.adjacent_substitutions;
+        // One class per doublet among the runs, in their order; a row the run
+        // pass left alone has its codon's own class and no runs.
+        let shown: Vec<&str> = if runs.is_empty() {
+            classes
+        } else {
+            runs.iter()
+                .filter(|d| crate::variants::runs::run_span(d).is_some_and(|(s, e)| e == s + 1))
+                .zip(classes)
+                .filter(|(d, _)| holds(d))
+                .map(|(_, class)| class)
+                .collect()
+        };
+        if shown.iter().any(|class| *class != "-") {
+            builder.push_list(
+                "DBS",
+                shown
+                    .iter()
+                    .map(|class| if *class == "-" { "." } else { class }),
+            );
+        }
     }
     if let Some(phasing) = mnv_phasing_support(variant) {
         builder.push("MNVPS", format_freq(phasing));
@@ -469,17 +467,30 @@ pub(crate) fn build_info_string(
     if let Some(hgvs_c) = variant.annotations.hgvs_c.as_deref() {
         builder.push_text("HGVSC", hgvs_c);
     }
-    if !variant.annotations.sbs96.is_empty() {
-        builder.push_text("SBS96", &variant.annotations.sbs96.join(","));
-    }
-    if !variant.annotations.adjacent_substitutions.is_empty() {
-        builder.push_text(
-            "ADJSUB",
-            &variant.annotations.adjacent_substitutions.join(","),
-        );
-    }
-    if !variant.annotations.catalogue.is_empty() {
-        builder.push_text("CAT", &variant.annotations.catalogue.join("; "));
+    builder.push_list(
+        "SBS96",
+        variant.annotations.sbs96.iter().map(String::as_str),
+    );
+    builder.push_list(
+        "ADJSUB",
+        variant
+            .annotations
+            .adjacent_substitutions
+            .iter()
+            .map(String::as_str)
+            .filter(|d| holds(d)),
+    );
+    let catalogue = match base {
+        Some(i) if !variant.annotations.catalogue_bases.is_empty() => variant
+            .annotations
+            .catalogue_bases
+            .get(i)
+            .cloned()
+            .unwrap_or_default(),
+        _ => variant.annotations.catalogue.clone(),
+    };
+    if !catalogue.is_empty() {
+        builder.push_text("CAT", &catalogue.join("; "));
     }
     if let Some(id83) = variant.annotations.id83.as_deref() {
         builder.push_text("ID83", id83);
@@ -542,10 +553,9 @@ pub(crate) fn build_info_string(
 
     // The record of one base of a codon passes on that base's own input INFO:
     // the row's is its first base's.
-    let original_info = original_index
-        .filter(|_| variant.positions.len() > 1)
+    let original_info = base
         .and_then(|index| variant.annotations.single_bases.get(index))
-        .map_or(original_info, |base| base.original_info.as_deref());
+        .map_or(original_info, |single| single.original_info.as_deref());
 
     // Already encoded field by field: its `|` and `,` are the format's own.
     builder.push(
@@ -865,7 +875,7 @@ pub(crate) fn write_info_header(
     )?;
     writeln!(
         writer,
-        "##INFO=<ID=DBS,Number=1,Type=String,Description=\"COSMIC-style doublet base substitution class for adjacent 2-SNV MNVs (reverse-complement collapsed)\">"
+        "##INFO=<ID=DBS,Number=.,Type=String,Description=\"COSMIC DBS78 class of each doublet (two adjacent substituted bases, across codon boundaries too) this record's substitutions belong to, in ADJSUB order; '.' for a doublet with no class\">"
     )?;
     writeln!(
         writer,
@@ -1276,6 +1286,71 @@ mod tests {
             anns[0].starts_with("ANN=T|missense_variant|MODERATE|geneA|"),
             "{info}"
         );
+    }
+
+    /// A list key is a list a VCF reader can split, and the record of one base
+    /// of a codon carries only the runs, doublets and catalogue matches of its
+    /// own base.
+    #[test]
+    fn lists_are_lists_and_a_base_record_keeps_to_its_base() {
+        let mut variant = make_snp_variant();
+        variant.positions = vec![37, 39];
+        variant.ref_bases = vec!["A".into(), "C".into()];
+        variant.base_changes = vec!["C".into(), "T".into()];
+        variant.variant_type = VariantType::SnpMnv;
+        variant.annotations.adjacent_substitutions =
+            vec!["g.36_37delinsGC".into(), "g.39_40delinsTC".into()];
+        variant.annotations.dbs_class = Some("TT>GC, CT>TC".into());
+        variant.annotations.sbs96 = vec!["DBS".into(), "DBS".into()];
+        variant.annotations.catalogue = vec!["codon hit".into()];
+        variant.annotations.catalogue_bases = vec![vec!["first base hit".into()], vec![]];
+        let field = |info: &str, key: &str| -> Option<String> {
+            info.split(';')
+                .find_map(|f| f.strip_prefix(&format!("{key}=")).map(str::to_string))
+        };
+        let whole = build_info_string(
+            &variant, "CAT", None, "MNV", None, None, None, None, None, None, None, None,
+        );
+        assert_eq!(field(&whole, "SBS96").as_deref(), Some("DBS,DBS"));
+        assert_eq!(
+            field(&whole, "ADJSUB").as_deref(),
+            Some("g.36_37delinsGC,g.39_40delinsTC")
+        );
+        assert_eq!(field(&whole, "DBS").as_deref(), Some("TT>GC,CT>TC"));
+        assert_eq!(field(&whole, "CAT").as_deref(), Some("codon hit"));
+        let second = build_info_string(
+            &variant,
+            "T",
+            None,
+            "SNP",
+            None,
+            None,
+            Some(1),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(field(&second, "ADJSUB").as_deref(), Some("g.39_40delinsTC"));
+        assert_eq!(field(&second, "DBS").as_deref(), Some("CT>TC"));
+        assert_eq!(field(&second, "CAT"), None);
+        let first = build_info_string(
+            &variant,
+            "C",
+            None,
+            "SNP",
+            None,
+            None,
+            Some(0),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(field(&first, "DBS").as_deref(), Some("TT>GC"));
+        assert_eq!(field(&first, "CAT").as_deref(), Some("first base hit"));
     }
 
     #[test]

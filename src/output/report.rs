@@ -419,9 +419,12 @@ impl ReportBuilder {
                 .or_insert(None);
             // Two rows for one variant in one sample (two overlapping genes
             // would differ in the key, so this is a repeated TSV) keep the
-            // measured value.
+            // measured value. A frequency over no reads was never measured: a
+            // BAM that does not reach the variant writes 0.0000 in the TSV, and
+            // the matrix would have read that as absent.
+            let measured = row.freq.filter(|_| row.depth != Some(0));
             if slot.is_none() {
-                *slot = row.freq;
+                *slot = measured;
             }
         }
         let first_position = |positions: &str| -> usize {
@@ -827,13 +830,15 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("get_mnv_matrix_{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir");
         let header = "Chromosome\tGene\tPositions\tReference Bases\tBase Changes\tAA Changes\t\
-                      Variant Type\tSO Term\tImpact\tSNP Frequencies\n";
+                      Variant Type\tSO Term\tImpact\tSNP Frequencies\tTotal Reads\n";
         let with_bam = dir.join("S1.MNV.tsv");
+        // 120 is called, but the BAM does not reach it: no reads, no frequency.
         std::fs::write(
             &with_bam,
             format!(
-                "{header}chr1\tgeneA\t90\tA\tG\tLys30Arg\tSNP\tmissense_variant\tMODERATE\t0.9000\n\
-                 chr1\tgeneA\t28\tG\tT\tAla10Ser\tSNP\tmissense_variant\tMODERATE\t0.4500\n"
+                "{header}chr1\tgeneA\t90\tA\tG\tLys30Arg\tSNP\tmissense_variant\tMODERATE\t0.9000\t20\n\
+                 chr1\tgeneA\t28\tG\tT\tAla10Ser\tSNP\tmissense_variant\tMODERATE\t0.4500\t20\n\
+                 chr1\tgeneA\t120\tC\tT\tPro40Leu\tSNP\tmissense_variant\tMODERATE\t0.0000\t0\n"
             ),
         )
         .expect("write S1");
@@ -855,7 +860,7 @@ mod tests {
             .add_tsv(without_bam.to_str().unwrap(), Some("S2"))
             .unwrap();
         let out = dir.join("matrix.tsv");
-        assert_eq!(builder.write_matrix(out.to_str().unwrap()).unwrap(), 2);
+        assert_eq!(builder.write_matrix(out.to_str().unwrap()).unwrap(), 3);
 
         let text = std::fs::read_to_string(&out).unwrap();
         let lines: Vec<Vec<&str>> = text.lines().map(|l| l.split('\t').collect()).collect();
@@ -865,6 +870,8 @@ mod tests {
         assert_eq!(lines[1][9..], ["2", "0.4500", "called"]);
         assert_eq!(lines[2][2], "90");
         assert_eq!(lines[2][9..], ["1", "0.9000", "NA"]);
+        assert_eq!(lines[3][2], "120");
+        assert_eq!(lines[3][9..], ["1", "called", "NA"]);
 
         let _ = std::fs::remove_dir_all(&dir);
     }

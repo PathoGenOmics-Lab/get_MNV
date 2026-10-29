@@ -19,9 +19,9 @@ mod types;
 // Re-export all public types and functions
 pub use codon::{
     build_intergenic_variant, build_intron_variant, build_non_coding_variant, build_splice_variant,
-    genomic_for_cds, get_mnv_variants_for_gene, get_mnv_variants_for_gene_with_config,
+    genomic_for_cds, get_mnv_variants_for_gene, get_mnv_variants_for_gene_with_config, intron_span,
     last_cds_position, local_haplotype_components, noncodon_hgvs_c, pair_key,
-    phased_haplotype_variant, process_codon, FrameshiftPairKey, FrameshiftPhasing,
+    phased_haplotype_variant, process_codon, CodingNumbering, FrameshiftPairKey, FrameshiftPhasing,
     IndelAnnotationConfig, PairLinkage,
 };
 pub use event::{

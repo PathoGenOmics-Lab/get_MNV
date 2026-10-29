@@ -301,6 +301,7 @@ pub(super) fn phased_variant_from_group(
             nmd,
             hgvs_c,
             initiator_lost,
+            combines_records: group.len() > 1,
             ..Default::default()
         },
     })

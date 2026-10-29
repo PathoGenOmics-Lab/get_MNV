@@ -131,7 +131,13 @@ pub(super) fn indel_hgvs_c(
     reference: &crate::io::Reference<'_>,
 ) -> Option<String> {
     let insertion = crate::variants::hgvs::is_pure_insertion(&indel.ref_allele, &indel.alt_allele);
-    let cds = numbered_coding_sequence(gene, reference);
+    let bases = numbered_coding_sequence(gene, reference);
+    let cds = bases
+        .as_deref()
+        .map(|bases| crate::variants::hgvs::CodingSequence {
+            bases,
+            exon_ends: exon_ends(gene),
+        });
     crate::variants::hgvs::coding_indel(
         indel.record_start,
         &indel.ref_allele,
@@ -155,8 +161,28 @@ pub(super) fn indel_hgvs_c(
             }
             coding_coordinate(gene, position)
         },
-        cds.as_deref(),
+        cds.as_ref(),
     )
+}
+
+/// The `c.` number of the last base of every exon an intron follows, in
+/// transcript order. A join with no intron (ribosomal slippage) is one reading
+/// frame, and the 3' rule may cross it.
+fn exon_ends(gene: &Gene) -> Vec<usize> {
+    if !has_transcript_cds_model(gene) {
+        return Vec::new();
+    }
+    gene.cds_segments
+        .windows(2)
+        .filter(|pair| gene.intron_separates(&pair[0], &pair[1]))
+        .filter_map(|pair| {
+            let last = match gene.strand {
+                Strand::Plus => pair[0].end,
+                Strand::Minus => pair[0].start,
+            };
+            cds_position(gene, last)
+        })
+        .collect()
 }
 
 /// The genomic bases this gene object codes, in genomic order: its CDS
@@ -177,6 +203,81 @@ fn coding_genomic_positions(gene: &Gene) -> Vec<usize> {
     }
 }
 
+/// A gene object's `c.` numbering, for a caller that asks it many times: plain
+/// arithmetic for a single feature, which is every gene of a bacterial genome,
+/// and a table for a spliced transcript.
+pub enum CodingNumbering {
+    /// `first` is the `c.` number of the feature's first base in transcript
+    /// order, which sits at `start` on the plus strand and at `end` on the minus.
+    Linear {
+        start: usize,
+        end: usize,
+        first: usize,
+        strand: Strand,
+    },
+    Spliced(std::collections::BTreeMap<usize, usize>),
+}
+
+impl CodingNumbering {
+    pub fn of(gene: &Gene) -> Self {
+        if has_transcript_cds_model(gene) {
+            return Self::Spliced(
+                coding_genomic_positions(gene)
+                    .into_iter()
+                    .filter_map(|position| Some((cds_position(gene, position)?, position)))
+                    .collect(),
+            );
+        }
+        let (start, end) = effective_bounds(gene);
+        Self::Linear {
+            start,
+            end,
+            first: gene.protein_offset * 3 + 1,
+            strand: gene.strand,
+        }
+    }
+
+    /// The genomic position of coding base `c.n`, if this object holds it.
+    pub fn genomic(&self, n: usize) -> Option<usize> {
+        match self {
+            Self::Linear {
+                start,
+                end,
+                first,
+                strand,
+            } => {
+                let span = end.checked_sub(*start)?;
+                let local = n.checked_sub(*first).filter(|&l| l <= span)?;
+                Some(match strand {
+                    Strand::Plus => start + local,
+                    Strand::Minus => end - local,
+                })
+            }
+            Self::Spliced(table) => table.get(&n).copied(),
+        }
+    }
+
+    /// The highest coding base this object holds, as `c.` number and genomic
+    /// position.
+    pub fn last(&self) -> Option<(usize, usize)> {
+        match self {
+            Self::Linear {
+                start,
+                end,
+                first,
+                strand,
+            } => Some((
+                first + end.checked_sub(*start)?,
+                match strand {
+                    Strand::Plus => *end,
+                    Strand::Minus => *start,
+                },
+            )),
+            Self::Spliced(table) => table.last_key_value().map(|(&n, &p)| (n, p)),
+        }
+    }
+}
+
 /// The genomic position of coding base `c.n` of this gene object, or `None`
 /// when it does not hold that base (a CDS row further into the protein, say).
 pub fn genomic_for_cds(gene: &Gene, n: usize) -> Option<usize> {
@@ -194,9 +295,9 @@ pub fn last_cds_position(gene: &Gene) -> Option<usize> {
         .max()
 }
 
-/// The genomic span of the intron of a spliced transcript that holds
-/// `position`, if one does.
-fn intron_span(gene: &Gene, position: usize) -> Option<(usize, usize)> {
+/// The intron of `gene` that holds `position`, as its first and last genomic
+/// base, or `None` when the position is in no intron of it.
+pub fn intron_span(gene: &Gene, position: usize) -> Option<(usize, usize)> {
     if !has_transcript_cds_model(gene) {
         return None;
     }
@@ -220,12 +321,42 @@ fn intron_span(gene: &Gene, position: usize) -> Option<(usize, usize)> {
 /// the coding sequence.
 pub fn noncodon_hgvs_c(gene: &Gene, variant: &VariantInfo, sequence: &str) -> Option<String> {
     use crate::variants::hgvs;
+    let map = |position: usize| coding_coordinate(gene, position);
+    // A row of several substituted bases describes them all, as its `g.` does:
+    // spelled as one allele over their span, it decomposes into every one.
+    if variant.positions.len() > 1 {
+        let (&first, &last) = (
+            variant.positions.iter().min()?,
+            variant.positions.iter().max()?,
+        );
+        let mut ref_span = sequence
+            .get(first - 1..last)?
+            .to_ascii_uppercase()
+            .into_bytes();
+        let mut alt_span = ref_span.clone();
+        for ((&position, r), a) in variant
+            .positions
+            .iter()
+            .zip(&variant.ref_bases)
+            .zip(&variant.base_changes)
+        {
+            let (&[r], &[a]) = (r.as_bytes(), a.as_bytes()) else {
+                return None;
+            };
+            ref_span[position - first] = r.to_ascii_uppercase();
+            alt_span[position - first] = a.to_ascii_uppercase();
+        }
+        let (ref_span, alt_span) = (
+            String::from_utf8(ref_span).ok()?,
+            String::from_utf8(alt_span).ok()?,
+        );
+        return hgvs::coding_noncodon(first, &ref_span, &alt_span, gene.strand, map);
+    }
     let (pos, ref_allele, alt_allele) = (
         *variant.positions.first()?,
         variant.ref_bases.first()?,
         variant.base_changes.first()?,
     );
-    let map = |position: usize| coding_coordinate(gene, position);
     let (start, ref_core, alt_core) = hgvs::indel_core(pos, ref_allele, alt_allele);
     let span = if alt_core.is_empty() && !ref_core.is_empty() {
         let end = start + ref_core.len() - 1;
@@ -739,6 +870,7 @@ pub fn get_mnv_variants_for_gene_with_config(
                 codon_start,
                 codon_end,
                 protein_offset: gene.protein_offset,
+                starts_protein: gene.starts_protein(),
             };
 
             let mut var_info = process_codon(codon_info, gene.strand, chrom, genetic_code);

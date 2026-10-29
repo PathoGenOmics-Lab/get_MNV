@@ -1283,11 +1283,12 @@ function spectrumEvents(r, kind, idx){
   } else if(kind === "dbs"){
     var runs = r[C.adj] ? String(r[C.adj]).split(", ") : [];
     var classes = r[C.dbs] ? String(r[C.dbs]).split(", ") : [];
-    // Classes are given for the doublets among the runs, in the same order.
+    // One class per doublet among the runs, in the same order; "-" for a
+    // doublet with no class.
     var doublets = runs.filter(function(d){
       var m = /^g\.(\d+)_(\d+)delins/.exec(d); return m && (+m[2]) - (+m[1]) === 1;
     });
-    doublets.forEach(function(d, i){ if(classes[i]) out.push([d, classes[i]]); });
+    doublets.forEach(function(d, i){ if(classes[i] && classes[i] !== "-") out.push([d, classes[i]]); });
   } else {
     if(r[C.id]) out.push([String(r[C.evComp]||("row"+idx)), String(r[C.id])]);
   }
@@ -1300,13 +1301,15 @@ function countSpectrum(){
   for(var k=0;k<n;k++) counts.push(0);
   view.forEach(function(idx){
     var r = ROWS[idx], who = sampleOf(r);
+    // Every sample in view has a column, so one with no event of this kind
+    // exports as zeros rather than going missing from the matrix.
+    if(!bySample[who]){ bySample[who] = []; for(var z=0;z<n;z++) bySample[who].push(0); samples.push(who); }
     spectrumEvents(r, spectrumKind, idx).forEach(function(ev){
       var key = r[C.sample]+"|"+r[C.chrom]+"|"+ev[0];
       if(seen[key]) return;
       seen[key] = 1;
       var at = spec.index[ev[1]];
       if(at===undefined){ unread++; return; }
-      if(!bySample[who]){ bySample[who] = []; for(var z=0;z<n;z++) bySample[who].push(0); samples.push(who); }
       counts[at]++; bySample[who][at]++; total++;
     });
   });
@@ -1338,7 +1341,8 @@ function drawSpectrum(){
   var barW = (plotW - GROUP_GAP*(groups.length-1) - GAP*(n-groups.length)) / n;
   var groupOf = []; groups.forEach(function(g, gi){ for(var i=g.start;i<=g.end;i++) groupOf[i] = gi; });
   var x0 = function(i){ return L + i*(barW+GAP) + groupOf[i]*(GROUP_GAP-GAP); };
-  var max = Math.max.apply(null, sbs.counts), step = niceStep(max, 4);
+  // Counts are whole: a tick between them would be a value no class can have.
+  var max = Math.max.apply(null, sbs.counts), step = Math.max(1, niceStep(max, 4));
   var top = Math.max(step, Math.ceil(max/step)*step);
   var y = function(v){ return T + plotH - (v/top)*plotH; };
   var out = [];
@@ -2364,14 +2368,14 @@ document.getElementById("thead").addEventListener("click", function(e){
 document.getElementById("exportBtn").addEventListener("click", function(){
   var head = ["Sample","Contig","Gene","Positions","Reference Bases","Base Changes","AA Changes",
               "Variant Type","Change Type","SO Term","Impact","Grantham","MNV Consequence Shift",
-              "DBS Class","NMD Prediction","HGVS g.","HGVS c.","SBS96 Context","Adjacent Substitutions","Catalogue","Frequency","Depth"];
+              "DBS Class","NMD Prediction","HGVS g.","HGVS c.","SBS96 Context","Adjacent Substitutions","Catalogue","ID83 Class","Frequency","Depth"];
   var lines = [head.join("\t")];
   view.forEach(function(i){
     var r = ROWS[i];
     lines.push([sampleOf(r),chromOf(r),geneOf(r),txt(r,"pos"),txt(r,"ref"),txt(r,"alt"),txt(r,"aa"),
                 typeOf(r),changeOf(r),soOf(r),impOf(r),
                 r[C.grantham]===null||r[C.grantham]===undefined?"-":r[C.grantham],
-                txt(r,"shift"),txt(r,"dbs"),txt(r,"nmd"),txt(r,"hgvsg"),txt(r,"hgvsc"),txt(r,"sbs"),txt(r,"adj"),txt(r,"cat"),
+                txt(r,"shift"),txt(r,"dbs"),txt(r,"nmd"),txt(r,"hgvsg"),txt(r,"hgvsc"),txt(r,"sbs"),txt(r,"adj"),txt(r,"cat"),txt(r,"id"),
                 r[C.freq]===null||r[C.freq]===undefined?"-":r[C.freq].toFixed(4),
                 r[C.depth]===null||r[C.depth]===undefined?"-":r[C.depth]].join("\t"));
   });
