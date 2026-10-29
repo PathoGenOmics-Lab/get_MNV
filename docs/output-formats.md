@@ -65,7 +65,7 @@ Main columns:
 | `Frameshift Phasing` | What the reads said about this codon sharing molecules with each upstream indel, as `trans:1234:0/18`: the verdict, the indel's position, and the cis reads out of the reads able to answer. Several are joined with ` | `. A codon that is not labelled frameshifted otherwise looks the same whether the reads proved the indel is on other molecules or nobody asked; `-` is that second case. Only present with `--bam`. |
 | `NMD Prediction` | Nonsense-mediated decay prediction for a premature stop under the 50-nt rule: `NMD-triggering` when the PTC is more than 50 nt upstream of the last exon-exon junction, `NMD-escaping` when it is in the last exon or within 50 nt of that junction. `-` for variants without a premature stop and for transcripts with no exon-exon junction. Requires a spliced (GFF/GTF transcript) CDS model whose segments are separated by real introns; a single CDS segment, or segments joined by ribosomal slippage, has no junction. |
 | `HGVS g.` | HGVS genomic descriptor: `g.100A>G` for an SNV, the allele-bracket `g.[28G>T;30T>A]` for an MNV, and `g.101_102del` / `g.100_101insTG` / `g.101delinsC` for indels. Not 3'-shifted (uses the input allele placement) and carries no reference-accession prefix. |
-| `HGVS c.` | HGVS coding descriptor for a coding substitution, numbered from the CDS start with coding-strand bases: `c.30A>G` (SNV) or the allele bracket `c.[28G>A;30T>C]` (MNV). `-` for indels and non-coding variants; the protein change (`p.`) in the AA columns conveys indel consequences. |
+| `HGVS c.` | HGVS coding descriptor, numbered from the CDS start with coding-strand bases: `c.30A>G` (SNV), the allele bracket `c.[28G>A;30T>C]` (MNV), or `c.31del`, `c.30_31insGCT`, `c.28_30delinsTCGCTA` (indels, with inserted bases on the coding strand). An insertion right after an internal exon's last base is placed at the exon junction, as the protein change reads it. `-` for non-coding variants and for an indel that reaches into an intron or UTR, which would need an offset form (`c.123+5del`) the tool does not write. Not 3'-shifted, and insertions are never rewritten as `dup`. |
 
 Extra columns when `--bam` is used:
 
@@ -178,7 +178,7 @@ Common INFO fields:
 | `LDP` | Fisher exact p-value for that linkage table |
 | `NMD` | Nonsense-mediated decay prediction for a premature stop (50-nt rule) |
 | `HGVSG` | HGVS genomic descriptor (MNV allele-bracket `;` percent-encoded) |
-| `HGVSC` | HGVS coding descriptor for a coding substitution (`;` percent-encoded) |
+| `HGVSC` | HGVS coding descriptor for a coding substitution or indel (`;` percent-encoded) |
 
 The VCF header records the get_MNV version, command line, and thresholds used.
 When `--emit-filtered` is enabled, VCF records below read-support, frequency,

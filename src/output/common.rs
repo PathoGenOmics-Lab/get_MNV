@@ -838,7 +838,7 @@ pub(crate) fn write_info_header(
     )?;
     writeln!(
         writer,
-        "##INFO=<ID=HGVSC,Number=1,Type=String,Description=\"HGVS coding descriptor for a coding substitution (SNV/MNV); ';' percent-encoded per the VCF spec\">"
+        "##INFO=<ID=HGVSC,Number=1,Type=String,Description=\"HGVS coding descriptor for a coding substitution (SNV/MNV) or indel; ';' percent-encoded per the VCF spec\">"
     )?;
     writeln!(
         writer,

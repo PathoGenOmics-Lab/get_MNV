@@ -8,12 +8,16 @@
 //! Multi-nucleotide substitutions (MNVs) use the HGVS allele-bracket form
 //! `g.[POS1REF>ALT;POS2REF>ALT]`, which represents co-occurring substitutions
 //! without needing the unchanged bases between them. Coding descriptors cover
-//! substitutions only; the protein-level HGVS (`p.`, in the AA columns) already
-//! conveys indel consequences. Neither form is 3'-shifted, and neither carries a
-//! reference-sequence accession prefix; the Chromosome and Gene columns supply
+//! substitutions and, when every base they touch lies in the CDS, indels as
+//! `del`, `ins` and `delins`, with the inserted bases on the coding strand. An
+//! indel that reaches into an intron or a UTR gets no `c.` descriptor rather
+//! than an offset form (`c.123+5del`) this module does not build. Neither form
+//! is 3'-shifted, an insertion is never rewritten as `dup`, and neither carries
+//! a reference-sequence accession prefix; the Chromosome and Gene columns supply
 //! that context.
 
-use crate::variants::{VariantInfo, VariantType};
+use crate::utils::reverse_complement;
+use crate::variants::{Strand, VariantInfo, VariantType};
 
 /// Common prefix and suffix lengths shared by a REF/ALT pair, with the two
 /// windows kept disjoint so REF/ALT split cleanly into prefix, core, and suffix.
@@ -149,6 +153,74 @@ pub(crate) fn coding_substitution(entries: &[(usize, char, char)]) -> Option<Str
     }
 }
 
+/// Whether REF/ALT, once their shared bases are trimmed, only add bases.
+pub(crate) fn is_pure_insertion(ref_allele: &str, alt_allele: &str) -> bool {
+    let (prefix, suffix) = trim_common(ref_allele.as_bytes(), alt_allele.as_bytes());
+    prefix + suffix == ref_allele.len() && alt_allele.len() > ref_allele.len()
+}
+
+/// HGVS coding (`c.`) descriptor for an indel from its VCF-style anchored
+/// REF/ALT at genomic `pos`, given the gene strand and a map from a genomic
+/// position to its 1-based CDS position.
+///
+/// `None` when the alleles describe no change, or when a deleted base, or
+/// either base an insertion falls between, has no CDS position: the change then
+/// reaches outside the coding sequence. A deletion must also map onto
+/// consecutive CDS positions, which is what tells a deletion that crosses an
+/// intron, and so removes a splice junction, from one inside an exon.
+pub(crate) fn coding_indel(
+    pos: usize,
+    ref_allele: &str,
+    alt_allele: &str,
+    strand: Strand,
+    cds_position: impl Fn(usize) -> Option<usize>,
+) -> Option<String> {
+    let (prefix, suffix) = trim_common(ref_allele.as_bytes(), alt_allele.as_bytes());
+    let ref_core = &ref_allele[prefix..ref_allele.len() - suffix];
+    let alt_core = &alt_allele[prefix..alt_allele.len() - suffix];
+    let start = pos + prefix;
+    let inserted = match strand {
+        Strand::Plus => alt_core.to_ascii_uppercase(),
+        Strand::Minus => reverse_complement(&alt_core.to_ascii_uppercase()),
+    };
+
+    if ref_core.is_empty() {
+        if alt_core.is_empty() {
+            return None;
+        }
+        let before = cds_position(start.checked_sub(1)?)?;
+        let after = cds_position(start)?;
+        if before.abs_diff(after) != 1 {
+            return None;
+        }
+        return Some(format!(
+            "c.{}_{}ins{inserted}",
+            before.min(after),
+            before.max(after)
+        ));
+    }
+
+    let mut mapped = Vec::with_capacity(ref_core.len());
+    for genomic in start..start + ref_core.len() {
+        mapped.push(cds_position(genomic)?);
+    }
+    let low = *mapped.iter().min()?;
+    let high = *mapped.iter().max()?;
+    if high - low + 1 != mapped.len() {
+        return None;
+    }
+    let range = if low == high {
+        format!("{low}")
+    } else {
+        format!("{low}_{high}")
+    };
+    if alt_core.is_empty() {
+        Some(format!("c.{range}del"))
+    } else {
+        Some(format!("c.{range}delins{inserted}"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,6 +309,78 @@ mod tests {
             Some("c.[28G>A;90T>C]")
         );
         assert_eq!(coding_substitution(&[]), None);
+    }
+
+    /// A plus-strand CDS running from genomic 101: CDS position = genomic - 100.
+    fn plus_cds(position: usize) -> Option<usize> {
+        (101..=400).contains(&position).then(|| position - 100)
+    }
+
+    /// A minus-strand CDS whose first coding base is genomic 400.
+    fn minus_cds(position: usize) -> Option<usize> {
+        (101..=400).contains(&position).then(|| 401 - position)
+    }
+
+    #[test]
+    fn coding_indels_on_the_plus_strand() {
+        // REF=ATG ALT=A at 110 deletes genomic 111-112, CDS 11-12.
+        assert_eq!(
+            coding_indel(110, "ATG", "A", Strand::Plus, plus_cds).as_deref(),
+            Some("c.11_12del")
+        );
+        assert_eq!(
+            coding_indel(110, "AT", "A", Strand::Plus, plus_cds).as_deref(),
+            Some("c.11del")
+        );
+        // Insertion after genomic 110 sits between CDS 10 and 11.
+        assert_eq!(
+            coding_indel(110, "A", "ATG", Strand::Plus, plus_cds).as_deref(),
+            Some("c.10_11insTG")
+        );
+        assert_eq!(
+            coding_indel(110, "ATG", "AC", Strand::Plus, plus_cds).as_deref(),
+            Some("c.11_12delinsC")
+        );
+    }
+
+    #[test]
+    fn coding_indels_on_the_minus_strand_count_from_the_other_end() {
+        // Genomic 111-112 are CDS 290-289; the range is written low to high.
+        assert_eq!(
+            coding_indel(110, "ATG", "A", Strand::Minus, minus_cds).as_deref(),
+            Some("c.289_290del")
+        );
+        // Inserted TG reads CA on the coding strand, between CDS 290 and 291.
+        assert_eq!(
+            coding_indel(110, "A", "ATG", Strand::Minus, minus_cds).as_deref(),
+            Some("c.290_291insCA")
+        );
+    }
+
+    #[test]
+    fn an_indel_reaching_outside_the_cds_gets_no_coding_descriptor() {
+        // Deletes genomic 400-401: the second base is past the CDS end.
+        assert_eq!(coding_indel(399, "ATG", "A", Strand::Plus, plus_cds), None);
+        // Inserted after the last coding base, so between CDS 300 and nothing.
+        assert_eq!(coding_indel(400, "A", "AT", Strand::Plus, plus_cds), None);
+        // Two exons, 101-200 and 301-400: a deletion over 199-302 maps to CDS
+        // positions that are not consecutive, because it removes the intron
+        // between them as well.
+        let spliced = |position: usize| match position {
+            101..=200 => Some(position - 100),
+            301..=400 => Some(position - 200),
+            _ => None,
+        };
+        assert_eq!(
+            coding_indel(198, "AGG", "A", Strand::Plus, spliced).as_deref(),
+            Some("c.99_100del")
+        );
+        assert_eq!(coding_indel(199, "AGGG", "A", Strand::Plus, spliced), None);
+        // After the exon's last base the next genomic base is intronic, so the
+        // map alone cannot place the insertion; the codon layer knows the
+        // junction rule and supplies that flank itself.
+        assert_eq!(coding_indel(200, "A", "AT", Strand::Plus, spliced), None);
+        assert_eq!(coding_indel(110, "A", "A", Strand::Plus, plus_cds), None);
     }
 
     /// `>` is a single-nucleotide form in HGVS. A fallback row (intergenic,

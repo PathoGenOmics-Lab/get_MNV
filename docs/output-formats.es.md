@@ -67,7 +67,7 @@ Columnas principales:
 | `Frameshift Phasing` | Lo que dijeron las lecturas sobre si este codón comparte moléculas con cada indel aguas arriba, como `trans:1234:0/18`: el veredicto, la posición del indel, y las lecturas en cis sobre las que podían responder. Varios se unen con ` | `. Un codón sin la marca de frameshift se ve igual tanto si las lecturas probaron que el indel está en otras moléculas como si nadie preguntó; `-` es el segundo caso. Solo aparece con `--bam`. |
 | `NMD Prediction` | Predicción de decaimiento mediado por sin sentido (NMD) para un stop prematuro según la regla de los 50 nt: `NMD-triggering` cuando el PTC está a más de 50 nt aguas arriba de la última unión exón-exón, `NMD-escaping` cuando está en el último exón o a menos de 50 nt de esa unión. `-` para variantes sin stop prematuro y para transcritos sin unión exón-exón. Requiere un modelo de CDS con splicing (transcrito GFF/GTF) cuyos segmentos estén separados por intrones reales; un único segmento CDS, o segmentos unidos por deslizamiento ribosómico, no tiene unión. |
 | `HGVS g.` | Descriptor HGVS genómico: `g.100A>G` para un SNV, el bracket de alelo `g.[28G>T;30T>A]` para un MNV, y `g.101_102del` / `g.100_101insTG` / `g.101delinsC` para indels. No hace 3'-shifting (usa la posición del alelo de entrada) y no lleva prefijo de accesión de referencia. |
-| `HGVS c.` | Descriptor HGVS codificante para una sustitución codificante, numerado desde el inicio del CDS con bases de la hebra codificante: `c.30A>G` (SNV) o el bracket de alelo `c.[28G>A;30T>C]` (MNV). `-` para indels y variantes no codificantes; el cambio proteico (`p.`) en las columnas AA da la consecuencia de los indels. |
+| `HGVS c.` | Descriptor HGVS codificante, numerado desde el inicio del CDS con bases de la hebra codificante: `c.30A>G` (SNV), el bracket de alelo `c.[28G>A;30T>C]` (MNV), o `c.31del`, `c.30_31insGCT`, `c.28_30delinsTCGCTA` (indels, con las bases insertadas en la hebra codificante). Una inserción justo después de la última base de un exón interno se coloca en la unión de exones, igual que la lee el cambio proteico. `-` para variantes no codificantes y para un indel que llega a un intrón o a un UTR, que necesitaría una forma con desplazamiento (`c.123+5del`) que la herramienta no escribe. Sin desplazamiento a 3', y las inserciones nunca se reescriben como `dup`. |
 
 Columnas adicionales cuando se usa `--bam`:
 
@@ -180,7 +180,7 @@ Campos INFO comunes:
 | `LDP` | Valor p exacto de Fisher para esa tabla de ligamiento |
 | `NMD` | Predicción de NMD para un stop prematuro (regla de los 50 nt) |
 | `HGVSG` | Descriptor HGVS genómico (bracket de MNV con `;` percent-encoded) |
-| `HGVSC` | Descriptor HGVS codificante para una sustitución (`;` percent-encoded) |
+| `HGVSC` | Descriptor HGVS codificante para una sustitución o un indel (`;` percent-encoded) |
 
 La cabecera del VCF registra la versión de get_MNV, la línea de comandos y los umbrales usados.
 Cuando `--emit-filtered` está habilitado, los registros VCF que quedan por debajo de los umbrales de

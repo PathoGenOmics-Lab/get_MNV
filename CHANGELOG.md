@@ -43,6 +43,15 @@ All notable changes to this project are documented in this file.
   of counting the wrong bases. Read errors now say `Alignment read error` rather
   than `BAM read error`, since the file may be either.
 
+- **HGVS `c.` for indels.** The `HGVS c.` column and `HGVSC` INFO key carried
+  substitutions only and left every indel at `-`. A coding indel is now written
+  as `c.31del`, `c.30_31insGCT` or `c.28_30delinsTCGCTA`, numbered the way the
+  substitutions already were and with inserted bases on the coding strand, so a
+  minus-strand gene gets `c.30del` for `g.671del`. An insertion right after an
+  internal exon's last base sits at the exon junction, as the protein change
+  reads it. An indel reaching into an intron or a UTR stays at `-` rather than
+  get an offset form the tool does not build.
+
 ### Changed
 
 - **Multiallelic records are split without being asked.** A VCF record with

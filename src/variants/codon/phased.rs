@@ -256,6 +256,7 @@ pub(super) fn phased_variant_from_group(
     let (change_type, aa_changes, aa_changes_local, ref_codon, alt_codon) =
         protein_effect_for_indel(gene, reference, &compound, genetic_code);
     let nmd = super::nmd::indel_nmd_prediction(gene, reference, &compound, genetic_code);
+    let hgvs_c = super::indel_hgvs_c(gene, &compound);
 
     Some(VariantInfo {
         chrom: chrom.to_string(),
@@ -292,6 +293,7 @@ pub(super) fn phased_variant_from_group(
         event_components,
         annotations: crate::variants::VariantAnnotations {
             nmd,
+            hgvs_c,
             ..Default::default()
         },
     })

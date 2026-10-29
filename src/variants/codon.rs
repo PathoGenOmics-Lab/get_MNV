@@ -45,6 +45,57 @@ use transcript_path::{
     process_transcript_codon, transcript_oriented_base, TranscriptSnp,
 };
 
+/// The 1-based CDS position of a genomic base, measured the way the substitution
+/// paths measure it for `c.`: along the spliced transcript when the gene has a
+/// CDS model, otherwise from the phase-adjusted feature start (or end, on the
+/// minus strand) plus the feature's protein offset.
+fn cds_position(gene: &Gene, position: usize) -> Option<usize> {
+    if has_transcript_cds_model(gene) {
+        return transcript_offsets_for_position(gene, position)
+            .first()
+            .map(|offset| offset + 1);
+    }
+    let (start, end) = effective_bounds(gene);
+    if position < start || position > end {
+        return None;
+    }
+    let local = match gene.strand {
+        Strand::Plus => position - start,
+        Strand::Minus => end - position,
+    };
+    Some(gene.protein_offset * 3 + local + 1)
+}
+
+/// HGVS `c.` for an indel in this gene, or `None` when it reaches outside the
+/// coding sequence.
+pub(super) fn indel_hgvs_c(gene: &Gene, indel: &crate::io::VcfPosition) -> Option<String> {
+    let insertion = crate::variants::hgvs::is_pure_insertion(&indel.ref_allele, &indel.alt_allele);
+    crate::variants::hgvs::coding_indel(
+        indel.record_start,
+        &indel.ref_allele,
+        &indel.alt_allele,
+        gene.strand,
+        |position| {
+            cds_position(gene, position).or_else(|| {
+                // An insertion after the last base of an internal exon lands at
+                // the exon-exon junction of the spliced CDS, which is how the
+                // protein annotation reads it too. The base after the anchor is
+                // intronic, so its flank is the neighbouring exon's base, one
+                // CDS position away.
+                let anchor = position.checked_sub(1)?;
+                if !insertion || !gene.insertion_at_internal_junction(anchor) {
+                    return None;
+                }
+                let at = cds_position(gene, anchor)?;
+                match gene.strand {
+                    Strand::Plus => Some(at + 1),
+                    Strand::Minus => at.checked_sub(1),
+                }
+            })
+        },
+    )
+}
+
 /// Whether the whole of this indel lies upstream of the codon in transcript
 /// order, on a gene annotated in genomic coordinates.
 ///
@@ -291,6 +342,7 @@ fn get_mnv_variants_for_transcript(
             annotations: crate::variants::VariantAnnotations {
                 nmd,
                 splice: splice_consequence_for_indel(gene, &indel),
+                hgvs_c: indel_hgvs_c(gene, &indel),
                 ..Default::default()
             },
         });
@@ -568,6 +620,7 @@ pub fn get_mnv_variants_for_gene_with_config(
             event_components,
             annotations: crate::variants::VariantAnnotations {
                 splice: splice_consequence_for_indel(gene, &indel),
+                hgvs_c: indel_hgvs_c(gene, &indel),
                 ..Default::default()
             },
         });

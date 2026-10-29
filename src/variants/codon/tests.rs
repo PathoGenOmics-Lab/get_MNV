@@ -427,6 +427,11 @@ fn test_plus_strand_insertion_at_internal_exon_junction_is_coding() {
     assert_eq!(variants[0].variant_type, VariantType::Indel);
     assert_eq!(variants[0].change_type, ChangeType::InFrameIndel);
     assert_eq!(variants[0].event_components, vec!["INS:3:+GGG".to_string()]);
+    // Between the last base of exon 1 (CDS 3) and the first of exon 2 (CDS 4).
+    assert_eq!(
+        variants[0].annotations.hgvs_c.as_deref(),
+        Some("c.3_4insGGG")
+    );
 }
 
 #[test]
@@ -460,6 +465,12 @@ fn test_minus_strand_insertion_at_internal_exon_junction_is_coding() {
     assert_eq!(variants[0].variant_type, VariantType::Indel);
     assert_eq!(variants[0].change_type, ChangeType::InFrameIndel);
     assert_eq!(variants[0].event_components, vec!["INS:3:+GGG".to_string()]);
+    // ATGAAA|CCC|TTT: the inserted GGG reads CCC on the coding strand, between
+    // CDS 6 (the end of the first exon in transcript order) and CDS 7.
+    assert_eq!(
+        variants[0].annotations.hgvs_c.as_deref(),
+        Some("c.6_7insCCC")
+    );
 }
 
 // H5: an in-frame insertion that introduces a stop codon must be classified
