@@ -51,9 +51,10 @@ lecturas muestran realmente para cada SNV, haplotipo MNV y evento indel.
 
 ## ¿Puedo usar un archivo BCF como entrada?
 
-No directamente: conviértelo primero a VCF, por ejemplo con
-`bcftools view input.bcf -O v -o input.vcf`. get_MNV sí puede *escribir* salida
-BCF mediante `--bcf`. Consulta [Solución de problemas](troubleshooting.es.md).
+Sí, desde la 1.1.6: pásalo a `--vcf` como cualquier VCF. Se decodifica a texto
+VCF a medida que se lee, así que se anota exactamente igual que el VCF que
+codifica. Las versiones anteriores necesitan convertirlo antes con
+`bcftools view input.bcf -O v -o input.vcf`.
 
 ## Mi VCF tiene registros multialélicos: ¿qué ocurre?
 

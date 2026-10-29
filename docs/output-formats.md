@@ -195,7 +195,6 @@ Write BCF with:
 ```
 
 BCF requires VCF output mode, so use it with `--convert` or `--both`.
-This is output conversion only; BCF is not accepted as an input format.
 
 The conversion is done by `bcftools view`, taken from `PATH`. Without bcftools
 installed the run warns, writes no BCF, and still exits `0` with its TSV and VCF

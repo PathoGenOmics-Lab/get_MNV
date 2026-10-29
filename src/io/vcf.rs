@@ -1,5 +1,8 @@
-//! VCF loading for plain and BGZF-compressed VCF files, metrics extraction,
-//! allele normalisation, and original INFO field preservation.
+//! VCF loading for plain and BGZF-compressed VCF files and for BCF, metrics
+//! extraction, allele normalisation, and original INFO field preservation.
+//!
+//! BCF is decoded to VCF text as it is read, so every variant file reaches the
+//! same line parser and a record means the same thing whatever it is stored as.
 //!
 //! Plain `.vcf` files use the fast text parser in `vcf_fast.rs`.
 
@@ -9,7 +12,7 @@ use crate::variants::{
     decompose_allele, substitution_components, AlleleComponent, AlleleComponentKind, AlleleEvent,
 };
 use std::collections::{HashMap, HashSet};
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read, Write};
 
 const GET_MNV_INFO_TAGS: &[&str] = &[
     "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
@@ -562,21 +565,109 @@ pub(crate) fn filter_and_subset_original_info<F: Fn(&str) -> bool>(
     }
 }
 
-pub fn list_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
-    if vcf_file.ends_with(".bcf") {
-        return Err(
-            "BCF input is not supported. Convert to VCF first: bcftools view input.bcf > input.vcf"
-                .into(),
-        );
+/// Whether a path names a BCF file, the binary form of VCF.
+pub fn is_bcf_path(path: &str) -> bool {
+    path.to_ascii_lowercase().ends_with(".bcf")
+}
+
+/// Opens a variant file as VCF text, whatever it is stored as: plain, BGZF or
+/// BCF. BCF is decoded on a background thread and handed over through a pipe,
+/// so a large file is never held in memory as text and a caller that stops at
+/// the header stops the decoder too.
+pub(crate) fn open_vcf_text(vcf_file: &str) -> AppResult<Box<dyn BufRead>> {
+    if is_bcf_path(vcf_file) {
+        return Ok(Box::new(DecodedBcf::spawn(vcf_file)?));
     }
-    let reader: Box<dyn BufRead> = if vcf_file.ends_with(".gz") {
-        let file = std::fs::File::open(vcf_file)?;
-        let bgzf = noodles::bgzf::io::Reader::new(file);
-        Box::new(BufReader::new(bgzf))
+    let file = std::fs::File::open(vcf_file)?;
+    if vcf_file.ends_with(".gz") {
+        Ok(Box::new(BufReader::new(noodles::bgzf::io::Reader::new(
+            file,
+        ))))
     } else {
-        let file = std::fs::File::open(vcf_file)?;
-        Box::new(BufReader::new(file))
-    };
+        Ok(Box::new(BufReader::new(file)))
+    }
+}
+
+/// VCF text decoded from a BCF file by a background thread.
+///
+/// The end of the text is only the end of the file if the decoder finished
+/// cleanly, so reaching it joins the thread and turns a decoding error into a
+/// read error. Without that, a damaged BCF would read as a VCF that simply has
+/// fewer records.
+struct DecodedBcf {
+    text: BufReader<std::io::PipeReader>,
+    decoder: Option<std::thread::JoinHandle<std::io::Result<()>>>,
+}
+
+impl DecodedBcf {
+    fn spawn(path: &str) -> AppResult<Self> {
+        // Open here rather than in the thread, so a missing file fails with
+        // its own message before anything is read.
+        let file =
+            std::fs::File::open(path).map_err(|e| format!("Cannot open BCF file '{path}': {e}"))?;
+        let (text, sink) = std::io::pipe()?;
+        let decoder = std::thread::spawn(move || decode_bcf_as_vcf_text(file, sink));
+        Ok(Self {
+            text: BufReader::with_capacity(64 * 1024, text),
+            decoder: Some(decoder),
+        })
+    }
+
+    fn finish(&mut self) -> std::io::Result<()> {
+        match self.decoder.take() {
+            Some(handle) => handle.join().unwrap_or_else(|_| {
+                Err(std::io::Error::other(
+                    "the BCF decoder stopped unexpectedly",
+                ))
+            }),
+            None => Ok(()),
+        }
+    }
+}
+
+impl Read for DecodedBcf {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let read = self.text.read(buf)?;
+        if read == 0 && !buf.is_empty() {
+            self.finish()?;
+        }
+        Ok(read)
+    }
+}
+
+impl BufRead for DecodedBcf {
+    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+        if self.text.fill_buf()?.is_empty() {
+            self.finish()?;
+        }
+        self.text.fill_buf()
+    }
+
+    fn consume(&mut self, amount: usize) {
+        self.text.consume(amount);
+    }
+}
+
+fn decode_bcf_as_vcf_text(file: std::fs::File, sink: std::io::PipeWriter) -> std::io::Result<()> {
+    use noodles::vcf::variant::io::Write as _;
+
+    let mut reader = noodles::bcf::io::Reader::new(file);
+    let header = reader
+        .read_header()
+        .map_err(|e| std::io::Error::new(e.kind(), format!("invalid BCF header: {e}")))?;
+    let mut writer = noodles::vcf::io::Writer::new(std::io::BufWriter::new(sink));
+    writer.write_header(&header)?;
+    for (index, result) in reader.records().enumerate() {
+        let record = result.map_err(|e| {
+            std::io::Error::new(e.kind(), format!("invalid BCF record {}: {e}", index + 1))
+        })?;
+        writer.write_variant_record(&header, &record)?;
+    }
+    writer.get_mut().flush()
+}
+
+pub fn list_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
+    let reader = open_vcf_text(vcf_file)?;
 
     // Parse header to find #CHROM line
     for line_result in reader.lines() {
@@ -628,20 +719,7 @@ pub fn extract_original_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
     let own: HashSet<&str> = GET_MNV_INFO_TAGS.iter().copied().collect();
     let mut lines = Vec::new();
 
-    if vcf_file.ends_with(".bcf") {
-        return Err(
-            "BCF input is not supported. Convert to VCF first: bcftools view input.bcf > input.vcf"
-                .into(),
-        );
-    }
-    let reader: Box<dyn BufRead> = if vcf_file.ends_with(".gz") {
-        let file = std::fs::File::open(vcf_file)?;
-        let bgzf = noodles::bgzf::io::Reader::new(file);
-        Box::new(BufReader::new(bgzf))
-    } else {
-        let file = std::fs::File::open(vcf_file)?;
-        Box::new(BufReader::new(file))
-    };
+    let reader = open_vcf_text(vcf_file)?;
 
     for line_result in reader.lines() {
         let line = line_result?;
@@ -682,20 +760,7 @@ pub fn load_vcf_positions_by_contig(
         HashMap::new()
     };
 
-    if vcf_file.ends_with(".bcf") {
-        return Err(
-            "BCF input is not supported. Convert to VCF first: bcftools view input.bcf > input.vcf"
-                .into(),
-        );
-    }
-    let reader: Box<dyn BufRead> = if vcf_file.ends_with(".gz") {
-        let file = std::fs::File::open(vcf_file)?;
-        let bgzf = noodles::bgzf::io::Reader::new(file);
-        Box::new(BufReader::new(bgzf))
-    } else {
-        let file = std::fs::File::open(vcf_file)?;
-        Box::new(BufReader::new(file))
-    };
+    let reader = open_vcf_text(vcf_file)?;
 
     let mut positions_by_contig: HashMap<String, Vec<VcfPosition>> = HashMap::new();
     let mut split_count = 0usize;
@@ -845,9 +910,6 @@ pub fn load_vcf_positions_by_contig(
 
     Ok(positions_by_contig)
 }
-
-// BCF input is not supported in the pure-Rust build.
-// Use `bcftools view input.bcf > input.vcf` to convert.
 
 #[cfg(test)]
 mod tests {

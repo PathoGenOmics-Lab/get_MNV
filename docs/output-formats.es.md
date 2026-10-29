@@ -196,7 +196,6 @@ Escribe BCF con:
 ```
 
 BCF requiere el modo de salida VCF, así que úsalo con `--convert` o `--both`.
-Esto es solo conversión de salida; BCF no se acepta como formato de entrada.
 
 La conversión la hace `bcftools view`, tomado del `PATH`. Sin bcftools instalado
 la ejecución avisa, no escribe ningún BCF y aun así sale con `0`, con su TSV y su

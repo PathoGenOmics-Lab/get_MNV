@@ -25,6 +25,14 @@ All notable changes to this project are documented in this file.
   still fails such a run, with a message pointing at the column, instead of
   being laid over every contig at the same coordinates.
 
+- **BCF is read as input.** `--vcf` takes a `.bcf` as well as a `.vcf` or
+  `.vcf.gz`. The tool could write BCF with `--bcf` but stopped on reading one,
+  asking for a conversion with `bcftools view` first. A BCF is now decoded to VCF
+  text as it is read, on a background thread so a large file is never held in
+  memory, and annotates exactly as the VCF it encodes: the example run gives the
+  same TSV byte for byte from either. A BCF cut short fails with an
+  `invalid BCF record` error instead of reading as a VCF with fewer records.
+
 ### Changed
 
 - **Multiallelic records are split without being asked.** A VCF record with

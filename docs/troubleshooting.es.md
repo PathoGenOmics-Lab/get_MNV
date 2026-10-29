@@ -68,21 +68,13 @@ Dividir el VCF de antemano con `bcftools norm -m -` produce la misma salida.
 
 ## Entrada BCF
 
-Ejemplo:
+Desde la 1.1.6 un `.bcf` se lee directamente con `--vcf`. Las versiones
+anteriores se detienen con `BCF input is not supported. Convert to VCF first`;
+para ellas, conviértelo con `bcftools view input.bcf > input.vcf`.
 
-```text
-BCF input is not supported. Convert to VCF first
-```
-
-Solución:
-
-```bash
-bcftools view input.bcf > input.vcf
-get_mnv --vcf input.vcf ...
-```
-
-`--bcf` es solo una opción de salida; no hace que el BCF sea válido como
-entrada.
+Un BCF cortado, por ejemplo por una copia interrumpida, detiene la ejecución con
+un error `invalid BCF record` o `invalid BCF header` en lugar de leerse como un
+VCF con menos registros. Vuelve a copiar el archivo.
 
 ## Anotación TSV con múltiples contigs
 

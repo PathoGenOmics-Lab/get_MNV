@@ -19,6 +19,7 @@ type Tab = "analysis" | "results";
 const EXT_MAP: Record<string, keyof AnalysisConfig> = {
   vcf: "vcfFile",
   "vcf.gz": "vcfFile",
+  bcf: "vcfFile",
   fasta: "fastaFile",
   fas: "fastaFile",
   fa: "fastaFile",
@@ -104,7 +105,7 @@ function preferredGffFeatures(available: string[]): string[] {
 
 /** Extract filename stem — removes path and known bioinformatics extensions */
 function filenameStem(path: string): string {
-  return (path.split(/[\\/]/).pop() ?? "").replace(/\.(vcf\.gz|vcf|tsv|txt|bam)$/i, "");
+  return (path.split(/[\\/]/).pop() ?? "").replace(/\.(vcf\.gz|vcf|bcf|tsv|txt|bam)$/i, "");
 }
 
 /** Extract the core sample ID (first dot-segment) from a filename */
@@ -958,7 +959,7 @@ function App() {
                     label={samples.length > 1 ? `Variant calls (${samples.length})` : "Variant calls"}
                     value={samples.length === 1 ? samples[0].vcfPath : samples.length > 1 ? `${samples.length} samples loaded` : ""}
                     onChange={handleVcfChange}
-                    filters={[{ name: "Variants", extensions: ["vcf", "vcf.gz", "tsv", "txt"] }]}
+                    filters={[{ name: "Variants", extensions: ["vcf", "vcf.gz", "bcf", "tsv", "txt"] }]}
                     required
                     isDragActive={dragActive}
                     justAssigned={justAssigned.has("vcfFile")}

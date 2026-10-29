@@ -18,7 +18,7 @@ and needs none of them.
 
 | Option | Description |
 |---|---|
-| `-v, --vcf <FILE>` | Variant input in plain or BGZF-compressed VCF (SNVs/MNVs and indels). |
+| `-v, --vcf <FILE>` | Variant input in plain VCF, BGZF-compressed VCF or BCF (SNVs/MNVs and indels). |
 | `--tsv <FILE>` | iVar `variants.tsv` input. |
 | `-b, --bam <FILE>` | Optional aligned reads for read support. Must be coordinate-sorted and indexed. |
 | `-f, --fasta <FILE>` | Reference FASTA (required). |

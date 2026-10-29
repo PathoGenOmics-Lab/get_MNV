@@ -346,3 +346,114 @@ fn test_load_vcf_positions_multiallelic_split_mode() {
 
     let _ = fs::remove_file(path);
 }
+
+// ---- BCF input ----
+
+const BCF_FIXTURE_VCF: &str = "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=100>\n\
+##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">\n\
+##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency\">\n\
+##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n\
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n\
+chr1\t2\t.\tT\tC,G\t50\tPASS\tDP=10;AF=0.5,0.3\tGT:DP\t1/2:10\n\
+chr1\t5\t.\tA\tAT\t50\tPASS\tDP=12;AF=0.25\tGT:DP\t0/1:12\n\
+chr1\t9\t.\tGC\tTA\t50\tPASS\tDP=8;AF=1\tGT:DP\t1/1:8\n";
+
+/// Writes `vcf_text` as BCF through noodles, the way a caller's own BCF would
+/// arrive, so the reader is tested against a real binary encoding.
+fn write_bcf(vcf_text: &str, path: &std::path::Path) {
+    use noodles::vcf::variant::io::Write as _;
+    let mut reader = noodles::vcf::io::Reader::new(std::io::Cursor::new(vcf_text.as_bytes()));
+    let header = reader.read_header().expect("fixture VCF header");
+    let mut writer = noodles::bcf::io::Writer::new(fs::File::create(path).expect("create BCF"));
+    writer.write_header(&header).expect("write BCF header");
+    // Close the header's BGZF block, so the records start a block of their own
+    // and a test can damage them without touching the header.
+    std::io::Write::flush(writer.get_mut()).expect("flush BCF header block");
+    for record in reader.records() {
+        let record = record.expect("fixture VCF record");
+        writer
+            .write_variant_record(&header, &record)
+            .expect("write BCF record");
+    }
+    writer.try_finish().expect("finish BCF");
+}
+
+fn describe(positions: &HashMap<String, Vec<VcfPosition>>) -> Vec<String> {
+    let mut rows: Vec<String> = positions
+        .iter()
+        .flat_map(|(contig, values)| {
+            values.iter().map(move |v| {
+                format!(
+                    "{contig}:{} {}>{} dp={:?} freq={:?}",
+                    v.record_start, v.ref_allele, v.alt_allele, v.original_dp, v.original_freq
+                )
+            })
+        })
+        .collect();
+    rows.sort();
+    rows
+}
+
+#[test]
+fn test_bcf_input_reads_the_same_as_the_vcf_it_encodes() {
+    let base = unique_temp_path("get_mnv_bcf_same", "in");
+    let vcf = base.with_extension("vcf");
+    let bcf = base.with_extension("bcf");
+    fs::write(&vcf, BCF_FIXTURE_VCF).unwrap();
+    write_bcf(BCF_FIXTURE_VCF, &bcf);
+
+    let from_vcf = load_vcf_positions_by_contig(vcf.to_str().unwrap(), None, true, false, false)
+        .expect("VCF loads");
+    let from_bcf = load_vcf_positions_by_contig(bcf.to_str().unwrap(), None, true, false, false)
+        .expect("BCF loads");
+    assert_eq!(describe(&from_vcf).len(), 4, "{:?}", describe(&from_vcf));
+    assert_eq!(describe(&from_bcf), describe(&from_vcf));
+
+    assert_eq!(
+        super::vcf::list_vcf_samples(bcf.to_str().unwrap()).unwrap(),
+        vec!["S1".to_string()]
+    );
+    let headers = super::vcf::extract_original_info_headers(bcf.to_str().unwrap()).unwrap();
+    assert!(
+        headers.iter().any(|line| line.contains("ID=AF")),
+        "{headers:?}"
+    );
+
+    fs::remove_file(&vcf).ok();
+    fs::remove_file(&bcf).ok();
+}
+
+#[test]
+fn test_damaged_bcf_fails_instead_of_reading_short() {
+    let bcf = unique_temp_path("get_mnv_bcf_damaged", "in").with_extension("bcf");
+    write_bcf(BCF_FIXTURE_VCF, &bcf);
+    let bytes = fs::read(&bcf).unwrap();
+    // Walk the BGZF blocks (BSIZE, bytes 16-17, is the block length minus one)
+    // and cut the records block in half, after a header that decodes cleanly.
+    let mut blocks = Vec::new();
+    let mut offset = 0usize;
+    while offset + 18 <= bytes.len() {
+        let length = u16::from_le_bytes([bytes[offset + 16], bytes[offset + 17]]) as usize + 1;
+        blocks.push((offset, length));
+        offset += length;
+    }
+    let (records_start, records_length) = blocks[1];
+    assert!(
+        records_length > 28,
+        "second block should hold the records: {blocks:?}"
+    );
+    fs::write(&bcf, &bytes[..records_start + records_length / 2]).unwrap();
+
+    let samples =
+        super::vcf::list_vcf_samples(bcf.to_str().unwrap()).expect("the header alone still reads");
+    assert_eq!(samples, vec!["S1".to_string()]);
+    let result = load_vcf_positions_by_contig(bcf.to_str().unwrap(), None, true, false, false);
+    assert!(
+        result.is_err(),
+        "a truncated BCF must not read as a shorter VCF"
+    );
+
+    fs::remove_file(&bcf).ok();
+}

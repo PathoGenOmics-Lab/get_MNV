@@ -13,9 +13,8 @@ get_mnv \
   (--gff <ANNOTATION_GFF> | --genes <ANNOTATION_TSV>)
 ```
 
-Use `--vcf` for plain `.vcf` or BGZF-compressed `.vcf.gz` input and `--tsv`
-for the `variants.tsv` file produced by `ivar variants`. BCF input is not
-accepted directly; convert it to VCF first with `bcftools view`.
+Use `--vcf` for plain `.vcf`, BGZF-compressed `.vcf.gz` or `.bcf` input and
+`--tsv` for the `variants.tsv` file produced by `ivar variants`.
 
 ## VCF Input
 

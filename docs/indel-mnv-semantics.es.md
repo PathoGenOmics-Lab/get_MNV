@@ -98,8 +98,6 @@ utilizable mantienen el comportamiento anterior por característica.
 
 ## Limitaciones actuales
 
-- No se acepta un BCF de entrada directamente. Conviértelo antes con
-  `bcftools view`.
 - El alineamiento a la izquierda de indels y la normalización completa no se
   realizan de forma automática salvo que `--normalize-alleles` logre recortar un
   prefijo o sufijo compartido. Para comparaciones entre llamadores, normaliza

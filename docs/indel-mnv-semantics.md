@@ -90,7 +90,6 @@ usable transcript identifier keep the older per-feature behavior.
 
 ## Current Limits
 
-- Input BCF is not accepted directly. Convert first with `bcftools view`.
 - Indel left-alignment and full normalization are not performed automatically
   unless `--normalize-alleles` can trim a shared prefix or suffix. For
   cross-caller comparisons, normalize inputs first with a FASTA-aware tool such

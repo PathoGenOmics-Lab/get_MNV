@@ -30,7 +30,7 @@ pub enum VariantInputFormat {
     )
 )]
 pub struct Args {
-    /// Variant input file containing SNVs/MNVs and indels in plain or BGZF-compressed VCF format
+    /// Variant input file containing SNVs/MNVs and indels: plain VCF, BGZF-compressed VCF, or BCF
     #[arg(
         short = 'v',
         long = "vcf",

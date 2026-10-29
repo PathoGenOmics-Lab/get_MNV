@@ -2,8 +2,8 @@
 //! unnecessary BGZF/header work and keeps common VCF parsing on the fastest
 //! path.
 //!
-//! `.vcf.gz` files are handled by the BGZF-aware parser. BCF input is not
-//! supported; convert BCF to VCF before running get_MNV.
+//! `.vcf.gz` and `.bcf` files are handled by the parser in `vcf.rs`, which
+//! decompresses or decodes them to the same VCF text first.
 
 use super::validation::validate_vcf_allele;
 use super::vcf::{normalize_ref_alt, parse_optional_depth, VcfPosition};

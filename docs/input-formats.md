@@ -15,12 +15,13 @@ Pass variant calls with:
 
 The supported variant-call inputs are:
 
-- VCF (`.vcf` or `.vcf.gz`)
+- VCF (`.vcf` or `.vcf.gz`) and BCF (`.bcf`)
 - iVar variants TSV (`.tsv`)
 
-Use `--vcf` for plain `.vcf` or BGZF-compressed `.vcf.gz` files and `--tsv`
-for iVar `variants.tsv` files. BCF input is not accepted directly; convert it
-first, for example with `bcftools view input.bcf > input.vcf`.
+Use `--vcf` for plain `.vcf`, BGZF-compressed `.vcf.gz` or `.bcf` files and
+`--tsv` for iVar `variants.tsv` files. A BCF is decoded to VCF text as it is
+read, so it annotates exactly as the VCF it encodes; it is recognised by its
+`.bcf` extension.
 Older commands that pass an iVar TSV through `--vcf` are still auto-detected
 when the header has the standard iVar columns.
 

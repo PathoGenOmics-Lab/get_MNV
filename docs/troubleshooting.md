@@ -68,20 +68,13 @@ effect, codon, and BAM-derived read support. Pre-splitting the VCF with
 
 ## BCF Input
 
-Example:
+Since 1.1.6 a `.bcf` is read directly through `--vcf`. Older versions stop with
+`BCF input is not supported. Convert to VCF first`; convert with
+`bcftools view input.bcf > input.vcf` for those.
 
-```text
-BCF input is not supported. Convert to VCF first
-```
-
-Fix:
-
-```bash
-bcftools view input.bcf > input.vcf
-get_mnv --vcf input.vcf ...
-```
-
-`--bcf` is an output option only; it does not make BCF valid as input.
+A BCF that is cut short, for example by an interrupted copy, stops the run with
+an `invalid BCF record` or `invalid BCF header` error rather than reading as a
+VCF with fewer records. Copy the file again.
 
 ## TSV Annotation with Multiple Contigs
 

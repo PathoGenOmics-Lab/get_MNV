@@ -1766,14 +1766,54 @@ fn test_e2e_bcf_without_convert_errors() {
 }
 
 #[test]
-fn test_e2e_bcf_input_errors_with_conversion_hint() {
-    let mut args = base_args();
-    args.vcf_file = Some("input.bcf".to_string());
+fn test_e2e_bcf_input_annotates_exactly_as_its_vcf() {
+    use noodles::vcf::variant::io::Write as _;
 
-    let err = pipeline::run(&args).expect_err("BCF input should fail");
-    let message = err.to_string();
-    assert!(message.contains("BCF input is not supported"));
-    assert!(message.contains("bcftools view"));
+    let tmp = temp_dir("e2e_bcf_input");
+    // The example VCF declares no contig, which BCF needs for its dictionary.
+    let original = fs::read_to_string(example_dir().join("G35894.var.snp.vcf")).unwrap();
+    let (first, rest) = original.split_once('\n').unwrap();
+    let text = format!("{first}\n##contig=<ID=MTB_anc>\n{rest}");
+    let vcf_path = tmp.join("sample.vcf");
+    let bcf_path = tmp.join("sample.bcf");
+    fs::write(&vcf_path, &text).unwrap();
+
+    let mut reader = noodles::vcf::io::Reader::new(std::io::Cursor::new(text.as_bytes()));
+    let header = reader.read_header().unwrap();
+    let mut writer = noodles::bcf::io::Writer::new(fs::File::create(&bcf_path).unwrap());
+    writer.write_header(&header).unwrap();
+    for record in reader.records() {
+        writer
+            .write_variant_record(&header, &record.unwrap())
+            .unwrap();
+    }
+    writer.try_finish().unwrap();
+
+    let mut outputs = Vec::new();
+    for (input, prefix) in [(&vcf_path, "from_vcf"), (&bcf_path, "from_bcf")] {
+        let mut args = base_args();
+        args.vcf_file = Some(input.to_string_lossy().into());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(prefix.to_string());
+        pipeline::run(&args).expect("variant file annotates");
+        outputs.push(fs::read_to_string(tmp.join(format!("{prefix}.MNV.tsv"))).unwrap());
+    }
+    assert!(outputs[0].lines().count() > 900);
+    assert_eq!(
+        outputs[0], outputs[1],
+        "BCF and VCF of the same records must annotate alike"
+    );
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
+fn test_e2e_missing_bcf_names_the_file() {
+    let mut args = base_args();
+    args.vcf_file = Some("does_not_exist.bcf".to_string());
+
+    let err = pipeline::run(&args).expect_err("a missing BCF cannot be read");
+    assert!(err.to_string().contains("does_not_exist.bcf"), "{err}");
 }
 
 #[test]

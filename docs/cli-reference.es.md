@@ -18,7 +18,7 @@ TSV ya existentes y no necesita ninguna de las tres.
 
 | Opción | Descripción |
 |---|---|
-| `-v, --vcf <FILE>` | Entrada de variantes en VCF plano o comprimido con BGZF (SNV/MNV e indels). |
+| `-v, --vcf <FILE>` | Entrada de variantes en VCF plano, VCF comprimido con BGZF o BCF (SNV/MNV e indels). |
 | `--tsv <FILE>` | Entrada `variants.tsv` de iVar. |
 | `-b, --bam <FILE>` | Lecturas alineadas opcionales para soporte de lecturas. Debe estar ordenado por coordenadas e indexado. |
 | `-f, --fasta <FILE>` | FASTA de referencia (requerido). |

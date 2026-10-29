@@ -46,9 +46,9 @@ show for each SNV, MNV haplotype and indel event.
 
 ## Can I use a BCF file as input?
 
-Not directly. Convert it to VCF first, for example with
-`bcftools view input.bcf -O v -o input.vcf`. get_MNV can *write* BCF output via
-`--bcf`. See [Troubleshooting](troubleshooting.md).
+Yes, since 1.1.6: pass it to `--vcf` like any VCF. It is decoded to VCF text as
+it is read, so it annotates exactly as the VCF it encodes would. Older versions
+need it converted first with `bcftools view input.bcf -O v -o input.vcf`.
 
 ## My VCF has multiallelic records: what happens?
 

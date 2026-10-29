@@ -15,13 +15,13 @@ Pasa las llamadas de variantes con:
 
 Las entradas de llamadas de variantes admitidas son:
 
-- VCF (`.vcf` o `.vcf.gz`)
+- VCF (`.vcf` o `.vcf.gz`) y BCF (`.bcf`)
 - TSV de variantes de iVar (`.tsv`)
 
-Usa `--vcf` para archivos `.vcf` simples o `.vcf.gz` comprimidos con BGZF, y
-`--tsv` para archivos `variants.tsv` de iVar. La entrada BCF no se acepta
-directamente; conviértela antes, por ejemplo con
-`bcftools view input.bcf > input.vcf`.
+Usa `--vcf` para archivos `.vcf` simples, `.vcf.gz` comprimidos con BGZF o
+`.bcf`, y `--tsv` para archivos `variants.tsv` de iVar. Un BCF se decodifica a
+texto VCF a medida que se lee, así que se anota exactamente igual que el VCF que
+codifica; se reconoce por su extensión `.bcf`.
 Los comandos antiguos que pasan un TSV de iVar mediante `--vcf` se siguen
 detectando de forma automática cuando la cabecera tiene las columnas estándar de
 iVar.

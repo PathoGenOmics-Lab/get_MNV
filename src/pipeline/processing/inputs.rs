@@ -28,8 +28,8 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
             .map_err(reclassify_generic_as_validation)?,
         VariantInputFormat::Vcf | VariantInputFormat::Auto => {
             // Use the fast text parser for plain .vcf files and the
-            // BGZF-aware parser for .vcf.gz. BCF input is rejected with a
-            // conversion hint.
+            // BGZF-aware parser for .vcf.gz and .bcf, which reads BCF as the
+            // VCF text it decodes to.
             if io::vcf_fast::use_fast_parser(variant_file) {
                 io::vcf_fast::load_vcf_text(
                     variant_file,
