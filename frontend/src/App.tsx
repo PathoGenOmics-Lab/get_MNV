@@ -43,9 +43,16 @@ const NAME_HINTS: [RegExp, keyof AnalysisConfig][] = [
   [/\.(bam|cram)$|align|mapping/i, "bamFile"],
 ];
 
+/** Index files: each is found beside the file it indexes, so none fills a slot. */
+const INDEX_EXTENSION = /\.(bai|crai|csi|tbi|fai|gzi)$/;
+
 function classifyFile(path: string): keyof AnalysisConfig | null {
   const lower = path.toLowerCase();
   const filename = lower.split(/[\\/]/).pop() ?? "";
+
+  // 0. An index, before its name can match a hint: `x.snp.cram.crai` and
+  // `x.bcf.csi` were taken for variant files and made samples of their own.
+  if (INDEX_EXTENSION.test(lower)) return null;
 
   // 1. Compound extensions first
   if (lower.endsWith(".vcf.gz")) return "vcfFile";

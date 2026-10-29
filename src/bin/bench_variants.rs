@@ -235,10 +235,12 @@ fn run_dataset(
     let annotation_path = infer_annotation_path(dataset_dir)?;
 
     let references = io::load_references(fasta_path.to_string_lossy().as_ref(), None)?;
-    let snp_by_contig = io::load_vcf_positions_by_contig(
+    // The run's own defaults, multiallelic records split, through the reader
+    // the run would pick for this file.
+    let snp_by_contig = io::load_vcf(
         vcf_path.to_string_lossy().as_ref(),
         None,
-        false,
+        true,
         false,
         false,
         Some(&references),

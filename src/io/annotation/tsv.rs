@@ -43,6 +43,26 @@ pub fn tsv_rows_without_contig(genes_file: &str) -> AppResult<usize> {
     Ok(without)
 }
 
+/// The contigs the seventh column names, each once, in the order first met.
+pub fn tsv_named_contigs(genes_file: &str) -> AppResult<Vec<String>> {
+    let reader = BufReader::new(File::open(genes_file)?);
+    let mut named: Vec<String> = Vec::new();
+    for line in reader.lines() {
+        let entry = line?;
+        let trimmed = entry.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let fields: Vec<&str> = trimmed.split('\t').collect();
+        if let Some(contig) = row_contig(&fields) {
+            if !named.iter().any(|n| n == contig) {
+                named.push(contig.to_string());
+            }
+        }
+    }
+    Ok(named)
+}
+
 /// Genes of the TSV annotation on `expected_chrom`, keeping only those with a
 /// variant from `snp_list` inside, or every one when `snp_list` is `None`.
 pub(super) fn load_genes_from_tsv(

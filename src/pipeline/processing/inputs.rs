@@ -26,32 +26,15 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
     let snp_by_contig = match input_format {
         VariantInputFormat::Tsv => io::ivar::load_ivar_tsv(variant_file, &references)
             .map_err(reclassify_generic_as_validation)?,
-        VariantInputFormat::Vcf | VariantInputFormat::Auto => {
-            // Use the fast text parser for plain .vcf files and the
-            // BGZF-aware parser for .vcf.gz and .bcf, which reads BCF as the
-            // VCF text it decodes to.
-            if io::vcf_fast::use_fast_parser(variant_file) {
-                io::vcf_fast::load_vcf_text(
-                    variant_file,
-                    sample_override,
-                    args.split_multiallelic,
-                    args.normalize_alleles,
-                    args.keep_original_info,
-                    Some(&references),
-                )
-                .map_err(reclassify_generic_as_validation)?
-            } else {
-                io::load_vcf_positions_by_contig(
-                    variant_file,
-                    sample_override,
-                    args.split_multiallelic,
-                    args.normalize_alleles,
-                    args.keep_original_info,
-                    Some(&references),
-                )
-                .map_err(reclassify_generic_as_validation)?
-            }
-        }
+        VariantInputFormat::Vcf | VariantInputFormat::Auto => io::load_vcf(
+            variant_file,
+            sample_override,
+            args.split_multiallelic,
+            args.normalize_alleles,
+            args.keep_original_info,
+            Some(&references),
+        )
+        .map_err(reclassify_generic_as_validation)?,
     };
     let annotation_format = io::detect_annotation_format(args.genes_file())
         .map_err(reclassify_generic_as_validation)?;
@@ -70,6 +53,25 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
         annotation_format,
         tsv_rows_without_contig,
     )?;
+    // The seventh column says which contig each gene is on. A table with
+    // something else there (a locus tag, a description) used to be read fine;
+    // read as contigs, its values match no contig and every gene is quietly
+    // dropped. A column that names no contig of the reference at all is not a
+    // contig column, and the run says so rather than annotate nothing.
+    if annotation_format == AnnotationFormat::Tsv {
+        let named =
+            io::tsv_named_contigs(args.genes_file()).map_err(reclassify_generic_as_validation)?;
+        if !named.is_empty() && !named.iter().any(|contig| references.contains_key(contig)) {
+            let mut known: Vec<&String> = references.keys().collect();
+            known.sort();
+            return Err(crate::error::AppError::validation(format!(
+                "The gene table's seventh column names contigs ({}) that are not in the reference ({}). \
+                 That column is read as the contig each gene is on; remove it, or write the contig there",
+                named.iter().take(3).cloned().collect::<Vec<_>>().join(", "),
+                known.iter().take(3).map(|s| s.as_str()).collect::<Vec<_>>().join(", ")
+            )));
+        }
+    }
 
     // Auto-select the phase/splice-aware CDS model when the user did not set
     // --gff-features and the GFF actually contains CDS features; otherwise a

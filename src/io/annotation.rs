@@ -40,7 +40,7 @@ pub(crate) use gff_parse::{
 use cds_model::warn_if_multi_exon_cds_detected;
 use gff_load::gff_has_non_zero_phase_cds;
 use tsv::load_genes_from_tsv;
-pub use tsv::tsv_rows_without_contig;
+pub use tsv::{tsv_named_contigs, tsv_rows_without_contig};
 
 /// Return true when any variant event overlaps the interval. Insertions only
 /// overlap when their inserted bases fall between bases inside the interval;

@@ -8,15 +8,23 @@ use log::info;
 use std::collections::HashMap;
 use std::path::Path;
 
+/// The stack each worker thread gets, the size the main thread has. noodles
+/// decodes a CRAM block compressed with order-1 rANS with its tables on the
+/// stack, which in a release build takes more than the 2 MiB rayon gives a
+/// thread by default: a CRAM of 60,000 reads aborted with a stack overflow.
+const WORKER_STACK_SIZE: usize = 8 * 1024 * 1024;
+
 pub(crate) fn configure_threads(threads: Option<usize>) -> AppResult<()> {
+    let mut pool = rayon::ThreadPoolBuilder::new().stack_size(WORKER_STACK_SIZE);
     if let Some(threads) = threads {
         if threads == 0 {
             return Err(AppError::config("--threads must be >= 1"));
         }
-        let _ = rayon::ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build_global();
+        pool = pool.num_threads(threads);
     }
+    // Only the first run of a process can build the pool; the desktop app
+    // runs again in the same one, and keeps the pool it has.
+    let _ = pool.build_global();
     Ok(())
 }
 

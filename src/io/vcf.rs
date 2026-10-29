@@ -7,7 +7,7 @@
 //! Plain `.vcf` files use the fast text parser in `vcf_fast.rs`.
 
 use super::validation::validate_vcf_allele;
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::variants::{
     decompose_allele, substitution_components, AlleleComponent, AlleleComponentKind, AlleleEvent,
 };
@@ -222,7 +222,7 @@ impl VcfPosition {
     }
 }
 
-fn parse_optional_freq_token(raw_token: &str) -> Option<f64> {
+pub(crate) fn parse_optional_freq_token(raw_token: &str) -> Option<f64> {
     let token = raw_token.trim();
     if token.is_empty() || token == "." {
         return None;
@@ -236,7 +236,49 @@ fn parse_optional_freq_token(raw_token: &str) -> Option<f64> {
     }
 }
 
-fn parse_optional_freq_index(raw: &str, alt_index: usize) -> Option<f64> {
+/// The counts of an `AD` or `AO` field, each in its own place. A missing value
+/// stays a gap instead of closing up: dropped before indexing, `AD=.,5,3` gave
+/// the first ALT the second ALT's 3 reads.
+fn allele_counts(raw: &str) -> Vec<Option<i64>> {
+    raw.split(',')
+        .map(|value| value.trim().parse::<i64>().ok().filter(|count| *count >= 0))
+        .collect()
+}
+
+/// ALT number `alt_index`'s share of the reads in an `AD` field, which lists
+/// REF first. Unknown when this ALT's count or REF's is missing. Another ALT's
+/// missing count adds nothing, since that is what `bcftools merge` writes for
+/// an allele this sample was not called with.
+pub(crate) fn freq_from_ad(raw: &str, alt_index: usize) -> Option<f64> {
+    let counts = allele_counts(raw);
+    let alt = (*counts.get(alt_index + 1)?)?;
+    let total = counts[0]? + counts[1..].iter().flatten().sum::<i64>();
+    (total > 0).then(|| alt as f64 / total as f64)
+}
+
+/// ALT number `alt_index`'s share from FreeBayes' `AO`, one count per ALT, over
+/// the depth when it is known and over `AO + RO` otherwise.
+pub(crate) fn freq_from_ao_ro(
+    ao_raw: &str,
+    ro_raw: Option<&str>,
+    original_dp: Option<usize>,
+    alt_index: usize,
+) -> Option<f64> {
+    let counts = allele_counts(ao_raw);
+    let alt = (*counts.get(alt_index)?)?;
+    let total = match original_dp {
+        Some(dp) => dp as i64,
+        None => {
+            let ro = ro_raw
+                .and_then(|raw| raw.trim().parse::<i64>().ok())
+                .unwrap_or(0);
+            counts.iter().flatten().sum::<i64>() + ro
+        }
+    };
+    (total > 0).then(|| alt as f64 / total as f64)
+}
+
+pub(crate) fn parse_optional_freq_index(raw: &str, alt_index: usize) -> Option<f64> {
     let values = raw.split(',').map(str::trim).collect::<Vec<_>>();
     if values.is_empty() {
         return None;
@@ -407,6 +449,14 @@ fn trimmed(
 }
 
 /// Parse a VCF line into fields. Returns None if the line is a header or empty.
+/// Whether a line is the `#CHROM` line that names the columns, in whichever
+/// case it is written. Every reader asks this one question, so a lowercase
+/// `#chrom` cannot be a header to one reader and nothing to another.
+pub(crate) fn is_column_header(line: &str) -> bool {
+    line.get(..6)
+        .is_some_and(|start| start.eq_ignore_ascii_case("#CHROM"))
+}
+
 fn parse_vcf_line(line: &str) -> Option<Vec<&str>> {
     let line = line.trim();
     if line.is_empty() || line.starts_with('#') {
@@ -465,39 +515,14 @@ fn parse_original_metrics_from_fields(
         // AD → derive freq
         if original_freq.is_none() {
             if let Some(ad_str) = get_format_value(format_keys, sample, "AD") {
-                let values: Vec<i64> = ad_str
-                    .split(',')
-                    .filter_map(|s| s.trim().parse().ok())
-                    .collect();
-                if let Some(&alt_count) = values.get(alt_index + 1) {
-                    let total: i64 = values.iter().filter(|v| **v >= 0).sum();
-                    if total > 0 && alt_count >= 0 {
-                        original_freq = Some(alt_count as f64 / total as f64);
-                    }
-                }
+                original_freq = freq_from_ad(ad_str, alt_index);
             }
         }
         // AO/RO → derive freq
         if original_freq.is_none() {
             if let Some(ao_str) = get_format_value(format_keys, sample, "AO") {
-                let ao_values: Vec<i64> = ao_str
-                    .split(',')
-                    .filter_map(|s| s.trim().parse().ok())
-                    .collect();
-                if let Some(&alt_count) = ao_values.get(alt_index) {
-                    let ro = get_format_value(format_keys, sample, "RO")
-                        .and_then(|s| s.trim().parse::<i64>().ok())
-                        .unwrap_or(0);
-                    let total = if let Some(dp) = original_dp {
-                        dp as i64
-                    } else {
-                        let ao_sum: i64 = ao_values.iter().filter(|v| **v >= 0).sum();
-                        ao_sum + ro
-                    };
-                    if total > 0 && alt_count >= 0 {
-                        original_freq = Some(alt_count as f64 / total as f64);
-                    }
-                }
+                let ro = get_format_value(format_keys, sample, "RO");
+                original_freq = freq_from_ao_ro(ao_str, ro, original_dp, alt_index);
             }
         }
     }
@@ -517,38 +542,13 @@ fn parse_original_metrics_from_fields(
     }
     if original_freq.is_none() {
         if let Some(ad_str) = get_info_value(info, "AD") {
-            let values: Vec<i64> = ad_str
-                .split(',')
-                .filter_map(|s| s.trim().parse().ok())
-                .collect();
-            if let Some(&alt_count) = values.get(alt_index + 1) {
-                let total: i64 = values.iter().filter(|v| **v >= 0).sum();
-                if total > 0 && alt_count >= 0 {
-                    original_freq = Some(alt_count as f64 / total as f64);
-                }
-            }
+            original_freq = freq_from_ad(ad_str, alt_index);
         }
     }
     if original_freq.is_none() {
         if let Some(ao_str) = get_info_value(info, "AO") {
-            let ao_values: Vec<i64> = ao_str
-                .split(',')
-                .filter_map(|s| s.trim().parse().ok())
-                .collect();
-            if let Some(&alt_count) = ao_values.get(alt_index) {
-                let ro = get_info_value(info, "RO")
-                    .and_then(|s| s.trim().parse::<i64>().ok())
-                    .unwrap_or(0);
-                let total = if let Some(dp) = original_dp {
-                    dp as i64
-                } else {
-                    let ao_sum: i64 = ao_values.iter().filter(|v| **v >= 0).sum();
-                    ao_sum + ro
-                };
-                if total > 0 && alt_count >= 0 {
-                    original_freq = Some(alt_count as f64 / total as f64);
-                }
-            }
+            let ro = get_info_value(info, "RO");
+            original_freq = freq_from_ao_ro(ao_str, ro, original_dp, alt_index);
         }
     }
 
@@ -634,6 +634,51 @@ pub(crate) fn filter_and_subset_original_info<F: Fn(&str) -> bool>(
     }
 }
 
+/// An input `ANN` kept for one allele of a record, pointed at the allele its
+/// output record will carry.
+///
+/// snpEff writes each entry against the record's ALT as the record spells it.
+/// get_MNV writes a padded SNV as the one base that changes, and a normalized
+/// or spelled-out allele as such, so an entry left as it was named an allele no
+/// output record has and was never shown. Entries for the record's other ALTs
+/// go: each split record carries its own.
+pub(crate) fn retarget_input_ann(
+    info: Option<String>,
+    record_alt: &str,
+    position: usize,
+    ref_allele: &str,
+    alt_allele: &str,
+) -> Option<String> {
+    let info = info?;
+    if !info.split(';').any(|field| field.starts_with("ANN=")) {
+        return Some(info);
+    }
+    let event = crate::variants::decompose_allele(position, ref_allele, alt_allele);
+    let output_alt = match event.components.as_slice() {
+        [one] if one.kind == crate::variants::AlleleComponentKind::Snp => one.alt_allele.clone(),
+        _ => alt_allele.to_string(),
+    };
+    let fields: Vec<String> = info
+        .split(';')
+        .filter_map(|field| {
+            let Some(value) = field.strip_prefix("ANN=") else {
+                return Some(field.to_string());
+            };
+            let entries: Vec<String> = value
+                .split(',')
+                .filter_map(|entry| {
+                    let (allele, rest) = entry.split_once('|')?;
+                    allele
+                        .eq_ignore_ascii_case(record_alt)
+                        .then(|| format!("{output_alt}|{rest}"))
+                })
+                .collect();
+            (!entries.is_empty()).then(|| format!("ANN={}", entries.join(",")))
+        })
+        .collect();
+    (!fields.is_empty()).then(|| fields.join(";"))
+}
+
 /// Whether a path names a BCF file, the binary form of VCF.
 pub fn is_bcf_path(path: &str) -> bool {
     path.to_ascii_lowercase().ends_with(".bcf")
@@ -647,13 +692,53 @@ pub(crate) fn open_vcf_text(vcf_file: &str) -> AppResult<Box<dyn BufRead>> {
     if is_bcf_path(vcf_file) {
         return Ok(Box::new(DecodedBcf::spawn(vcf_file)?));
     }
-    let file = std::fs::File::open(vcf_file)?;
+    let mut file = std::fs::File::open(vcf_file)?;
     if vcf_file.ends_with(".gz") {
+        ensure_bgzf_eof(&mut file, vcf_file)?;
         Ok(Box::new(BufReader::new(noodles::bgzf::io::Reader::new(
             file,
         ))))
     } else {
         Ok(Box::new(BufReader::new(file)))
+    }
+}
+
+/// The empty block every BGZF writer ends a file with.
+const BGZF_EOF: [u8; 28] = [
+    0x1f, 0x8b, 0x08, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x06, 0x00, 0x42, 0x43, 0x02, 0x00,
+    0x1b, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+/// Checks that a BGZF file, a `.vcf.gz` or a BCF, ends with its end-of-file
+/// block. The reader stops cleanly at the end of any block, so a file cut
+/// between two blocks, by a copy or a download that did not finish, read as a
+/// VCF with fewer records and the run succeeded on part of the input. A file
+/// that does not start like BGZF is left to the reader, which says what it is.
+fn ensure_bgzf_eof(file: &mut std::fs::File, path: &str) -> AppResult<()> {
+    use std::io::{Seek, SeekFrom};
+
+    // A pipe cannot be checked without reading it whole, so it is read as it
+    // comes.
+    if !file.metadata()?.is_file() {
+        return Ok(());
+    }
+    let mut start = [0u8; 4];
+    let is_bgzf = file.read_exact(&mut start).is_ok() && start == BGZF_EOF[..4];
+    let mut end = [0u8; 28];
+    let complete = !is_bgzf
+        || (file.seek(SeekFrom::End(-28)).is_ok()
+            && file.read_exact(&mut end).is_ok()
+            && end == BGZF_EOF);
+    file.seek(SeekFrom::Start(0))?;
+    if complete {
+        Ok(())
+    } else {
+        Err(AppError::validation(format!(
+            "'{path}' does not end with the BGZF end-of-file block, so it was most likely cut \
+             short, by a copy or a download that did not finish or by a writer that was \
+             stopped. Reading it would annotate only the calls before the cut. Check the \
+             file, or write it again with bgzip or bcftools."
+        )))
     }
 }
 
@@ -672,8 +757,9 @@ impl DecodedBcf {
     fn spawn(path: &str) -> AppResult<Self> {
         // Open here rather than in the thread, so a missing file fails with
         // its own message before anything is read.
-        let file =
+        let mut file =
             std::fs::File::open(path).map_err(|e| format!("Cannot open BCF file '{path}': {e}"))?;
+        ensure_bgzf_eof(&mut file, path)?;
         let (text, sink) = std::io::pipe()?;
         let decoder = std::thread::spawn(move || decode_bcf_as_vcf_text(file, sink));
         Ok(Self {
@@ -724,15 +810,45 @@ fn decode_bcf_as_vcf_text(file: std::fs::File, sink: std::io::PipeWriter) -> std
     let header = reader
         .read_header()
         .map_err(|e| std::io::Error::new(e.kind(), format!("invalid BCF header: {e}")))?;
-    let mut writer = noodles::vcf::io::Writer::new(std::io::BufWriter::new(sink));
+    let mut sink = std::io::BufWriter::new(sink);
+    let mut writer = noodles::vcf::io::Writer::new(Vec::new());
     writer.write_header(&header)?;
+    sink.write_all(writer.get_ref())?;
+    writer.get_mut().clear();
     for (index, result) in reader.records().enumerate() {
         let record = result.map_err(|e| {
             std::io::Error::new(e.kind(), format!("invalid BCF record {}: {e}", index + 1))
         })?;
         writer.write_variant_record(&header, &record)?;
+        // The VCF writer percent-encodes a `%` inside a string value as `%25`,
+        // as VCF 4.3 asks. A text VCF from VarScan writes `FREQ=20%` with a bare
+        // `%`, and that is what the parsers read: left encoded, every such
+        // value came out unreadable from a BCF and fine from the same VCF. The
+        // other encodings stand for characters a VCF line cannot hold bare.
+        let line = writer.get_mut();
+        sink.write_all(&decode_percent_sign(line))?;
+        line.clear();
     }
-    writer.get_mut().flush()
+    sink.flush()
+}
+
+/// `%25` back to `%`, and nothing else.
+fn decode_percent_sign(line: &[u8]) -> std::borrow::Cow<'_, [u8]> {
+    if !line.windows(3).any(|w| w == b"%25") {
+        return std::borrow::Cow::Borrowed(line);
+    }
+    let mut out = Vec::with_capacity(line.len());
+    let mut i = 0;
+    while i < line.len() {
+        if line[i..].starts_with(b"%25") {
+            out.push(b'%');
+            i += 3;
+        } else {
+            out.push(line[i]);
+            i += 1;
+        }
+    }
+    std::borrow::Cow::Owned(out)
 }
 
 pub fn list_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
@@ -741,7 +857,7 @@ pub fn list_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
     // Parse header to find #CHROM line
     for line_result in reader.lines() {
         let line = line_result?;
-        if line.starts_with("#CHROM") || line.starts_with("#chrom") {
+        if is_column_header(&line) {
             let fields: Vec<&str> = line.split('\t').collect();
             if fields.len() > 9 {
                 return Ok(fields[9..].iter().map(|s| s.to_string()).collect());
@@ -816,6 +932,39 @@ pub fn extract_original_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
     Ok(lines)
 }
 
+/// Loads a variant file with the reader its container takes: the plain-text
+/// one for `.vcf`, the BGZF-aware one for `.vcf.gz` and BCF. Everything that
+/// loads calls goes through here, so nothing reads a file another way than a
+/// run does.
+pub fn load_vcf(
+    vcf_file: &str,
+    sample_name: Option<&str>,
+    split_multiallelic: bool,
+    normalize_alleles: bool,
+    keep_original_info: bool,
+    references: Option<&crate::io::ReferenceMap>,
+) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
+    if super::vcf_fast::use_fast_parser(vcf_file) {
+        super::vcf_fast::load_vcf_text(
+            vcf_file,
+            sample_name,
+            split_multiallelic,
+            normalize_alleles,
+            keep_original_info,
+            references,
+        )
+    } else {
+        load_vcf_positions_by_contig(
+            vcf_file,
+            sample_name,
+            split_multiallelic,
+            normalize_alleles,
+            keep_original_info,
+            references,
+        )
+    }
+}
+
 pub fn load_vcf_positions_by_contig(
     vcf_file: &str,
     sample_name: Option<&str>,
@@ -840,13 +989,14 @@ pub fn load_vcf_positions_by_contig(
     let mut positions_by_contig: HashMap<String, Vec<VcfPosition>> = HashMap::new();
     let mut split_count = 0usize;
     let mut not_carried = 0usize;
+    let mut overlapped = 0usize;
     let mut spelled_out = 0usize;
     let mut record_idx = 0usize;
     let mut header_seen = false;
 
     for line_result in reader.lines() {
         let line = line_result?;
-        if line.starts_with("#CHROM") || line.starts_with("#chrom") {
+        if is_column_header(&line) {
             header_seen = true;
         }
         let fields = match parse_vcf_line(&line) {
@@ -929,6 +1079,10 @@ pub fn load_vcf_positions_by_contig(
                 not_carried += 1;
                 continue;
             }
+            if *alt_allele == "*" {
+                overlapped += 1;
+                continue;
+            }
             let sequence = references
                 .and_then(|refs| refs.get(chrom))
                 .map(String::as_str);
@@ -951,11 +1105,17 @@ pub fn load_vcf_positions_by_contig(
             let (original_dp, original_freq) =
                 parse_original_metrics_from_fields(info, &format_keys, sample_field, alt_idx);
             let original_info = if keep_original_info {
-                filter_and_subset_original_info(
-                    info,
-                    |k| own_tags.contains(k),
-                    &per_allele_info,
-                    alt_idx,
+                retarget_input_ann(
+                    filter_and_subset_original_info(
+                        info,
+                        |k| own_tags.contains(k),
+                        &per_allele_info,
+                        alt_idx,
+                    ),
+                    alt_allele,
+                    normalized_pos,
+                    &normalized_ref,
+                    &normalized_alt,
                 )
             } else {
                 None
@@ -994,9 +1154,25 @@ pub fn load_vcf_positions_by_contig(
             "Skipped {not_carried} ALT alleles the selected sample's genotype does not carry"
         );
     }
+    log_overlapped(overlapped);
     log_spelled_out(spelled_out);
 
     Ok(positions_by_contig)
+}
+
+/// A `*` ALT is not a change at its position. It says this allele is missing
+/// there because a deletion that starts upstream covers it, and that deletion
+/// is annotated at its own record. GATK writes one beside a real ALT whenever
+/// one sample's deletion overlaps another sample's SNV; with splitting the
+/// default, such a record stopped a whole cohort at the first sample that
+/// carried the `*`.
+pub(crate) fn log_overlapped(overlapped: usize) {
+    if overlapped > 0 {
+        log::info!(
+            "Skipped {overlapped} '*' allele(s): each stands for a deletion that starts \
+             upstream, which is annotated at its own record"
+        );
+    }
 }
 
 pub(crate) fn log_spelled_out(spelled_out: usize) {
@@ -1151,11 +1327,6 @@ mod tests {
         assert!(!deletion.overlaps_interval(10, 10));
     }
 
-    /// Trimming must not move an indel. Suffix trimming on a length-changing
-    /// allele re-anchors it: `29 CT>CTGCT` became `29 C>CTGC`, the same
-    /// insertion at a different placement inside a repeat, which no longer
-    /// matched the CIGAR the aligner used. A row with 20 of 20 supporting reads
-    /// was then reported at 0, with a warning blaming the input file.
     #[test]
     fn symbolic_deletions_and_duplications_are_spelled_out_from_the_reference() {
         //               1234567890
@@ -1198,6 +1369,11 @@ mod tests {
         assert!(spell("<DEL>", "G", &at_limit, Some(&long)).is_some());
     }
 
+    /// Trimming must not move an indel. Suffix trimming on a length-changing
+    /// allele re-anchors it: `29 CT>CTGCT` became `29 C>CTGC`, the same
+    /// insertion at a different placement inside a repeat, which no longer
+    /// matched the CIGAR the aligner used. A row with 20 of 20 supporting reads
+    /// was then reported at 0, with a warning blaming the input file.
     #[test]
     fn normalising_an_indel_keeps_its_anchor() {
         let (pos, ref_allele, alt_allele) = super::normalize_ref_alt(29, "CT", "CTGCT");

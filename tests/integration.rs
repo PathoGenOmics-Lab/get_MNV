@@ -1687,6 +1687,39 @@ fn test_e2e_tsv_annotation_contig_column_places_each_gene_on_its_contig() {
 // T3: --sample all with multi-sample VCF
 // ---------------------------------------------------------------------------
 
+/// A seventh column that names no contig of the reference is not a contig
+/// column: a table carrying a locus tag or a description there was annotated
+/// before the column existed, and now lost every gene without a word.
+#[test]
+fn test_e2e_a_seventh_column_naming_no_reference_contig_stops_the_run() {
+    let tmp = temp_dir("e2e_tsv_contig_unknown");
+    let genes = fs::read_to_string(example_dir().join("anot_genes.txt")).unwrap();
+    let with_tags: String = genes
+        .lines()
+        .take(50)
+        .map(|line| {
+            let fields: Vec<&str> = line.split('\t').collect();
+            let phase = fields.get(4).copied().unwrap_or("0");
+            let biotype = fields.get(5).copied().unwrap_or("protein_coding");
+            format!(
+                "{}\t{}\t{}\t{}\t{phase}\t{biotype}\tNC_000962.3\n",
+                fields[0], fields[1], fields[2], fields[3]
+            )
+        })
+        .collect();
+    fs::write(tmp.join("genes7.txt"), with_tags).unwrap();
+    let mut args = base_args();
+    args.genes_file_tsv = Some(tmp.join("genes7.txt").to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    let err = pipeline::run(&args).expect_err("no gene could be placed");
+    assert!(
+        err.to_string()
+            .contains("seventh column names contigs (NC_000962.3)"),
+        "{err}"
+    );
+    fs::remove_dir_all(&tmp).ok();
+}
+
 #[test]
 fn test_e2e_sample_all_multisample_vcf() {
     let tmp = temp_dir("e2e_sample_all");

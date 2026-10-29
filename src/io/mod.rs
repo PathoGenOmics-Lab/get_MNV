@@ -13,7 +13,7 @@ pub mod vcf_fast;
 pub use alignment::{is_cram_path, AlignmentQuery, AlignmentReader};
 pub use annotation::{
     detect_annotation_format, filter_genes_with_snps, gene_overlaps_variant, load_all_tsv_genes,
-    load_genes, preload_gff_genes, tsv_rows_without_contig, AnnotationFormat,
+    load_genes, preload_gff_genes, tsv_named_contigs, tsv_rows_without_contig, AnnotationFormat,
 };
 pub use fasta::{
     drop_reference_calls, left_anchor_insertions, load_references, reference_for_chrom,
@@ -21,7 +21,7 @@ pub use fasta::{
 };
 pub use validation::get_base_name;
 pub use vcf::{
-    extract_original_info_headers, list_vcf_samples, load_vcf_positions_by_contig,
+    extract_original_info_headers, list_vcf_samples, load_vcf, load_vcf_positions_by_contig,
     parse_declared_phase, DeclaredPhase, VcfPosition,
 };
 

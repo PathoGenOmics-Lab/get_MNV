@@ -6,7 +6,10 @@
 //! decompresses or decodes them to the same VCF text first.
 
 use super::validation::validate_vcf_allele;
-use super::vcf::{normalize_ref_alt, parse_optional_depth, VcfPosition};
+use super::vcf::{
+    freq_from_ad, freq_from_ao_ro, normalize_ref_alt, parse_optional_depth,
+    parse_optional_freq_index, VcfPosition,
+};
 use crate::error::AppResult;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
@@ -39,6 +42,7 @@ pub fn load_vcf_text(
     let mut positions_by_contig: HashMap<String, Vec<VcfPosition>> = HashMap::new();
     let mut split_count = 0usize;
     let mut not_carried = 0usize;
+    let mut overlapped = 0usize;
     let mut spelled_out = 0usize;
     let mut record_idx = 0usize;
 
@@ -59,7 +63,7 @@ pub fn load_vcf_text(
         if line.starts_with("##") {
             continue;
         }
-        if line.starts_with("#CHROM") || line.starts_with("#chrom") {
+        if super::vcf::is_column_header(&line) {
             let cols: Vec<&str> = line.split('\t').collect();
             // Extract sample names (columns 9+)
             if cols.len() > 9 {
@@ -70,7 +74,9 @@ pub fn load_vcf_text(
             header_seen = true;
             continue;
         }
-        if !header_seen {
+        // A blank line, often the last one, is not a record: the reader used
+        // for `.vcf.gz` skips it, and this one stopped the run on it.
+        if !header_seen || line.trim().is_empty() {
             continue;
         }
 
@@ -158,6 +164,10 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                 not_carried += 1;
                 continue;
             }
+            if *alt_allele == "*" {
+                overlapped += 1;
+                continue;
+            }
             let sequence = references
                 .and_then(|refs| refs.get(chrom))
                 .map(String::as_str);
@@ -190,7 +200,13 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                 cols[7],
             );
             let original_info = if keep_original_info {
-                extract_text_original_info(cols[7], get_mnv_tags, &per_allele_info, alt_idx)
+                crate::io::vcf::retarget_input_ann(
+                    extract_text_original_info(cols[7], get_mnv_tags, &per_allele_info, alt_idx),
+                    alt_allele,
+                    norm_pos,
+                    &norm_ref,
+                    &norm_alt,
+                )
             } else {
                 None
             };
@@ -230,6 +246,7 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
             "Skipped {not_carried} ALT alleles the selected sample's genotype does not carry"
         );
     }
+    crate::io::vcf::log_overlapped(overlapped);
     crate::io::vcf::log_spelled_out(spelled_out);
 
     Ok(positions_by_contig)
@@ -302,7 +319,7 @@ fn parse_text_metrics(
     if original_freq.is_none() {
         if let Some(idx) = freq_idx {
             if let Some(val) = sample_values.get(idx) {
-                original_freq = parse_freq_indexed(val, alt_index);
+                original_freq = parse_optional_freq_index(val, alt_index);
             }
         }
     }
@@ -311,7 +328,7 @@ fn parse_text_metrics(
     if original_freq.is_none() {
         if let Some(idx) = af_idx {
             if let Some(val) = sample_values.get(idx) {
-                original_freq = parse_freq_indexed(val, alt_index);
+                original_freq = parse_optional_freq_index(val, alt_index);
             }
         }
     }
@@ -320,7 +337,7 @@ fn parse_text_metrics(
     if original_freq.is_none() {
         if let Some(idx) = ad_idx {
             if let Some(val) = sample_values.get(idx) {
-                original_freq = derive_freq_from_text_ad(val, alt_index);
+                original_freq = freq_from_ad(val, alt_index);
             }
         }
     }
@@ -330,7 +347,7 @@ fn parse_text_metrics(
         if let Some(idx) = ao_idx {
             if let Some(ao_val) = sample_values.get(idx) {
                 let ro_val = ro_idx.and_then(|i| sample_values.get(i)).copied();
-                original_freq = derive_freq_from_ao_ro(ao_val, ro_val, original_dp, alt_index);
+                original_freq = freq_from_ao_ro(ao_val, ro_val, original_dp, alt_index);
             }
         }
     }
@@ -346,7 +363,7 @@ fn parse_text_metrics(
     if original_freq.is_none() {
         for tag in ["AF", "FREQ"] {
             if let Some(val) = find_info_tag(info_field, tag) {
-                original_freq = parse_freq_indexed(val, alt_index);
+                original_freq = parse_optional_freq_index(val, alt_index);
                 if original_freq.is_some() {
                     break;
                 }
@@ -357,7 +374,7 @@ fn parse_text_metrics(
     // Fallback to INFO:AD
     if original_freq.is_none() {
         if let Some(ad_val) = find_info_tag(info_field, "AD") {
-            original_freq = derive_freq_from_text_ad(ad_val, alt_index);
+            original_freq = freq_from_ad(ad_val, alt_index);
         }
     }
 
@@ -365,92 +382,11 @@ fn parse_text_metrics(
     if original_freq.is_none() {
         if let Some(ao_val) = find_info_tag(info_field, "AO") {
             let ro_val = find_info_tag(info_field, "RO");
-            original_freq = derive_freq_from_ao_ro(ao_val, ro_val, original_dp, alt_index);
+            original_freq = freq_from_ao_ro(ao_val, ro_val, original_dp, alt_index);
         }
     }
 
     (original_dp, original_freq)
-}
-
-fn parse_freq_token(raw: &str) -> Option<f64> {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() || trimmed == "." {
-        return None;
-    }
-    let has_pct = trimmed.ends_with('%');
-    let numeric = trimmed.trim_end_matches('%').parse::<f64>().ok()?;
-    if has_pct || (numeric > 1.0 && numeric <= 100.0) {
-        Some(numeric / 100.0)
-    } else {
-        Some(numeric)
-    }
-}
-
-fn parse_freq_indexed(raw: &str, alt_index: usize) -> Option<f64> {
-    let tokens: Vec<&str> = raw.split(',').collect();
-    if tokens.is_empty() {
-        return None;
-    }
-    let token = if alt_index < tokens.len() {
-        tokens[alt_index]
-    } else if tokens.len() == 1 {
-        tokens[0]
-    } else {
-        return None;
-    };
-    parse_freq_token(token)
-}
-
-/// Derive an alternate-allele frequency from FreeBayes-style AO (alt observation
-/// counts, one per ALT) and RO (reference observation count). The denominator is
-/// the original depth when known, otherwise `sum(AO) + RO`. Mirrors the BGZF
-/// parser so a plain `.vcf` and its `.vcf.gz` equivalent derive the same OFREQ.
-fn derive_freq_from_ao_ro(
-    ao_raw: &str,
-    ro_raw: Option<&str>,
-    original_dp: Option<usize>,
-    alt_index: usize,
-) -> Option<f64> {
-    let ao_values: Vec<i64> = ao_raw
-        .split(',')
-        .filter_map(|s| s.trim().parse().ok())
-        .collect();
-    let alt_count = *ao_values.get(alt_index)?;
-    let ro = ro_raw
-        .and_then(|s| s.trim().parse::<i64>().ok())
-        .unwrap_or(0);
-    let total = if let Some(dp) = original_dp {
-        dp as i64
-    } else {
-        let ao_sum: i64 = ao_values.iter().filter(|v| **v >= 0).sum();
-        ao_sum + ro
-    };
-    if total > 0 && alt_count >= 0 {
-        Some(alt_count as f64 / total as f64)
-    } else {
-        None
-    }
-}
-
-fn derive_freq_from_text_ad(raw: &str, alt_index: usize) -> Option<f64> {
-    let values: Vec<i64> = raw
-        .split(',')
-        .filter_map(|s| {
-            let t = s.trim();
-            if t.is_empty() || t == "." {
-                None
-            } else {
-                t.parse::<i64>().ok()
-            }
-        })
-        .collect();
-    let alt_count = values.get(alt_index + 1).copied().filter(|v| *v >= 0)? as f64;
-    let total: f64 = values.iter().filter(|v| **v >= 0).sum::<i64>() as f64;
-    if total == 0.0 {
-        None
-    } else {
-        Some(alt_count / total)
-    }
 }
 
 fn find_info_tag<'a>(info: &'a str, tag: &str) -> Option<&'a str> {
@@ -488,7 +424,7 @@ pub fn list_text_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
     let reader = BufReader::new(file);
     for line_result in reader.lines() {
         let line = line_result.map_err(|e| format!("Error reading VCF: {e}"))?;
-        if line.starts_with("#CHROM") {
+        if super::vcf::is_column_header(&line) {
             let cols: Vec<&str> = line.split('\t').collect();
             return Ok(cols
                 .get(9..)
@@ -600,46 +536,67 @@ mod tests {
 
     #[test]
     fn test_parse_freq_token_percent() {
-        assert!((parse_freq_token("50%").unwrap() - 0.5).abs() < 1e-6);
+        assert!((crate::io::vcf::parse_optional_freq_token("50%").unwrap() - 0.5).abs() < 1e-6);
     }
 
     #[test]
     fn test_parse_freq_token_decimal() {
-        assert!((parse_freq_token("0.25").unwrap() - 0.25).abs() < 1e-6);
+        assert!((crate::io::vcf::parse_optional_freq_token("0.25").unwrap() - 0.25).abs() < 1e-6);
     }
 
     #[test]
     fn test_parse_freq_token_missing() {
-        assert!(parse_freq_token(".").is_none());
-        assert!(parse_freq_token("").is_none());
+        assert!(crate::io::vcf::parse_optional_freq_token(".").is_none());
+        assert!(crate::io::vcf::parse_optional_freq_token("").is_none());
     }
 
     #[test]
     fn test_parse_freq_indexed_multiallelic() {
-        assert!((parse_freq_indexed("0.1,0.2,0.3", 1).unwrap() - 0.2).abs() < 1e-6);
+        assert!((parse_optional_freq_index("0.1,0.2,0.3", 1).unwrap() - 0.2).abs() < 1e-6);
     }
 
     #[test]
     fn test_parse_freq_indexed_out_of_bounds_single() {
         // If only one value and index is beyond, use that single value
-        assert!(parse_freq_indexed("0.5", 3).is_some());
+        assert!(parse_optional_freq_index("0.5", 3).is_some());
     }
 
     #[test]
     fn test_derive_freq_from_ad() {
         // REF=10, ALT1=5, ALT2=3 → alt_index=0 → 5/18
-        let freq = derive_freq_from_text_ad("10,5,3", 0).unwrap();
+        let freq = freq_from_ad("10,5,3", 0).unwrap();
         assert!((freq - 5.0 / 18.0).abs() < 1e-6);
     }
 
     #[test]
     fn test_derive_freq_from_ad_zero_total() {
-        assert!(derive_freq_from_text_ad("0,0", 0).is_none());
+        assert!(freq_from_ad("0,0", 0).is_none());
     }
 
     #[test]
     fn test_derive_freq_from_ad_missing_values() {
-        assert!(derive_freq_from_text_ad(".,.", 0).is_none());
+        assert!(freq_from_ad(".,.", 0).is_none());
+    }
+
+    /// A `.` keeps its place: dropped before indexing, the first ALT of
+    /// `.,5,3` took the second ALT's 3 reads.
+    #[test]
+    fn a_missing_count_does_not_move_the_others_up() {
+        assert!(
+            freq_from_ad(".,5,3", 0).is_none(),
+            "REF unknown, total unknown"
+        );
+        assert!(
+            freq_from_ad("10,.,3", 0).is_none(),
+            "this ALT's own count unknown"
+        );
+        let merged = freq_from_ad("10,5,.", 0).unwrap();
+        assert!((merged - 5.0 / 15.0).abs() < 1e-9, "{merged}");
+        let second = freq_from_ad("10,.,3", 1).unwrap();
+        assert!((second - 3.0 / 13.0).abs() < 1e-9, "{second}");
+        assert!(freq_from_ao_ro(".,4", Some("6"), None, 0).is_none());
+        let ao = freq_from_ao_ro(".,4", Some("6"), None, 1).unwrap();
+        assert!((ao - 0.4).abs() < 1e-9, "{ao}");
     }
 
     #[test]
