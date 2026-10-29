@@ -247,39 +247,43 @@ Inside `global`:
 | `snp_variants`, `mnv_variants`, `snp_mnv_variants`, `indel_variants`, `intergenic_variants` | The same total split by type |
 | `region_cache_hits`, `region_cache_misses` | BAM region cache, only meaningful with `--bam` |
 
-!!! warning "These counts are what get_MNV produced, before the output filters"
-    `produced_variants` and the per-type counts beside it are taken after
-    annotation and before the read-support, frequency and strand filters that
-    decide what reaches the TSV. On a filtered run the two disagree on purpose:
-    the same command can log `produced variants=941` and write a one-row TSV,
-    and the HTML report, which counts rows, will say `1`. Read the summary as
-    what the annotation found and the TSV as what passed.
+> [!WARNING]
+> **These counts are what get_MNV produced, before the output filters**
+>
+> `produced_variants` and the per-type counts beside it are taken after
+> annotation and before the read-support, frequency and strand filters that
+> decide what reaches the TSV. On a filtered run the two disagree on purpose:
+> the same command can log `produced variants=941` and write a one-row TSV,
+> and the HTML report, which counts rows, will say `1`. Read the summary as
+> what the annotation found and the TSV as what passed.
 
-!!! danger "`--sample all` writes a different object, not a longer one"
-    Every key above moves. A `--sample all` summary has `mode` set to
-    `sample_all`, `sample_count`, `sample_names`, one `aggregate` object holding
-    run-wide totals, and a `samples` array holding one object per sample. Each
-    of those, and `aggregate` too, has the single-sample shape described above,
-    so `data["global"]["produced_variants"]` becomes
-    `data["aggregate"]["global"]["produced_variants"]`.
-
-    `aggregate` sums the counts across samples and names no output file of its
-    own: `aggregate.output_tsv` is `null`, and the per-sample paths are on the
-    `samples` entries. Its `contigs` array is always empty as well, because the
-    per-contig breakdown belongs to each sample; read it from the `samples`
-    entries. Branch on the key that only one shape has:
-
-    ```python
-    import json
-
-    data = json.load(open("run.summary.json"))
-    if data.get("mode") == "sample_all":
-        totals = data["aggregate"]["global"]
-        per_sample = {s["sample"]: s["global"] for s in data["samples"]}
-    else:
-        totals = data["global"]
-        per_sample = {data["sample"]: data["global"]}
-    ```
+> [!CAUTION]
+> **`--sample all` writes a different object, not a longer one**
+>
+> Every key above moves. A `--sample all` summary has `mode` set to
+> `sample_all`, `sample_count`, `sample_names`, one `aggregate` object holding
+> run-wide totals, and a `samples` array holding one object per sample. Each
+> of those, and `aggregate` too, has the single-sample shape described above,
+> so `data["global"]["produced_variants"]` becomes
+> `data["aggregate"]["global"]["produced_variants"]`.
+>
+> `aggregate` sums the counts across samples and names no output file of its
+> own: `aggregate.output_tsv` is `null`, and the per-sample paths are on the
+> `samples` entries. Its `contigs` array is always empty as well, because the
+> per-contig breakdown belongs to each sample; read it from the `samples`
+> entries. Branch on the key that only one shape has:
+>
+> ```python
+> import json
+>
+> data = json.load(open("run.summary.json"))
+> if data.get("mode") == "sample_all":
+>     totals = data["aggregate"]["global"]
+>     per_sample = {s["sample"]: s["global"] for s in data["samples"]}
+> else:
+>     totals = data["global"]
+>     per_sample = {data["sample"]: data["global"]}
+> ```
 
 ### Run Manifest
 

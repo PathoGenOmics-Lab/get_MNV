@@ -88,6 +88,20 @@ All notable changes to this project are documented in this file.
   one annotated row per ALT, the same output `bcftools norm -m -` produces. The
   flag is still accepted, so existing commands keep working.
 
+- **The documentation site is plain HTML, built without MkDocs.** Material for
+  MkDocs reaches its end of life on 5 May 2027. The markdown in `docs/` stays the
+  source and GitHub renders it; `tools/build_docs.py`, standard library only,
+  writes the bilingual site from it, with the sidebar, theme switch, search in
+  the page's own language and a language switch to the twin page. The pages are
+  committed at the addresses the old site used, so every existing link still
+  works, and the site opens from a clone with no server. CI checks that the
+  pages match their markdown and, with `tools/check_site.py`, that every one of
+  their 1,780 links, images and anchors resolves, which is what
+  `mkdocs build --strict` used to catch. The pages moved from Material's syntax
+  to GitHub's (alerts instead of admonitions, theme-specific images by the
+  `#gh-light-mode-only` fragment), so they also read properly on GitHub, and
+  three Spanish anchors that pointed nowhere were fixed on the way.
+
 ### Fixed
 
 - **`ATA` is Methionine in the mitochondrial tables.** Tables 2, 3 and 5

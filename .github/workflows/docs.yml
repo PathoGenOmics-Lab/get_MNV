@@ -1,8 +1,13 @@
 name: Docs
 
-# Build the bilingual Material for MkDocs site and hand it to GitHub Pages.
+# Hand the documentation site to GitHub Pages.
 #
-# This used to run `mkdocs gh-deploy --force`, which builds the site and
+# The site is plain HTML: tools/build_docs.py writes it from the markdown in
+# docs/ and the pages are committed, so there is nothing to build here beyond
+# checking that they still match their markdown and that every link resolves.
+# MkDocs and Material went in 1.1.6, ahead of Material's end of life.
+#
+# Before that, this used to run `mkdocs gh-deploy --force`, which built the site and
 # force-pushes it onto a `gh-pages` branch that Pages then served. That stopped
 # working the moment the repository's Pages source was switched to GitHub
 # Actions: the branch still receives the site and Pages no longer looks at it, so
@@ -16,18 +21,18 @@ name: Docs
 # and can be rolled back.
 #
 # Triggers:
-#   - push to the default branch touching docs/, mkdocs.yml or this workflow
+#   - push to the default branch touching docs/, tools/build_docs.py or this workflow
 #   - manual run (workflow_dispatch)
 #
-# To publish from a laptop without CI, `mkdocs build` and upload the `site/`
-# directory; `mkdocs gh-deploy` no longer reaches the published site.
+# To look at the site without publishing it, open docs/index.html; it works
+# from a clone with no server.
 
 on:
   push:
     branches: [main]
     paths:
       - "docs/**"
-      - "mkdocs.yml"
+      - "tools/build_docs.py"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -44,7 +49,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build the site
+    name: Check the site
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -52,15 +57,15 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
-      - name: Install build dependencies
-        run: pip install -r docs/requirements.txt
-      # --strict turns a link to a page or a heading that does not exist into a
-      # failure, so a renamed section is caught here rather than by a reader.
-      - name: Build, strictly
-        run: mkdocs build --strict
+      # A link to a page or a heading that does not exist fails here rather
+      # than being found by a reader.
+      - name: The pages match their markdown
+        run: python3 tools/build_docs.py --check
+      - name: Every link and anchor resolves
+        run: python3 tools/check_site.py
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: site
+          path: docs
 
   deploy:
     name: Publish to GitHub Pages

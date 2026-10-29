@@ -248,42 +248,46 @@ Dentro de `global`:
 | `snp_variants`, `mnv_variants`, `snp_mnv_variants`, `indel_variants`, `intergenic_variants` | El mismo total desglosado por tipo |
 | `region_cache_hits`, `region_cache_misses` | Caché de regiones del BAM, solo tiene sentido con `--bam` |
 
-!!! warning "Estos recuentos son lo que produjo get_MNV, antes de los filtros de salida"
-    `produced_variants` y los recuentos por tipo que lo acompañan se toman
-    después de la anotación y antes de los filtros de soporte de lecturas,
-    frecuencia y hebra que deciden qué llega al TSV. En una ejecución filtrada
-    los dos discrepan a propósito: el mismo comando puede registrar
-    `produced variants=941` y escribir un TSV de una sola fila, y el informe
-    HTML, que cuenta filas, dirá `1`. Lee el resumen como lo que encontró la
-    anotación y el TSV como lo que pasó los filtros.
+> [!WARNING]
+> **Estos recuentos son lo que produjo get_MNV, antes de los filtros de salida**
+>
+> `produced_variants` y los recuentos por tipo que lo acompañan se toman
+> después de la anotación y antes de los filtros de soporte de lecturas,
+> frecuencia y hebra que deciden qué llega al TSV. En una ejecución filtrada
+> los dos discrepan a propósito: el mismo comando puede registrar
+> `produced variants=941` y escribir un TSV de una sola fila, y el informe
+> HTML, que cuenta filas, dirá `1`. Lee el resumen como lo que encontró la
+> anotación y el TSV como lo que pasó los filtros.
 
-!!! danger "`--sample all` escribe otro objeto, no uno más largo"
-    Todas las claves de arriba se mueven. Un resumen de `--sample all` trae
-    `mode` con el valor `sample_all`, `sample_count`, `sample_names`, un objeto
-    `aggregate` con los totales de toda la ejecución, y un array `samples` con
-    un objeto por muestra. Cada uno de esos, y `aggregate` también, tiene la
-    forma de muestra única descrita arriba, así que
-    `data["global"]["produced_variants"]` pasa a ser
-    `data["aggregate"]["global"]["produced_variants"]`.
-
-    `aggregate` suma los recuentos de todas las muestras y no nombra ningún
-    archivo de salida propio: `aggregate.output_tsv` es `null`, y las rutas de
-    cada muestra están en las entradas de `samples`. Su array `contigs` también
-    está siempre vacío, porque el desglose por contig es de cada muestra; léelo
-    de las entradas de `samples`. Bifurca por la clave que solo tiene una de las
-    dos formas:
-
-    ```python
-    import json
-
-    data = json.load(open("run.summary.json"))
-    if data.get("mode") == "sample_all":
-        totals = data["aggregate"]["global"]
-        per_sample = {s["sample"]: s["global"] for s in data["samples"]}
-    else:
-        totals = data["global"]
-        per_sample = {data["sample"]: data["global"]}
-    ```
+> [!CAUTION]
+> **`--sample all` escribe otro objeto, no uno más largo**
+>
+> Todas las claves de arriba se mueven. Un resumen de `--sample all` trae
+> `mode` con el valor `sample_all`, `sample_count`, `sample_names`, un objeto
+> `aggregate` con los totales de toda la ejecución, y un array `samples` con
+> un objeto por muestra. Cada uno de esos, y `aggregate` también, tiene la
+> forma de muestra única descrita arriba, así que
+> `data["global"]["produced_variants"]` pasa a ser
+> `data["aggregate"]["global"]["produced_variants"]`.
+>
+> `aggregate` suma los recuentos de todas las muestras y no nombra ningún
+> archivo de salida propio: `aggregate.output_tsv` es `null`, y las rutas de
+> cada muestra están en las entradas de `samples`. Su array `contigs` también
+> está siempre vacío, porque el desglose por contig es de cada muestra; léelo
+> de las entradas de `samples`. Bifurca por la clave que solo tiene una de las
+> dos formas:
+>
+> ```python
+> import json
+>
+> data = json.load(open("run.summary.json"))
+> if data.get("mode") == "sample_all":
+>     totals = data["aggregate"]["global"]
+>     per_sample = {s["sample"]: s["global"] for s in data["samples"]}
+> else:
+>     totals = data["global"]
+>     per_sample = {data["sample"]: data["global"]}
+> ```
 
 ### Manifiesto de la ejecución
 

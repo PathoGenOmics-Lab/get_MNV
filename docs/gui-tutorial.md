@@ -7,13 +7,15 @@ and how to look at the reads behind a call.
 If you have not installed the app yet, see [Desktop GUI](gui.md#install). The
 same walkthrough on the command line is [Command Line Tutorial](getting-started.md).
 
-!!! note "Where these screenshots come from"
-    They are captured from the browser demo in `frontend/demo/`, which renders
-    the app's real components against fixture data instead of calling the Rust
-    backend. The numbers, the reads and the table are the genuine output of
-    `get_mnv` on the files in `example/`; only the plumbing between the form and
-    the engine is stood in for, so the pages can be captured without building a
-    desktop bundle.
+> [!NOTE]
+> **Where these screenshots come from**
+>
+> They are captured from the browser demo in `frontend/demo/`, which renders
+> the app's real components against fixture data instead of calling the Rust
+> backend. The numbers, the reads and the table are the genuine output of
+> `get_mnv` on the files in `example/`; only the plumbing between the form and
+> the engine is stood in for, so the pages can be captured without building a
+> desktop bundle.
 
 ## What you need
 
@@ -29,8 +31,8 @@ folder of the repository:
 
 ## 1. Load the inputs
 
-![The Analysis tab with the four inputs filled in](assets/gui-02-inputs.png#only-light)
-![The Analysis tab with the four inputs filled in](assets/gui-02-inputs-dark.png#only-dark)
+![The Analysis tab with the four inputs filled in](assets/gui-02-inputs.png#gh-light-mode-only)
+![The Analysis tab with the four inputs filled in](assets/gui-02-inputs-dark.png#gh-dark-mode-only)
 
 Drop each file on its zone, or click to browse. Three are required and marked
 with a red asterisk; the counter reads **3/3 required + BAM** once they are set,
@@ -51,21 +53,23 @@ and the Run button turns on.
 
 ## 2. Set the parameters
 
-![The parameter sidebar, with the read-support floors lowered to zero](assets/gui-03-parameters.png#only-light)
-![The parameter sidebar, with the read-support floors lowered to zero](assets/gui-03-parameters-dark.png#only-dark)
+![The parameter sidebar, with the read-support floors lowered to zero](assets/gui-03-parameters.png#gh-light-mode-only)
+![The parameter sidebar, with the read-support floors lowered to zero](assets/gui-03-parameters-dark.png#gh-dark-mode-only)
 
 The sidebar groups every knob the app exposes, and the four preset chips at the
 top set them in bulk. The moment you change one, the preset chip switches to
 **Custom**, which is what the screenshot above shows.
 
-!!! warning "Why this screenshot shows 0 and not the default 2"
-    The form ships with **Min SNP reads** and **Min MNV reads** at `2`, and those
-    thresholds only apply when a BAM is loaded. `G35894.demo.bam` is a tiny
-    demonstration file that covers a single locus, so with the default floor
-    every other row loses its support and the output drops from 941 rows to 1.
-    Both are set to `0` here for that reason; on a real alignment, leave them
-    alone. The [Command Line Tutorial](getting-started.md#5-filter-on-that-support)
-    explains how the two thresholds combine, which is not obvious.
+> [!WARNING]
+> **Why this screenshot shows 0 and not the default 2**
+>
+> The form ships with **Min SNP reads** and **Min MNV reads** at `2`, and those
+> thresholds only apply when a BAM is loaded. `G35894.demo.bam` is a tiny
+> demonstration file that covers a single locus, so with the default floor
+> every other row loses its support and the output drops from 941 rows to 1.
+> Both are set to `0` here for that reason; on a real alignment, leave them
+> alone. The [Command Line Tutorial](getting-started.md#5-filter-on-that-support)
+> explains how the two thresholds combine, which is not obvious.
 
 Five of the form's defaults are deliberately stricter than the CLI's; they are
 listed in [Desktop GUI](gui.md#where-the-form-differs-from-the-cli). Everything
@@ -73,8 +77,8 @@ the form does not show falls back to the CLI default.
 
 ## 3. Run
 
-![The run in progress, showing the current phase](assets/gui-04-running.png#only-light)
-![The run in progress, showing the current phase](assets/gui-04-running-dark.png#only-dark)
+![The run in progress, showing the current phase](assets/gui-04-running.png#gh-light-mode-only)
+![The run in progress, showing the current phase](assets/gui-04-running-dark.png#gh-dark-mode-only)
 
 The button reports the phase it is in as it goes. A run over this dataset takes
 well under a second; the progress bar matters on cohorts, where you can queue
@@ -82,8 +86,8 @@ several matched samples and let them run in one batch.
 
 ## 4. Read the summary
 
-![The Results tab: counts, variant breakdown, timings and per-contig figures](assets/gui-05-results.png#only-light)
-![The Results tab: counts, variant breakdown, timings and per-contig figures](assets/gui-05-results-dark.png#only-dark)
+![The Results tab: counts, variant breakdown, timings and per-contig figures](assets/gui-05-results.png#gh-light-mode-only)
+![The Results tab: counts, variant breakdown, timings and per-contig figures](assets/gui-05-results-dark.png#gh-dark-mode-only)
 
 The top row is the shape of the run: **941 variants** produced from **950 VCF
 records** over **635 mapped genes** on **1 contig**. Records and variants differ
@@ -112,8 +116,8 @@ files** shows what was written, with a button to reveal it in your file manager.
 Search the locus list for `Rv2036` and open it. This is the codon that
 [Command Line Tutorial](getting-started.md) walks through.
 
-![The genomic track viewer: ruler, coverage, reference, codon tracks and the read pileup](assets/gui-06-reads.png#only-light)
-![The genomic track viewer: ruler, coverage, reference, codon tracks and the read pileup](assets/gui-06-reads-dark.png#only-dark)
+![The genomic track viewer: ruler, coverage, reference, codon tracks and the read pileup](assets/gui-06-reads.png#gh-light-mode-only)
+![The genomic track viewer: ruler, coverage, reference, codon tracks and the read pileup](assets/gui-06-reads-dark.png#gh-dark-mode-only)
 
 The tracks line up column by column over the same coordinates:
 
@@ -132,17 +136,19 @@ things: `GCT` alone is Val93Ala, `GTC` alone is Val93Val, a silent change.
 Together they make `GCC`, which is Ala. That is a call you cannot get right one
 base at a time.
 
-!!! tip "Why the SNP read counts are zero"
-    The row shows `SNP Reads 0, 0` next to `MNV Reads 24`. `SNP Reads` counts
-    reads that carry one substitution **without** the full haplotype. Here every
-    read carries both, so none is counted as solo support and all 24 sit in
-    `MNV Reads`. The two columns split the evidence rather than double-count it.
-    See [Output formats](output-formats.md#default-tsv-output).
+> [!TIP]
+> **Why the SNP read counts are zero**
+>
+> The row shows `SNP Reads 0, 0` next to `MNV Reads 24`. `SNP Reads` counts
+> reads that carry one substitution **without** the full haplotype. Here every
+> read carries both, so none is counted as solo support and all 24 sit in
+> `MNV Reads`. The two columns split the evidence rather than double-count it.
+> See [Output formats](output-formats.md#default-tsv-output).
 
 ## 6. Filter and export
 
-![The variant table with per-column filters](assets/gui-07-table.png#only-light)
-![The variant table with per-column filters](assets/gui-07-table-dark.png#only-dark)
+![The variant table with per-column filters](assets/gui-07-table.png#gh-light-mode-only)
+![The variant table with per-column filters](assets/gui-07-table-dark.png#gh-dark-mode-only)
 
 The table holds every row of the TSV. Search across all columns, or filter one
 at a time: the dropdowns take a value, the text boxes match as you type. Sort by

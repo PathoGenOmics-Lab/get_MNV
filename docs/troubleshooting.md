@@ -233,7 +233,6 @@ its own.
 |---|---|
 | `The MNV thresholds will not remove any SNP/MNV row` | The MNV thresholds are still filtering MNV, indel and intergenic rows. What they cannot reach is the SNP/MNV rows: one survives when *either* its SNVs or its haplotype clears its bar, so with the SNP thresholds at `0` the SNP side always passes. Raise `--snp`, `--min-snp-frequency` or `--min-snp-strand` as well to filter codon-level rows. |
 
-
 ### An optional external program was missing
 
 | Warning | What it means |
@@ -266,12 +265,12 @@ its own.
 | `15` | Floating-point parsing error |
 | `16` | JSON error |
 
-
-!!! question "Still stuck?"
-
-    Everything above is a message the tool can produce and what it is asking
-    for. If what you are seeing is not here, or the answer here did not fit your
-    data, ask in [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a).
-
-    Answers there get marked as answers, so the next person with your problem
-    finds it before they have to ask.
+> [!NOTE]
+> **Still stuck?**
+>
+> Everything above is a message the tool can produce and what it is asking
+> for. If what you are seeing is not here, or the answer here did not fit your
+> data, ask in [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a).
+>
+> Answers there get marked as answers, so the next person with your problem
+> finds it before they have to ask.

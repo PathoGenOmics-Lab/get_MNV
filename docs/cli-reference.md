@@ -51,38 +51,40 @@ These apply only when `--bam` is provided.
 | `--min-mnv-strand <N>` | `0` | Minimum MNV-supporting reads on each strand. |
 | `--min-strand-bias-p <F>` | `0.0` | Minimum Fisher exact p-value accepted for strand-bias metrics. **VCF output only**: the TSV writer has no strand-bias threshold, so this never removes a TSV row. |
 
-!!! note "How the SNP and MNV thresholds combine"
-    Frequency and read-count filters use support recalculated from `--bam`, not
-    the original `OFREQ`/`ODP` from the input.
-
-    A codon-level (`SNP/MNV`) row is kept when **either** side clears its bar:
-    its individual SNVs pass the SNP thresholds, **or** its haplotype passes the
-    MNV thresholds. That keeps a well-supported haplotype whose individual SNVs
-    are weak, and it also works the other way: with the SNP thresholds left at
-    their default of `0` the SNP side always passes, so raising `--mnv` alone
-    removes nothing. Raise both, or neither. The run warns when you have asked
-    for an MNV threshold that cannot reach a codon-level row.
-
-    Which thresholds govern which row:
-
-    | Row | Judged by |
-    |---|---|
-    | `SNP` | the SNP thresholds |
-    | `MNV`, `SNP/MNV` | either side, as above |
-    | `INDEL` | the **MNV** thresholds, measured against the indel's own event support (`Event Reads`, `Event Forward Reads`, `Event Reverse Reads`, `Event Depth`), not against any SNP column |
-
-    A TSV row is kept or dropped whole, and a codon-level row clears the SNP
-    side only when **every** one of its substitutions does. A VCF record is one
-    allele, filtered on its own. So a `--both` run under a threshold that one
-    substitution meets and another does not writes that allele to the VCF while
-    no TSV row carries it: the row failed, the allele did not. Neither output is
-    wrong; they are different units.
-
-    So an indel is filtered with `--mnv`, `--min-mnv-frequency` and
-    `--min-mnv-strand`; `--snp` never touches it. That holds outside genes too: an
-    intergenic indel is counted and judged on its own support like any other. Only
-    a row that reached no counter at all is exempt, since a threshold cannot be
-    applied to a measurement nobody took.
+> [!NOTE]
+> **How the SNP and MNV thresholds combine**
+>
+> Frequency and read-count filters use support recalculated from `--bam`, not
+> the original `OFREQ`/`ODP` from the input.
+>
+> A codon-level (`SNP/MNV`) row is kept when **either** side clears its bar:
+> its individual SNVs pass the SNP thresholds, **or** its haplotype passes the
+> MNV thresholds. That keeps a well-supported haplotype whose individual SNVs
+> are weak, and it also works the other way: with the SNP thresholds left at
+> their default of `0` the SNP side always passes, so raising `--mnv` alone
+> removes nothing. Raise both, or neither. The run warns when you have asked
+> for an MNV threshold that cannot reach a codon-level row.
+>
+> Which thresholds govern which row:
+>
+> | Row | Judged by |
+> |---|---|
+> | `SNP` | the SNP thresholds |
+> | `MNV`, `SNP/MNV` | either side, as above |
+> | `INDEL` | the **MNV** thresholds, measured against the indel's own event support (`Event Reads`, `Event Forward Reads`, `Event Reverse Reads`, `Event Depth`), not against any SNP column |
+>
+> A TSV row is kept or dropped whole, and a codon-level row clears the SNP
+> side only when **every** one of its substitutions does. A VCF record is one
+> allele, filtered on its own. So a `--both` run under a threshold that one
+> substitution meets and another does not writes that allele to the VCF while
+> no TSV row carries it: the row failed, the allele did not. Neither output is
+> wrong; they are different units.
+>
+> So an indel is filtered with `--mnv`, `--min-mnv-frequency` and
+> `--min-mnv-strand`; `--snp` never touches it. That holds outside genes too: an
+> intergenic indel is counted and judged on its own support like any other. Only
+> a row that reached no counter at all is exempt, since a threshold cannot be
+> applied to a measurement nobody took.
 
 ## Indel tuning
 
@@ -111,20 +113,20 @@ These apply only when `--bam` is provided.
 | `--keep-original-info` | Preserve original VCF INFO fields in the output (requires `--convert`/`--both`). |
 | `--emit-filtered` | Emit records that fail thresholds with `FILTER` tags instead of skipping them. |
 
-!!! info "`--index-vcf-gz` and `--bcf` call external programs"
-
-    Everything else get_MNV writes is written by get_MNV. These two are not:
-    `--index-vcf-gz` runs `tabix` and `--bcf` runs `bcftools`, both taken from
-    `PATH`. They come with samtools/htslib and bcftools respectively, and
-    neither is a build dependency, so a machine can have get_MNV and not have
-    them.
-
-    A missing program is not a failed run. get_MNV warns, skips that one step,
-    and finishes: the TSV and the VCF are written either way, and the run exits
-    `0`. Nothing else claims the file that was not written, so the summary JSON
-    reports no BCF and `--run-manifest` records no checksum for one. Check the
-    warnings, or check for the file, if a later step needs it.
-
+> [!NOTE]
+> **`--index-vcf-gz` and `--bcf` call external programs**
+>
+> Everything else get_MNV writes is written by get_MNV. These two are not:
+> `--index-vcf-gz` runs `tabix` and `--bcf` runs `bcftools`, both taken from
+> `PATH`. They come with samtools/htslib and bcftools respectively, and
+> neither is a build dependency, so a machine can have get_MNV and not have
+> them.
+>
+> A missing program is not a failed run. get_MNV warns, skips that one step,
+> and finishes: the TSV and the VCF are written either way, and the run exits
+> `0`. Nothing else claims the file that was not written, so the summary JSON
+> reports no BCF and `--run-manifest` records no checksum for one. Check the
+> warnings, or check for the file, if a later step needs it.
 
 ## Interactive HTML report
 

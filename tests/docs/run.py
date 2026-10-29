@@ -321,37 +321,18 @@ def documented_names(columns: set[str], info: set[str]) -> tuple[set, set, set, 
 
 
 def nav_pages() -> set[str]:
-    """The pages the nav actually links to.
+    """The pages the site's sidebar actually links to.
 
-    Reads the `nav:` tree rather than scanning the file for `.md`, because the
-    file mentions pages outside the nav: a comment naming `linkage.md` was
-    enough to make a scan of the whole file report every page as reachable,
-    which is a check that cannot fail. Loaded with a loader that tolerates
-    mkdocs' `!!python/name:` tags, which `safe_load` refuses.
+    Read from the list tools/build_docs.py builds the sidebar from, rather than
+    by scanning a file for `.md`: a comment naming a page is not a link to it,
+    and a scan that counts it makes a check that cannot fail.
     """
-    import yaml
+    import importlib.util
 
-    class Loader(yaml.SafeLoader):
-        pass
-
-    Loader.add_multi_constructor("tag:yaml.org,2002:python/name:", lambda *_: None)
-    Loader.add_multi_constructor("!", lambda *_: None)
-
-    config = yaml.load((REPO / "mkdocs.yml").read_text(), Loader=Loader)
-    pages: set[str] = set()
-
-    def walk(node) -> None:
-        if isinstance(node, str):
-            pages.add(node)
-        elif isinstance(node, list):
-            for child in node:
-                walk(child)
-        elif isinstance(node, dict):
-            for child in node.values():
-                walk(child)
-
-    walk(config.get("nav") or [])
-    return {page for page in pages if page.endswith(".md")}
+    spec = importlib.util.spec_from_file_location("build_docs", REPO / "tools" / "build_docs.py")
+    build_docs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build_docs)
+    return {source for _, source, _ in build_docs.PAGES if source.endswith(".md")}
 
 
 def wordmark_problems() -> list[str]:
@@ -484,7 +465,7 @@ def page_structure_problems() -> list[str]:
 
     A page that nothing links to is a page nobody reads, and a page with no twin
     is a reader in the other language hitting a wall. Both are invisible to a
-    build: mkdocs is happy to ship an orphan.
+    build: the generator is happy to ship an orphan.
     """
     problems: list[str] = []
     nav = nav_pages()
@@ -495,7 +476,7 @@ def page_structure_problems() -> list[str]:
                 problems.append(f"  Spanish page with no English original: {page.name}")
             continue
         if page.name not in nav:
-            problems.append(f"  page missing from the nav in mkdocs.yml: {page.name}")
+            problems.append(f"  page missing from the sidebar (PAGES in tools/build_docs.py): {page.name}")
         spanish = DOCS / page.name.replace(".md", ".es.md")
         if not spanish.exists():
             problems.append(f"  page with no Spanish translation: {page.name}")

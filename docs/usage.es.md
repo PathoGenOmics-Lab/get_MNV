@@ -128,4 +128,4 @@ transcrito con splicing.
 - El comportamiento con indels y frameshift tiene sus propios ajustes, y dos de
   sus valores por defecto se apartan a propósito del comportamiento original de
   la herramienta. El razonamiento está en
-  [Alcance y compatibilidad](indel-mnv-semantics.es.md#parametros-de-ajuste).
+  [Alcance y compatibilidad](indel-mnv-semantics.es.md#parámetros-de-ajuste).

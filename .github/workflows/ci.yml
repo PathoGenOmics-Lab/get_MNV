@@ -196,10 +196,14 @@ jobs:
           python-version: "3.12"
       - name: Install the documentation dependencies
         run: pip install -r docs/requirements.txt
-      # --strict turns a link to a page or a heading that does not exist into a
-      # failure, so a renamed section is caught here rather than by a reader.
-      - name: Build the site
-        run: mkdocs build --strict
+      # The pages are generated from the markdown and committed. --check fails
+      # when one no longer matches its markdown, and check_site.py turns a link
+      # to a page or a heading that does not exist into a failure, so a renamed
+      # section is caught here rather than by a reader.
+      - name: The generated pages match their markdown
+        run: python3 tools/build_docs.py --check
+      - name: Every link and anchor on the site resolves
+        run: python3 tools/check_site.py
       - name: Build get_mnv
         run: cargo build -p get_mnv --locked
       - name: Check the pages against the tool's own vocabulary

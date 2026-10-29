@@ -1,30 +1,18 @@
-<div class="gm-hero" markdown>
-
-![get_MNV](assets/logo.svg#only-light){ .gm-wordmark }
-![get_MNV](assets/logo-dark.svg#only-dark){ .gm-wordmark }
+<p class="hero-mark"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg"><img src="assets/logo.svg" alt="get_MNV"></picture></p>
 
 # get_MNV
 
-<p class="gm-hero__lead">
 Codon-level Multi-Nucleotide Variant detection and indel annotation, from a VCF
 or an iVar TSV. Pure Rust, no C dependencies, on macOS, Linux and Windows.
-</p>
 
-<div class="gm-hero__actions" markdown>
-[Start here](getting-started.md){ .md-button .md-button--primary }
-[See a real report](assets/example-report.html){ .md-button target=_blank }
-</div>
-
-</div>
+**[Start here](getting-started.md)** · [See a real report](assets/example-report.html)
 
 get_MNV finds cases where two or more SNVs fall in the **same codon** and should
 be interpreted together. These combined changes can produce a different amino
 acid effect than the individual SNVs alone.
 
-<div style="text-align: center;" markdown>
-![MNV amino acid reclassification](assets/get_mnv_aa.png#only-light){ .gm-diagram width="620" }
-![MNV amino acid reclassification](assets/get_mnv_aa-dark.png#only-dark){ .gm-diagram width="620" }
-</div>
+![MNV amino acid reclassification](assets/get_mnv_aa.png#gh-light-mode-only)
+![MNV amino acid reclassification](assets/get_mnv_aa-dark.png#gh-dark-mode-only)
 
 ## The problem, in one codon
 
@@ -81,48 +69,52 @@ It writes annotated variants as TSV, VCF, or both.
   and strand bias.
 - Supports 9 NCBI genetic code tables.
 - Writes a self-contained interactive HTML report:
-  [see an example](assets/example-report.html){ target=_blank }.
+  [see an example](assets/example-report.html).
 - Includes a desktop GUI for drag-and-drop analysis.
 
 ## Installation
 
-=== "Desktop GUI"
+### Desktop GUI
 
-    Download the latest release for your platform from the
-    [Releases page](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest).
+Download the latest release for your platform from the
+[Releases page](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest).
 
-    !!! note "macOS users"
-        The app is not signed with an Apple Developer certificate. On first
-        launch, right-click the app → **Open** → click **Open** in the dialog.
+> [!NOTE]
+> **macOS users**
+>
+> The app is not signed with an Apple Developer certificate. On first
+> launch, right-click the app → **Open** → click **Open** in the dialog.
 
-    !!! tip "Check what you downloaded"
-        Every release carries a `SHA256SUMS` file covering all of its assets.
-        Download it next to the file you want, and check them together:
+> [!TIP]
+> **Check what you downloaded**
+>
+> Every release carries a `SHA256SUMS` file covering all of its assets.
+> Download it next to the file you want, and check them together:
+>
+> ```bash
+> sha256sum --ignore-missing -c SHA256SUMS
+> ```
+>
+> On macOS, where `sha256sum` arrived only recently, `shasum -a 256
+> --ignore-missing -c SHA256SUMS` does the same and has always been
+> there.
+>
+> Each file it can find prints `OK`. Anything else means the download is
+> truncated or is not the file the release published.
 
-        ```bash
-        sha256sum --ignore-missing -c SHA256SUMS
-        ```
+### Command line
 
-        On macOS, where `sha256sum` arrived only recently, `shasum -a 256
-        --ignore-missing -c SHA256SUMS` does the same and has always been
-        there.
+```bash
+conda install -c bioconda get_mnv
+```
 
-        Each file it can find prints `OK`. Anything else means the download is
-        truncated or is not the file the release published.
+Or build from source:
 
-=== "Command line"
-
-    ```bash
-    conda install -c bioconda get_mnv
-    ```
-
-    Or build from source:
-
-    ```bash
-    git clone https://github.com/PathoGenOmics-Lab/get_MNV.git
-    cd get_MNV
-    cargo install --path .
-    ```
+```bash
+git clone https://github.com/PathoGenOmics-Lab/get_MNV.git
+cd get_MNV
+cargo install --path .
+```
 
 ## Quick start
 
@@ -140,61 +132,12 @@ folder of the repository.
 
 ## Where to go next
 
-<div class="grid cards" markdown>
-
--   :material-console:{ .lg .middle } **Command Line Tutorial**
-
-    ---
-
-    A first run end to end on the bundled example data, with the output
-    explained line by line.
-
-    [:octicons-arrow-right-24: Start here](getting-started.md)
-
--   :material-book-open-variant:{ .lg .middle } **Common Recipes**
-
-    ---
-
-    Ready-to-run commands for the usual jobs: a cohort, an iVar table, a
-    compressed VCF, a report from existing runs.
-
-    [:octicons-arrow-right-24: Recipes](usage.md)
-
--   :material-format-list-bulleted:{ .lg .middle } **CLI Reference**
-
-    ---
-
-    Every option with its default, and what each one changes about the answer.
-
-    [:octicons-arrow-right-24: Reference](cli-reference.md)
-
--   :material-table:{ .lg .middle } **Output Formats**
-
-    ---
-
-    What each TSV column, VCF INFO key and JSON field means, and when a value
-    is absent rather than zero.
-
-    [:octicons-arrow-right-24: Columns and fields](output-formats.md)
-
--   :material-link-variant:{ .lg .middle } **Linkage**
-
-    ---
-
-    Telling a real haplotype from two variants that merely share a codon, using
-    the molecules that carry them.
-
-    [:octicons-arrow-right-24: D prime and its p-value](linkage.md)
-
--   :material-lifebuoy:{ .lg .middle } **Troubleshooting**
-
-    ---
-
-    The input mismatches that stop a run, and what each message is asking for.
-
-    [:octicons-arrow-right-24: Get unstuck](troubleshooting.md)
-
-</div>
+- **[Command Line Tutorial](getting-started.md)**: A first run end to end on the bundled example data, with the output explained line by line.
+- **[Common Recipes](usage.md)**: Ready-to-run commands for the usual jobs: a cohort, an iVar table, a compressed VCF, a report from existing runs.
+- **[CLI Reference](cli-reference.md)**: Every option with its default, and what each one changes about the answer.
+- **[Output Formats](output-formats.md)**: What each TSV column, VCF INFO key and JSON field means, and when a value is absent rather than zero.
+- **[Linkage](linkage.md)**: Telling a real haplotype from two variants that merely share a codon, using the molecules that carry them.
+- **[Troubleshooting](troubleshooting.md)**: The input mismatches that stop a run, and what each message is asking for.
 
 ## Citation
 

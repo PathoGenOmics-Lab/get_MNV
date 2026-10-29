@@ -68,14 +68,15 @@ If you’d like to contribute code, follow these steps:
 
 ## Building the Documentation
 
-The documentation site is built with [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) and is bilingual (English + Spanish) through the `mkdocs-static-i18n` plugin. English pages live in `docs/*.md`; their Spanish counterparts are the `docs/*.es.md` siblings.
+The documentation is markdown in `docs/`, bilingual: English pages are `docs/*.md` and their Spanish counterparts the `docs/*.es.md` siblings. GitHub renders the markdown as it is, and `tools/build_docs.py` (Python standard library only) turns it into the plain-HTML site, written to `docs/<page>/index.html` and `docs/es/<page>/index.html` and committed. Edit the markdown, never the HTML, then:
 
 ```bash
-python3 -m venv .venv-docs
-.venv-docs/bin/pip install -r docs/requirements.txt
-.venv-docs/bin/mkdocs serve          # live preview at http://127.0.0.1:8000/get_MNV/
-.venv-docs/bin/mkdocs build --strict # production build into ./site
+python3 tools/build_docs.py          # rewrite the pages that changed
+python3 tools/check_site.py          # every link, image and anchor resolves
+open docs/index.html                 # the site, from the clone, no server
 ```
+
+A new page goes into `PAGES` at the top of `tools/build_docs.py`, in both languages. CI runs `tools/build_docs.py --check`, so a page whose markdown changed without rebuilding fails there.
 
 ### Publishing
 
@@ -85,14 +86,8 @@ pushes to the default branch that touch the docs, and can also be run manually.
 
 There is no `gh-pages` branch any more. The repository's Pages source is **GitHub
 Actions**, so the workflow uploads the built site as an artifact and GitHub's own
-action publishes it. That means `mkdocs gh-deploy` no longer reaches the
-published site: it would push a branch nothing serves, and say it succeeded.
-
-To see the production build without publishing anything:
-
-```bash
-.venv-docs/bin/mkdocs build --strict   # into ./site
-```
+action publishes it. Since the pages are committed, the workflow only checks
+them and uploads `docs/` as it is.
 
 ## Submitting a Pull Request
 1. Ensure that your code follows the coding guidelines and passes all tests.

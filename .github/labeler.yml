@@ -43,7 +43,8 @@ documentation:
   - changed-files:
       - any-glob-to-any-file:
           - "docs/**"
-          - "mkdocs.yml"
+          - "tools/build_docs.py"
+          - "tools/check_site.py"
           - "README.md"
           - "README.es.md"
 

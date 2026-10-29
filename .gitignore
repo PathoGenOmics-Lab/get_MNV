@@ -19,7 +19,8 @@ minimal_example/
 /mutants.out/
 /mutants.out.old/
 
-# Documentation site (MkDocs)
+# Documentation tooling. /site/ is where MkDocs built the site before 1.1.6;
+# the pages now live in docs/, but an old clone may still hold that folder.
 /.venv-docs/
 /site/
 

@@ -240,7 +240,6 @@ El cuarto por sí solo no cambia nada.
 |---|---|
 | `The MNV thresholds will not remove any SNP/MNV row` | Los umbrales de MNV siguen filtrando las filas MNV, de indel e intergénicas. A lo que no llegan es a las filas SNP/MNV: una sobrevive cuando *cualquiera* de los dos lados, sus SNV o su haplotipo, supera su listón, así que con los umbrales de SNP a `0` el lado SNP siempre pasa. Sube también `--snp`, `--min-snp-frequency` o `--min-snp-strand` para filtrar las filas a nivel de codón. |
 
-
 ### Faltaba un programa externo opcional
 
 | Aviso | Qué significa |
@@ -273,12 +272,12 @@ El cuarto por sí solo no cambia nada.
 | `15` | Error de análisis de números en coma flotante |
 | `16` | Error de JSON |
 
-
-!!! question "¿Sigues atascado?"
-
-    Arriba está cada mensaje que la herramienta puede dar y qué pide cada uno.
-    Si lo que ves no aparece, o la respuesta no encaja con tus datos, pregunta
-    en [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a).
-
-    Las respuestas se marcan como tales, así que la siguiente persona con tu
-    mismo problema la encuentra sin tener que preguntar.
+> [!NOTE]
+> **¿Sigues atascado?**
+>
+> Arriba está cada mensaje que la herramienta puede dar y qué pide cada uno.
+> Si lo que ves no aparece, o la respuesta no encaja con tus datos, pregunta
+> en [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a).
+>
+> Las respuestas se marcan como tales, así que la siguiente persona con tu
+> mismo problema la encuentra sin tener que preguntar.

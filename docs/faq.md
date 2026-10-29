@@ -82,9 +82,9 @@ The desktop app is not signed with an Apple Developer certificate. On first
 launch, right-click the app → **Open** → click **Open** in the dialog. See the
 [Desktop GUI](gui.md) guide.
 
-
-!!! question "Your question is not here"
-
-    Ask it in [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a). Questions about why a variant was annotated the way it
-    was are welcome there, and are easiest to answer with the record and the
-    command that produced it.
+> [!NOTE]
+> **Your question is not here**
+>
+> Ask it in [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a). Questions about why a variant was annotated the way it
+> was are welcome there, and are easiest to answer with the record and the
+> command that produced it.

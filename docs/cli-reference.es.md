@@ -51,40 +51,42 @@ Estas solo aplican cuando se proporciona `--bam`.
 | `--min-mnv-strand <N>` | `0` | Lecturas mínimas que soportan el MNV en cada hebra. |
 | `--min-strand-bias-p <F>` | `0.0` | Valor p mínimo del test exacto de Fisher aceptado para las métricas de sesgo de hebra. **Solo afecta a la salida VCF**: el escritor de TSV no tiene umbral de sesgo, así que esto nunca quita una fila del TSV. |
 
-!!! note "Cómo se combinan los umbrales de SNP y MNV"
-    Los filtros de frecuencia y recuento de lecturas usan el soporte recalculado
-    a partir de `--bam`, no los `OFREQ`/`ODP` originales de la entrada.
-
-    Una fila a nivel de codón (`SNP/MNV`) se conserva cuando **cualquiera** de
-    los dos lados supera su listón: sus SNV individuales pasan los umbrales de
-    SNP, **o** su haplotipo pasa los de MNV. Eso conserva un haplotipo bien
-    soportado cuyos SNV individuales son débiles, y funciona también en el otro
-    sentido: con los umbrales de SNP en su valor por defecto de `0`, el lado SNP
-    pasa siempre, así que subir `--mnv` a solas no quita nada. Sube los dos, o
-    ninguno. La ejecución avisa cuando has pedido un umbral MNV que no puede
-    llegar a una fila a nivel de codón.
-
-    Qué umbrales gobiernan cada fila:
-
-    | Fila | La juzgan |
-    |---|---|
-    | `SNP` | los umbrales de SNP |
-    | `MNV`, `SNP/MNV` | cualquiera de los dos lados, como arriba |
-    | `INDEL` | los umbrales de **MNV**, medidos contra el soporte de evento del propio indel (`Event Reads`, `Event Forward Reads`, `Event Reverse Reads`, `Event Depth`), no contra ninguna columna SNP |
-
-    Una fila del TSV se conserva o se descarta entera, y una fila a nivel de
-    codón supera el lado SNP solo cuando lo superan **todas** sus sustituciones.
-    Un registro del VCF es un alelo, y se filtra por su cuenta. Así que una
-    ejecución con `--both` bajo un umbral que una sustitución cumple y otra no
-    escribe ese alelo en el VCF sin que ninguna fila del TSV lo lleve: falló la
-    fila, no el alelo. Ninguna de las dos salidas está mal; son unidades
-    distintas.
-
-    Así que un indel se filtra con `--mnv`, `--min-mnv-frequency` y
-    `--min-mnv-strand`; `--snp` no lo toca nunca. Eso vale también fuera de los
-    genes: un indel intergénico se cuenta y se juzga por su propio soporte como
-    cualquier otro. Solo queda exenta una fila que no llegó a ningún contador,
-    porque no se puede aplicar un umbral a una medición que nadie tomó.
+> [!NOTE]
+> **Cómo se combinan los umbrales de SNP y MNV**
+>
+> Los filtros de frecuencia y recuento de lecturas usan el soporte recalculado
+> a partir de `--bam`, no los `OFREQ`/`ODP` originales de la entrada.
+>
+> Una fila a nivel de codón (`SNP/MNV`) se conserva cuando **cualquiera** de
+> los dos lados supera su listón: sus SNV individuales pasan los umbrales de
+> SNP, **o** su haplotipo pasa los de MNV. Eso conserva un haplotipo bien
+> soportado cuyos SNV individuales son débiles, y funciona también en el otro
+> sentido: con los umbrales de SNP en su valor por defecto de `0`, el lado SNP
+> pasa siempre, así que subir `--mnv` a solas no quita nada. Sube los dos, o
+> ninguno. La ejecución avisa cuando has pedido un umbral MNV que no puede
+> llegar a una fila a nivel de codón.
+>
+> Qué umbrales gobiernan cada fila:
+>
+> | Fila | La juzgan |
+> |---|---|
+> | `SNP` | los umbrales de SNP |
+> | `MNV`, `SNP/MNV` | cualquiera de los dos lados, como arriba |
+> | `INDEL` | los umbrales de **MNV**, medidos contra el soporte de evento del propio indel (`Event Reads`, `Event Forward Reads`, `Event Reverse Reads`, `Event Depth`), no contra ninguna columna SNP |
+>
+> Una fila del TSV se conserva o se descarta entera, y una fila a nivel de
+> codón supera el lado SNP solo cuando lo superan **todas** sus sustituciones.
+> Un registro del VCF es un alelo, y se filtra por su cuenta. Así que una
+> ejecución con `--both` bajo un umbral que una sustitución cumple y otra no
+> escribe ese alelo en el VCF sin que ninguna fila del TSV lo lleve: falló la
+> fila, no el alelo. Ninguna de las dos salidas está mal; son unidades
+> distintas.
+>
+> Así que un indel se filtra con `--mnv`, `--min-mnv-frequency` y
+> `--min-mnv-strand`; `--snp` no lo toca nunca. Eso vale también fuera de los
+> genes: un indel intergénico se cuenta y se juzga por su propio soporte como
+> cualquier otro. Solo queda exenta una fila que no llegó a ningún contador,
+> porque no se puede aplicar un umbral a una medición que nadie tomó.
 
 ## Ajuste de indels
 
@@ -113,21 +115,21 @@ Estas solo aplican cuando se proporciona `--bam`.
 | `--keep-original-info` | Conserva los campos INFO originales del VCF en la salida (requiere `--convert`/`--both`). |
 | `--emit-filtered` | Emite los registros que no superan los umbrales con etiquetas `FILTER` en lugar de omitirlos. |
 
-!!! info "`--index-vcf-gz` y `--bcf` llaman a programas externos"
-
-    Todo lo demás que escribe get_MNV lo escribe get_MNV. Estos dos no:
-    `--index-vcf-gz` ejecuta `tabix` y `--bcf` ejecuta `bcftools`, ambos
-    tomados del `PATH`. Vienen con samtools/htslib y con bcftools, y ninguno es
-    dependencia de compilación, así que una máquina puede tener get_MNV y no
-    tenerlos.
-
-    Que falte un programa no es una ejecución fallida. get_MNV avisa, se salta
-    ese paso y termina: el TSV y el VCF se escriben igualmente y la ejecución
-    sale con `0`. Nada reclama después el fichero que no se escribió, así que el
-    resumen JSON no reporta ningún BCF y `--run-manifest` no anota ninguna suma
-    de comprobación para él. Mira los avisos, o mira si está el fichero, cuando
-    un paso posterior lo necesite.
-
+> [!NOTE]
+> **`--index-vcf-gz` y `--bcf` llaman a programas externos**
+>
+> Todo lo demás que escribe get_MNV lo escribe get_MNV. Estos dos no:
+> `--index-vcf-gz` ejecuta `tabix` y `--bcf` ejecuta `bcftools`, ambos
+> tomados del `PATH`. Vienen con samtools/htslib y con bcftools, y ninguno es
+> dependencia de compilación, así que una máquina puede tener get_MNV y no
+> tenerlos.
+>
+> Que falte un programa no es una ejecución fallida. get_MNV avisa, se salta
+> ese paso y termina: el TSV y el VCF se escriben igualmente y la ejecución
+> sale con `0`. Nada reclama después el fichero que no se escribió, así que el
+> resumen JSON no reporta ningún BCF y `--run-manifest` no anota ninguna suma
+> de comprobación para él. Mira los avisos, o mira si está el fichero, cuando
+> un paso posterior lo necesite.
 
 ## Informe HTML interactivo
 
