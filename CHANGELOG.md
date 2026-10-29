@@ -61,6 +61,15 @@ All notable changes to this project are documented in this file.
   `HGVS c.`, and the frame shift downstream. Events over 10,000 bases, past the
   contig, or of another kind such as `<INV>` stay symbolic.
 
+- **A mutational spectrum.** Every substitution now carries its COSMIC SBS96
+  class (`A[C>T]G`), in a new `SBS96 Context` column at the end of the TSV and
+  an `SBS96` INFO key, read from the reference around it and written from the
+  pyrimidine strand. The report counts them into a 96-bar spectrum that follows
+  the filters, counts a base once per sample however many rows mention it, and
+  exports the per-sample counts in the `MutationType` matrix SigProfiler and
+  MutationalPatterns read. On the example run all 951 classes match an
+  independent count from the FASTA.
+
 ### Changed
 
 - **Multiallelic records are split without being asked.** A VCF record with

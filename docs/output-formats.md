@@ -66,6 +66,7 @@ Main columns:
 | `NMD Prediction` | Nonsense-mediated decay prediction for a premature stop under the 50-nt rule: `NMD-triggering` when the PTC is more than 50 nt upstream of the last exon-exon junction, `NMD-escaping` when it is in the last exon or within 50 nt of that junction. `-` for variants without a premature stop and for transcripts with no exon-exon junction. Requires a spliced (GFF/GTF transcript) CDS model whose segments are separated by real introns; a single CDS segment, or segments joined by ribosomal slippage, has no junction. |
 | `HGVS g.` | HGVS genomic descriptor: `g.100A>G` for an SNV, the allele-bracket `g.[28G>T;30T>A]` for an MNV, and `g.101_102del` / `g.100_101insTG` / `g.101delinsC` for indels. Not 3'-shifted (uses the input allele placement) and carries no reference-accession prefix. |
 | `HGVS c.` | HGVS coding descriptor, numbered from the CDS start with coding-strand bases: `c.30A>G` (SNV), the allele bracket `c.[28G>A;30T>C]` (MNV), or `c.31del`, `c.30_31insGCT`, `c.28_30delinsTCGCTA` (indels, with inserted bases on the coding strand). An insertion right after an internal exon's last base is placed at the exon junction, as the protein change reads it. `-` for non-coding variants and for an indel that reaches into an intron or UTR, which would need an offset form (`c.123+5del`) the tool does not write. Not 3'-shifted, and insertions are never rewritten as `dup`. |
+| `SBS96 Context` | COSMIC SBS96 class of each single-base substitution in the row, in Event Components order, written from the pyrimidine strand: `A[C>T]G` for a C>T between A and G, and a G>A in the same context read from the other strand as `C[C>T]T`. `-` for an entry whose trinucleotide context cannot be read (contig end, ambiguous base) and for rows with no substitution. The report counts these into a mutational spectrum. |
 
 Extra columns when `--bam` is used:
 
@@ -179,6 +180,7 @@ Common INFO fields:
 | `NMD` | Nonsense-mediated decay prediction for a premature stop (50-nt rule) |
 | `HGVSG` | HGVS genomic descriptor (MNV allele-bracket `;` percent-encoded) |
 | `HGVSC` | HGVS coding descriptor for a coding substitution or indel (`;` percent-encoded) |
+| `SBS96` | COSMIC SBS96 class of each single-base substitution, comma-separated in `COMP` order (`-` where the context cannot be read) |
 
 The VCF header records the get_MNV version, command line, and thresholds used.
 When `--emit-filtered` is enabled, VCF records below read-support, frequency,
@@ -360,6 +362,12 @@ The report contains:
 - **A headline count** of the variants currently shown, with supporting tiles for
   samples, genes, MNV rows and high-impact variants, and the **consequence
   distribution** by Sequence Ontology term. All follow the active filters.
+- **A mutational spectrum**: the single-base substitutions in view counted into
+  the 96 COSMIC SBS classes, grouped by substitution type with each type's share
+  above it. A base mentioned by two rows (two overlapping genes) is counted once
+  per sample. Hover a bar to read its class and count, and `Download SBS96
+  matrix` saves the counts per sample in the `MutationType` layout that
+  SigProfiler and MutationalPatterns read. Like the rest, it follows the filters.
 - **A variant matrix**, plotted as a small genome browser: samples down the side,
   real genomic coordinates across the top, coloured by the alternate base. Scroll
   to zoom around the cursor, drag to pan, drag on the whole-contig strip to jump,

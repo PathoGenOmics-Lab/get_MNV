@@ -68,7 +68,12 @@ fn annotation_cells(variant: &VariantInfo, bam_provided: bool) -> Vec<String> {
         );
         cells.push(super::common::frameshift_linkage_field(variant));
     }
-    cells.extend([nmd, hgvs_g, hgvs_c]);
+    let sbs96 = if variant.annotations.sbs96.is_empty() {
+        "-".to_string()
+    } else {
+        variant.annotations.sbs96.join(", ")
+    };
+    cells.extend([nmd, hgvs_g, hgvs_c, sbs96]);
     cells
 }
 
@@ -546,6 +551,7 @@ impl TsvWriter {
                 "NMD Prediction",
                 "HGVS g.",
                 "HGVS c.",
+                "SBS96 Context",
             ]
         } else {
             vec![
@@ -575,6 +581,7 @@ impl TsvWriter {
                 "NMD Prediction",
                 "HGVS g.",
                 "HGVS c.",
+                "SBS96 Context",
             ]
         };
         writer.write_record(&header)?;

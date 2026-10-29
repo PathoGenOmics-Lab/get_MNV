@@ -68,6 +68,7 @@ Columnas principales:
 | `NMD Prediction` | Predicción de decaimiento mediado por sin sentido (NMD) para un stop prematuro según la regla de los 50 nt: `NMD-triggering` cuando el PTC está a más de 50 nt aguas arriba de la última unión exón-exón, `NMD-escaping` cuando está en el último exón o a menos de 50 nt de esa unión. `-` para variantes sin stop prematuro y para transcritos sin unión exón-exón. Requiere un modelo de CDS con splicing (transcrito GFF/GTF) cuyos segmentos estén separados por intrones reales; un único segmento CDS, o segmentos unidos por deslizamiento ribosómico, no tiene unión. |
 | `HGVS g.` | Descriptor HGVS genómico: `g.100A>G` para un SNV, el bracket de alelo `g.[28G>T;30T>A]` para un MNV, y `g.101_102del` / `g.100_101insTG` / `g.101delinsC` para indels. No hace 3'-shifting (usa la posición del alelo de entrada) y no lleva prefijo de accesión de referencia. |
 | `HGVS c.` | Descriptor HGVS codificante, numerado desde el inicio del CDS con bases de la hebra codificante: `c.30A>G` (SNV), el bracket de alelo `c.[28G>A;30T>C]` (MNV), o `c.31del`, `c.30_31insGCT`, `c.28_30delinsTCGCTA` (indels, con las bases insertadas en la hebra codificante). Una inserción justo después de la última base de un exón interno se coloca en la unión de exones, igual que la lee el cambio proteico. `-` para variantes no codificantes y para un indel que llega a un intrón o a un UTR, que necesitaría una forma con desplazamiento (`c.123+5del`) que la herramienta no escribe. Sin desplazamiento a 3', y las inserciones nunca se reescriben como `dup`. |
+| `SBS96 Context` | Clase COSMIC SBS96 de cada sustitución de una base de la fila, en el orden de Event Components, escrita desde la hebra de la pirimidina: `A[C>T]G` para una C>T entre A y G, y una G>A en el mismo contexto se lee desde la otra hebra como `C[C>T]T`. `-` para una entrada cuyo contexto de trinucleótido no se puede leer (final del contig, base ambigua) y para filas sin sustitución. El informe las cuenta en un espectro mutacional. |
 
 Columnas adicionales cuando se usa `--bam`:
 
@@ -181,6 +182,7 @@ Campos INFO comunes:
 | `NMD` | Predicción de NMD para un stop prematuro (regla de los 50 nt) |
 | `HGVSG` | Descriptor HGVS genómico (bracket de MNV con `;` percent-encoded) |
 | `HGVSC` | Descriptor HGVS codificante para una sustitución o un indel (`;` percent-encoded) |
+| `SBS96` | Clase COSMIC SBS96 de cada sustitución de una base, separadas por comas en el orden de `COMP` (`-` donde no se puede leer el contexto) |
 
 La cabecera del VCF registra la versión de get_MNV, la línea de comandos y los umbrales usados.
 Cuando `--emit-filtered` está habilitado, los registros VCF que quedan por debajo de los umbrales de
@@ -366,6 +368,13 @@ El informe contiene:
 - **Una cifra principal** de las variantes mostradas, con tarjetas de apoyo para
   muestras, genes, filas MNV y variantes de alto impacto, y la **distribución de
   consecuencias** por término de Sequence Ontology. Todo sigue los filtros activos.
+- **Un espectro mutacional**: las sustituciones de una base a la vista contadas
+  en las 96 clases SBS de COSMIC, agrupadas por tipo de sustitución con la
+  proporción de cada tipo encima. Una base que nombran dos filas (dos genes
+  solapados) cuenta una vez por muestra. Al pasar por una barra se lee su clase y
+  su recuento, y `Download SBS96 matrix` guarda los recuentos por muestra con la
+  disposición `MutationType` que leen SigProfiler y MutationalPatterns. Como lo
+  demás, sigue los filtros.
 - **Una matriz de variantes**, dibujada como un pequeño navegador genómico: las
   muestras en el lateral, coordenadas genómicas reales arriba y color por la base
   alternativa. Rueda para hacer zoom alrededor del cursor, arrastrar para

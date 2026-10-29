@@ -893,6 +893,13 @@ pub(crate) fn process_contig(
         }
     }
 
+    // Every row, whichever path built it, gets the trinucleotide context of its
+    // substitutions here, where the contig's sequence is at hand.
+    for variant in &mut all_variants {
+        variant.annotations.sbs96 =
+            crate::variants::sbs::sbs96_for_variant(variant, reference.sequence);
+    }
+
     sort_variants(&mut all_variants);
     let summary = summarize_contig_variants(
         contig,

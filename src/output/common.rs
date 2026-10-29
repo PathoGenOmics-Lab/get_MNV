@@ -48,6 +48,7 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "NMD"
             | "HGVSG"
             | "HGVSC"
+            | "SBS96"
     )
 }
 
@@ -433,6 +434,9 @@ pub(crate) fn build_info_string(
     }
     if let Some(hgvs_c) = variant.annotations.hgvs_c.as_deref() {
         builder.push_text("HGVSC", hgvs_c);
+    }
+    if !variant.annotations.sbs96.is_empty() {
+        builder.push_text("SBS96", &variant.annotations.sbs96.join(","));
     }
 
     if let Some((sr, srf, srr)) = snp_metrics {
@@ -839,6 +843,10 @@ pub(crate) fn write_info_header(
     writeln!(
         writer,
         "##INFO=<ID=HGVSC,Number=1,Type=String,Description=\"HGVS coding descriptor for a coding substitution (SNV/MNV) or indel; ';' percent-encoded per the VCF spec\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=SBS96,Number=.,Type=String,Description=\"COSMIC SBS96 class of each single-base substitution, in COMP order, written from the pyrimidine strand (e.g. A[C>T]G); '-' where the trinucleotide context cannot be read\">"
     )?;
     writeln!(
         writer,

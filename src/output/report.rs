@@ -71,6 +71,7 @@ struct Row {
     reads: Option<u64>,
     phasing: Option<f64>,
     phasing_reads: Option<u64>,
+    sbs96: Option<String>,
 }
 
 #[derive(Default)]
@@ -364,6 +365,7 @@ impl ReportBuilder {
                 reads,
                 phasing: first_number::<f64>(&get(&record, "MNV Phasing Support")),
                 phasing_reads: first_number::<u64>(&get(&record, "MNV Phasing Reads")),
+                sbs96: optional(&get(&record, "SBS96 Context")),
             };
             self.rows.push(row);
         }
@@ -481,6 +483,8 @@ fn push_row(out: &mut String, row: &Row) {
     push_opt_freq(out, row.phasing);
     out.push(',');
     push_opt_num(out, row.phasing_reads);
+    out.push(',');
+    push_opt_str(out, row.sbs96.as_deref());
     out.push(']');
 }
 
@@ -701,10 +705,11 @@ mod tests {
             "Chromosome\tGene\tPositions\tReference Bases\tBase Changes\tAA Changes\t\
              Variant Type\tChange Type\tSO Term\tImpact\tGrantham\tMNV Consequence Shift\t\
              DBS Class\tNMD Prediction\tHGVS g.\tHGVS c.\tReference Codon\tMNV Codon\t\
-             Event Class\tEvent Components\n\
+             Event Class\tEvent Components\tSBS96 Context\n\
              chr1\tgeneA\t28, 30\tG, T\tT, A\tAla10Ser\tSNP/MNV\tNon-synonymous\t\
              missense_variant\tMODERATE\t99 (moderately conservative)\tMNV-gained\t\
-             CC>TT\t-\tg.[28G>T;30T>A]\tc.[28G>T;30T>A]\tGCT\tTCA\tmnv\tSNV:28:G>T\n",
+             CC>TT\t-\tg.[28G>T;30T>A]\tc.[28G>T;30T>A]\tGCT\tTCA\tmnv\t\
+             SNV:28:G>T | SNV:30:T>A\tA[C>A]G, C[T>A]G\n",
         )
         .expect("write tsv");
 
@@ -723,7 +728,10 @@ mod tests {
         );
         // The payload must parse as JSON and must not close the script element.
         assert!(!json.contains("</script>"));
-        let _: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        // The SBS96 classes ride at the end of the row, where the template's
+        // column map (`sbs:26`) looks for them.
+        assert_eq!(parsed["rows"][0][26], "A[C>A]G, C[T>A]G");
 
         let _ = std::fs::remove_file(&path);
     }

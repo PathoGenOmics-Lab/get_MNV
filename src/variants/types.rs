@@ -223,9 +223,10 @@ pub struct VariantAnnotations {
     /// transcript.
     #[serde(default)]
     pub nmd: Option<NmdPrediction>,
-    /// HGVS coding (`c.`) descriptor for a coding substitution (SNV or MNV),
-    /// e.g. `c.30A>G` or `c.[28G>A;30T>C]`. `None` for indels and non-coding
-    /// variants; the genomic (`g.`) descriptor is derived at output time.
+    /// HGVS coding (`c.`) descriptor for a coding substitution (SNV or MNV) or
+    /// indel, e.g. `c.30A>G`, `c.[28G>A;30T>C]` or `c.31del`. `None` for
+    /// non-coding variants and indels reaching outside the CDS; the genomic
+    /// (`g.`) descriptor is derived at output time.
     #[serde(default)]
     pub hgvs_c: Option<String>,
     /// Splice consequence near an internal exon-exon junction (multi-exon
@@ -257,6 +258,11 @@ pub struct VariantAnnotations {
     /// correlate. See [`crate::variants::linkage`].
     #[serde(default)]
     pub linkage: Option<crate::variants::linkage::CodonLinkage>,
+    /// COSMIC SBS96 class of each substitution component, in Event Components
+    /// order (`A[C>T]G`, or `-` where the context cannot be read). Empty for a
+    /// row with no substitution. See [`crate::variants::sbs`].
+    #[serde(default)]
+    pub sbs96: Vec<String>,
 }
 
 /// The input caller's phase claim for one row, and whether the reads refute it.
