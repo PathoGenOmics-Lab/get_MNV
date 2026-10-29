@@ -43,9 +43,11 @@ pub fn tsv_rows_without_contig(genes_file: &str) -> AppResult<usize> {
     Ok(without)
 }
 
+/// Genes of the TSV annotation on `expected_chrom`, keeping only those with a
+/// variant from `snp_list` inside, or every one when `snp_list` is `None`.
 pub(super) fn load_genes_from_tsv(
     genes_file: &str,
-    snp_list: &[VcfPosition],
+    snp_list: Option<&[VcfPosition]>,
     expected_chrom: Option<&str>,
 ) -> AppResult<Vec<Gene>> {
     log::info!("Loading TSV gene file: {genes_file}");
@@ -104,7 +106,7 @@ pub(super) fn load_genes_from_tsv(
             }
         }
 
-        if has_snp_in_interval(snp_list, start, end) {
+        if snp_list.is_none_or(|snps| has_snp_in_interval(snps, start, end)) {
             genes_with_snps += 1;
             genes.push(crate::variants::Gene {
                 name: fields[0].to_string(),

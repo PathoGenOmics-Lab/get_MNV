@@ -248,6 +248,46 @@ Un CRAM da los mismos recuentos que el BAM del que sale: la batería de pruebas
 ejecuta cada escenario de las dos maneras y compara las salidas byte a byte.
 - Las lecturas duplicadas, secundarias, suplementarias y marcadas como QC-fail se ignoran, igual que las descarta `samtools mpileup` por defecto.
 
+## 5. Catálogo de variantes conocidas (opcional)
+
+`--catalogue conocidas.tsv` marca las llamadas que coinciden con una tabla de
+variantes de las que ya sabes algo: mutaciones de resistencia, marcadores de
+linaje, cambios patogénicos conocidos. Va separada por tabuladores, con una
+cabecera que nombra una columna `gene` y otra `variant` y, de forma opcional,
+`label`; las demás columnas se ignoran y las líneas que empiezan por `#` son
+comentarios.
+
+```text
+gene	variant	label
+rpoB	p.Ser450Leu	RIF: Assoc w R
+fabG1	c.-15C>T	INH: Assoc w R
+katG	LoF	INH: Assoc w R
+```
+
+Una variante se puede escribir como:
+
+| Forma | Ejemplo | Coincide con |
+|---|---|---|
+| Proteína | `p.Ser450Leu`, `p.S450L`, `p.Gln10Ter`, `p.Ala11fs` | las filas del gen con ese cambio proteico. Un corrimiento de marco coincide por su primer residuo y su posición, siga lo que siga a `fs`. |
+| Sustitución codificante | `c.1349C>T`, `c.-15C>T`, `c.*3G>A` | la base sustituida, colocada en el genoma con el modelo del gen (`c.-N` antes de la primera base codificante, `c.*N` después de la última), en cualquier fila que la lleve, también las intergénicas |
+| Sustitución genómica | `g.761155C>T` | la base sustituida en esa posición |
+| Otro HGVS | `c.516_518dup`, `g.1673425del` | las filas cuyo `HGVS c.` o `HGVS g.` se escribe exactamente así |
+| `LoF` | `LoF` | cualquier corrimiento de marco, parada prematura o pérdida del inicio en el gen |
+
+El gen se compara por nombre, o por cualquier parte separada por `_` de un
+nombre compuesto, así que `rpoB` coincide con un gen llamado `rpoB_Rv0667`. Una
+sustitución cuya base de referencia no es la que tiene el FASTA en esa posición
+se escribió contra otra referencia; no coincide con nada, y la ejecución dice
+cuántas hubo.
+
+Una entrada proteica se compara con las dos lecturas de una fila de codón: el
+residuo que da el codón entero y el que daría cada sustitución sola. Cuando solo
+coincide una de ellas, la fila lo dice: `codon reading only` para un cambio del
+catálogo que ninguna base sola produce, y que la anotación base a base no ve, y
+`per-SNV reading only` para uno que esa anotación daría y que el codón no
+produce. Las coincidencias van a la columna `Catalogue` (consulta
+[Formatos de salida](output-formats.es.md)).
+
 ## Nombres de contig
 
 Todos los archivos de entrada deben coincidir en los nombres de contig:

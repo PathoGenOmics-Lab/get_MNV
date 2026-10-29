@@ -159,6 +159,41 @@ pub(super) fn indel_hgvs_c(
     )
 }
 
+/// The genomic bases this gene object codes, in genomic order: its CDS
+/// segments, or its phase-adjusted feature interval.
+fn coding_genomic_positions(gene: &Gene) -> Vec<usize> {
+    if has_transcript_cds_model(gene) {
+        let mut positions: Vec<usize> = gene
+            .cds_segments
+            .iter()
+            .flat_map(|segment| segment.start..=segment.end)
+            .collect();
+        positions.sort_unstable();
+        positions.dedup();
+        positions
+    } else {
+        let (start, end) = effective_bounds(gene);
+        (start..=end).collect()
+    }
+}
+
+/// The genomic position of coding base `c.n` of this gene object, or `None`
+/// when it does not hold that base (a CDS row further into the protein, say).
+pub fn genomic_for_cds(gene: &Gene, n: usize) -> Option<usize> {
+    coding_genomic_positions(gene)
+        .into_iter()
+        .find(|&position| cds_position(gene, position) == Some(n))
+}
+
+/// The highest coding position this gene object holds: the protein's last
+/// coding base when the object ends the protein.
+pub fn last_cds_position(gene: &Gene) -> Option<usize> {
+    coding_genomic_positions(gene)
+        .into_iter()
+        .filter_map(|position| cds_position(gene, position))
+        .max()
+}
+
 /// The genomic span of the intron of a spliced transcript that holds
 /// `position`, if one does.
 fn intron_span(gene: &Gene, position: usize) -> Option<(usize, usize)> {

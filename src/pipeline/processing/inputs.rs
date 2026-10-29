@@ -118,6 +118,12 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
             Vec::new()
         };
 
+    let catalogue = args
+        .catalogue
+        .as_deref()
+        .map(crate::variants::catalogue::Catalogue::load)
+        .transpose()?;
+
     Ok(ParsedInputs {
         base_name,
         references,
@@ -126,6 +132,7 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
         command_line: sanitized_command_line(),
         preloaded_gff,
         original_info_headers,
+        catalogue,
     })
 }
 

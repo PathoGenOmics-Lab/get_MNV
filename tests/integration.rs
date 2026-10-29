@@ -69,6 +69,7 @@ fn base_args() -> Args {
         report: None,
         report_from: Vec::new(),
         matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         output_dir: None,
@@ -1508,6 +1509,7 @@ chr1\t300\t.\tG\tA\t.\tPASS\t.\tGT:DP\t1/1:25\t1/1:30
         report: None,
         report_from: Vec::new(),
         matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -1596,6 +1598,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT:DP\t1/1:20\t0/0:15
         report: None,
         report_from: Vec::new(),
         matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -1675,6 +1678,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT\t1/1
         report: None,
         report_from: Vec::new(),
         matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -1758,6 +1762,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.
         report: None,
         report_from: Vec::new(),
         matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -2071,6 +2076,7 @@ fn test_invalid_translation_table_fails() {
         report: None,
         report_from: Vec::new(),
         matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         translation_table: 99, // invalid
@@ -2136,6 +2142,7 @@ fn test_translation_table_1_standard() {
         report: None,
         report_from: Vec::new(),
         matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         translation_table: 1, // Standard
@@ -2216,6 +2223,7 @@ fn test_empty_vcf_no_records() {
         report: None,
         report_from: Vec::new(),
         matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         translation_table: 11,
@@ -2301,6 +2309,7 @@ fn test_truncated_vcf_record() {
         report: None,
         report_from: Vec::new(),
         matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         translation_table: 11,
@@ -2387,6 +2396,7 @@ fn test_vcf_no_header() {
         report: None,
         report_from: Vec::new(),
         matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         translation_table: 11,
@@ -2469,6 +2479,7 @@ fn test_error_json_written_on_failure() {
         report: None,
         report_from: Vec::new(),
         matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         translation_table: 11,
@@ -4516,6 +4527,124 @@ fn test_e2e_a_doublet_across_a_codon_boundary_is_one_event() {
             );
         }
     }
+    fs::remove_dir_all(&tmp).ok();
+}
+
+/// A catalogue of known variants is matched at every level it can be written
+/// at, and a codon row says which of its readings made the match.
+#[test]
+fn test_e2e_catalogue_matches_protein_coding_upstream_and_loss_of_function() {
+    let tmp = temp_dir("e2e_catalogue");
+    let flank = "ACGTTGCA".repeat(20);
+    // geneA: CDS 101-400. geneB: CDS 451-546. Both plus strand.
+    let gene_a = format!("ATG{}TAA", "GCT".repeat(98));
+    let gene_b = format!("ATG{}TAA", "GCT".repeat(30));
+    let bases = format!(
+        "{}{gene_a}{}{gene_b}{}",
+        &flank[..100],
+        &flank[..50],
+        &flank[..54]
+    );
+    let at = |pos: usize| bases.as_bytes()[pos - 1] as char;
+    let other = |base: char| match base {
+        'A' => 'C',
+        'C' => 'G',
+        'G' => 'T',
+        _ => 'A',
+    };
+    fs::write(tmp.join("ref.fas"), format!(">chr1\n{bases}\n")).unwrap();
+    fs::write(
+        tmp.join("genes.gff3"),
+        "##gff-version 3\n\
+         chr1\tsyn\tCDS\t101\t400\t.\t+\t0\tID=a;Name=geneA\n\
+         chr1\tsyn\tCDS\t451\t546\t.\t+\t0\tID=b;Name=geneB\n",
+    )
+    .unwrap();
+    // Codon 5 (113-115, GCT): G>C alone is Pro, C>A alone is Asp, both are His.
+    // Codon 10's third base (130) T>C is synonymous. Genomic 86 is c.-15.
+    // geneB loses a base at 461: a frameshift.
+    let records = [
+        format!(
+            "chr1\t86\t.\t{}\t{}\t50\tPASS\tDP=30",
+            at(86),
+            other(at(86))
+        ),
+        "chr1\t113\t.\tG\tC\t50\tPASS\tDP=30".to_string(),
+        "chr1\t114\t.\tC\tA\t50\tPASS\tDP=30".to_string(),
+        "chr1\t130\t.\tT\tC\t50\tPASS\tDP=30".to_string(),
+        format!(
+            "chr1\t460\t.\t{}{}\t{}\t50\tPASS\tDP=30",
+            at(460),
+            at(461),
+            at(460)
+        ),
+    ];
+    fs::write(
+        tmp.join("calls.vcf"),
+        format!(
+            "##fileformat=VCFv4.2\n##contig=<ID=chr1,length={}>\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n{}\n",
+            bases.len(),
+            records.join("\n")
+        ),
+    )
+    .unwrap();
+    // The last entry names a reference base the FASTA does not have there.
+    let wrong = other(other(at(81)));
+    let wrong = if wrong == at(81) { other(wrong) } else { wrong };
+    fs::write(
+        tmp.join("catalogue.tsv"),
+        format!(
+            "gene\tvariant\tlabel\n\
+             geneA\tp.Ala5His\tcodon\n\
+             geneA\tp.A5P\tbase\n\
+             geneA\tc.30T>C\tsilent\n\
+             geneA\tc.-15{}>{}\tpromoter\n\
+             geneB\tLoF\tloss\n\
+             geneA\tc.-20{wrong}>T\telsewhere\n",
+            at(86),
+            other(at(86))
+        ),
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(tmp.join("calls.vcf").to_string_lossy().into());
+    args.fasta_file = tmp.join("ref.fas").to_string_lossy().into();
+    args.genes_file_tsv = None;
+    args.gff_file = Some(tmp.join("genes.gff3").to_string_lossy().into());
+    args.gff_features_raw = Some("CDS".to_string());
+    args.catalogue = Some(tmp.join("catalogue.tsv").to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("cat".to_string());
+    pipeline::run(&args).expect("catalogue run");
+
+    let rows = read_tsv_rows(&tmp.join("cat.MNV.tsv"));
+    let at_position = |positions: &str| -> String {
+        rows.iter()
+            .find(|row| row["Positions"] == positions)
+            .unwrap_or_else(|| panic!("no row at {positions}: {rows:?}"))["Catalogue"]
+            .clone()
+    };
+    let codon = at_position("113, 114");
+    assert!(
+        codon.contains("codon (geneA p.Ala5His, codon reading only)"),
+        "{codon}"
+    );
+    assert!(
+        codon.contains("base (geneA p.A5P, per-SNV reading only)"),
+        "{codon}"
+    );
+    assert_eq!(at_position("130"), "silent (geneA c.30T>C)");
+    assert_eq!(
+        at_position("86"),
+        format!("promoter (geneA c.-15{}>{})", at(86), other(at(86)))
+    );
+    assert_eq!(at_position("460"), "loss (geneB LoF)");
+    assert!(
+        rows.iter()
+            .all(|row| !row["Catalogue"].contains("elsewhere")),
+        "an entry against another reference matches nothing"
+    );
     fs::remove_dir_all(&tmp).ok();
 }
 

@@ -241,6 +241,15 @@ pub struct Args {
     #[arg(long = "matrix", value_name = "TSV_FILE")]
     pub matrix: Option<String>,
 
+    /// Tab-separated catalogue of known variants to flag, with a header naming
+    /// `gene`, `variant` and optionally `label` columns. A variant is a protein
+    /// change (`p.Ser450Leu`), a coding or genomic substitution (`c.-15C>T`,
+    /// `g.761155C>T`), any other HGVS descriptor, or `LoF` for any frameshift,
+    /// premature stop or start loss in the gene. Matches go to the Catalogue
+    /// column, with a note when a codon matches through one of its readings only.
+    #[arg(long = "catalogue", value_name = "TSV_FILE")]
+    pub catalogue: Option<String>,
+
     /// NCBI translation table number for codon-to-amino-acid mapping
     /// (default: 11 = Bacterial/Archaeal/Plant Plastid).
     /// Supported: 1 (Standard), 2 (Vertebrate Mito), 3 (Yeast Mito),

@@ -12,8 +12,8 @@ pub mod vcf_fast;
 // Re-export public types and functions for backward compatibility.
 pub use alignment::{is_cram_path, AlignmentQuery, AlignmentReader};
 pub use annotation::{
-    detect_annotation_format, filter_genes_with_snps, gene_overlaps_variant, load_genes,
-    preload_gff_genes, tsv_rows_without_contig, AnnotationFormat,
+    detect_annotation_format, filter_genes_with_snps, gene_overlaps_variant, load_all_tsv_genes,
+    load_genes, preload_gff_genes, tsv_rows_without_contig, AnnotationFormat,
 };
 pub use fasta::{
     drop_reference_calls, left_anchor_insertions, load_references, reference_for_chrom,

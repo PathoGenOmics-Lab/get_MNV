@@ -98,11 +98,18 @@ pub fn load_genes(
     feature_types: &[String],
 ) -> AppResult<Vec<Gene>> {
     match detect_annotation_format(genes_file)? {
-        AnnotationFormat::Tsv => load_genes_from_tsv(genes_file, snp_list, expected_chrom),
+        AnnotationFormat::Tsv => load_genes_from_tsv(genes_file, Some(snp_list), expected_chrom),
         AnnotationFormat::Gff => {
             load_genes_from_gff(genes_file, snp_list, expected_chrom, feature_types)
         }
     }
+}
+
+/// Every gene of a TSV annotation on `chrom`, whether or not a variant falls in
+/// it: a catalogue entry upstream of a gene is placed from the gene's start,
+/// and the gene itself holds no variant. A GFF is pre-loaded whole already.
+pub fn load_all_tsv_genes(genes_file: &str, chrom: &str) -> AppResult<Vec<Gene>> {
+    load_genes_from_tsv(genes_file, None, Some(chrom))
 }
 
 /// Pre-load all gene entries from a GFF/GFF3 file, grouped by contig.

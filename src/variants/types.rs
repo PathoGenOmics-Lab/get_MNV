@@ -278,6 +278,11 @@ pub struct VariantAnnotations {
     /// read off the row's own alleles.
     #[serde(default)]
     pub hgvs_g: Option<String>,
+    /// The `--catalogue` entries this row matches, each as `label (gene
+    /// variant)`, with a note when a codon row matches through one of its two
+    /// readings only. See [`crate::variants::catalogue`].
+    #[serde(default)]
+    pub catalogue: Vec<String>,
 }
 
 /// The input caller's phase claim for one row, and whether the reads refute it.

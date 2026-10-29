@@ -465,6 +465,13 @@ window.GET_MNV_DOCS_INDEX = [
 {
 "lang": "en",
 "page": "Input Formats",
+"section": "5. Catalogue of Known Variants (Optional)",
+"url": "input-formats/index.html#5-catalogue-of-known-variants-optional",
+"text": "--catalogue known.tsv flags calls that match a table of variants you already know something about: drug-resistance mutations, lineage markers, known pathogenic changes. It is tab-separated, with a header naming a gene and a variant column and, optionally, a label; other columns are ignored and lines starting with # are comments. gene\tvariant\tlabel rpoB\tp.Ser450Leu\tRIF: Assoc w R fabG1\tc.-15C>T\tINH: Assoc w R katG\tLoF\tINH: Assoc w R A variant can be written as: Protein p.Ser450Leu, p.S450L, p.Gln"
+},
+{
+"lang": "en",
+"page": "Input Formats",
 "section": "Contig Names",
 "url": "input-formats/index.html#contig-names",
 "text": "All input files must agree on contig names: variant contig == FASTA record ID == GFF sequence ID == BAM reference name For example, chr1 and 1 are different names. Rename or normalize inputs before running get_MNV."
@@ -1546,6 +1553,13 @@ window.GET_MNV_DOCS_INDEX = [
 "section": "4. Lecturas BAM o CRAM (opcional)",
 "url": "es/input-formats/index.html#4-lecturas-bam-o-cram-opcional",
 "text": "Pasa las lecturas alineadas con: --bam reads.bam --bam reads.cram Cuando se proporcionan lecturas, get_MNV calcula: El soporte de lecturas de los SNP El soporte de lecturas del haplotipo MNV La profundidad total y la frecuencia Los recuentos por hebra directa e inversa Estadísticas opcionales de sesgo de hebra Requisitos: El archivo debe estar ordenado por coordenadas. Debe estar indexado: .bai (o .csi) para un BAM, .crai para un CRAM. samtools index escribe cualquiera de los dos. Los nombres de"
+},
+{
+"lang": "es",
+"page": "Formatos de entrada",
+"section": "5. Catálogo de variantes conocidas (opcional)",
+"url": "es/input-formats/index.html#5-catálogo-de-variantes-conocidas-opcional",
+"text": "--catalogue conocidas.tsv marca las llamadas que coinciden con una tabla de variantes de las que ya sabes algo: mutaciones de resistencia, marcadores de linaje, cambios patogénicos conocidos. Va separada por tabuladores, con una cabecera que nombra una columna gene y otra variant y, de forma opcional, label; las demás columnas se ignoran y las líneas que empiezan por # son comentarios. gene\tvariant\tlabel rpoB\tp.Ser450Leu\tRIF: Assoc w R fabG1\tc.-15C>T\tINH: Assoc w R katG\tLoF\tINH: Assoc w R Una va"
 },
 {
 "lang": "es",

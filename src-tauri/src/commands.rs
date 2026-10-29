@@ -170,6 +170,7 @@ impl AnalysisConfig {
             report: None,
             report_from: Vec::new(),
             matrix: None,
+            catalogue: None,
         }
     }
 }

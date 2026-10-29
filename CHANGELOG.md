@@ -90,6 +90,20 @@ All notable changes to this project are documented in this file.
   bases are marked `DBS` or `MBS` in `SBS96 Context` instead of being counted as
   single-base substitutions.
 
+- **`--catalogue` flags known variants, and says when only an MNV makes the
+  match.** A tab-separated table of genes and variants, written as protein
+  changes (`p.Ser450Leu`), coding or genomic substitutions (`c.-15C>T`,
+  `g.761155C>T`), other HGVS, or `LoF` for any loss of function in the gene,
+  each with a label, flags the calls that match it in a new `Catalogue` column
+  and `CAT` INFO key, and in the report. Coding substitutions are placed in the
+  genome from the gene model, so promoter entries match intergenic calls, and an
+  entry whose reference base this FASTA does not have is reported rather than
+  matched. A protein entry is compared with both readings of a codon, and a row
+  matching through only one says `codon reading only` (a catalogued change no
+  single base makes, which base-by-base annotation misses) or
+  `per-SNV reading only` (one such annotation would report that the codon does
+  not make).
+
 ### Changed
 
 - **HGVS descriptors follow the standard more closely.** A lost initiator is

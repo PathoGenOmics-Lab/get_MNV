@@ -471,6 +471,7 @@ mod tests {
             report: None,
             report_from: Vec::new(),
             matrix: None,
+            catalogue: None,
             convert: false,
             both: false,
             translation_table: 11,

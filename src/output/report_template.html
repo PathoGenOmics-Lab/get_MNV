@@ -1038,7 +1038,7 @@ var D = DATA.dict, ROWS = DATA.rows, META = DATA.meta;
 var C = {sample:0,chrom:1,gene:2,pos:3,ref:4,alt:5,aa:6,type:7,change:8,so:9,impact:10,
          grantham:11,shift:12,dbs:13,nmd:14,hgvsg:15,hgvsc:16,freq:17,depth:18,
          refCodon:19,altCodon:20,evClass:21,evComp:22,reads:23,phasing:24,phReads:25,
-         sbs:26};
+         sbs:26,adj:27,cat:28};
 
 var TYPE_COLOR = {"SNP":"var(--s1)","MNV":"var(--s2)","SNP/MNV":"var(--s3)","INDEL":"var(--s4)"};
 var IMP_COLOR  = {"HIGH":"var(--critical)","MODERATE":"var(--serious)","LOW":"var(--warning)","MODIFIER":"var(--muted)"};
@@ -1114,7 +1114,7 @@ function passes(r){
   if(state.q){
     var q = state.q.toLowerCase();
     var hay = [geneOf(r),chromOf(r),txt(r,"pos"),txt(r,"aa"),txt(r,"hgvsg"),txt(r,"hgvsc"),
-               soOf(r),changeOf(r),txt(r,"dbs"),sampleOf(r)].join(" ").toLowerCase();
+               soOf(r),changeOf(r),txt(r,"dbs"),txt(r,"cat"),sampleOf(r)].join(" ").toLowerCase();
     if(hay.indexOf(q)===-1) return false;
   }
   return true;
@@ -1974,7 +1974,7 @@ document.getElementById("hapList").addEventListener("click", function(e){
 
 // ---------- KPIs ----------
 function drawKpis(){
-  var genes = {}, samples = {}, high = 0, mnv = 0;
+  var genes = {}, samples = {}, high = 0, mnv = 0, listed = 0;
   view.forEach(function(i){
     var r = ROWS[i];
     // `intergenic` is the placeholder get_MNV writes in the Gene column for a
@@ -1988,6 +1988,7 @@ function drawKpis(){
     samples[sampleOf(r)] = 1;
     if(impOf(r)==="HIGH") high++;
     var t = typeOf(r); if(t==="MNV"||t==="SNP/MNV") mnv++;
+    if(r[C.cat]) listed++;
   });
   document.getElementById("heroVal").textContent = view.length.toLocaleString();
   document.getElementById("heroNote").textContent =
@@ -1999,6 +2000,10 @@ function drawKpis(){
     {lab:"MNV rows", val:mnv.toLocaleString(), note:"codon-level"},
     {lab:"High impact", val:high.toLocaleString(), note:"HIGH consequence"}
   ];
+  // Only a run given a catalogue has anything to say here.
+  if(ROWS.some(function(r){ return r[C.cat]; })){
+    k.push({lab:"Catalogue", val:listed.toLocaleString(), note:"rows matching it"});
+  }
   document.getElementById("kpis").innerHTML = k.map(function(x){
     return '<div class="stat"><span>'+esc(x.lab)+'</span><b>'+esc(x.val)+'</b><i>'+esc(x.note)+'</i></div>';
   }).join("");
@@ -2106,6 +2111,10 @@ function openDrawer(ri){
      + '</dl></section>';
   b += '<section><h4>HGVS</h4><dl class="kv">'
      + row("Genomic",txt(r,"hgvsg")) + row("Coding",txt(r,"hgvsc")) + row("Protein",txt(r,"aa"))
+     + row("Adjacent run",txt(r,"adj"))
+     + '</dl></section>';
+  if(r[C.cat]) b += '<section><h4>Catalogue</h4><dl class="kv">'
+     + String(r[C.cat]).split("; ").map(function(hit){ return row("Match", hit); }).join("")
      + '</dl></section>';
   b += '<section><h4>Codons</h4><dl class="kv">'
      + row("Reference",txt(r,"refCodon")) + row("Variant",txt(r,"altCodon"))
@@ -2240,14 +2249,14 @@ document.getElementById("thead").addEventListener("click", function(e){
 document.getElementById("exportBtn").addEventListener("click", function(){
   var head = ["Sample","Contig","Gene","Positions","Reference Bases","Base Changes","AA Changes",
               "Variant Type","Change Type","SO Term","Impact","Grantham","MNV Consequence Shift",
-              "DBS Class","NMD Prediction","HGVS g.","HGVS c.","SBS96 Context","Frequency","Depth"];
+              "DBS Class","NMD Prediction","HGVS g.","HGVS c.","SBS96 Context","Adjacent Substitutions","Catalogue","Frequency","Depth"];
   var lines = [head.join("\t")];
   view.forEach(function(i){
     var r = ROWS[i];
     lines.push([sampleOf(r),chromOf(r),geneOf(r),txt(r,"pos"),txt(r,"ref"),txt(r,"alt"),txt(r,"aa"),
                 typeOf(r),changeOf(r),soOf(r),impOf(r),
                 r[C.grantham]===null||r[C.grantham]===undefined?"-":r[C.grantham],
-                txt(r,"shift"),txt(r,"dbs"),txt(r,"nmd"),txt(r,"hgvsg"),txt(r,"hgvsc"),txt(r,"sbs"),
+                txt(r,"shift"),txt(r,"dbs"),txt(r,"nmd"),txt(r,"hgvsg"),txt(r,"hgvsc"),txt(r,"sbs"),txt(r,"adj"),txt(r,"cat"),
                 r[C.freq]===null||r[C.freq]===undefined?"-":r[C.freq].toFixed(4),
                 r[C.depth]===null||r[C.depth]===undefined?"-":r[C.depth]].join("\t"));
   });

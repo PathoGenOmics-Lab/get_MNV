@@ -37,6 +37,7 @@ pub(crate) struct ParsedInputs {
     pub(crate) command_line: String,
     pub(crate) preloaded_gff: Option<HashMap<String, Vec<Gene>>>,
     pub(crate) original_info_headers: Vec<String>,
+    pub(crate) catalogue: Option<crate::variants::catalogue::Catalogue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -416,6 +417,7 @@ pub(crate) fn process_contig(
     snp_by_contig: &HashMap<String, Vec<VcfPosition>>,
     preloaded_gff: Option<&HashMap<String, Vec<Gene>>>,
     genetic_code: crate::genetic_code::GeneticCode,
+    catalogue: Option<&crate::variants::catalogue::Catalogue>,
 ) -> AppResult<(Vec<VariantInfo>, ContigSummary)> {
     let reference =
         io::reference_for_chrom(references, contig).map_err(reclassify_generic_as_validation)?;
@@ -914,6 +916,29 @@ pub(crate) fn process_contig(
                 variant.annotations.hgvs_c =
                     variants::noncodon_hgvs_c(gene, variant, reference.sequence);
             }
+        }
+    }
+
+    // Known variants, against every gene of the contig: an entry upstream of a
+    // gene is placed from the gene's start, and that gene holds no variant.
+    if let Some(catalogue) = catalogue {
+        let every_gene = match preloaded_gff {
+            Some(by_contig) => by_contig.get(contig).cloned().unwrap_or_default(),
+            None => io::load_all_tsv_genes(args.genes_file(), contig)
+                .map_err(reclassify_generic_as_validation)?,
+        };
+        let other_reference = crate::variants::catalogue::annotate_catalogue(
+            catalogue,
+            &mut all_variants,
+            &every_gene,
+            reference.sequence,
+        );
+        if other_reference > 0 {
+            log::warn!(
+                "Contig '{contig}' -> {other_reference} catalogue entr(y/ies) name a reference base \
+                 this FASTA does not have at that position, so they were written against another \
+                 reference and match nothing here"
+            );
         }
     }
 

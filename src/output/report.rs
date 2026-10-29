@@ -72,6 +72,8 @@ struct Row {
     phasing: Option<f64>,
     phasing_reads: Option<u64>,
     sbs96: Option<String>,
+    adjacent: Option<String>,
+    catalogue: Option<String>,
 }
 
 #[derive(Default)]
@@ -371,6 +373,8 @@ impl ReportBuilder {
                 phasing: first_number::<f64>(&get(&record, "MNV Phasing Support")),
                 phasing_reads: first_number::<u64>(&get(&record, "MNV Phasing Reads")),
                 sbs96: optional(&get(&record, "SBS96 Context")),
+                adjacent: optional(&get(&record, "Adjacent Substitutions")),
+                catalogue: optional(&get(&record, "Catalogue")),
             };
             self.rows.push(row);
         }
@@ -587,6 +591,10 @@ fn push_row(out: &mut String, row: &Row) {
     push_opt_num(out, row.phasing_reads);
     out.push(',');
     push_opt_str(out, row.sbs96.as_deref());
+    out.push(',');
+    push_opt_str(out, row.adjacent.as_deref());
+    out.push(',');
+    push_opt_str(out, row.catalogue.as_deref());
     out.push(']');
 }
 

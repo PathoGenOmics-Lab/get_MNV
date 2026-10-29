@@ -242,6 +242,44 @@ A CRAM gives the same counts as the BAM it was made from: the test suite runs
 every scenario both ways and compares the outputs byte for byte.
 - Duplicate, secondary, supplementary and QC-fail reads are ignored, matching what `samtools mpileup` excludes by default.
 
+## 5. Catalogue of Known Variants (Optional)
+
+`--catalogue known.tsv` flags calls that match a table of variants you already
+know something about: drug-resistance mutations, lineage markers, known
+pathogenic changes. It is tab-separated, with a header naming a `gene` and a
+`variant` column and, optionally, a `label`; other columns are ignored and
+lines starting with `#` are comments.
+
+```text
+gene	variant	label
+rpoB	p.Ser450Leu	RIF: Assoc w R
+fabG1	c.-15C>T	INH: Assoc w R
+katG	LoF	INH: Assoc w R
+```
+
+A variant can be written as:
+
+| Form | Example | Matches |
+|---|---|---|
+| Protein | `p.Ser450Leu`, `p.S450L`, `p.Gln10Ter`, `p.Ala11fs` | rows of the gene with that protein change. A frameshift matches by its first residue and position, whatever follows `fs`. |
+| Coding substitution | `c.1349C>T`, `c.-15C>T`, `c.*3G>A` | the substituted base, placed in the genome from the gene model (`c.-N` upstream of the first coding base, `c.*N` past the last), on any row that carries it, intergenic ones included |
+| Genomic substitution | `g.761155C>T` | the substituted base at that position |
+| Other HGVS | `c.516_518dup`, `g.1673425del` | rows whose `HGVS c.` or `HGVS g.` is written exactly so |
+| `LoF` | `LoF` | any frameshift, premature stop or start loss in the gene |
+
+The gene is matched by name, or by any `_`-separated part of a combined name, so
+`rpoB` matches a gene named `rpoB_Rv0667`. A substitution whose reference base
+is not the one the FASTA has at that position was written against another
+reference; it matches nothing, and the run says how many there were.
+
+A protein entry is compared with both readings of a codon row: the residue the
+whole codon gives and the one each substitution would give alone. When only one
+reading matches, the row says so, `codon reading only` for a catalogued change
+that no single base makes, which base-by-base annotation misses, and
+`per-SNV reading only` for one such annotation would report that the codon does
+not make. Matches go to the `Catalogue` column (see
+[Output formats](output-formats.md)).
+
 ## Contig Names
 
 All input files must agree on contig names:

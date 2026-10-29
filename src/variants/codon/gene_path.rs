@@ -61,6 +61,8 @@ pub(super) fn compute_annotations(
         initiator_lost: false,
         // Filled in per contig by the pipeline, which has the sequence.
         hgvs_g: None,
+        // Filled in per contig by the pipeline, which has the catalogue.
+        catalogue: Vec::new(),
     }
 }
 

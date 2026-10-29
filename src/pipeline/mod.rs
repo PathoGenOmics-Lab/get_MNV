@@ -182,6 +182,7 @@ fn run_single(
             &parsed.snp_by_contig,
             parsed.preloaded_gff.as_ref(),
             genetic_code,
+            parsed.catalogue.as_ref(),
         )?;
         process_ms += process_start.elapsed().as_secs_f64() * 1000.0;
 

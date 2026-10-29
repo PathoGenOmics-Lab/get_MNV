@@ -50,6 +50,7 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "HGVSC"
             | "SBS96"
             | "ADJSUB"
+            | "CAT"
     )
 }
 
@@ -460,6 +461,9 @@ pub(crate) fn build_info_string(
             "ADJSUB",
             &variant.annotations.adjacent_substitutions.join(","),
         );
+    }
+    if !variant.annotations.catalogue.is_empty() {
+        builder.push_text("CAT", &variant.annotations.catalogue.join("; "));
     }
 
     if let Some((sr, srf, srr)) = snp_metrics {
@@ -874,6 +878,10 @@ pub(crate) fn write_info_header(
     writeln!(
         writer,
         "##INFO=<ID=ADJSUB,Number=.,Type=String,Description=\"HGVS genomic descriptor of each run of two or more adjacent substituted bases this record's substitutions belong to, shared by every record of the run\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=CAT,Number=1,Type=String,Description=\"--catalogue entries this record matches, as label (gene variant), with a note when a codon matches through one of its readings only; percent-encoded per the VCF spec\">"
     )?;
     writeln!(
         writer,
