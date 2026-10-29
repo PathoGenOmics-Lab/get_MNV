@@ -92,6 +92,17 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- **HGVS descriptors follow the standard more closely.** A lost initiator is
+  written `Met1?` instead of naming the residue now at position 1 (`Met1Thr`),
+  since where translation then starts cannot be predicted. Indels in `HGVS g.`
+  and `HGVS c.` are placed at their 3'-most equivalent position and an
+  insertion that copies the bases before it is a `dup` (`c.295_297dup` rather
+  than `c.30_31insGCT`), so `c.` now agrees with the protein change, which was
+  already shifted. Intronic positions of spliced transcripts are numbered from
+  the nearer exon (`c.100+5G>A`, `c.101-2_101-1del`), which gives intronic and
+  splice-site rows a `c.` descriptor for the first time. The consequence
+  columns still read each change where the input placed it, as VEP does.
+
 - **Multiallelic records are split without being asked.** A VCF record with
   several ALT alleles stopped the run unless `--split-multiallelic` was passed,
   while the desktop app split them by default, so the same input failed on the
@@ -114,6 +125,19 @@ All notable changes to this project are documented in this file.
   three Spanish anchors that pointed nowhere were fixed on the way.
 
 ### Fixed
+
+- **A gene that starts on GTG or TTG starts with methionine.** The first codon
+  was translated like any other, so in a bacterial gene starting on GTG it was
+  valine: destroying that start codon was reported as `Val1Ala` missense at
+  `MODERATE`, and turning it into ATG as a `Val1Met` missense, when the first
+  loses the protein's start and the second keeps it. The first codon is now
+  read as an initiator, from NCBI's initiation codons for each table (checked
+  codon by codon against NCBI's own file), on the substitution and indel paths
+  alike. A large share of bacterial genes, *M. tuberculosis* included, start on
+  GTG, so their start-codon calls change.
+- **A frameshift that destroys the start codon says so.** It was reported as a
+  plain `frameshift_variant`, while a substitution at the same initiator was
+  `start_lost`. It is now `frameshift_variant&start_lost`.
 
 - **`ATA` is Methionine in the mitochondrial tables.** Tables 2, 3 and 5
   (Vertebrate, Yeast and Invertebrate Mitochondrial) translated `ATA` as

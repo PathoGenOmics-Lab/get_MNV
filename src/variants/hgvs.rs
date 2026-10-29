@@ -8,12 +8,15 @@
 //! Multi-nucleotide substitutions (MNVs) use the HGVS allele-bracket form
 //! `g.[POS1REF>ALT;POS2REF>ALT]`, which represents co-occurring substitutions
 //! without needing the unchanged bases between them. Coding descriptors cover
-//! substitutions and, when every base they touch lies in the CDS, indels as
-//! `del`, `ins` and `delins`, with the inserted bases on the coding strand. An
-//! indel that reaches into an intron or a UTR gets no `c.` descriptor rather
-//! than an offset form (`c.123+5del`) this module does not build. Neither form
-//! is 3'-shifted, an insertion is never rewritten as `dup`, and neither carries
-//! a reference-sequence accession prefix; the Chromosome and Gene columns supply
+//! substitutions and indels, with inserted bases on the coding strand. Following
+//! HGVS, a deletion or insertion inside a repeat is placed at its 3'-most
+//! equivalent position (in the genomic sequence for `g.`, along the coding
+//! sequence for `c.`, never beyond the CDS), and an insertion that repeats the
+//! bases just before it is written as a duplication (`dup`). A base in an intron
+//! of a spliced transcript is numbered from the nearest exon (`c.100+2`,
+//! `c.101-5`); UTR and flanking positions (`c.-15`, `c.*3`) are not built, and
+//! a change reaching them gets no `c.` descriptor. Neither form carries a
+//! reference-sequence accession prefix; the Chromosome and Gene columns supply
 //! that context.
 
 use crate::utils::reverse_complement;
@@ -159,21 +162,109 @@ pub(crate) fn is_pure_insertion(ref_allele: &str, alt_allele: &str) -> bool {
     prefix + suffix == ref_allele.len() && alt_allele.len() > ref_allele.len()
 }
 
+/// A position in HGVS coding numbering: a coding base, or an intronic base
+/// counted from the nearest exon (`c.100+2` after an exon's last base, `c.101-5`
+/// before an exon's first).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CodingPosition {
+    Cds(usize),
+    Intron { anchor: usize, offset: isize },
+}
+
+impl CodingPosition {
+    /// Transcript order: `c.100`, `c.100+1`, ..., `c.101-1`, `c.101`.
+    fn order(self) -> (usize, isize) {
+        match self {
+            Self::Cds(n) => (n, 0),
+            Self::Intron { anchor, offset } => (anchor, offset),
+        }
+    }
+
+    /// Whether `next` is the position right after this one along the transcript.
+    fn precedes(self, next: Self) -> bool {
+        match (self, next) {
+            (Self::Cds(a), Self::Cds(b)) => b == a + 1,
+            (Self::Cds(a), Self::Intron { anchor, offset }) => anchor == a && offset == 1,
+            (Self::Intron { anchor, offset }, Self::Cds(b)) => anchor == b && offset == -1,
+            (
+                Self::Intron {
+                    anchor: a,
+                    offset: x,
+                },
+                Self::Intron {
+                    anchor: b,
+                    offset: y,
+                },
+            ) => (a == b && y == x + 1) || (b > a && x > 0 && y < 0),
+        }
+    }
+}
+
+impl std::fmt::Display for CodingPosition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            Self::Cds(n) => write!(f, "{n}"),
+            Self::Intron { anchor, offset } if offset > 0 => write!(f, "{anchor}+{offset}"),
+            Self::Intron { anchor, offset } => write!(f, "{anchor}{offset}"),
+        }
+    }
+}
+
+/// A deletion of 1-based `start..=end` moved to its 3'-most equivalent place in
+/// `seq`: while the base after it equals its first base, deleting one base
+/// further on removes the same sequence.
+fn shift_deletion(seq: &[u8], mut start: usize, mut end: usize) -> (usize, usize) {
+    while end < seq.len() && seq[start - 1].eq_ignore_ascii_case(&seq[end]) {
+        start += 1;
+        end += 1;
+    }
+    (start, end)
+}
+
+/// An insertion of `inserted` after 1-based base `after`, moved to its 3'-most
+/// equivalent place in `seq`, its bases rotated as it moves.
+fn shift_insertion(seq: &[u8], mut after: usize, inserted: &str) -> (usize, String) {
+    let mut bases = inserted.to_ascii_uppercase().into_bytes();
+    while !bases.is_empty() && after < seq.len() && seq[after].eq_ignore_ascii_case(&bases[0]) {
+        bases.rotate_left(1);
+        after += 1;
+    }
+    (after, String::from_utf8(bases).unwrap_or_default())
+}
+
+/// Whether an insertion after base `after` repeats the bases just before it,
+/// which HGVS writes as a duplication of those bases.
+fn duplicates(seq: &[u8], after: usize, inserted: &str) -> bool {
+    let length = inserted.len();
+    length > 0
+        && after >= length
+        && seq[after - length..after].eq_ignore_ascii_case(inserted.as_bytes())
+}
+
+fn range(start: CodingPosition, end: CodingPosition) -> String {
+    if start == end {
+        format!("{start}")
+    } else {
+        format!("{start}_{end}")
+    }
+}
+
 /// HGVS coding (`c.`) descriptor for an indel from its VCF-style anchored
-/// REF/ALT at genomic `pos`, given the gene strand and a map from a genomic
-/// position to its 1-based CDS position.
+/// REF/ALT at genomic `pos`, given the gene strand, a map from a genomic position
+/// to its coding position, and the coding sequence when it is known.
 ///
-/// `None` when the alleles describe no change, or when a deleted base, or
-/// either base an insertion falls between, has no CDS position: the change then
-/// reaches outside the coding sequence. A deletion must also map onto
-/// consecutive CDS positions, which is what tells a deletion that crosses an
-/// intron, and so removes a splice junction, from one inside an exon.
+/// `None` when the alleles describe no change, or when a deleted base, or either
+/// base an insertion falls between, has no coding position: the change then
+/// reaches a UTR or the flank. With the coding sequence, a deletion or insertion
+/// that lies wholly in coding bases is placed 3'-most along it and an insertion
+/// that repeats the bases before it becomes a `dup`.
 pub(crate) fn coding_indel(
     pos: usize,
     ref_allele: &str,
     alt_allele: &str,
     strand: Strand,
-    cds_position: impl Fn(usize) -> Option<usize>,
+    coding_position: impl Fn(usize) -> Option<CodingPosition>,
+    cds: Option<&str>,
 ) -> Option<String> {
     let (prefix, suffix) = trim_common(ref_allele.as_bytes(), alt_allele.as_bytes());
     let ref_core = &ref_allele[prefix..ref_allele.len() - suffix];
@@ -188,37 +279,226 @@ pub(crate) fn coding_indel(
         if alt_core.is_empty() {
             return None;
         }
-        let before = cds_position(start.checked_sub(1)?)?;
-        let after = cds_position(start)?;
-        if before.abs_diff(after) != 1 {
+        let (a, b) = (
+            coding_position(start.checked_sub(1)?)?,
+            coding_position(start)?,
+        );
+        let (before, after) = if a.order() <= b.order() {
+            (a, b)
+        } else {
+            (b, a)
+        };
+        if !before.precedes(after) {
             return None;
         }
-        return Some(format!(
-            "c.{}_{}ins{inserted}",
-            before.min(after),
-            before.max(after)
-        ));
+        if let (CodingPosition::Cds(after_base), Some(cds)) = (before, cds) {
+            let (after_base, shifted) = shift_insertion(cds.as_bytes(), after_base, &inserted);
+            if duplicates(cds.as_bytes(), after_base, &shifted) {
+                let first = CodingPosition::Cds(after_base + 1 - shifted.len());
+                return Some(format!(
+                    "c.{}dup",
+                    range(first, CodingPosition::Cds(after_base))
+                ));
+            }
+            return Some(format!("c.{after_base}_{}ins{shifted}", after_base + 1));
+        }
+        return Some(format!("c.{before}_{after}ins{inserted}"));
     }
 
     let mut mapped = Vec::with_capacity(ref_core.len());
     for genomic in start..start + ref_core.len() {
-        mapped.push(cds_position(genomic)?);
+        mapped.push(coding_position(genomic)?);
     }
-    let low = *mapped.iter().min()?;
-    let high = *mapped.iter().max()?;
-    if high - low + 1 != mapped.len() {
+    mapped.sort_by_key(|p| p.order());
+    // Consecutive genomic bases are consecutive along the transcript; a gap means
+    // the map gave one base two places, which a slippage join can do.
+    if !mapped.windows(2).all(|pair| pair[0].precedes(pair[1])) {
         return None;
     }
-    let range = if low == high {
-        format!("{low}")
-    } else {
-        format!("{low}_{high}")
-    };
+    let (mut low, mut high) = (*mapped.first()?, *mapped.last()?);
     if alt_core.is_empty() {
-        Some(format!("c.{range}del"))
+        if let (CodingPosition::Cds(a), CodingPosition::Cds(b), Some(cds)) = (low, high, cds) {
+            let (a, b) = shift_deletion(cds.as_bytes(), a, b);
+            low = CodingPosition::Cds(a);
+            high = CodingPosition::Cds(b);
+        }
+        Some(format!("c.{}del", range(low, high)))
     } else {
-        Some(format!("c.{range}delins{inserted}"))
+        Some(format!("c.{}delins{inserted}", range(low, high)))
     }
+}
+
+/// The changed core of an anchored REF/ALT: where it starts and what it removes
+/// and adds once the shared bases are trimmed.
+pub(crate) fn indel_core(
+    pos: usize,
+    ref_allele: &str,
+    alt_allele: &str,
+) -> (usize, String, String) {
+    let (prefix, suffix) = trim_common(ref_allele.as_bytes(), alt_allele.as_bytes());
+    (
+        pos + prefix,
+        ref_allele[prefix..ref_allele.len() - suffix].to_ascii_uppercase(),
+        alt_allele[prefix..alt_allele.len() - suffix].to_ascii_uppercase(),
+    )
+}
+
+/// A pure deletion or insertion moved 3'-most along the transcript, rightward
+/// on the plus strand and leftward on the minus, without leaving the genomic
+/// span `lo..=hi`, and returned anchored as a VCF record would be. Anything else
+/// comes back as it was given.
+pub(crate) fn shift_within(
+    seq: &str,
+    pos: usize,
+    ref_allele: &str,
+    alt_allele: &str,
+    strand: Strand,
+    lo: usize,
+    hi: usize,
+) -> (usize, String, String) {
+    let unchanged = || (pos, ref_allele.to_string(), alt_allele.to_string());
+    let seq = seq.as_bytes();
+    let (start, ref_core, alt_core) = indel_core(pos, ref_allele, alt_allele);
+    let base = |p: usize| seq[p - 1] as char;
+    if alt_core.is_empty() && !ref_core.is_empty() {
+        let (mut s, mut e) = (start, start + ref_core.len() - 1);
+        if s < 2 || e > seq.len() {
+            return unchanged();
+        }
+        match strand {
+            Strand::Plus => {
+                while e < hi && e < seq.len() && seq[s - 1].eq_ignore_ascii_case(&seq[e]) {
+                    s += 1;
+                    e += 1;
+                }
+            }
+            Strand::Minus => {
+                while s > lo && s >= 3 && seq[s - 2].eq_ignore_ascii_case(&seq[e - 1]) {
+                    s -= 1;
+                    e -= 1;
+                }
+            }
+        }
+        let anchored: String = (s - 1..=e).map(base).collect();
+        return (
+            s - 1,
+            anchored.to_ascii_uppercase(),
+            base(s - 1).to_ascii_uppercase().to_string(),
+        );
+    }
+    if ref_core.is_empty() && !alt_core.is_empty() {
+        let mut after = start - 1;
+        let mut bases = alt_core.into_bytes();
+        if after == 0 || after > seq.len() {
+            return unchanged();
+        }
+        match strand {
+            Strand::Plus => {
+                while after < hi && after < seq.len() && seq[after].eq_ignore_ascii_case(&bases[0])
+                {
+                    bases.rotate_left(1);
+                    after += 1;
+                }
+            }
+            Strand::Minus => {
+                while after > lo && seq[after - 1].eq_ignore_ascii_case(&bases[bases.len() - 1]) {
+                    bases.rotate_right(1);
+                    after -= 1;
+                }
+            }
+        }
+        let anchor = base(after).to_ascii_uppercase().to_string();
+        let inserted = String::from_utf8(bases).unwrap_or_default();
+        return (after, anchor.clone(), format!("{anchor}{inserted}"));
+    }
+    unchanged()
+}
+
+/// HGVS coding descriptor for a change at a position with no codon of its own,
+/// such as a substitution or indel in an intron, from its anchored REF/ALT.
+/// Substitutions are numbered like any other (`c.100+5G>A`), several in a
+/// bracket; a change mixing an indel with substitutions gets none.
+pub(crate) fn coding_noncodon(
+    pos: usize,
+    ref_allele: &str,
+    alt_allele: &str,
+    strand: Strand,
+    coding_position: impl Fn(usize) -> Option<CodingPosition>,
+) -> Option<String> {
+    let event = crate::variants::decompose_allele(pos, ref_allele, alt_allele);
+    let substitutions: Vec<_> = event
+        .components
+        .iter()
+        .filter(|c| c.kind == crate::variants::AlleleComponentKind::Snp)
+        .collect();
+    if substitutions.len() != event.components.len() {
+        if event.components.len() == 1 {
+            return coding_indel(pos, ref_allele, alt_allele, strand, coding_position, None);
+        }
+        return None;
+    }
+    let oriented = |base: &str| match strand {
+        Strand::Plus => base.to_ascii_uppercase(),
+        Strand::Minus => reverse_complement(&base.to_ascii_uppercase()),
+    };
+    let mut entries: Vec<(CodingPosition, String, String)> = Vec::new();
+    for component in substitutions {
+        entries.push((
+            coding_position(component.position)?,
+            oriented(&component.ref_allele),
+            oriented(&component.alt_allele),
+        ));
+    }
+    entries.sort_by_key(|(p, _, _)| p.order());
+    let items: Vec<String> = entries
+        .iter()
+        .map(|(p, r, a)| format!("{p}{r}>{a}"))
+        .collect();
+    match items.as_slice() {
+        [] => None,
+        [one] => Some(format!("c.{one}")),
+        many => Some(format!("c.[{}]", many.join(";"))),
+    }
+}
+
+/// [`genomic`] with indels placed as HGVS asks: 3'-most along `sequence`, and an
+/// insertion that repeats the bases before it written as a `dup`.
+pub fn genomic_normalized(variant: &VariantInfo, sequence: &str) -> Option<String> {
+    if variant.variant_type != VariantType::Indel {
+        return genomic(variant);
+    }
+    let pos = *variant.positions.first()?;
+    let ref_allele = variant.ref_bases.first()?;
+    let alt_allele = variant.base_changes.first()?;
+    if alt_allele.starts_with('<') {
+        return genomic(variant);
+    }
+    let (prefix, suffix) = trim_common(ref_allele.as_bytes(), alt_allele.as_bytes());
+    let ref_core = &ref_allele[prefix..ref_allele.len() - suffix];
+    let alt_core = &alt_allele[prefix..alt_allele.len() - suffix];
+    let start = pos + prefix;
+    let seq = sequence.as_bytes();
+    if ref_core.is_empty() && !alt_core.is_empty() && start >= 1 && start - 1 <= seq.len() {
+        let (after, shifted) = shift_insertion(seq, start - 1, alt_core);
+        if duplicates(seq, after, &shifted) {
+            let first = after + 1 - shifted.len();
+            return Some(if first == after {
+                format!("g.{after}dup")
+            } else {
+                format!("g.{first}_{after}dup")
+            });
+        }
+        return Some(format!("g.{after}_{}ins{shifted}", after + 1));
+    }
+    if alt_core.is_empty() && !ref_core.is_empty() && start + ref_core.len() - 1 <= seq.len() {
+        let (first, last) = shift_deletion(seq, start, start + ref_core.len() - 1);
+        return Some(if first == last {
+            format!("g.{first}del")
+        } else {
+            format!("g.{first}_{last}del")
+        });
+    }
+    genomic(variant)
 }
 
 #[cfg(test)]
@@ -312,33 +592,55 @@ mod tests {
     }
 
     /// A plus-strand CDS running from genomic 101: CDS position = genomic - 100.
-    fn plus_cds(position: usize) -> Option<usize> {
-        (101..=400).contains(&position).then(|| position - 100)
+    fn plus_cds(position: usize) -> Option<CodingPosition> {
+        (101..=400)
+            .contains(&position)
+            .then(|| CodingPosition::Cds(position - 100))
     }
 
     /// A minus-strand CDS whose first coding base is genomic 400.
-    fn minus_cds(position: usize) -> Option<usize> {
-        (101..=400).contains(&position).then(|| 401 - position)
+    fn minus_cds(position: usize) -> Option<CodingPosition> {
+        (101..=400)
+            .contains(&position)
+            .then(|| CodingPosition::Cds(401 - position))
+    }
+
+    /// Two exons, 101-200 (c.1-100) and 301-400 (c.101-200), on the plus strand,
+    /// with the intron between them numbered from the nearer exon.
+    fn spliced(position: usize) -> Option<CodingPosition> {
+        match position {
+            101..=200 => Some(CodingPosition::Cds(position - 100)),
+            301..=400 => Some(CodingPosition::Cds(position - 200)),
+            201..=250 => Some(CodingPosition::Intron {
+                anchor: 100,
+                offset: (position - 200) as isize,
+            }),
+            251..=300 => Some(CodingPosition::Intron {
+                anchor: 101,
+                offset: position as isize - 301,
+            }),
+            _ => None,
+        }
     }
 
     #[test]
     fn coding_indels_on_the_plus_strand() {
         // REF=ATG ALT=A at 110 deletes genomic 111-112, CDS 11-12.
         assert_eq!(
-            coding_indel(110, "ATG", "A", Strand::Plus, plus_cds).as_deref(),
+            coding_indel(110, "ATG", "A", Strand::Plus, plus_cds, None).as_deref(),
             Some("c.11_12del")
         );
         assert_eq!(
-            coding_indel(110, "AT", "A", Strand::Plus, plus_cds).as_deref(),
+            coding_indel(110, "AT", "A", Strand::Plus, plus_cds, None).as_deref(),
             Some("c.11del")
         );
         // Insertion after genomic 110 sits between CDS 10 and 11.
         assert_eq!(
-            coding_indel(110, "A", "ATG", Strand::Plus, plus_cds).as_deref(),
+            coding_indel(110, "A", "ATG", Strand::Plus, plus_cds, None).as_deref(),
             Some("c.10_11insTG")
         );
         assert_eq!(
-            coding_indel(110, "ATG", "AC", Strand::Plus, plus_cds).as_deref(),
+            coding_indel(110, "ATG", "AC", Strand::Plus, plus_cds, None).as_deref(),
             Some("c.11_12delinsC")
         );
     }
@@ -347,12 +649,12 @@ mod tests {
     fn coding_indels_on_the_minus_strand_count_from_the_other_end() {
         // Genomic 111-112 are CDS 290-289; the range is written low to high.
         assert_eq!(
-            coding_indel(110, "ATG", "A", Strand::Minus, minus_cds).as_deref(),
+            coding_indel(110, "ATG", "A", Strand::Minus, minus_cds, None).as_deref(),
             Some("c.289_290del")
         );
         // Inserted TG reads CA on the coding strand, between CDS 290 and 291.
         assert_eq!(
-            coding_indel(110, "A", "ATG", Strand::Minus, minus_cds).as_deref(),
+            coding_indel(110, "A", "ATG", Strand::Minus, minus_cds, None).as_deref(),
             Some("c.290_291insCA")
         );
     }
@@ -360,27 +662,103 @@ mod tests {
     #[test]
     fn an_indel_reaching_outside_the_cds_gets_no_coding_descriptor() {
         // Deletes genomic 400-401: the second base is past the CDS end.
-        assert_eq!(coding_indel(399, "ATG", "A", Strand::Plus, plus_cds), None);
+        assert_eq!(
+            coding_indel(399, "ATG", "A", Strand::Plus, plus_cds, None),
+            None
+        );
         // Inserted after the last coding base, so between CDS 300 and nothing.
-        assert_eq!(coding_indel(400, "A", "AT", Strand::Plus, plus_cds), None);
-        // Two exons, 101-200 and 301-400: a deletion over 199-302 maps to CDS
-        // positions that are not consecutive, because it removes the intron
-        // between them as well.
-        let spliced = |position: usize| match position {
-            101..=200 => Some(position - 100),
-            301..=400 => Some(position - 200),
-            _ => None,
+        assert_eq!(
+            coding_indel(400, "A", "AT", Strand::Plus, plus_cds, None),
+            None
+        );
+        assert_eq!(
+            coding_indel(110, "A", "A", Strand::Plus, plus_cds, None),
+            None
+        );
+    }
+
+    #[test]
+    fn an_indel_in_an_intron_is_numbered_from_the_nearer_exon() {
+        // Deletes 200-202: the exon's last base and the first two intronic ones.
+        assert_eq!(
+            coding_indel(199, "AGGG", "A", Strand::Plus, spliced, None).as_deref(),
+            Some("c.100_100+2del")
+        );
+        // Deep in the intron's second half: counted back from the next exon.
+        assert_eq!(
+            coding_indel(294, "ACG", "A", Strand::Plus, spliced, None).as_deref(),
+            Some("c.101-6_101-5del")
+        );
+        // Right after the exon's last base: between c.100 and c.100+1.
+        assert_eq!(
+            coding_indel(200, "A", "AT", Strand::Plus, spliced, None).as_deref(),
+            Some("c.100_100+1insT")
+        );
+        // An intronic substitution.
+        assert_eq!(
+            coding_noncodon(205, "G", "A", Strand::Plus, spliced).as_deref(),
+            Some("c.100+5G>A")
+        );
+    }
+
+    #[test]
+    fn indels_in_a_repeat_move_to_the_three_prime_end_and_copies_are_duplications() {
+        // c.1-12 = ATG CAG CAG CAG: deleting the first CAG (c.4-6) is, by the
+        // 3' rule, deleting the last one (c.10-12).
+        let cds = "ATGCAGCAGCAG";
+        let map = |position: usize| {
+            (101..=112)
+                .contains(&position)
+                .then(|| CodingPosition::Cds(position - 100))
         };
         assert_eq!(
-            coding_indel(198, "AGG", "A", Strand::Plus, spliced).as_deref(),
-            Some("c.99_100del")
+            coding_indel(103, "GCAG", "G", Strand::Plus, map, Some(cds)).as_deref(),
+            Some("c.10_12del")
         );
-        assert_eq!(coding_indel(199, "AGGG", "A", Strand::Plus, spliced), None);
-        // After the exon's last base the next genomic base is intronic, so the
-        // map alone cannot place the insertion; the codon layer knows the
-        // junction rule and supplies that flank itself.
-        assert_eq!(coding_indel(200, "A", "AT", Strand::Plus, spliced), None);
-        assert_eq!(coding_indel(110, "A", "A", Strand::Plus, plus_cds), None);
+        // Inserting CAG after c.3 copies the CAG that follows: a duplication of
+        // the last copy, c.10_12dup.
+        assert_eq!(
+            coding_indel(103, "G", "GCAG", Strand::Plus, map, Some(cds)).as_deref(),
+            Some("c.10_12dup")
+        );
+        // A single base inserted next to its twin is a one-base dup.
+        assert_eq!(
+            coding_indel(101, "A", "AT", Strand::Plus, map, Some(cds)).as_deref(),
+            Some("c.2dup")
+        );
+        // Not a repeat: an ordinary insertion.
+        assert_eq!(
+            coding_indel(101, "A", "AC", Strand::Plus, map, Some(cds)).as_deref(),
+            Some("c.1_2insC")
+        );
+    }
+
+    #[test]
+    fn genomic_indels_are_normalized_against_the_sequence() {
+        //               1234567890
+        let sequence = "ACAGCAGCAT";
+        // Deleting CAG at 2-4 leaves ACAGCAT, and so does deleting GCA at 7-9:
+        // the 3' rule runs through the partial copy at the end of the repeat.
+        let del = variant(VariantType::Indel, vec![1], &["ACAG"], &["A"]);
+        assert_eq!(
+            genomic_normalized(&del, sequence).as_deref(),
+            Some("g.7_9del")
+        );
+        let dup = variant(VariantType::Indel, vec![4], &["G"], &["GCAG"]);
+        assert_eq!(
+            genomic_normalized(&dup, sequence).as_deref(),
+            Some("g.7_9dup")
+        );
+        let ins = variant(VariantType::Indel, vec![9], &["A"], &["AGG"]);
+        assert_eq!(
+            genomic_normalized(&ins, sequence).as_deref(),
+            Some("g.9_10insGG")
+        );
+        let snv = variant(VariantType::Snp, vec![2], &["C"], &["T"]);
+        assert_eq!(
+            genomic_normalized(&snv, sequence).as_deref(),
+            Some("g.2C>T")
+        );
     }
 
     /// `>` is a single-nucleotide form in HGVS. A fallback row (intergenic,

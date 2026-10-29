@@ -897,10 +897,24 @@ pub(crate) fn process_contig(
     // them into two rows, which only a pass over every row can see.
     let run_lengths = crate::variants::runs::annotate_adjacent_substitutions(&mut all_variants);
     // Every row, whichever path built it, gets the trinucleotide context of its
-    // substitutions here, where the contig's sequence is at hand.
+    // substitutions and its HGVS genomic descriptor here, where the contig's
+    // sequence is at hand. A row inside a gene with no codon of its own (an
+    // intron, a splice site) gets its coding descriptor too, numbered from the
+    // nearer exon.
+    let genes_by_name: HashMap<&str, &Gene> = genes.iter().map(|g| (g.name.as_str(), g)).collect();
     for variant in &mut all_variants {
         variant.annotations.sbs96 =
             crate::variants::sbs::sbs96_for_variant(variant, reference.sequence, &run_lengths);
+        variant.annotations.hgvs_g =
+            crate::variants::hgvs::genomic_normalized(variant, reference.sequence);
+        let without_codon = variant.annotations.splice.is_some()
+            || variant.annotations.non_coding == Some(crate::variants::NonCodingReason::Intron);
+        if without_codon && variant.annotations.hgvs_c.is_none() {
+            if let Some(gene) = genes_by_name.get(variant.gene.as_str()) {
+                variant.annotations.hgvs_c =
+                    variants::noncodon_hgvs_c(gene, variant, reference.sequence);
+            }
+        }
     }
 
     sort_variants(&mut all_variants);

@@ -1,6 +1,5 @@
 //! Spliced-transcript codon path: transcript SNPs, codon processing, frameshift/PTC.
 
-use crate::utils::iupac_aa;
 use crate::variants::consequence::{first_residue, substitution_change_type};
 use crate::variants::{ChangeType, Gene, Snp, Strand, VariantInfo, VariantType};
 use std::collections::BTreeSet;
@@ -56,14 +55,14 @@ pub(super) fn process_transcript_codon(
         .map(|snp| construct_transcript_codon(ref_codon, &[snp]))
         .collect::<Vec<_>>();
 
-    let orig_aa = genetic_code.translate_seq(ref_codon.as_bytes());
-    let mut_aa = genetic_code.translate_seq(mnv_codon.as_bytes());
     let aa_pos = (codon_start_offset / 3) + 1;
+    // Codon 1 is read as an initiator, as on the genomic path.
+    let orig_aa = genetic_code.translate_seq_at(ref_codon.as_bytes(), aa_pos);
+    let mut_aa = genetic_code.translate_seq_at(mnv_codon.as_bytes(), aa_pos);
     // Classified from the residues themselves, not from a formatted string: the
     // IUPAC form below is for display only, and feeding it to the classifier used
     // to turn "Leu2Leu" into a spurious Non-synonymous.
-    let combined_change = format!("{orig_aa}{aa_pos}{mut_aa}");
-    let combined_aa = iupac_aa(&combined_change);
+    let combined_aa = super::gene_path::describe_substitution(&orig_aa, aa_pos, &mut_aa, aa_pos);
     let change_type =
         substitution_change_type(first_residue(&orig_aa), first_residue(&mut_aa), aa_pos);
 
@@ -72,7 +71,7 @@ pub(super) fn process_transcript_codon(
         .map(|snp| {
             let single_codon = construct_transcript_codon(ref_codon, &[snp]);
             genetic_code
-                .translate_seq(single_codon.as_bytes())
+                .translate_seq_at(single_codon.as_bytes(), aa_pos)
                 .chars()
                 .next()
                 .unwrap_or('X')
@@ -80,7 +79,9 @@ pub(super) fn process_transcript_codon(
         .collect();
     let snp_changes = single_aas
         .iter()
-        .map(|aa| iupac_aa(&format!("{orig_aa}{aa_pos}{aa}")))
+        .map(|aa| {
+            super::gene_path::describe_substitution(&orig_aa, aa_pos, &aa.to_string(), aa_pos)
+        })
         .collect::<Vec<_>>();
     let mut annotations =
         super::gene_path::compute_annotations(&orig_aa, &mut_aa, &single_aas, change_type);

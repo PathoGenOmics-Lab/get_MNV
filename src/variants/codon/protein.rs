@@ -15,6 +15,28 @@ pub(super) fn translate_cds(seq: &str, genetic_code: crate::genetic_code::Geneti
     protein
 }
 
+/// [`translate_cds`] for a sequence that begins at the protein's first codon,
+/// read as the ribosome reads it: an initiation codon there is methionine. A
+/// gene that starts on GTG otherwise began with valine, and an indel could not
+/// be seen to remove its start.
+pub(super) fn translate_from_start(
+    seq: &str,
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> String {
+    let mut protein = translate_cds(seq, genetic_code);
+    if let Some(first) = seq.as_bytes().get(0..3) {
+        let codon = [
+            first[0].to_ascii_uppercase(),
+            first[1].to_ascii_uppercase(),
+            first[2].to_ascii_uppercase(),
+        ];
+        if genetic_code.is_start(&codon) {
+            protein.replace_range(0..1, "M");
+        }
+    }
+    protein
+}
+
 /// The part of a translation that is actually made: everything up to and
 /// including the first stop.
 ///

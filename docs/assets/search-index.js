@@ -1020,7 +1020,7 @@ window.GET_MNV_DOCS_INDEX = [
 "page": "FAQ",
 "section": "Which --translation-table should I use?",
 "url": "faq/index.html#which---translation-table-should-i-use",
-"text": "The default is 11 (bacterial), correct for organisms like M. tuberculosis. For the standard nuclear code use 1; other supported tables are 2, 3, 4, 5, 6, 12 and 25. See the CLI Reference."
+"text": "The default is 11 (bacterial), correct for organisms like M. tuberculosis. For the standard nuclear code use 1; other supported tables are 2, 3, 4, 5, 6, 12 and 25. See the CLI Reference. The table also decides which codons can start a protein. Under table 11 GTG, TTG, CTG, ATT, ATC and ATA start one as well as ATG, as NCBI lists them, and a gene's first codon is read as methionine when it is one of them, so a gene that starts on GTG is annotated from Met1, not Val1."
 },
 {
 "lang": "en",
@@ -2105,7 +2105,7 @@ window.GET_MNV_DOCS_INDEX = [
 "page": "Preguntas frecuentes",
 "section": "¿Qué --translation-table debo usar?",
 "url": "es/faq/index.html#qué---translation-table-debo-usar",
-"text": "El valor por defecto es 11 (bacteriano), correcto para organismos como M. tuberculosis. Para el código nuclear estándar usa 1; otras tablas admitidas son 2, 3, 4, 5, 6, 12 y 25. Consulta la Referencia de la CLI."
+"text": "El valor por defecto es 11 (bacteriano), correcto para organismos como M. tuberculosis. Para el código nuclear estándar usa 1; otras tablas admitidas son 2, 3, 4, 5, 6, 12 y 25. Consulta la Referencia de la CLI. La tabla también decide qué codones pueden empezar una proteína. En la tabla 11 empiezan una GTG, TTG, CTG, ATT, ATC y ATA además de ATG, tal como los lista el NCBI, y el primer codón de un gen se lee como metionina cuando es uno de ellos, así que un gen que empieza por GTG se anota desd"
 },
 {
 "lang": "es",

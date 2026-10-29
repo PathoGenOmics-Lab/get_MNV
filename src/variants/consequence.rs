@@ -70,6 +70,13 @@ fn indel_start_effect(reference_protein: &str, alternate_protein: &str) -> Optio
     initiator_lost(reference, alternate).then_some(ChangeType::StartLost)
 }
 
+/// Whether an indel removes the initiator, whatever else it does: a frameshift
+/// that destroys the start codon keeps its frameshift label and needs this said
+/// beside it.
+pub(crate) fn initiator_lost_between(reference_protein: &str, alternate_protein: &str) -> bool {
+    indel_start_effect(reference_protein, alternate_protein).is_some()
+}
+
 /// Whether an in-frame indel creates or removes a stop codon, by comparing the
 /// number of stop residues in the two translations. Counting stops (rather than
 /// comparing positions) avoids a false "stop gained" for an ordinary in-frame

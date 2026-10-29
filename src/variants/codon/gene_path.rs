@@ -57,6 +57,10 @@ pub(super) fn compute_annotations(
         sbs96: Vec::new(),
         // Filled in per contig by the pipeline, which sees every row at once.
         adjacent_substitutions: Vec::new(),
+        // Indels only; a substitution's start loss is its change type.
+        initiator_lost: false,
+        // Filled in per contig by the pipeline, which has the sequence.
+        hgvs_g: None,
     }
 }
 
@@ -88,6 +92,27 @@ pub(super) fn dbs_class_for_codon(snvs: &[&Snp]) -> Option<String> {
         return None;
     }
     crate::utils::dbs_class(&format!("{r0}{r1}"), &format!("{a0}{a1}"))
+}
+
+/// The protein change of a substitution, written at `shown_position`.
+///
+/// A change that loses the initiator is `Met1?`, as HGVS asks: with the start
+/// codon gone, where translation begins, if it does, cannot be predicted, so
+/// naming the residue that now sits there would claim a protein nobody showed
+/// is made. Everything else is the usual three-letter form.
+pub(super) fn describe_substitution(
+    reference: &str,
+    protein_position: usize,
+    alternate: &str,
+    shown_position: usize,
+) -> String {
+    let (r, a) = (first_residue(reference), first_residue(alternate));
+    if protein_position == 1
+        && substitution_change_type(r, a, protein_position) == ChangeType::StartLost
+    {
+        return format!("Met{shown_position}?");
+    }
+    iupac_aa(&format!("{reference}{shown_position}{alternate}"))
 }
 
 /// HGVS coding (`c.`) descriptor for a genomic-coordinate codon's substitutions.
@@ -250,11 +275,6 @@ pub fn process_codon(
         .collect();
     let snp_codon = snp_codons.join(", ");
 
-    let (orig_aa, mut_aa) = (
-        genetic_code.translate_seq(ref_codon.as_bytes()),
-        genetic_code.translate_seq(mnv_codon.as_bytes()),
-    );
-
     let local_aa_pos = match strand {
         Strand::Plus => {
             codon_info.codon_list[0]
@@ -272,11 +292,16 @@ pub fn process_codon(
         }
     };
     let aa_pos = codon_info.protein_offset + local_aa_pos;
+    // The protein's first codon is read as an initiator: GTG and TTG start a
+    // bacterial protein as methionine, so a change that keeps an initiation
+    // codon keeps the Met, and one that loses it loses the protein's start.
+    let (orig_aa, mut_aa) = (
+        genetic_code.translate_seq_at(ref_codon.as_bytes(), aa_pos),
+        genetic_code.translate_seq_at(mnv_codon.as_bytes(), aa_pos),
+    );
 
-    let combined_change = format!("{orig_aa}{aa_pos}{mut_aa}");
-    let combined_change_local = format!("{orig_aa}{local_aa_pos}{mut_aa}");
-    let combined_aa = iupac_aa(&combined_change);
-    let combined_aa_local = iupac_aa(&combined_change_local);
+    let combined_aa = describe_substitution(&orig_aa, aa_pos, &mut_aa, aa_pos);
+    let combined_aa_local = describe_substitution(&orig_aa, aa_pos, &mut_aa, local_aa_pos);
     let change_type =
         substitution_change_type(first_residue(&orig_aa), first_residue(&mut_aa), aa_pos);
 
@@ -288,7 +313,7 @@ pub fn process_codon(
         .map(|snp| {
             let single = oriented(&construct_codon(&codon_info, &[snp]));
             genetic_code
-                .translate_seq(single.as_bytes())
+                .translate_seq_at(single.as_bytes(), aa_pos)
                 .chars()
                 .next()
                 .unwrap_or('X')
@@ -296,11 +321,11 @@ pub fn process_codon(
         .collect();
     let snp_changes: Vec<String> = single_aas
         .iter()
-        .map(|aa| iupac_aa(&format!("{orig_aa}{aa_pos}{aa}")))
+        .map(|aa| describe_substitution(&orig_aa, aa_pos, &aa.to_string(), aa_pos))
         .collect();
     let snp_changes_local: Vec<String> = single_aas
         .iter()
-        .map(|aa| iupac_aa(&format!("{orig_aa}{local_aa_pos}{aa}")))
+        .map(|aa| describe_substitution(&orig_aa, aa_pos, &aa.to_string(), local_aa_pos))
         .collect();
 
     let mut annotations = compute_annotations(&orig_aa, &mut_aa, &single_aas, change_type);

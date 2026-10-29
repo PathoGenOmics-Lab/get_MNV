@@ -49,8 +49,10 @@ bold appear as columns or INFO fields in the output; see
   predicts it only where a stop is genuinely premature, using the rule that a
   stop more than 50 nucleotides before the last exon junction triggers decay.
 - **Translation table**: Which NCBI genetic code to read codons with, chosen by `--translation-table`.
-  It decides both the amino acids and which codons end a protein: `TGA` stops
-  under table 11, codes tryptophan under table 2 and glycine under table 25.
+  It decides the amino acids, which codons end a protein (`TGA` stops under
+  table 11, codes tryptophan under table 2 and glycine under table 25) and which
+  can start one: a gene's first codon is methionine when it is one of the
+  table's initiation codons, GTG and TTG included in bacteria.
 
 ## What the evidence says
 

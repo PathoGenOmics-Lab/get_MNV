@@ -173,7 +173,7 @@ las filas TSV esperadas.
 | # | Name | What it validates |
 |---|------|-------------------|
 | 18 | `stop_gained_via_mnv` | MNV de tres SNVs en el codón 50 `GCT`→`TAA` → `Ala50Ter`, `Change Type = Stop gained` |
-| 19 | `start_codon_altered` | SNV en el codón de inicio ATG en la pos 2 → `Met1Thr`, reportado con Change Type `Start lost` |
+| 19 | `start_codon_altered` | SNV en el codón de inicio ATG en la pos 2 → `Met1?` (HGVS para un iniciador perdido), reportado con Change Type `Start lost` |
 | 20 | `stop_lost` | SNV en el codón de stop `TAA` (pos 298) → `Change Type = Stop lost` |
 
 ### Complex alleles

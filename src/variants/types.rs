@@ -269,6 +269,15 @@ pub struct VariantAnnotations {
     /// tied together. See [`crate::variants::runs`].
     #[serde(default)]
     pub adjacent_substitutions: Vec<String>,
+    /// The indel removes the protein's initiator. An in-frame one is already a
+    /// start loss; a frameshift keeps its label and gets `start_lost` beside it.
+    #[serde(default)]
+    pub initiator_lost: bool,
+    /// HGVS genomic descriptor with indels placed against the reference, set per
+    /// contig where the sequence is at hand. `None` falls back to the descriptor
+    /// read off the row's own alleles.
+    #[serde(default)]
+    pub hgvs_g: Option<String>,
 }
 
 /// The input caller's phase claim for one row, and whether the reads refute it.

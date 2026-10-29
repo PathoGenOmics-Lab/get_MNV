@@ -25,6 +25,11 @@ The default is `11` (bacterial), correct for organisms like *M. tuberculosis*.
 For the standard nuclear code use `1`; other supported tables are 2, 3, 4, 5, 6,
 12 and 25. See the [CLI Reference](cli-reference.md).
 
+The table also decides which codons can start a protein. Under table 11 GTG,
+TTG, CTG, ATT, ATC and ATA start one as well as ATG, as NCBI lists them, and a
+gene's first codon is read as methionine when it is one of them, so a gene that
+starts on GTG is annotated from `Met1`, not `Val1`.
+
 ## Why did two of my SNPs become one MNV?
 
 When two or more SNVs fall in the same codon, the amino acid effect depends on

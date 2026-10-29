@@ -3464,9 +3464,11 @@ chr_test\t803\t.\tG\tGGGG\t100\tPASS\tDP=30\n",
             Some("HIGH"),
             "{name}"
         );
+        // ATG -> CCG loses the initiator, which HGVS writes Met1? rather than
+        // naming the residue now at position 1.
         assert_eq!(
             codon.get("AA Changes").map(String::as_str),
-            Some("Met1Pro"),
+            Some("Met1?"),
             "{name}"
         );
     }
@@ -4435,10 +4437,9 @@ fn test_e2e_symbolic_deletions_and_duplications_are_spelled_out() {
         ),
     );
     assert_eq!(field(&rows[0], "SO Term"), "inframe_insertion");
-    assert_eq!(
-        field(&rows[0], "HGVS c."),
-        format!("c.53_54ins{}", &bases[150..153])
-    );
+    // A tandem copy is a duplication in HGVS, of the bases it copies.
+    assert_eq!(field(&rows[0], "HGVS c."), "c.51_53dup");
+    assert_eq!(field(&rows[0], "HGVS g."), "g.151_153dup");
 
     // Past the contig's end, or without an extent, the record stays symbolic.
     for (name, info) in [

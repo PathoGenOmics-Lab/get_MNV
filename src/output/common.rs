@@ -130,6 +130,17 @@ fn base_so_consequence(variant: &VariantInfo) -> (&'static str, &'static str) {
         ChangeType::StartLost => ("start_lost", "HIGH"),
         ChangeType::StopGained | ChangeType::FrameshiftStopGained => ("stop_gained", "HIGH"),
         ChangeType::StopLost | ChangeType::FrameshiftStopLost => ("stop_lost", "HIGH"),
+        // A frameshift that destroys the start codon has lost the protein's
+        // start as well as its frame, and says both, as the substitution path
+        // says start_lost for the same initiator.
+        ChangeType::FrameshiftIndel
+        | ChangeType::FrameshiftSynonymous
+        | ChangeType::FrameshiftNonSynonymous
+        | ChangeType::FrameshiftUnknown
+            if variant.annotations.initiator_lost =>
+        {
+            ("frameshift_variant&start_lost", "HIGH")
+        }
         ChangeType::FrameshiftIndel
         | ChangeType::FrameshiftSynonymous
         | ChangeType::FrameshiftNonSynonymous
@@ -430,7 +441,12 @@ pub(crate) fn build_info_string(
     if let Some(nmd) = variant.annotations.nmd {
         builder.push_text("NMD", nmd.as_str());
     }
-    if let Some(hgvs_g) = crate::variants::hgvs::genomic(variant) {
+    if let Some(hgvs_g) = variant
+        .annotations
+        .hgvs_g
+        .clone()
+        .or_else(|| crate::variants::hgvs::genomic(variant))
+    {
         builder.push_text("HGVSG", &hgvs_g);
     }
     if let Some(hgvs_c) = variant.annotations.hgvs_c.as_deref() {

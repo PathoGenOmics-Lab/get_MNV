@@ -42,7 +42,12 @@ fn annotation_cells(variant: &VariantInfo, bam_provided: bool) -> Vec<String> {
         .nmd
         .map(|prediction| prediction.to_string())
         .unwrap_or_else(|| "-".to_string());
-    let hgvs_g = crate::variants::hgvs::genomic(variant).unwrap_or_else(|| "-".to_string());
+    let hgvs_g = variant
+        .annotations
+        .hgvs_g
+        .clone()
+        .or_else(|| crate::variants::hgvs::genomic(variant))
+        .unwrap_or_else(|| "-".to_string());
     let hgvs_c = variant
         .annotations
         .hgvs_c

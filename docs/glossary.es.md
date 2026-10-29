@@ -49,9 +49,11 @@ Los términos en negrita aparecen como columnas o campos INFO en la salida; en
   que una parada a más de 50 nucleótidos de la última unión de exones la
   desencadena.
 - **Tabla de traducción**: Con qué código genético del NCBI se leen los codones, elegido con
-  `--translation-table`. Decide tanto los aminoácidos como qué codones terminan
-  una proteína: `TGA` es parada en la tabla 11, codifica triptófano en la 2 y
-  glicina en la 25.
+  `--translation-table`. Decide los aminoácidos, qué codones terminan una
+  proteína (`TGA` es parada en la tabla 11, codifica triptófano en la 2 y
+  glicina en la 25) y cuáles pueden empezarla: el primer codón de un gen es
+  metionina cuando es uno de los codones de iniciación de la tabla, GTG y TTG
+  incluidos en bacterias.
 
 ## Qué dice la evidencia
 

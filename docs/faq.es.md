@@ -29,6 +29,11 @@ El valor por defecto es `11` (bacteriano), correcto para organismos como
 admitidas son 2, 3, 4, 5, 6, 12 y 25. Consulta la
 [Referencia de la CLI](cli-reference.es.md).
 
+La tabla también decide qué codones pueden empezar una proteína. En la tabla 11
+empiezan una GTG, TTG, CTG, ATT, ATC y ATA además de ATG, tal como los lista el
+NCBI, y el primer codón de un gen se lee como metionina cuando es uno de ellos,
+así que un gen que empieza por GTG se anota desde `Met1`, no desde `Val1`.
+
 ## ¿Por qué dos de mis SNP se convirtieron en un MNV?
 
 Cuando dos o más SNV caen en el mismo codón, el efecto sobre el aminoácido
