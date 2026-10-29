@@ -1308,14 +1308,245 @@ fn test_e2e_keep_original_info_in_vcf() {
 
     let vcf_path = tmp.join("test_info.MNV.vcf");
     let content = fs::read_to_string(&vcf_path).expect("read VCF");
-
-    // The example VCF has ANN= from SnpEff — should be preserved
-    let data_lines: Vec<&str> = content.lines().filter(|l| !l.starts_with('#')).collect();
-    let has_ann = data_lines.iter().any(|l| l.contains("ANN="));
-    assert!(
-        has_ann,
-        "original ANN= INFO field should be preserved with --keep-original-info"
+    assert_eq!(
+        content
+            .lines()
+            .filter(|l| l.starts_with("##INFO=<ID=ANN,"))
+            .count(),
+        1,
+        "the input's ANN header gives way to get_MNV's, which is snpEff's own"
     );
+
+    let records: Vec<Vec<&str>> = content
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .map(|l| l.split('\t').collect())
+        .collect();
+    let info_of = |pos: &str, alt: &str| -> &str {
+        records
+            .iter()
+            .find(|r| r[1] == pos && r[4] == alt)
+            .unwrap_or_else(|| panic!("record {pos} {alt}"))[7]
+    };
+    let ann_of = |info: &str| -> Vec<String> {
+        info.split(';')
+            .find_map(|f| f.strip_prefix("ANN="))
+            .expect("every record has ANN")
+            .split(',')
+            .map(str::to_string)
+            .collect()
+    };
+    for record in &records {
+        for entry in ann_of(record[7]) {
+            assert_eq!(
+                entry.split('|').next(),
+                Some(record[4]),
+                "an ANN entry is about its record's ALT: {}",
+                record.join("\t")
+            );
+        }
+    }
+
+    // The example's input was annotated by snpEff, with the lab's own
+    // categories as custom entries. On the record of the codon's second base,
+    // get_MNV's entry comes first and that base's own input entries follow; its
+    // other INFO is its own record's too (ADP=25), not the first base's (22).
+    let second_base = info_of("104942", "G");
+    let entries = ann_of(second_base);
+    assert!(
+        entries[0].starts_with("G|missense_variant|MODERATE|Rv0095c_Rv0095c|"),
+        "{entries:?}"
+    );
+    assert!(
+        entries[1].contains("|Transcript_gene100|Coding|1/1|c.274G>C|p.Gly92Arg|"),
+        "{entries:?}"
+    );
+    assert!(
+        entries
+            .iter()
+            .any(|e| e.contains("|Non_essential_in_vitro|")),
+        "{entries:?}"
+    );
+    assert!(second_base.contains(";ADP=25;"), "{second_base}");
+    // The codon's record is an allele no input record had.
+    let codon = ann_of(info_of("104941", "TG"));
+    assert_eq!(codon.len(), 1, "{codon:?}");
+    assert!(codon[0].ends_with("|INFO_COMPOUND_ANNOTATION"), "{codon:?}");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+/// On a spliced transcript each base of a codon is annotated on its own in
+/// `ANN`: its own change and its own place against the junction.
+#[test]
+fn test_e2e_ann_reads_each_base_of_a_spliced_codon_on_its_own() {
+    let tmp = temp_dir("e2e_ann_spliced");
+    // Exon 1 = 1..46, intron 47..146, exon 2 = 147..190. Codon 15 is 43-45, GCT
+    // (Ala); the exon's last three bases, 44-46, are its splice region.
+    let exon1 = format!("ATG{}G", "GCT".repeat(14));
+    let intron = format!("GT{}AG", "T".repeat(96));
+    let exon2 = format!("CT{}TAA", "GCT".repeat(13));
+    fs::write(
+        tmp.join("ref.fasta"),
+        format!(">c1\n{exon1}{intron}{exon2}\n"),
+    )
+    .unwrap();
+    fs::write(
+        tmp.join("genes.gff3"),
+        "##gff-version 3\n\
+c1\tsyn\tgene\t1\t190\t.\t+\t.\tID=gene-g1;Name=g1\n\
+c1\tsyn\tmRNA\t1\t190\t.\t+\t.\tID=m1;Parent=gene-g1;Name=g1\n\
+c1\tsyn\tCDS\t1\t46\t.\t+\t0\tID=cds-g1a;Parent=m1;Name=g1\n\
+c1\tsyn\tCDS\t147\t190\t.\t+\t2\tID=cds-g1b;Parent=m1;Name=g1\n",
+    )
+    .unwrap();
+    // GCT > ACC: 43 alone makes Thr, 45 alone keeps Ala, in the splice region.
+    fs::write(
+        tmp.join("in.vcf"),
+        "##fileformat=VCFv4.2\n##contig=<ID=c1,length=190>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+c1\t43\t.\tG\tA\t100\tPASS\tDP=30\n\
+c1\t45\t.\tT\tC\t100\tPASS\tDP=30\n",
+    )
+    .unwrap();
+    let mut args = base_args();
+    args.vcf_file = Some(tmp.join("in.vcf").to_string_lossy().into());
+    args.fasta_file = tmp.join("ref.fasta").to_string_lossy().into();
+    args.genes_file_tsv = None;
+    args.gff_file = Some(tmp.join("genes.gff3").to_string_lossy().into());
+    args.gff_features_raw = Some("CDS".to_string());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("spliced".to_string());
+    args.convert = true;
+    pipeline::run(&args).expect("pipeline should succeed");
+
+    let body = fs::read_to_string(tmp.join("spliced.MNV.vcf")).unwrap();
+    let ann = |pos: &str, alt: &str| -> Vec<String> {
+        let line = body
+            .lines()
+            .filter(|l| !l.starts_with('#'))
+            .find(|l| {
+                let cols: Vec<&str> = l.split('\t').collect();
+                cols[1] == pos && cols[4] == alt
+            })
+            .unwrap_or_else(|| panic!("record {pos} {alt} in\n{body}"));
+        line.split('\t')
+            .nth(7)
+            .and_then(|info| info.split(';').find_map(|f| f.strip_prefix("ANN=")))
+            .expect("ANN")
+            .split('|')
+            .map(str::to_string)
+            .collect()
+    };
+    let first = ann("43", "A");
+    assert_eq!(
+        first[1..3],
+        ["missense_variant".to_string(), "MODERATE".to_string()]
+    );
+    assert_eq!(
+        first[9..11],
+        ["c.43G>A".to_string(), "p.Ala15Thr".to_string()]
+    );
+    let last = ann("45", "C");
+    assert_eq!(
+        last[1..3],
+        [
+            "synonymous_variant&splice_region_variant".to_string(),
+            "LOW".to_string()
+        ]
+    );
+    assert_eq!(
+        last[9..11],
+        ["c.45T>C".to_string(), "p.Ala15Ala".to_string()]
+    );
+    let codon = ann("43", "ACC");
+    assert_eq!(codon[1], "missense_variant&splice_region_variant");
+    assert_eq!(
+        codon[9..11],
+        ["c.[43G>A%3B45T>C]".to_string(), "p.Ala15Thr".to_string()]
+    );
+    assert_eq!(codon[15], "INFO_COMPOUND_ANNOTATION");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+/// The example's input VCF was annotated by snpEff 4.1, which makes it an
+/// oracle for `ANN`: on every base of the example, get_MNV says what snpEff
+/// said about the same base of the same gene.
+#[test]
+fn test_e2e_ann_matches_snpeff_on_every_base_of_the_example() {
+    let tmp = temp_dir("e2e_ann_snpeff");
+    let mut args = base_args();
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("ann".to_string());
+    args.convert = true;
+    pipeline::run(&args).expect("pipeline should succeed");
+
+    let ann = |info: &str| -> String {
+        info.split(';')
+            .find_map(|f| f.strip_prefix("ANN="))
+            .unwrap_or("")
+            .to_string()
+    };
+    let input = fs::read_to_string(example_dir().join("G35894.var.snp.vcf")).unwrap();
+    let mut snpeff: HashMap<(String, String, String), Vec<String>> = HashMap::new();
+    for cols in input
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .map(|l| l.split('\t').collect::<Vec<_>>())
+    {
+        for entry in ann(cols[7]).split(',') {
+            let fields: Vec<String> = entry.split('|').map(str::to_string).collect();
+            if fields.len() == 16 && fields[0] == cols[4] && fields[5] == "transcript" {
+                let key = (cols[1].to_string(), cols[4].to_string(), fields[3].clone());
+                snpeff.entry(key).or_insert(fields);
+            }
+        }
+    }
+
+    let output = fs::read_to_string(tmp.join("ann.MNV.vcf")).unwrap();
+    let mut compared = 0;
+    for cols in output
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .map(|l| l.split('\t').collect::<Vec<_>>())
+    {
+        if cols[3].len() != 1 || cols[4].len() != 1 {
+            continue;
+        }
+        let entry = ann(cols[7]);
+        let ours: Vec<&str> = entry.split('|').collect();
+        assert_eq!(ours.len(), 16, "{entry}");
+        let key = (
+            cols[1].to_string(),
+            cols[4].to_string(),
+            ours[3].to_string(),
+        );
+        let Some(theirs) = snpeff.get(&key) else {
+            continue;
+        };
+        // RNA genes: snpEff's database knows it, the example's gene table does
+        // not say so, and get_MNV translates them.
+        if theirs[1] == "non_coding_exon_variant" {
+            continue;
+        }
+        // A first codon that is not a start codon, made into one: get_MNV reads
+        // an initiation codon at position 1 as Met, snpEff 4.1 by the table.
+        if theirs[13].starts_with("1/") && !theirs[10].starts_with("p.Met1") {
+            continue;
+        }
+        compared += 1;
+        // snpEff 4.1 also calls the last bases of a single-exon gene a splice
+        // region. A bacterial gene is not spliced.
+        let term = theirs[1].trim_end_matches("&splice_region_variant");
+        assert_eq!(
+            [ours[1], ours[2], ours[9], ours[10]],
+            [term, &theirs[2], &theirs[9], &theirs[10]],
+            "{}",
+            cols.join("\t")
+        );
+    }
+    assert!(compared > 790, "only {compared} bases compared");
 
     fs::remove_dir_all(&tmp).ok();
 }

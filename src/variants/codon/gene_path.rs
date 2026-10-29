@@ -65,6 +65,8 @@ pub(super) fn compute_annotations(
         catalogue: Vec::new(),
         // Indels only, filled in per contig by the pipeline.
         id83: None,
+        // Set by the caller, which has each base's coding position.
+        single_bases: Vec::new(),
     }
 }
 
@@ -130,18 +132,22 @@ pub(super) fn coding_substitution_for_codon(
     let entries: Vec<(usize, char, char)> = codon_info
         .codon_list
         .iter()
-        .filter_map(|snp| {
-            let local_nt = match strand {
-                Strand::Plus => snp.position.checked_sub(codon_info.gene_start)?,
-                Strand::Minus => codon_info.gene_end.checked_sub(snp.position)?,
-            };
-            let cds_pos = codon_info.protein_offset * 3 + local_nt + 1;
-            let cref = super::transcript_path::transcript_oriented_base(&snp.ref_base, strand)?;
-            let calt = super::transcript_path::transcript_oriented_base(&snp.base, strand)?;
-            Some((cds_pos, cref, calt))
-        })
+        .filter_map(|snp| coding_entry(codon_info, snp, strand))
         .collect();
     crate::variants::hgvs::coding_substitution(&entries)
+}
+
+/// One substitution of the codon as `(CDS position, reference, alternate)`,
+/// bases in the coding-strand orientation.
+fn coding_entry(codon_info: &CodonInfo, snp: &Snp, strand: Strand) -> Option<(usize, char, char)> {
+    let local_nt = match strand {
+        Strand::Plus => snp.position.checked_sub(codon_info.gene_start)?,
+        Strand::Minus => codon_info.gene_end.checked_sub(snp.position)?,
+    };
+    let cds_pos = codon_info.protein_offset * 3 + local_nt + 1;
+    let cref = super::transcript_path::transcript_oriented_base(&snp.ref_base, strand)?;
+    let calt = super::transcript_path::transcript_oriented_base(&snp.base, strand)?;
+    Some((cds_pos, cref, calt))
 }
 
 /// The single uppercase base of a one-character allele, or `None` for empty or
@@ -177,8 +183,8 @@ fn compute_consequence_shift(
     }
 }
 use crate::variants::{
-    ChangeType, CodonInfo, ConsequenceShift, Gene, Snp, Strand, VariantAnnotations, VariantInfo,
-    VariantType,
+    ChangeType, CodonInfo, ConsequenceShift, Gene, SingleBaseEffect, Snp, Strand,
+    VariantAnnotations, VariantInfo, VariantType,
 };
 
 use super::grouping::{collect_all_f64, collect_all_usize, merge_original_info};
@@ -335,6 +341,19 @@ pub fn process_codon(
     let mut annotations = compute_annotations(&orig_aa, &mut_aa, &single_aas, change_type);
     annotations.dbs_class = dbs_class_for_codon(&mnv_snps);
     annotations.hgvs_c = coding_substitution_for_codon(&codon_info, strand);
+    annotations.single_bases = codon_info
+        .codon_list
+        .iter()
+        .zip(&single_aas)
+        .map(|(snp, &single)| SingleBaseEffect {
+            change_type: substitution_change_type(first_residue(&orig_aa), single, aa_pos),
+            hgvs_c: coding_entry(&codon_info, snp, strand)
+                .and_then(|entry| crate::variants::hgvs::coding_substitution(&[entry])),
+            // This path builds single-segment genes, which have no junction.
+            splice: None,
+            original_info: snp.original_info.clone(),
+        })
+        .collect();
 
     VariantInfo {
         chrom: chrom.to_string(),

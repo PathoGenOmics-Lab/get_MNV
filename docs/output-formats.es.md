@@ -189,11 +189,56 @@ Campos INFO comunes:
 | `ADJSUB` | Descriptor HGVS genómico de cada racha de dos o más bases sustituidas adyacentes a la que pertenece el registro, compartido por todos los registros de la racha |
 | `CAT` | Entradas de `--catalogue` con las que coincide el registro, como en la columna `Catalogue` (percent-encoded) |
 | `ID83` | Clase COSMIC ID83 de una inserción o deleción pura (p. ej. `1:Del:C:2`) |
+| `ANN` | La anotación del registro en el formato que escribe snpEff, descrita [más abajo](#el-campo-ann) |
 
 La cabecera del VCF registra la versión de get_MNV, la línea de comandos y los umbrales usados.
 Cuando `--emit-filtered` está habilitado, los registros VCF que quedan por debajo de los umbrales de
 soporte de lecturas, frecuencia, soporte de hebra o sesgo de hebra se escriben con etiquetas FILTER como
 `LowSupport`, `LowFrequency`, `StrandSupport` o `StrandBias`; de lo contrario, se omiten.
+
+### El campo `ANN`
+
+Cada registro lleva además su anotación en el formato que escribe snpEff, que
+`bcftools +split-vep`, SnpSift y la mayoría de herramientas de VCF leen sin
+conocer las claves propias de get_MNV:
+
+```bash
+bcftools +split-vep -a ANN -f '%POS\t%REF\t%ALT\t%Gene_Name\t%Annotation\t%HGVS.c\t%HGVS.p\n' sample.MNV.vcf
+```
+
+Cada entrada habla del ALT de su propio registro. En el registro de una base de
+un codón que cambia dos o más, eso es la base por sí sola, como ya dice el `AA`
+del registro; el cambio combinado del codón está en el registro del codón,
+marcado `INFO_COMPOUND_ANNOTATION`, la marca de snpEff para un efecto que sale
+de combinar variantes. `SO`, `IMPACT` y `CT` siguen siendo los del codón en
+todos los registros.
+
+| Campo | Contenido |
+|---|---|
+| `Allele` | El ALT del registro |
+| `Annotation`, `Annotation_Impact` | Término de Sequence Ontology e impacto, como en `SO` e `IMPACT` |
+| `Gene_Name`, `Gene_ID`, `Feature_ID` | El gen como lo nombra get_MNV; vacíos en un registro intergénico |
+| `Feature_Type` | `transcript`, o `intergenic_region` |
+| `Transcript_BioType` | `protein_coding`, o `Noncoding` para un gen que no se traduce |
+| `HGVS.c`, `HGVS.p` | El cambio codificante y proteico del registro (`p.Ser450Leu`, `p.Met1?`, `p.Ter23Argext*?`); vacíos donde `AA` lleva una etiqueta en vez de un cambio |
+| `ERRORS / WARNINGS / INFO` | `INFO_COMPOUND_ANNOTATION` en el registro de un codón |
+
+El rango, las posiciones en el cDNA, la CDS y la proteína y la distancia quedan
+vacíos. Un valor que rompería el campo va percent-encoded, como la lista de
+alelos de `c.[274G>C%3B275G>A]`.
+
+Un `ANN` que ya traía la entrada no se pierde con `--keep-original-info`: sus
+entradas para el ALT del registro van detrás de las de get_MNV, así que las
+categorías propias de snpEff de un laboratorio siguen con la base para la que se
+escribieron. No pasan al registro de un codón, cuyo alelo no tenía ningún
+registro de entrada.
+
+La entrada del ejemplo incluido se anotó con snpEff 4.1, y en sus 802 bases que
+anotan los dos, la entrada de get_MNV da la misma consecuencia, impacto,
+`HGVS.c` y `HGVS.p` que la de snpEff salvo en tres casos: snpEff 4.1 llama
+también región de splicing a las últimas bases de un gen de un solo exón, la
+tabla de genes del ejemplo no marca sus genes de ARN como tales, y el primer
+codón anotado de un gen no es un codón de inicio.
 
 ## Salida BCF
 
@@ -465,6 +510,9 @@ megabytes.
 - Los filtros de soporte de lecturas y de soporte de hebra de SNP y MNV también son independientes.
 - `--sample all` escribe un conjunto de salida por cada muestra del VCF, con las variantes que lleva el genotipo de esa muestra.
 - `--keep-original-info` conserva los campos INFO del VCF de entrada que no son de get_MNV.
+  El registro de una base de un codón lleva los campos del registro de entrada
+  de esa misma base, y un `ANN` de entrada va detrás de las entradas de get_MNV
+  ([El campo `ANN`](#el-campo-ann)).
 
 ## Matriz de variantes por muestra
 

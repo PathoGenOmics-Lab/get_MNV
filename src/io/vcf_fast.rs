@@ -42,13 +42,9 @@ pub fn load_vcf_text(
     let mut spelled_out = 0usize;
     let mut record_idx = 0usize;
 
-    // INFO tags to preserve when keep_original_info is active
-    let get_mnv_tags: &[&str] = &[
-        "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
-        "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ", "SO", "IMPACT",
-        "GD", "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "DPHASE", "LD", "LDP", "NMD", "HGVSG",
-        "HGVSC",
-    ];
+    // The INFO keys get_MNV writes itself, dropped from what keep_original_info
+    // keeps. One list for both readers: a copy here missed the keys added since.
+    let get_mnv_tags = super::vcf::GET_MNV_INFO_TAGS;
 
     // Per-allele (Number=A/R/G) INFO fields, so they can be subset to a single
     // ALT when a multiallelic record is split (avoids invalid copied arrays).
@@ -507,12 +503,6 @@ pub fn list_text_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
 
 /// Extract original INFO header lines from a plain-text VCF.
 pub fn extract_text_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
-    let get_mnv_tags: &[&str] = &[
-        "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
-        "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ", "SO", "IMPACT",
-        "GD", "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "DPHASE", "LD", "LDP", "NMD", "HGVSG",
-        "HGVSC",
-    ];
     let file = std::fs::File::open(vcf_file)
         .map_err(|e| format!("Cannot open VCF file '{}': {}", vcf_file, e))?;
     let reader = BufReader::new(file);
@@ -526,7 +516,7 @@ pub fn extract_text_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
         if let Some(rest) = line.strip_prefix("##INFO=<ID=") {
             if let Some(comma_pos) = rest.find(',') {
                 let tag = &rest[..comma_pos];
-                if !get_mnv_tags.contains(&tag) {
+                if !super::vcf::header_written_by_get_mnv(tag) {
                     headers.push(line);
                 }
             }

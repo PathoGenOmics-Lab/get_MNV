@@ -1,7 +1,7 @@
 //! Spliced-transcript codon path: transcript SNPs, codon processing, frameshift/PTC.
 
 use crate::variants::consequence::{first_residue, substitution_change_type};
-use crate::variants::{ChangeType, Gene, Snp, Strand, VariantInfo, VariantType};
+use crate::variants::{ChangeType, Gene, SingleBaseEffect, Snp, Strand, VariantInfo, VariantType};
 use std::collections::BTreeSet;
 
 use super::allele_apply::apply_allele_to_feature;
@@ -138,6 +138,31 @@ pub(super) fn process_transcript_codon(
         .iter()
         .map(|&idx| snp_changes[idx].clone())
         .collect::<Vec<_>>();
+    annotations.single_bases = output_order
+        .iter()
+        .map(|&idx| {
+            let ts = &codon_snps[idx];
+            SingleBaseEffect {
+                change_type: substitution_change_type(
+                    first_residue(&orig_aa),
+                    single_aas[idx],
+                    aa_pos,
+                ),
+                hgvs_c: transcript_oriented_base(&ts.snp.ref_base, gene.strand).and_then(|cref| {
+                    crate::variants::hgvs::coding_substitution(&[(
+                        ts.transcript_offset + 1,
+                        cref,
+                        ts.transcript_alt_base,
+                    )])
+                }),
+                splice: crate::variants::splice::splice_consequence_for_position(
+                    gene,
+                    ts.snp.position,
+                ),
+                original_info: ts.snp.original_info.clone(),
+            }
+        })
+        .collect();
 
     VariantInfo {
         chrom: chrom.to_string(),

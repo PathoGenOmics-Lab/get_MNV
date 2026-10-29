@@ -1,5 +1,6 @@
 //! Output writers for TSV and VCF/BCF formats.
 
+mod ann;
 mod common;
 
 // The consequence a row states, which is what tells two rows about the same base

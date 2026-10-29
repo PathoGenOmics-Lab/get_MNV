@@ -500,6 +500,13 @@ window.GET_MNV_DOCS_INDEX = [
 {
 "lang": "en",
 "page": "Output Formats",
+"section": "The ANN field",
+"url": "output-formats/index.html#the-ann-field",
+"text": "Every record also carries its annotation in the format snpEff writes, which bcftools +split-vep, SnpSift and most VCF tooling read without knowing get_MNV's own keys: bcftools +split-vep -a ANN -f '%POS\\t%REF\\t%ALT\\t%Gene_Name\\t%Annotation\\t%HGVS.c\\t%HGVS.p\\n' sample.MNV.vcf Each entry is about its own record's ALT. On the record of one base of a codon that changes two or more, that is the base on its own, as the record's AA already reads; the codon's combined change is on the codon's record, ma"
+},
+{
+"lang": "en",
+"page": "Output Formats",
 "section": "BCF Output",
 "url": "output-formats/index.html#bcf-output",
 "text": "Write BCF with: --bcf BCF requires VCF output mode, so use it with --convert or --both. The conversion is done by bcftools view, taken from PATH. Without bcftools installed the run warns, writes no BCF, and still exits 0 with its TSV and VCF intact. --index-vcf-gz works the same way through tabix. Default file name: <input_name>.MNV.bcf"
@@ -1588,6 +1595,13 @@ window.GET_MNV_DOCS_INDEX = [
 "section": "Salida VCF",
 "url": "es/output-formats/index.html#salida-vcf",
 "text": "Escribe VCF con: --convert o escribe tanto TSV como VCF con: --both Nombre de archivo por defecto: <input_name>.MNV.vcf Usa --vcf-gz para obtener salida comprimida: <input_name>.MNV.vcf.gz Campos INFO comunes: GENE Nombre del gen o de la característica AA Cambio de aminoácido CT Tipo de cambio TYPE Tipo de variante EC Clase canónica del evento de alelo COMP Componentes del evento REF/ALT ODP Profundidad original del archivo de variantes de entrada OFREQ Frecuencia alélica original del archivo de"
+},
+{
+"lang": "es",
+"page": "Formatos de salida",
+"section": "El campo ANN",
+"url": "es/output-formats/index.html#el-campo-ann",
+"text": "Cada registro lleva además su anotación en el formato que escribe snpEff, que bcftools +split-vep, SnpSift y la mayoría de herramientas de VCF leen sin conocer las claves propias de get_MNV: bcftools +split-vep -a ANN -f '%POS\\t%REF\\t%ALT\\t%Gene_Name\\t%Annotation\\t%HGVS.c\\t%HGVS.p\\n' sample.MNV.vcf Cada entrada habla del ALT de su propio registro. En el registro de una base de un codón que cambia dos o más, eso es la base por sí sola, como ya dice el AA del registro; el cambio combinado del codó"
 },
 {
 "lang": "es",

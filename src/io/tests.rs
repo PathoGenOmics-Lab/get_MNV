@@ -7,11 +7,19 @@ use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn unique_temp_path(prefix: &str, suffix: &str) -> std::path::PathBuf {
+    // The clock alone does not make a name unique: macOS reads it in
+    // microseconds, and two tests running in parallel took the same file, one
+    // deleting it while the other still read it.
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system time before UNIX_EPOCH")
         .as_nanos();
-    std::env::temp_dir().join(format!("{prefix}_{nanos}_{suffix}"))
+    std::env::temp_dir().join(format!(
+        "{prefix}_{}_{nanos}_{n}_{suffix}",
+        std::process::id()
+    ))
 }
 
 #[test]

@@ -29,6 +29,7 @@ impl VcfWriter {
         let alt_base = get_required(&variant.base_changes, index, "base_changes", variant)?;
         let info = build_info_string(
             variant,
+            alt_base,
             Some(aa),
             VariantType::Snp.as_str(),
             Some((
@@ -94,6 +95,7 @@ impl VcfWriter {
         )?;
         let info = build_info_string(
             variant,
+            &alt_region,
             Some(aa),
             VariantType::Mnv.as_str(),
             None,

@@ -105,6 +105,17 @@ All notable changes to this project are documented in this file.
   `per-SNV reading only` (one such annotation would report that the codon does
   not make).
 
+- **The VCF carries an `ANN` field, in snpEff's format.** `bcftools
+  +split-vep`, SnpSift and most VCF tooling read it without knowing get_MNV's
+  own keys. Each entry is about its own record's ALT: the record of one base of
+  a codon describes that base alone, as its `AA` already did, and the codon's
+  record the combined change, marked `INFO_COMPOUND_ANNOTATION`. On the 802
+  bases of the bundled example that snpEff 4.1 also annotated, the consequence,
+  impact, `HGVS.c` and `HGVS.p` are snpEff's, apart from its splice region at
+  the end of single-exon genes, the example's unmarked RNA genes and one first
+  codon that is not a start codon. An `ANN` already in the input follows
+  get_MNV's entry under `--keep-original-info`, for the same allele only.
+
 ### Changed
 
 - **HGVS descriptors follow the standard more closely.** A lost initiator is
@@ -159,6 +170,11 @@ All notable changes to this project are documented in this file.
 - **A frameshift that destroys the start codon says so.** It was reported as a
   plain `frameshift_variant`, while a substitution at the same initiator was
   `start_lost`. It is now `frameshift_variant&start_lost`.
+- **Under `--keep-original-info` each base of a codon keeps its own INFO.**
+  Every record of a codon carried the INFO of its first base, so the second
+  base's record repeated the first base's depth, and anything else its caller
+  wrote, under its own position. The record of one base now carries that base's
+  own input record's fields; the codon's record still carries the first's.
 
 - **`ATA` is Methionine in the mitochondrial tables.** Tables 2, 3 and 5
   (Vertebrate, Yeast and Invertebrate Mitochondrial) translated `ATA` as

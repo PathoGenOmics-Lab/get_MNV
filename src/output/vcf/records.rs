@@ -27,6 +27,7 @@ impl VcfWriter {
         }
         let info = build_info_string(
             variant,
+            alt_base,
             variant.aa_changes.first().map(String::as_str),
             VariantType::Indel.as_str(),
             None,
@@ -65,6 +66,7 @@ impl VcfWriter {
                 let aa = variant.aa_changes.join(",");
                 let info = build_info_string(
                     variant,
+                    alt_base,
                     Some(&aa),
                     VariantType::Snp.as_str(),
                     None,
@@ -126,6 +128,7 @@ impl VcfWriter {
             let aa = variant.aa_changes.join(",");
             let info = build_info_string(
                 variant,
+                &alt_region,
                 Some(&aa),
                 VariantType::Mnv.as_str(),
                 None,
@@ -189,6 +192,7 @@ impl VcfWriter {
                 let aa = snp_aa_for_index(variant, i);
                 let info = build_info_string(
                     variant,
+                    alt_base,
                     Some(&aa),
                     VariantType::Snp.as_str(),
                     None,
@@ -226,6 +230,7 @@ impl VcfWriter {
             let aa = variant.aa_changes.join(",");
             let info = build_info_string(
                 variant,
+                &alt_region,
                 Some(&aa),
                 VariantType::Mnv.as_str(),
                 None,
@@ -382,6 +387,7 @@ impl VcfWriter {
 
         let info = build_info_string(
             variant,
+            alt_base,
             None,
             variant.variant_type.as_str(),
             snp_support.map(|(s, f, r, _)| (s, f, r)),

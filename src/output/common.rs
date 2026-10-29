@@ -52,6 +52,7 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "ADJSUB"
             | "CAT"
             | "ID83"
+            | "ANN"
     )
 }
 
@@ -86,8 +87,18 @@ fn states_a_protein_consequence(variant: &VariantInfo, base_term: &str) -> bool 
 /// junction is combined (`missense_variant&splice_region_variant`, keeping the
 /// more severe impact), and an intronic splice site stands on its own.
 pub(crate) fn so_consequence(variant: &VariantInfo) -> (String, &'static str) {
-    let (base_term, base_impact) = base_so_consequence(variant);
-    match variant.annotations.splice {
+    so_consequence_for(variant, variant.change_type, variant.annotations.splice)
+}
+
+/// [`so_consequence`] for one part of a row: a change type and a splice
+/// consequence of its own, read in the row's gene.
+pub(crate) fn so_consequence_for(
+    variant: &VariantInfo,
+    change_type: crate::variants::ChangeType,
+    splice: Option<crate::variants::SpliceConsequence>,
+) -> (String, &'static str) {
+    let (base_term, base_impact) = base_so_consequence(variant, change_type);
+    match splice {
         None => (base_term.to_string(), base_impact),
         Some(splice) => {
             let (splice_term, splice_impact) = (splice.as_str(), splice.impact());
@@ -116,7 +127,10 @@ pub(crate) fn so_consequence(variant: &VariantInfo) -> (String, &'static str) {
 
 /// Base SO consequence from the gene context and change type, before any splice
 /// refinement.
-fn base_so_consequence(variant: &VariantInfo) -> (&'static str, &'static str) {
+fn base_so_consequence(
+    variant: &VariantInfo,
+    change_type: crate::variants::ChangeType,
+) -> (&'static str, &'static str) {
     use crate::variants::ChangeType;
     if variant.gene == "intergenic" {
         return ("intergenic_variant", "MODIFIER");
@@ -126,7 +140,7 @@ fn base_so_consequence(variant: &VariantInfo) -> (&'static str, &'static str) {
     if let Some(reason) = variant.annotations.non_coding {
         return (reason.as_str(), "MODIFIER");
     }
-    match variant.change_type {
+    match change_type {
         ChangeType::Synonymous => ("synonymous_variant", "LOW"),
         ChangeType::NonSynonymous => ("missense_variant", "MODERATE"),
         ChangeType::StartLost => ("start_lost", "HIGH"),
@@ -394,6 +408,7 @@ fn push_original_metrics(builder: &mut InfoBuilder, variant: &VariantInfo, index
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_info_string(
     variant: &VariantInfo,
+    alt: &str,
     aa: Option<&str>,
     variant_type: &str,
     snp_metrics: Option<(usize, usize, usize)>,
@@ -524,6 +539,19 @@ pub(crate) fn build_info_string(
             builder.push("EFREQ", format_freq(allele_frequency(reads, depth)));
         }
     }
+
+    // The record of one base of a codon passes on that base's own input INFO:
+    // the row's is its first base's.
+    let original_info = original_index
+        .filter(|_| variant.positions.len() > 1)
+        .and_then(|index| variant.annotations.single_bases.get(index))
+        .map_or(original_info, |base| base.original_info.as_deref());
+
+    // Already encoded field by field: its `|` and `,` are the format's own.
+    builder.push(
+        "ANN",
+        super::ann::ann_field(variant, alt, original_index, aa, original_info),
+    );
 
     // Append original INFO fields from the input VCF (if --keep-original-info).
     // Skip keys that collide with get_mnv's own INFO fields to avoid duplicate
@@ -891,6 +919,7 @@ pub(crate) fn write_info_header(
         writer,
         "##INFO=<ID=ID83,Number=1,Type=String,Description=\"COSMIC ID83 class of a pure insertion or deletion, as SigProfiler labels it (size:Type:Subtype:count, e.g. 1:Del:C:2)\">"
     )?;
+    writeln!(writer, "{}", super::ann::ANN_HEADER)?;
     writeln!(
         writer,
         "##INFO=<ID=EC,Number=1,Type=String,Description=\"Canonical allele event class derived from REF/ALT\">"
@@ -1052,6 +1081,7 @@ mod tests {
         v.gene = "weird;gene=x,y".to_string();
         let info = build_info_string(
             &v,
+            "T",
             Some("Ala10Val"),
             "SNP",
             None,
@@ -1067,6 +1097,11 @@ mod tests {
         // into spurious INFO keys via its ';' and '='.
         let gene_field = info.split(';').next().unwrap();
         assert_eq!(gene_field, "GENE=weird%3Bgene%3Dx%2Cy", "got: {info}");
+        // Nor through the gene fields of ANN, which also split on `|` and `,`.
+        assert!(
+            info.contains("|weird%3Bgene%3Dx%2Cy|weird%3Bgene%3Dx%2Cy|transcript|"),
+            "got: {info}"
+        );
     }
 
     // ---- mnv_phasing_support ----
@@ -1191,6 +1226,7 @@ mod tests {
         let variant = make_snp_variant();
         let info = build_info_string(
             &variant,
+            "T",
             Some("Ala10Val"),
             "SNP",
             Some((5, 3, 2)),
@@ -1219,6 +1255,7 @@ mod tests {
         let variant = make_snp_variant();
         let info = build_info_string(
             &variant,
+            "T",
             Some("Ala10Val"),
             "SNP",
             None,
@@ -1230,8 +1267,15 @@ mod tests {
             None,
             Some("ANN=missense;CLNSIG=pathogenic"),
         );
-        assert!(info.contains("ANN=missense"));
         assert!(info.contains("CLNSIG=pathogenic"));
+        // One ANN key, get_MNV's: the input's entry names no allele this record
+        // has, so it does not follow.
+        let anns: Vec<&str> = info.split(';').filter(|f| f.starts_with("ANN=")).collect();
+        assert_eq!(anns.len(), 1, "{info}");
+        assert!(
+            anns[0].starts_with("ANN=T|missense_variant|MODERATE|geneA|"),
+            "{info}"
+        );
     }
 
     #[test]
@@ -1240,6 +1284,7 @@ mod tests {
         // DP and FREQ are reserved — should NOT appear from original_info
         let info = build_info_string(
             &variant,
+            "T",
             None,
             "SNP",
             None,
@@ -1337,6 +1382,7 @@ mod tests {
         let sbp_of = |p: f64| {
             let info = build_info_string(
                 &make_snp_variant(),
+                "T",
                 Some("Ala10Val"),
                 "SNP",
                 None,

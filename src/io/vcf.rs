@@ -14,7 +14,9 @@ use crate::variants::{
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read, Write};
 
-const GET_MNV_INFO_TAGS: &[&str] = &[
+/// INFO keys get_MNV writes itself. An input's values for them are dropped, so
+/// a run over get_MNV's own output does not carry the old ones forward.
+pub(crate) const GET_MNV_INFO_TAGS: &[&str] = &[
     "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
     "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ", "SO", "IMPACT", "GD",
     "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "DPHASE", "LD", "LDP", "NMD", "HGVSG", "HGVSC",
@@ -782,8 +784,13 @@ fn resolve_sample_index(samples: &[String], sample_name: Option<&str>) -> AppRes
     Ok(Some(0))
 }
 
+/// Whether an input `##INFO` header gives way to the one get_MNV writes: one of
+/// its own keys, or `ANN`, whose input entries are kept after get_MNV's own.
+pub(crate) fn header_written_by_get_mnv(id: &str) -> bool {
+    GET_MNV_INFO_TAGS.contains(&id) || id == "ANN"
+}
+
 pub fn extract_original_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
-    let own: HashSet<&str> = GET_MNV_INFO_TAGS.iter().copied().collect();
     let mut lines = Vec::new();
 
     let reader = open_vcf_text(vcf_file)?;
@@ -796,7 +803,7 @@ pub fn extract_original_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
                 let rest = &line[id_start + 3..];
                 if let Some(id_end) = rest.find([',', '>']) {
                     let id = &rest[..id_end];
-                    if !own.contains(id) {
+                    if !header_written_by_get_mnv(id) {
                         lines.push(line.clone());
                     }
                 }

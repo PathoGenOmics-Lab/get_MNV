@@ -187,12 +187,55 @@ Common INFO fields:
 | `ADJSUB` | HGVS genomic descriptor of each run of two or more adjacent substituted bases the record belongs to, shared by every record of the run |
 | `CAT` | `--catalogue` entries the record matches, as in the `Catalogue` column (percent-encoded) |
 | `ID83` | COSMIC ID83 class of a pure insertion or deletion (e.g. `1:Del:C:2`) |
+| `ANN` | The record's annotation in the format snpEff writes, described [below](#the-ann-field) |
 
 The VCF header records the get_MNV version, command line, and thresholds used.
 When `--emit-filtered` is enabled, VCF records below read-support, frequency,
 strand-support, or strand-bias thresholds are written with FILTER tags such as
 `LowSupport`, `LowFrequency`, `StrandSupport`, or `StrandBias`; otherwise they
 are skipped.
+
+### The `ANN` field
+
+Every record also carries its annotation in the format snpEff writes, which
+`bcftools +split-vep`, SnpSift and most VCF tooling read without knowing
+get_MNV's own keys:
+
+```bash
+bcftools +split-vep -a ANN -f '%POS\t%REF\t%ALT\t%Gene_Name\t%Annotation\t%HGVS.c\t%HGVS.p\n' sample.MNV.vcf
+```
+
+Each entry is about its own record's ALT. On the record of one base of a codon
+that changes two or more, that is the base on its own, as the record's `AA`
+already reads; the codon's combined change is on the codon's record, marked
+`INFO_COMPOUND_ANNOTATION`, snpEff's mark for an effect that comes from
+combining variants. `SO`, `IMPACT` and `CT` stay the codon's on every record.
+
+| Field | Content |
+|---|---|
+| `Allele` | The record's ALT |
+| `Annotation`, `Annotation_Impact` | Sequence Ontology term and impact, as in `SO` and `IMPACT` |
+| `Gene_Name`, `Gene_ID`, `Feature_ID` | The gene as get_MNV names it; empty for an intergenic record |
+| `Feature_Type` | `transcript`, or `intergenic_region` |
+| `Transcript_BioType` | `protein_coding`, or `Noncoding` for a gene that is not translated |
+| `HGVS.c`, `HGVS.p` | The record's coding and protein change (`p.Ser450Leu`, `p.Met1?`, `p.Ter23Argext*?`); empty where `AA` holds a label rather than a change |
+| `ERRORS / WARNINGS / INFO` | `INFO_COMPOUND_ANNOTATION` on a codon's record |
+
+Rank, the cDNA, CDS and protein positions and the distance are left empty. A
+value that would break the field is percent-encoded, like the allele list in
+`c.[274G>C%3B275G>A]`.
+
+An `ANN` the input already carried is not dropped by `--keep-original-info`:
+its entries for the record's ALT follow get_MNV's, so a lab's own snpEff
+categories stay with the base they were written for. They are left off a
+codon's record, whose allele no input record had.
+
+The bundled example's input was annotated by snpEff 4.1, and on its 802 bases
+both annotate, get_MNV's entry gives the same consequence, impact, `HGVS.c` and
+`HGVS.p` as snpEff's apart from three cases: snpEff 4.1 also calls the last
+bases of a single-exon gene a splice region, the example's gene table does not
+mark its RNA genes as such, and one gene's annotated first codon is not a start
+codon.
 
 ## BCF Output
 
@@ -453,6 +496,9 @@ so a cohort of tens of thousands of variants stays in the low megabytes.
 - SNP and MNV read-support and strand-support filters are also independent.
 - `--sample all` writes one output set per VCF sample, each holding the variants that sample's genotype carries.
 - `--keep-original-info` preserves non-get_MNV INFO fields from the input VCF.
+  The record of one base of a codon carries that base's own input record's
+  fields, and an input `ANN` follows get_MNV's own entries
+  ([The `ANN` field](#the-ann-field)).
 
 ## Variant-by-sample matrix
 

@@ -288,6 +288,52 @@ pub struct VariantAnnotations {
     /// [`crate::variants::id83`].
     #[serde(default)]
     pub id83: Option<String>,
+    /// What each substituted base of a codon does on its own, in `positions`
+    /// order: what the VCF record for that base alone describes in `ANN`. Empty
+    /// for a row that is not a codon.
+    #[serde(default)]
+    pub single_bases: Vec<SingleBaseEffect>,
+}
+
+/// One substituted base of a codon read on its own, the codon's other
+/// substitutions left out, as the record for that base alone presents it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SingleBaseEffect {
+    /// Its change type in an intact reading frame. The frame the codon is read
+    /// in is the codon's, not the base's: see [`SingleBaseEffect::in_context`].
+    pub change_type: ChangeType,
+    /// HGVS coding descriptor of this base alone.
+    pub hgvs_c: Option<String>,
+    /// Splice consequence of this base alone.
+    pub splice: Option<SpliceConsequence>,
+    /// This base's own INFO from the input, when `--keep-original-info` kept
+    /// it. The row's `original_info` is its first base's, which is not this
+    /// base's record unless this base is the first.
+    #[serde(default)]
+    pub original_info: Option<String>,
+}
+
+impl SingleBaseEffect {
+    /// The change type under the codon's own label: what an upstream frameshift
+    /// or an overlapping indel says about the codon holds for each of its bases.
+    pub fn in_context(&self, codon: ChangeType) -> ChangeType {
+        match codon {
+            ChangeType::IndelOverlap | ChangeType::FrameshiftDownstreamOfStop => codon,
+            ChangeType::FrameshiftSynonymous
+            | ChangeType::FrameshiftNonSynonymous
+            | ChangeType::FrameshiftStopGained
+            | ChangeType::FrameshiftStopLost
+            | ChangeType::FrameshiftUnknown
+            | ChangeType::FrameshiftIndel => self.change_type.with_frameshift(),
+            ChangeType::Synonymous
+            | ChangeType::NonSynonymous
+            | ChangeType::StartLost
+            | ChangeType::StopGained
+            | ChangeType::StopLost
+            | ChangeType::Unknown
+            | ChangeType::InFrameIndel => self.change_type,
+        }
+    }
 }
 
 /// The input caller's phase claim for one row, and whether the reads refute it.
