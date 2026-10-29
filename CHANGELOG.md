@@ -140,6 +140,13 @@ All notable changes to this project are documented in this file.
   one annotated row per ALT, the same output `bcftools norm -m -` produces. The
   flag is still accepted, so existing commands keep working.
 
+- **The documentation site opens on a page of its own.** Its home was the
+  README. It now shows, step by step, what the tool does on a real codon of the
+  bundled sample, where reading one base at a time gives Arg and Glu and the
+  codon gives Gln; it has a codon playground that reads each change on its own
+  and all together; and it leads to installing, a first run on the example data
+  and the three outputs. The site opens dark, as the lab's other sites do, with
+  the search box and the main pages in the top bar.
 - **The documentation site is plain HTML, built without MkDocs.** Material for
   MkDocs reaches its end of life on 5 May 2027. The markdown in `docs/` stays the
   source and GitHub renders it; `tools/build_docs.py`, standard library only,

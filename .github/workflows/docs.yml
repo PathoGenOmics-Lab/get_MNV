@@ -21,7 +21,8 @@ name: Docs
 # and can be rolled back.
 #
 # Triggers:
-#   - push to the default branch touching docs/, tools/build_docs.py or this workflow
+#   - push to the default branch touching docs/, the builder, the home page's
+#     templates in tools/site/ or this workflow
 #   - manual run (workflow_dispatch)
 #
 # To look at the site without publishing it, open docs/index.html; it works
@@ -33,6 +34,7 @@ on:
     paths:
       - "docs/**"
       - "tools/build_docs.py"
+      - "tools/site/**"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 

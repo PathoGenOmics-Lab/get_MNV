@@ -5,84 +5,49 @@ window.GET_MNV_DOCS_INDEX = [
 "page": "Home",
 "section": "",
 "url": "index.html",
-"text": "Codon-level Multi-Nucleotide Variant detection and indel annotation, from a VCF or an iVar TSV. Pure Rust, no C dependencies, on macOS, Linux and Windows. Start here · See a real report get_MNV finds cases where two or more SNVs fall in the same codon and should be interpreted together. These combined changes can produce a different amino acid effect than the individual SNVs alone. MNV amino acid reclassification MNV amino acid reclassification"
+"text": "Two substitutions in one codon make one amino acid, not two. get_MNV translates every codon whole, places each indel against its gene and, given a BAM or CRAM, counts the reads that carry the changes together."
 },
 {
 "lang": "en",
 "page": "Home",
-"section": "The problem, in one codon",
-"url": "index.html#the-problem-in-one-codon",
-"text": "That is the figure above, in words. A codon reads CGT and codes arginine, and a caller reports two substitutions inside it: Reference CGT Arg Position 1 alone, C>T TGT Cys Position 2 alone, G>C CCT Pro Both together TCT Ser An annotator that takes each substitution on its own reports a cysteine and a proline. Neither happens. If the two changes sit on the same molecule, the protein carries a serine, which is the answer get_MNV gives. Whether they really do sit on the same molecule is a separate "
+"section": "Try it: one codon, two readings",
+"url": "index.html#try",
+"text": "Change any base. Each change is read on its own, the way a base-by-base annotator reads it, and then all together, the way get_MNV reads the codon. Arg becomes Ser Rv0095c, codon 92 A stop the codon undoes Two silent changes, one missense The script that makes this interactive did not run. Here is the first example, worked out. Read as Codon Amino acid Reference CGT Arg Position 1 alone, C>T TGT Cys missense Position 2 alone, G>C CCT Pro missense Both, as get_MNV reads it TCT Ser missense One ba"
 },
 {
 "lang": "en",
 "page": "Home",
-"section": "What it does with them",
-"url": "index.html#what-it-does-with-them",
-"text": "1. Decompose the REF/ALT pair of each record the individual changes it holds: SNV, MNV, insertion, deletion, delins 2. Place the reference and the gene annotation which feature each change falls in, and which codon 3. Translate the whole codon, not one base at a time the amino acid the codon actually gives 4. Count (with a BAM) the aligned reads how many carry each change, and whether they travel together 5. Write everything above a TSV, a VCF, and a self-contained HTML report Steps 1 to 3 need "
+"section": "What it does with a VCF",
+"url": "index.html#how",
+"text": "Steps 1 to 3 need no reads. A BAM or CRAM only adds step 4, which turns \"these two changes are in one codon\" into \"these two changes are on one molecule\". 1 Decompose Each record's REF and ALT into the changes it holds: SNVs, MNVs, insertions, deletions, delins. 2 Place Each change in its gene and codon, from a GFF or a gene table, on either strand and across exons. 3 Translate The whole codon, in one of nine NCBI genetic codes, and each indel against the protein. 4 Count With reads: how many ca"
 },
 {
 "lang": "en",
 "page": "Home",
-"section": "What it takes",
-"url": "index.html#what-it-takes",
-"text": "Variant calls VCF or iVar variants.tsv Reference sequence FASTA Gene annotation GFF/GFF3/GTF or a simple TSV Aligned reads (optional) BAM, to count SNP/MNV/indel event support It writes annotated variants as TSV, VCF, or both."
+"section": "Install",
+"url": "index.html#install",
+"text": "One binary, no C dependencies, on macOS, Linux and Windows. A desktop app does the same with drag and drop. Bioconda conda install -c bioconda get_mnv From source git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV cargo install --path . Rust 1.89 or newer. Desktop app macOS, Linux and Windows builds on the Releases page , with a guided tutorial . Not signed with an Apple certificate: on the first launch, right-click the app and choose Open. Check what you downloaded Every rele"
 },
 {
 "lang": "en",
 "page": "Home",
-"section": "Main features",
-"url": "index.html#main-features",
-"text": "Groups SNVs by codon and reports SNP, MNV, or SNP/MNV calls. Recalculates amino acid changes from the full codon haplotype. Decomposes REF/ALT alleles into SNV, MNV, insertion, deletion, delins, and complex indel components. Reads VCF and iVar TSV, including iVar +SEQ / -SEQ indel notation. Uses BAM reads (when provided) for SNP/MNV support, exact indel event support, and strand bias. Supports 9 NCBI genetic code tables. Writes a self-contained interactive HTML report: see an example. Includes a"
+"section": "Your first run",
+"url": "index.html#run",
+"text": "The repository ships a M. tuberculosis sample: a VCF, its reference and a gene table. From a clone: get_mnv \\ --vcf example/G35894.var.snp.vcf \\ --fasta example/MTB_ancestor.fas \\ --genes example/anot_genes.txt \\ --both --output-dir out \\ --report report.html 950 records in, 941 rows out: 797 SNP, 10 SNP/MNV codons and 134 intergenic out/G35894.var.snp.MNV.tsv and out/G35894.var.snp.MNV.vcf report.html , the example report The same run, line by line · Common recipes · Every option"
 },
 {
 "lang": "en",
 "page": "Home",
-"section": "Installation",
-"url": "index.html#installation",
-"text": ""
+"section": "What you get",
+"url": "index.html#get",
+"text": "Codon 92 of Rv0095c from Figure 1, in each of the three outputs. TSV one row per codon or indel Positions 104941, 104942 AA Changes Gly92Gln SNP AA Changes Gly92Glu, Gly92Arg Variant Type SNP/MNV HGVS c. c.[274G>C;275G>A] DBS Class CC>TG VCF each base, and the codon 104941 C T …AA=Gly92Glu… 104942 C G …AA=Gly92Arg… 104941 CC TG …AA=Gly92Gln;… ANN=TG|missense_variant|MODERATE| Rv0095c_Rv0095c|…|p.Gly92Gln| …|INFO_COMPOUND_ANNOTATION ANN is in snpEff's format, so bcftools +split-vep reads it. Repo"
 },
 {
 "lang": "en",
 "page": "Home",
-"section": "Desktop GUI",
-"url": "index.html#desktop-gui",
-"text": "Download the latest release for your platform from the Releases page. macOS users The app is not signed with an Apple Developer certificate. On first launch, right-click the app → Open → click Open in the dialog. Check what you downloaded Every release carries a SHA256SUMS file covering all of its assets. Download it next to the file you want, and check them together: sha256sum --ignore-missing -c SHA256SUMS On macOS, where sha256sum arrived only recently, shasum -a 256 --ignore-missing -c SHA25"
-},
-{
-"lang": "en",
-"page": "Home",
-"section": "Command line",
-"url": "index.html#command-line",
-"text": "conda install -c bioconda get_mnv Or build from source, with Rust 1.89 or newer: git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV cargo install --path ."
-},
-{
-"lang": "en",
-"page": "Home",
-"section": "Quick start",
-"url": "index.html#quick-start",
-"text": "get_mnv \\   --vcf variants.vcf \\   --fasta reference.fasta \\   --gff genes.gff3 A ready-to-run M. tuberculosis dataset (reference, genes, VCF, and a tiny demo BAM for the read viewer) lives in the example/ folder of the repository."
-},
-{
-"lang": "en",
-"page": "Home",
-"section": "Where to go next",
-"url": "index.html#where-to-go-next",
-"text": "Command Line Tutorial: A first run end to end on the bundled example data, with the output explained line by line. Common Recipes: Ready-to-run commands for the usual jobs: a cohort, an iVar table, a compressed VCF, a report from existing runs. CLI Reference: Every option with its default, and what each one changes about the answer. Output Formats: What each TSV column, VCF INFO key and JSON field means, and when a value is absent rather than zero. Linkage: Telling a real haplotype from two vari"
-},
-{
-"lang": "en",
-"page": "Home",
-"section": "Citation",
-"url": "index.html#citation",
-"text": "If you use get_MNV, please cite it via its Zenodo DOI."
-},
-{
-"lang": "en",
-"page": "Home",
-"section": "License",
-"url": "index.html#license",
-"text": "get_MNV is released under the AGPL-3.0 license."
+"section": "Read on",
+"url": "index.html#docs",
+"text": "Where to go once the first run works. Command line tutorial A first run end to end on the bundled data, the output explained line by line. Common recipes A cohort, an iVar table, a compressed VCF, a report from earlier runs. CLI reference Every option with its default, and what each one changes about the answer. Output formats Each TSV column, VCF INFO key and JSON field, and when a value is absent rather than zero. Linkage Telling a real haplotype from two variants that only share a codon, usin"
 },
 {
 "lang": "en",
@@ -1104,84 +1069,49 @@ window.GET_MNV_DOCS_INDEX = [
 "page": "Inicio",
 "section": "",
 "url": "es/index.html",
-"text": "Detección de variantes multinucleotídicas a nivel de codón y anotación de indels, desde un VCF o un TSV de iVar. Rust puro, sin dependencias de C, en macOS, Linux y Windows. Empieza aquí · Ver un informe real get_MNV detecta los casos en los que dos o más SNV caen en el mismo codón y deben interpretarse de forma conjunta. Estos cambios combinados pueden producir un efecto sobre el aminoácido distinto al de los SNV por separado. Reclasificación de aminoácidos por MNV Reclasificación de aminoácido"
+"text": "Dos sustituciones en un mismo codón dan un aminoácido, no dos. get_MNV traduce cada codón entero, sitúa cada indel en su gen y, con un BAM o un CRAM, cuenta las lecturas que llevan los cambios juntos."
 },
 {
 "lang": "es",
 "page": "Inicio",
-"section": "El problema, en un codón",
-"url": "es/index.html#el-problema-en-un-codón",
-"text": "Es la figura de arriba, en palabras. Un codón lee CGT y codifica arginina, y un llamador de variantes informa de dos sustituciones dentro de él: Referencia CGT Arg Solo la posición 1, C>T TGT Cys Solo la posición 2, G>C CCT Pro Las dos juntas TCT Ser Un anotador que toma cada sustitución por separado informa de una cisteína y de una prolina. No ocurre ninguna de las dos. Si los dos cambios están en la misma molécula, la proteína lleva una serina, que es la respuesta que da get_MNV. Si de verdad "
+"section": "Pruébalo: un codón, dos lecturas",
+"url": "es/index.html#try",
+"text": "Cambia cualquier base. Cada cambio se lee por separado, como lo lee un anotador base a base, y luego todos juntos, como lee el codón get_MNV. Arg pasa a Ser Rv0095c, codón 92 Un stop que el codón deshace Dos cambios silenciosos, un missense El script que lo hace interactivo no se ha ejecutado. Aquí está el primer ejemplo, resuelto. Leído como Codón Aminoácido Referencia CGT Arg Posición 1 sola, C>T TGT Cys missense Posición 2 sola, G>C CCT Pro missense Las dos, como lo lee get_MNV TCT Ser missen"
 },
 {
 "lang": "es",
 "page": "Inicio",
-"section": "Qué hace con ellas",
-"url": "es/index.html#qué-hace-con-ellas",
-"text": "1. Descomponer la pareja REF/ALT de cada registro los cambios individuales que contiene: SNV, MNV, inserción, deleción, delins 2. Situar la referencia y la anotación de genes en qué feature cae cada cambio, y en qué codón 3. Traducir el codón entero, no una base cada vez el aminoácido que da de verdad ese codón 4. Contar (con un BAM) las lecturas alineadas cuántas llevan cada cambio, y si viajan juntos 5. Escribir todo lo anterior un TSV, un VCF y un informe HTML autocontenido Los pasos 1 a 3 no"
-},
-{
-"lang": "es",
-"page": "Inicio",
-"section": "Qué necesita",
-"url": "es/index.html#qué-necesita",
-"text": "Llamadas de variantes VCF o iVar variants.tsv Secuencia de referencia FASTA Anotación de genes GFF/GFF3/GTF o un TSV simple Lecturas alineadas (opcional) BAM, para contar el soporte de SNP/MNV/indel Escribe las variantes anotadas en TSV, VCF o ambos."
-},
-{
-"lang": "es",
-"page": "Inicio",
-"section": "Características principales",
-"url": "es/index.html#características-principales",
-"text": "Agrupa los SNV por codón y reporta llamadas SNP, MNV o SNP/MNV. Recalcula los cambios de aminoácido a partir del haplotipo completo del codón. Descompone los alelos REF/ALT en componentes SNV, MNV, inserción, deleción, delins e indels complejos. Lee VCF e iVar TSV, incluida la notación de indels +SEQ / -SEQ de iVar. Usa las lecturas del BAM (cuando se aportan) para el soporte de SNP/MNV, el soporte exacto de eventos indel y el sesgo de hebra. Admite 9 tablas de código genético del NCBI. Escribe "
+"section": "Qué hace con un VCF",
+"url": "es/index.html#how",
+"text": "Los pasos 1 a 3 no necesitan lecturas. Un BAM o un CRAM solo añade el paso 4, que convierte \"estos dos cambios están en un codón\" en \"estos dos cambios están en una molécula\". 1 Descomponer El REF y el ALT de cada registro en los cambios que contienen: SNV, MNV, inserciones, deleciones, delins. 2 Situar Cada cambio en su gen y su codón, desde un GFF o una tabla de genes, en cualquier hebra y entre exones. 3 Traducir El codón entero, con uno de nueve códigos genéticos del NCBI, y cada indel contr"
 },
 {
 "lang": "es",
 "page": "Inicio",
 "section": "Instalación",
-"url": "es/index.html#instalación",
-"text": ""
+"url": "es/index.html#install",
+"text": "Un solo binario, sin dependencias de C, en macOS, Linux y Windows. Una aplicación de escritorio hace lo mismo arrastrando y soltando. Bioconda conda install -c bioconda get_mnv Desde el código fuente git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV cargo install --path . Rust 1.89 o posterior. Aplicación de escritorio Versiones para macOS, Linux y Windows en la página de versiones , con un tutorial guiado. No está firmada con un certificado de Apple: la primera vez, clic der"
 },
 {
 "lang": "es",
 "page": "Inicio",
-"section": "GUI de escritorio",
-"url": "es/index.html#gui-de-escritorio",
-"text": "Descarga la última versión para tu plataforma desde la página de Releases. Usuarios de macOS La app no está firmada con un certificado de Apple Developer. En el primer arranque, haz clic derecho en la app → Abrir → pulsa Abrir en el diálogo. Comprueba lo que has descargado Cada versión publica un fichero SHA256SUMS que cubre todos sus binarios. Descárgalo junto al fichero que quieras y compruébalos juntos: sha256sum --ignore-missing -c SHA256SUMS En macOS, donde sha256sum ha llegado hace poco, s"
+"section": "Tu primera ejecución",
+"url": "es/index.html#run",
+"text": "El repositorio trae una muestra de M. tuberculosis : un VCF, su referencia y una tabla de genes. Desde un clon: get_mnv \\ --vcf example/G35894.var.snp.vcf \\ --fasta example/MTB_ancestor.fas \\ --genes example/anot_genes.txt \\ --both --output-dir out \\ --report report.html Entran 950 registros y salen 941 filas: 797 SNP, 10 codones SNP/MNV y 134 intergénicas out/G35894.var.snp.MNV.tsv y out/G35894.var.snp.MNV.vcf report.html , el informe de ejemplo La misma ejecución, línea a línea · Recetas habit"
 },
 {
 "lang": "es",
 "page": "Inicio",
-"section": "Línea de comandos",
-"url": "es/index.html#línea-de-comandos",
-"text": "conda install -c bioconda get_mnv O compílala desde el código fuente, con Rust 1.89 o posterior: git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV cargo install --path ."
+"section": "Qué obtienes",
+"url": "es/index.html#get",
+"text": "El codón 92 de Rv0095c de la figura 1, en cada una de las tres salidas. TSV una fila por codón o indel Positions 104941, 104942 AA Changes Gly92Gln SNP AA Changes Gly92Glu, Gly92Arg Variant Type SNP/MNV HGVS c. c.[274G>C;275G>A] DBS Class CC>TG VCF cada base, y el codón 104941 C T …AA=Gly92Glu… 104942 C G …AA=Gly92Arg… 104941 CC TG …AA=Gly92Gln;… ANN=TG|missense_variant|MODERATE| Rv0095c_Rv0095c|…|p.Gly92Gln| …|INFO_COMPOUND_ANNOTATION ANN va en el formato de snpEff, así que lo lee bcftools +spl"
 },
 {
 "lang": "es",
 "page": "Inicio",
-"section": "Inicio rápido",
-"url": "es/index.html#inicio-rápido",
-"text": "get_mnv \\   --vcf variants.vcf \\   --fasta reference.fasta \\   --gff genes.gff3 Hay un conjunto de datos de M. tuberculosis listo para usar (referencia, genes, VCF y un BAM de demostración minúsculo para el visor de lecturas) en la carpeta example/ del repositorio."
-},
-{
-"lang": "es",
-"page": "Inicio",
-"section": "Por dónde seguir",
-"url": "es/index.html#por-dónde-seguir",
-"text": "Tutorial de línea de comandos: Una primera ejecución completa con los datos de ejemplo, con la salida explicada línea a línea. Recetas habituales: Comandos listos para ejecutar: una cohorte, una tabla de iVar, un VCF comprimido, un informe a partir de ejecuciones ya hechas. Referencia de CLI: Cada opción con su valor por defecto, y qué cambia cada una en la respuesta. Formatos de salida: Qué significa cada columna del TSV, cada clave INFO del VCF y cada campo JSON, y cuándo un valor está ausente"
-},
-{
-"lang": "es",
-"page": "Inicio",
-"section": "Cita",
-"url": "es/index.html#cita",
-"text": "Si usas get_MNV, cítalo mediante su DOI de Zenodo."
-},
-{
-"lang": "es",
-"page": "Inicio",
-"section": "Licencia",
-"url": "es/index.html#licencia",
-"text": "get_MNV se distribuye bajo la licencia AGPL-3.0."
+"section": "Para seguir",
+"url": "es/index.html#docs",
+"text": "Adónde ir cuando la primera ejecución funciona. Tutorial de línea de comandos Una primera ejecución de principio a fin con los datos incluidos, la salida explicada línea a línea. Recetas habituales Una cohorte, una tabla de iVar, un VCF comprimido, un informe de ejecuciones anteriores. Referencia de CLI Cada opción con su valor por defecto, y qué cambia de la respuesta. Formatos de salida Cada columna del TSV, clave INFO del VCF y campo JSON, y cuándo un valor falta en vez de ser cero. Ligamient"
 },
 {
 "lang": "es",

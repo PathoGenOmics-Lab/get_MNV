@@ -12,7 +12,10 @@ caught, this catches, over the pages as a reader receives them:
     builder would both show it as text (`!!!`, `=== "`, `{ .class }`,
     `:material-icon:`, `markdown` attributes);
   * the two languages have the same headings structure page by page, so a
-    section added in one is not forgotten in the other.
+    section added in one is not forgotten in the other;
+  * the home page, written from tools/site/home.<lang>.html, has the same
+    headings, figure steps, examples and hooks in both languages, and no
+    {{...}} link the builder failed to resolve.
 
     python3 tools/check_site.py
 
@@ -132,6 +135,30 @@ def twin_problems() -> list[str]:
     return problems
 
 
+HOOKS = re.compile(r'\s(id|data-(?:go|preset|show|note|pos|codon|fig|play|editor|out))(?:="([^"]*)")?')
+
+
+def home_problems() -> list[str]:
+    problems = []
+    shapes = {}
+    for lang in ("en", "es"):
+        template = (build_docs.HOME_SOURCES / f"home.{lang}.html").read_text(encoding="utf-8")
+        shapes[lang] = (
+            [m.group(1) for m in re.finditer(r"<(h[1-4])\b", template)],
+            [m.groups() for m in HOOKS.finditer(template)],
+        )
+        page = DOCS / build_docs.output_of("index.html", lang)
+        if "{{" in page.read_text(encoding="utf-8"):
+            problems.append(f"  docs/{build_docs.output_of('index.html', lang)} still has a {{{{...}}}} link")
+    (en_heads, en_hooks), (es_heads, es_hooks) = shapes["en"], shapes["es"]
+    if en_heads != es_heads:
+        problems.append(f"  the English home has headings {en_heads} and the Spanish one {es_heads}")
+    if en_hooks != es_hooks:
+        missing = [h for h in en_hooks if h not in es_hooks] + [h for h in es_hooks if h not in en_hooks]
+        problems.append(f"  the two home pages differ in their ids and figure or playground hooks: {missing[:6]}")
+    return problems
+
+
 def main() -> int:
     # 404.html links absolutely, to the published site, so it is not followed here.
     generated = sorted(p for p in DOCS.rglob("*.html") if p.name == "index.html")
@@ -141,6 +168,7 @@ def main() -> int:
         ("sidebar", sidebar_problems()),
         ("leftover MkDocs syntax", syntax_problems()),
         ("the two languages", twin_problems()),
+        ("the home page", home_problems()),
     ]
     failed = False
     for name, problems in checks:

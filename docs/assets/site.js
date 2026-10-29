@@ -1,10 +1,11 @@
-/* The documentation site's behaviour: the theme switch, the search box, copy
- * buttons on code, the menu on small screens, and the table of contents
- * following the reader. Plain script, no build step, works from file://. */
+/* The documentation site's behaviour: the theme switch, the search box in the
+ * header, copy buttons on code, the menu on small screens, and the table of
+ * contents following the reader. Plain script, no build step, works from
+ * file://. The home page's figure and playground are in home.js. */
 (function () {
   var root = document.documentElement;
 
-  // Theme: the reader's choice is kept; until they make one, the system's.
+  // Theme: the reader's choice is kept; until they make one, dark.
   var toggle = document.querySelector("[data-theme-toggle]");
   if (toggle) {
     toggle.addEventListener("click", function () {
@@ -99,10 +100,28 @@
         location.href = links[Math.max(0, picked)].href;
       } else if (event.key === "Escape") {
         input.value = ""; show();
+        if (field) field.classList.remove("open");
+        input.blur();
       }
     });
     document.addEventListener("click", function (event) {
       if (!box.contains(event.target) && event.target !== input) box.hidden = true;
+      if (field && !field.contains(event.target) && !input.value) field.classList.remove("open");
+    });
+    // On a phone the box opens from its button, over the page; anywhere, "/"
+    // puts the cursor in it, unless the reader is already typing somewhere.
+    var field = document.querySelector(".search");
+    var opener = document.querySelector("[data-search-open]");
+    if (opener && field) {
+      opener.addEventListener("click", function () { field.classList.add("open"); input.focus(); });
+    }
+    document.addEventListener("keydown", function (event) {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      var target = event.target;
+      if (target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable)) return;
+      event.preventDefault();
+      if (field) field.classList.add("open");
+      input.focus();
     });
   }
 

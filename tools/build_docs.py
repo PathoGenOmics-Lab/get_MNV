@@ -3,7 +3,9 @@
 
 The markdown stays the source: GitHub renders it, and this writes one HTML page
 per markdown file with the site's header, theme, sidebar, page contents and
-search, plus the search index. Pages land where the old MkDocs site served
+search, plus the search index. The home page is the exception: its figure and
+codon playground do not fit in markdown, so it is written from
+tools/site/home.en.html and home.es.html, inside the same header and footer. Pages land where the old MkDocs site served
 them, `docs/<page>/index.html` and `docs/es/<page>/index.html`, so every link
 already out in the world still resolves. The pages are committed, so the site
 opens from a clone with no server and no build step; --check fails when they
@@ -43,7 +45,8 @@ ASK = f"{REPO}/discussions/categories/q-a"
 # .md is built into a page; anything else is linked as it is. Each language
 # has its own titles; the Spanish page of `x.md` is `x.es.md`.
 PAGES = [
-    ("Home", "index.md", "Home"),
+    # The home page is written from tools/site/home.<lang>.html, not markdown.
+    ("Home", "index.html", "Home"),
     ("Get started", "getting-started.md", "Command Line Tutorial"),
     ("Get started", "usage.md", "Common Recipes"),
     ("Get started", "gui.md", "Desktop GUI"),
@@ -95,8 +98,14 @@ UI = {
         "lang_name": "English",
         "other": "es",
         "other_label": "Español",
-        "search": "Search the docs",
+        "search": "Search",
         "search_label": "Search the documentation",
+        "site_nav": "Main",
+        "start": "Start here",
+        "try": "Try it",
+        "reference": "Reference",
+        "report": "Example report",
+        "home_title": "get_MNV: codon-level variant annotation",
         "on_page": "On this page",
         "prev": "Previous",
         "next": "Next",
@@ -118,8 +127,14 @@ UI = {
         "lang_name": "Español",
         "other": "en",
         "other_label": "English",
-        "search": "Buscar en la documentación",
+        "search": "Buscar",
         "search_label": "Buscar en la documentación",
+        "site_nav": "Principal",
+        "start": "Empieza aquí",
+        "try": "Pruébalo",
+        "reference": "Referencia",
+        "report": "Informe de ejemplo",
+        "home_title": "get_MNV: anotación de variantes a nivel de codón",
         "on_page": "En esta página",
         "prev": "Anterior",
         "next": "Siguiente",
@@ -149,15 +164,19 @@ GH_PATH = (
     ".54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
 )
 GH_SVG = f'<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="{GH_PATH}"/></svg>'
+SEARCH_SVG = (
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">'
+    '<circle cx="7" cy="7" r="4.6"/><path d="m10.4 10.4 3.6 3.6" stroke-linecap="round"/></svg>'
+)
 THEME_SVG = (
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">'
     '<circle cx="8" cy="8" r="5.9"/><path d="M8 2.1a5.9 5.9 0 0 0 0 11.8z" fill="currentColor" stroke="none"/></svg>'
 )
 # Before the stylesheet paints anything: the reader's own choice if they made
-# one, otherwise their system's.
+# one, otherwise dark, as the lab's other sites open.
 THEME_BOOT = (
     "<script>(function(){var t;try{t=localStorage.getItem(\"get_mnv.theme\")}catch(e){}"
-    "if(t!==\"light\"&&t!==\"dark\"){t=window.matchMedia&&matchMedia(\"(prefers-color-scheme: dark)\").matches?\"dark\":\"light\"}"
+    "if(t!==\"light\"&&t!==\"dark\"){t=\"dark\"}"
     "document.documentElement.dataset.theme=t})();</script>"
 )
 FONTS = (
@@ -179,7 +198,7 @@ def localized(source: str, lang: str) -> str:
 
 def output_of(source: str, lang: str) -> str:
     """Where the page for an English `source` is written, relative to docs/."""
-    stem = source[: -len(".md")]
+    stem = source.rsplit(".", 1)[0]
     prefix = "" if lang == "en" else "es/"
     return f"{prefix}index.html" if stem == "index" else f"{prefix}{stem}/index.html"
 
@@ -502,19 +521,35 @@ class Renderer:
 # ── Page ──
 
 
-def header(page: str, lang: str, twin: str) -> str:
+def header(page: str, lang: str, twin: str, current: str = "") -> str:
     ui = UI[lang]
-    home = relative(page, output_of("index.md", lang))
+    home = relative(page, output_of("index.html", lang))
     emblem = relative(page, "assets/emblem.svg")
     other = ui["other"]
+    links = [
+        ("getting-started.md", relative(page, output_of("getting-started.md", lang)), ui["start"]),
+        ("#try", f"{home}#try", ui["try"]),
+        ("cli-reference.md", relative(page, output_of("cli-reference.md", lang)), ui["reference"]),
+        ("example-report", relative(page, "assets/example-report.html"), ui["report"]),
+    ]
+    here = ' aria-current="page"'
+    nav = "".join(
+        f'      <a href="{href}"{here if key == current else ""}>{label}</a>\n' for key, href, label in links
+    )
     return (
         '<header class="top">\n  <div class="top-in">\n'
         f'    <a class="brand" href="{home}"><img src="{emblem}" alt="" width="28" height="28"><span>get_MNV</span></a>\n'
-        '    <nav class="top-nav" aria-label="Site">\n'
+        f'    <nav class="top-links" aria-label="{ui["site_nav"]}">\n{nav}    </nav>\n'
+        '    <div class="top-tools">\n'
+        '      <div class="search" role="search">\n'
+        f'        {SEARCH_SVG}<input type="search" placeholder="{ui["search"]}" aria-label="{ui["search_label"]}" data-search>'
+        '<kbd aria-hidden="true">/</kbd>\n'
+        f'        <button class="icon-btn search-open" type="button" aria-label="{ui["search_label"]}" data-search-open>{SEARCH_SVG}</button>\n'
+        '        <div class="results" data-results hidden></div>\n      </div>\n'
         f'      <a class="lang" href="{twin}" hreflang="{other}" lang="{other}">{ui["other_label"]}</a>\n'
         f'      <a class="gh" href="{REPO}" aria-label="get_MNV on GitHub">{GH_SVG}<span>GitHub</span></a>\n'
         f'      <button class="icon-btn" type="button" data-theme-toggle aria-label="{ui["theme"]}">{THEME_SVG}</button>\n'
-        "    </nav>\n  </div>\n</header>\n"
+        "    </div>\n  </div>\n</header>\n"
     )
 
 
@@ -522,9 +557,6 @@ def sidebar(page: str, lang: str, current: str) -> str:
     ui = UI[lang]
     out = [
         f'<aside class="side" aria-label="{ui["docs_label"]}">\n',
-        '  <div class="search">\n'
-        f'    <input type="search" placeholder="{ui["search"]}" aria-label="{ui["search_label"]}" data-search>\n'
-        '    <div class="results" data-results hidden></div>\n  </div>\n',
         f'  <details class="menu" open>\n    <summary>{ui["menu"]}</summary>\n',
     ]
     section = None
@@ -534,7 +566,7 @@ def sidebar(page: str, lang: str, current: str) -> str:
                 out.append("    </ul>\n")
             out.append(f'    <p class="menu-section">{title_in(sec, lang)}</p>\n    <ul>\n')
             section = sec
-        if source.endswith(".md"):
+        if source.endswith(".md") or source == "index.html":
             target = relative(page, output_of(source, lang))
         elif source.startswith("http"):
             target = source
@@ -564,7 +596,9 @@ def footer(page: str, lang: str) -> str:
     )
 
 
-def page_html(page: str, lang: str, title: str, description: str, body: str, twin: str) -> str:
+def page_html(
+    page: str, lang: str, title: str, description: str, body: str, twin: str, scripts: tuple[str, ...] = ()
+) -> str:
     css = relative(page, "assets/site.css")
     js = relative(page, "assets/site.js")
     index = relative(page, "assets/search-index.js")
@@ -591,6 +625,7 @@ def page_html(page: str, lang: str, title: str, description: str, body: str, twi
         "<!-- Generated by tools/build_docs.py from the markdown in docs/. Edit that, then run it. -->\n"
         + body
         + f'<script src="{index}"></script>\n<script src="{js}"></script>\n'
+        + "".join(f'<script src="{relative(page, s)}"></script>\n' for s in scripts)
         + "</body>\n</html>\n"
     )
 
@@ -623,11 +658,11 @@ def doc_page(position: int, lang: str) -> tuple[Path, str, list[dict]]:
     pager += "</nav>"
     twin = relative(page, output_of(source, ui["other"]))
     body = (
-        header(page, lang, twin)
+        header(page, lang, twin, source)
         + '<div class="layout">\n'
         + sidebar(page, lang, source)
         + f'<main class="prose" id="content">\n'
-        + (f'<p class="crumb">{title_in(section, lang)}</p>\n' if source != "index.md" else "")
+        + f'<p class="crumb">{title_in(section, lang)}</p>\n'
         + content
         + f'\n<p class="edit"><a href="{REPO}/blob/main/docs/{localized(source, lang)}">{GH_SVG}{ui["edit"]}</a></p>\n'
         + pager
@@ -637,7 +672,7 @@ def doc_page(position: int, lang: str) -> tuple[Path, str, list[dict]]:
         + footer(page, lang)
     )
     shown = title_in(title, lang)
-    full_title = "get_MNV" if source == "index.md" else f"{shown} · get_MNV"
+    full_title = f"{shown} · get_MNV"
     entries = [
         {
             "lang": lang,
@@ -649,6 +684,54 @@ def doc_page(position: int, lang: str) -> tuple[Path, str, list[dict]]:
         for s in renderer.sections
     ]
     return DOCS / page, page_html(page, lang, full_title, ui["description"], body, twin), entries
+
+
+HOME_SOURCES = ROOT / "tools" / "site"
+HOME_LINK = re.compile(r"\{\{(page|asset|repo|home)(?::([^}]+))?\}\}")
+
+
+def home_page(lang: str) -> tuple[Path, str, list[dict]]:
+    """The front page, from tools/site/home.<lang>.html: its own layout, the
+    site's header and footer. Links in the template are written as
+    {{page:getting-started.md}}, {{asset:example-report.html}}, {{home}} or
+    {{repo}}, so each language's page gets paths that resolve from where it is
+    written, and tools/check_site.py follows them like any other."""
+    ui = UI[lang]
+    page = output_of("index.html", lang)
+    twin = relative(page, output_of("index.html", ui["other"]))
+
+    def link(match: re.Match) -> str:
+        kind, target = match.groups()
+        if kind == "page":
+            return relative(page, output_of(target, lang))
+        if kind == "asset":
+            return relative(page, f"assets/{target}")
+        if kind == "home":
+            return relative(page, page)
+        return REPO
+
+    template = (HOME_SOURCES / f"home.{lang}.html").read_text(encoding="utf-8")
+    body = header(page, lang, twin, "home") + HOME_LINK.sub(link, template) + footer(page, lang)
+
+    # Its sections go into the search index like any page's.
+    def text_of(chunk: str) -> str:
+        return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", HOME_LINK.sub("", chunk))).split())
+
+    shown = title_in("Home", lang)
+    hero = re.search(r'<p class="lede">(.*?)</p>', template, re.S)
+    entries = [{"lang": lang, "page": shown, "section": "", "url": page, "text": text_of(hero.group(1))[:500]}]
+    for slug, heading, rest in re.findall(
+        r'<section class="sec" id="([\w-]+)".*?<h2[^>]*>(.*?)</h2>(.*?)</section>', template, re.S
+    ):
+        entries.append(
+            {"lang": lang, "page": shown, "section": text_of(heading), "url": f"{page}#{slug}", "text": text_of(rest)[:500]}
+        )
+    html_text = page_html(page, lang, ui["home_title"], ui["description"], body, twin, ("assets/home.js",))
+    html_text = html_text.replace(
+        "<!-- Generated by tools/build_docs.py from the markdown in docs/. Edit that, then run it. -->",
+        f"<!-- Generated by tools/build_docs.py from tools/site/home.{lang}.html. Edit that, then run it. -->",
+    )
+    return DOCS / page, html_text, entries
 
 
 def not_found_page() -> str:
@@ -680,6 +763,9 @@ def build() -> dict[Path, str]:
     files: dict[Path, str] = {DOCS / "404.html": not_found_page()}
     entries: list[dict] = []
     for lang in ("en", "es"):
+        path, text, home_entries = home_page(lang)
+        files[path] = text
+        entries += home_entries
         for position, _ in built_pages():
             path, text, page_entries = doc_page(position, lang)
             files[path] = text

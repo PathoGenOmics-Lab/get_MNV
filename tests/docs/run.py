@@ -317,6 +317,21 @@ def documented_names(columns: set[str], info: set[str]) -> tuple[set, set, set, 
                 continue
             for token in re.findall(r"`([a-z][a-z0-9_]{2,})`", row.split("|")[1]):
                 json_keys.setdefault(token, set()).add(page.name)
+    # The home page is written in HTML, from tools/site/, and it is the page most
+    # readers copy a command from: its flags, the TSV columns its output card
+    # lists and the INFO keys of its VCF card are held to the same standard.
+    for page in sorted((REPO / "tools" / "site").glob("home.*.html")):
+        text = page.read_text()
+        name = f"tools/site/{page.name}"
+        for flag in re.findall(FLAG_PATTERN, text):
+            flags.setdefault(flag, set()).add(name)
+        for table in re.findall(r'<dl class="kv">(.*?)</dl>', text, re.S):
+            for column in re.findall(r"<dt>([^<]+)</dt>", table):
+                cols.setdefault(column.strip(), set()).add(name)
+        for block in re.findall(r"<pre><code>(.*?)</code></pre>", text, re.S):
+            if "ANN=" in block:
+                for token in re.findall(r"\b([A-Z][A-Z0-9]{1,9})=", block):
+                    keys.setdefault(token, set()).add(name)
     return flags, cols, keys, json_keys
 
 
