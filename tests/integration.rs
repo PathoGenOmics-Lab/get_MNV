@@ -1857,12 +1857,13 @@ fn test_fast_parser_matches_htslib() {
     let vcf_file = ex.join("G35894.var.snp.vcf").to_string_lossy().to_string();
 
     // Fast text parser
-    let fast_result = vcf_fast::load_vcf_text(&vcf_file, None, false, false, false)
+    let fast_result = vcf_fast::load_vcf_text(&vcf_file, None, false, false, false, None)
         .expect("fast parser should succeed");
 
     // htslib parser
-    let htslib_result = vcf::load_vcf_positions_by_contig(&vcf_file, None, false, false, false)
-        .expect("htslib parser should succeed");
+    let htslib_result =
+        vcf::load_vcf_positions_by_contig(&vcf_file, None, false, false, false, None)
+            .expect("htslib parser should succeed");
 
     // Same contigs
     assert_eq!(
@@ -1945,10 +1946,11 @@ fn test_fast_parser_keep_info_matches_htslib() {
     let ex = example_dir();
     let vcf_file = ex.join("G35894.var.snp.vcf").to_string_lossy().to_string();
 
-    let fast_result = vcf_fast::load_vcf_text(&vcf_file, None, false, false, true)
+    let fast_result = vcf_fast::load_vcf_text(&vcf_file, None, false, false, true, None)
         .expect("fast parser should succeed");
-    let htslib_result = vcf::load_vcf_positions_by_contig(&vcf_file, None, false, false, true)
-        .expect("htslib parser should succeed");
+    let htslib_result =
+        vcf::load_vcf_positions_by_contig(&vcf_file, None, false, false, true, None)
+            .expect("htslib parser should succeed");
 
     for contig in fast_result.keys() {
         let fast_positions = &fast_result[contig];
@@ -4207,8 +4209,9 @@ fn test_e2e_a_variant_keeps_the_metrics_its_own_record_declared() {
 /// A symbolic allele does not get to claim a frameshift nobody measured.
 ///
 /// `<INV>`, `<DEL>` and `<DUP>` are what Manta, Delly and Sniffles emit. They
-/// name a structural event without spelling out its sequence, and get_MNV does
-/// not read SVTYPE, END or SVLEN, so its coding-length delta is unknown here.
+/// name a structural event without spelling out its sequence. A deletion or
+/// duplication is now written out from the reference (see the test after this
+/// one), but an inversion is left symbolic, so its coding effect stays unknown.
 /// Asserting a frameshift turned that absence into a claim: an inversion, which
 /// preserves length exactly, came out `frameshift_variant` at HIGH, and it
 /// relabelled every downstream codon of the feature, so a plain missense
@@ -4304,6 +4307,105 @@ fn test_e2e_a_symbolic_allele_does_not_assert_a_frameshift() {
         alone[0].get("SO Term").map(String::as_str),
         Some("missense_variant")
     );
+}
+
+/// A symbolic deletion or duplication is written out from the reference and
+/// annotated as the indel it is.
+///
+/// Before, get_MNV knew `<DEL>` removed bases but not how many, so the row and
+/// every codon downstream of it in the feature were reported as unknown. With
+/// END or SVLEN the reference spells the event out, and the frame it leaves is
+/// a fact rather than a guess.
+#[test]
+fn test_e2e_symbolic_deletions_and_duplications_are_spelled_out() {
+    let tmp = temp_dir("e2e_symbolic_spelled");
+    let bases: String = (0..500)
+        .map(|i| ['A', 'C', 'G', 'T'][(i * 7 + 3) % 4])
+        .collect();
+    fs::write(tmp.join("ref.fas"), format!(">chr1\n{bases}\n")).unwrap();
+    fs::write(
+        tmp.join("genes.gff3"),
+        "##gff-version 3\nchr1\tsyn\tCDS\t101\t400\t.\t+\t0\tID=c1;Name=geneP\n",
+    )
+    .unwrap();
+    let at = |pos: usize| bases.as_bytes()[pos - 1] as char;
+    let header = "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=500>\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
+
+    let run = |name: &str, record: String| {
+        fs::write(tmp.join(format!("{name}.vcf")), format!("{header}{record}")).unwrap();
+        let mut args = base_args();
+        args.vcf_file = Some(tmp.join(format!("{name}.vcf")).to_string_lossy().into());
+        args.fasta_file = tmp.join("ref.fas").to_string_lossy().into();
+        args.genes_file_tsv = None;
+        args.gff_file = Some(tmp.join("genes.gff3").to_string_lossy().into());
+        args.gff_features_raw = Some("CDS".to_string());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+        pipeline::run(&args).unwrap_or_else(|e| panic!("{name} should annotate: {e}"));
+        read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")))
+    };
+    let field = |row: &HashMap<String, String>, key: &str| row[key].clone();
+
+    // END=152 removes 151-152: two bases, CDS 51-52, a frameshift.
+    let rows = run(
+        "del_end",
+        format!(
+            "chr1\t150\t.\t{}\t<DEL>\t100\tPASS\tSVTYPE=DEL;END=152\n",
+            at(150)
+        ),
+    );
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(
+        field(&rows[0], "Reference Bases"),
+        bases[149..152].to_string()
+    );
+    assert_eq!(field(&rows[0], "Base Changes"), at(150).to_string());
+    assert_eq!(field(&rows[0], "SO Term"), "frameshift_variant");
+    assert_eq!(field(&rows[0], "HGVS c."), "c.51_52del");
+
+    // SVLEN=-3 with no END: an in-frame deletion of 151-153.
+    let rows = run(
+        "del_svlen",
+        format!(
+            "chr1\t150\t.\t{}\t<DEL>\t100\tPASS\tSVTYPE=DEL;SVLEN=-3\n",
+            at(150)
+        ),
+    );
+    assert_eq!(field(&rows[0], "SO Term"), "inframe_deletion");
+    assert_eq!(field(&rows[0], "HGVS c."), "c.51_53del");
+
+    // A tandem duplication of 151-153 is a copy inserted after 153.
+    let rows = run(
+        "dup",
+        format!(
+            "chr1\t150\t.\t{}\t<DUP>\t100\tPASS\tSVTYPE=DUP;END=153\n",
+            at(150)
+        ),
+    );
+    assert_eq!(field(&rows[0], "SO Term"), "inframe_insertion");
+    assert_eq!(
+        field(&rows[0], "HGVS c."),
+        format!("c.53_54ins{}", &bases[150..153])
+    );
+
+    // Past the contig's end, or without an extent, the record stays symbolic.
+    for (name, info) in [
+        ("past_contig", "SVTYPE=DEL;END=600"),
+        ("no_extent", "SVTYPE=DEL"),
+    ] {
+        let rows = run(
+            name,
+            format!("chr1\t150\t.\t{}\t<DEL>\t100\tPASS\t{info}\n", at(150)),
+        );
+        assert_eq!(field(&rows[0], "Base Changes"), "<DEL>", "{name}");
+        assert_eq!(
+            field(&rows[0], "SO Term"),
+            "coding_sequence_variant",
+            "{name}"
+        );
+    }
+
+    fs::remove_dir_all(&tmp).ok();
 }
 
 /// An insertion inside the terminal stop codon truncates nothing, so it gets no

@@ -37,6 +37,7 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
                     args.split_multiallelic,
                     args.normalize_alleles,
                     args.keep_original_info,
+                    Some(&references),
                 )
                 .map_err(reclassify_generic_as_validation)?
             } else {
@@ -46,6 +47,7 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
                     args.split_multiallelic,
                     args.normalize_alleles,
                     args.keep_original_info,
+                    Some(&references),
                 )
                 .map_err(reclassify_generic_as_validation)?
             }

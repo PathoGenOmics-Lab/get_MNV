@@ -330,14 +330,26 @@ fn test_load_vcf_positions_multiallelic_split_mode() {
     )
     .expect("failed to write temp vcf");
 
-    let err =
-        load_vcf_positions_by_contig(path.to_string_lossy().as_ref(), None, false, false, false)
-            .expect_err("multiallelic should fail without split mode");
+    let err = load_vcf_positions_by_contig(
+        path.to_string_lossy().as_ref(),
+        None,
+        false,
+        false,
+        false,
+        None,
+    )
+    .expect_err("multiallelic should fail without split mode");
     assert!(err.to_string().contains("Multiallelic"));
 
-    let parsed =
-        load_vcf_positions_by_contig(path.to_string_lossy().as_ref(), None, true, false, false)
-            .expect("split mode should parse");
+    let parsed = load_vcf_positions_by_contig(
+        path.to_string_lossy().as_ref(),
+        None,
+        true,
+        false,
+        false,
+        None,
+    )
+    .expect("split mode should parse");
     let positions = parsed.get("chr1").expect("missing chr1");
     assert_eq!(positions.len(), 2);
     assert_eq!(positions[0].record_start, 2);
@@ -404,10 +416,12 @@ fn test_bcf_input_reads_the_same_as_the_vcf_it_encodes() {
     fs::write(&vcf, BCF_FIXTURE_VCF).unwrap();
     write_bcf(BCF_FIXTURE_VCF, &bcf);
 
-    let from_vcf = load_vcf_positions_by_contig(vcf.to_str().unwrap(), None, true, false, false)
-        .expect("VCF loads");
-    let from_bcf = load_vcf_positions_by_contig(bcf.to_str().unwrap(), None, true, false, false)
-        .expect("BCF loads");
+    let from_vcf =
+        load_vcf_positions_by_contig(vcf.to_str().unwrap(), None, true, false, false, None)
+            .expect("VCF loads");
+    let from_bcf =
+        load_vcf_positions_by_contig(bcf.to_str().unwrap(), None, true, false, false, None)
+            .expect("BCF loads");
     assert_eq!(describe(&from_vcf).len(), 4, "{:?}", describe(&from_vcf));
     assert_eq!(describe(&from_bcf), describe(&from_vcf));
 
@@ -449,7 +463,8 @@ fn test_damaged_bcf_fails_instead_of_reading_short() {
     let samples =
         super::vcf::list_vcf_samples(bcf.to_str().unwrap()).expect("the header alone still reads");
     assert_eq!(samples, vec!["S1".to_string()]);
-    let result = load_vcf_positions_by_contig(bcf.to_str().unwrap(), None, true, false, false);
+    let result =
+        load_vcf_positions_by_contig(bcf.to_str().unwrap(), None, true, false, false, None);
     assert!(
         result.is_err(),
         "a truncated BCF must not read as a shorter VCF"

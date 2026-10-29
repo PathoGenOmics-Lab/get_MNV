@@ -52,6 +52,15 @@ All notable changes to this project are documented in this file.
   reads it. An indel reaching into an intron or a UTR stays at `-` rather than
   get an offset form the tool does not build.
 
+- **Symbolic deletions and duplications are sized from `END` or `SVLEN`.** A
+  `<DEL>` was known to remove bases but not how many, so its row and every
+  codon after it in the feature were reported as unknown. A `<DEL>` with `END`
+  (or `SVLEN`) is now written out from the reference as the deletion it
+  describes, and a `<DUP>` as a tandem copy inserted after the segment, and
+  then annotated like any indel: frameshift or in frame, protein change,
+  `HGVS c.`, and the frame shift downstream. Events over 10,000 bases, past the
+  contig, or of another kind such as `<INV>` stay symbolic.
+
 ### Changed
 
 - **Multiallelic records are split without being asked.** A VCF record with

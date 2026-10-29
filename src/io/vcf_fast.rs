@@ -26,6 +26,7 @@ pub fn load_vcf_text(
     split_multiallelic: bool,
     normalize_alleles: bool,
     keep_original_info: bool,
+    references: Option<&crate::io::ReferenceMap>,
 ) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
     log::info!("Loading VCF (fast text parser): {vcf_file}");
     let file = std::fs::File::open(vcf_file)
@@ -38,6 +39,7 @@ pub fn load_vcf_text(
     let mut positions_by_contig: HashMap<String, Vec<VcfPosition>> = HashMap::new();
     let mut split_count = 0usize;
     let mut not_carried = 0usize;
+    let mut spelled_out = 0usize;
     let mut record_idx = 0usize;
 
     // INFO tags to preserve when keep_original_info is active
@@ -160,10 +162,22 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                 not_carried += 1;
                 continue;
             }
+            let sequence = references
+                .and_then(|refs| refs.get(chrom))
+                .map(String::as_str);
+            let (start, explicit_ref, explicit_alt) = match crate::io::vcf::spell_out_symbolic(
+                pos, ref_allele, alt_allele, cols[7], alt_idx, sequence,
+            ) {
+                Some(spelled) => {
+                    spelled_out += 1;
+                    spelled
+                }
+                None => (pos, ref_allele.to_string(), alt_allele.to_string()),
+            };
             let (norm_pos, norm_ref, norm_alt) = if normalize_alleles {
-                normalize_ref_alt(pos, ref_allele, alt_allele)
+                normalize_ref_alt(start, &explicit_ref, &explicit_alt)
             } else {
-                (pos, ref_allele.to_string(), alt_allele.to_string())
+                (start, explicit_ref, explicit_alt)
             };
             validate_vcf_allele(&norm_ref, record_idx, chrom, norm_pos, "REF")?;
             validate_vcf_allele(&norm_alt, record_idx, chrom, norm_pos, "ALT")?;
@@ -220,6 +234,7 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
             "Skipped {not_carried} ALT alleles the selected sample's genotype does not carry"
         );
     }
+    crate::io::vcf::log_spelled_out(spelled_out);
 
     Ok(positions_by_contig)
 }
@@ -547,7 +562,7 @@ mod tests {
     fn test_load_vcf_text_example() {
         // Use the bundled example VCF
         let vcf = concat!(env!("CARGO_MANIFEST_DIR"), "/example/G35894.var.snp.vcf");
-        let result = load_vcf_text(vcf, None, false, false, false).unwrap();
+        let result = load_vcf_text(vcf, None, false, false, false, None).unwrap();
         // Should have at least one contig
         assert!(!result.is_empty());
         // Total positions should be substantial

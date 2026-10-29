@@ -241,6 +241,7 @@ fn run_dataset(
         false,
         false,
         false,
+        Some(&references),
     )?;
 
     let target_contigs = if let Some(contig) = config.contig.as_ref() {

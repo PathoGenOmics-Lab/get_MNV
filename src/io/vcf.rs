@@ -264,6 +264,72 @@ pub(crate) fn parse_optional_depth(raw: &str) -> Option<usize> {
         .map(|value| value.round() as usize)
 }
 
+/// The longest structural event [`spell_out_symbolic`] writes out. Past this a
+/// record stays symbolic: its alleles would run to tens of kilobases in every
+/// output row, and an event that size is a matter for an SV annotator.
+pub(crate) const MAX_SPELLED_SYMBOLIC_SPAN: usize = 10_000;
+
+/// A symbolic deletion or duplication written out as the explicit alleles the
+/// reference gives it, so it is annotated like any other indel: frameshift or
+/// in frame, its protein change, HGVS, and the frame shift it passes to the
+/// codons after it. Without this the tool knew it was a deletion but not of how
+/// many bases, and reported the row and everything downstream of it as unknown.
+///
+/// `<DEL>` (and its `<DEL:...>` subtypes) removes POS+1 to END. `<DUP>` and
+/// `<DUP:TANDEM>` are read as a tandem copy of POS+1 to END, written as an
+/// insertion of that segment right after END. The extent comes from `END`, or
+/// from `SVLEN` (this ALT's entry, sign ignored) when `END` is absent.
+///
+/// `None` leaves the record symbolic: another symbolic type, no extent, an
+/// extent past the contig or over [`MAX_SPELLED_SYMBOLIC_SPAN`], no reference
+/// for the contig, or a padding base the reference does not have.
+pub(crate) fn spell_out_symbolic(
+    pos: usize,
+    ref_allele: &str,
+    alt_allele: &str,
+    info: &str,
+    alt_index: usize,
+    sequence: Option<&str>,
+) -> Option<(usize, String, String)> {
+    let sequence = sequence?;
+    let kind = alt_allele.strip_prefix('<')?.strip_suffix('>')?;
+    let deletion = kind == "DEL" || kind.starts_with("DEL:");
+    let duplication = kind == "DUP" || kind == "DUP:TANDEM";
+    if !(deletion || duplication) || ref_allele.len() != 1 {
+        return None;
+    }
+    let end = match get_info_value(info, "END").and_then(|value| value.parse::<usize>().ok()) {
+        Some(end) => end,
+        None => {
+            let svlen = get_info_value(info, "SVLEN")?
+                .split(',')
+                .nth(alt_index)?
+                .trim()
+                .parse::<i64>()
+                .ok()?;
+            pos.checked_add(usize::try_from(svlen.unsigned_abs()).ok()?)?
+        }
+    };
+    if end <= pos || end > sequence.len() || end - pos > MAX_SPELLED_SYMBOLIC_SPAN {
+        return None;
+    }
+    let padding = sequence.get(pos - 1..pos)?;
+    if !padding.eq_ignore_ascii_case(ref_allele) {
+        return None;
+    }
+    if deletion {
+        Some((
+            pos,
+            sequence[pos - 1..end].to_ascii_uppercase(),
+            padding.to_ascii_uppercase(),
+        ))
+    } else {
+        let anchor = sequence[end - 1..end].to_ascii_uppercase();
+        let copy = sequence[pos..end].to_ascii_uppercase();
+        Some((end, anchor.clone(), format!("{anchor}{copy}")))
+    }
+}
+
 pub(crate) fn normalize_ref_alt(
     pos: usize,
     ref_allele: &str,
@@ -748,6 +814,7 @@ pub fn load_vcf_positions_by_contig(
     split_multiallelic: bool,
     normalize_alleles: bool,
     keep_original_info: bool,
+    references: Option<&crate::io::ReferenceMap>,
 ) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
     log::info!("Loading VCF: {vcf_file}");
 
@@ -765,6 +832,7 @@ pub fn load_vcf_positions_by_contig(
     let mut positions_by_contig: HashMap<String, Vec<VcfPosition>> = HashMap::new();
     let mut split_count = 0usize;
     let mut not_carried = 0usize;
+    let mut spelled_out = 0usize;
     let mut record_idx = 0usize;
     let mut header_seen = false;
 
@@ -853,10 +921,21 @@ pub fn load_vcf_positions_by_contig(
                 not_carried += 1;
                 continue;
             }
+            let sequence = references
+                .and_then(|refs| refs.get(chrom))
+                .map(String::as_str);
+            let (start, explicit_ref, explicit_alt) =
+                match spell_out_symbolic(pos, ref_allele, alt_allele, info, alt_idx, sequence) {
+                    Some(spelled) => {
+                        spelled_out += 1;
+                        spelled
+                    }
+                    None => (pos, ref_allele.to_string(), alt_allele.to_string()),
+                };
             let (normalized_pos, normalized_ref, normalized_alt) = if normalize_alleles {
-                normalize_ref_alt(pos, ref_allele, alt_allele)
+                normalize_ref_alt(start, &explicit_ref, &explicit_alt)
             } else {
-                (pos, ref_allele.to_string(), alt_allele.to_string())
+                (start, explicit_ref, explicit_alt)
             };
             validate_vcf_allele(&normalized_ref, record_idx, chrom, normalized_pos, "REF")?;
             validate_vcf_allele(&normalized_alt, record_idx, chrom, normalized_pos, "ALT")?;
@@ -907,13 +986,23 @@ pub fn load_vcf_positions_by_contig(
             "Skipped {not_carried} ALT alleles the selected sample's genotype does not carry"
         );
     }
+    log_spelled_out(spelled_out);
 
     Ok(positions_by_contig)
 }
 
+pub(crate) fn log_spelled_out(spelled_out: usize) {
+    if spelled_out > 0 {
+        log::info!(
+            "Wrote out {spelled_out} symbolic deletion/duplication allele(s) from the reference, \
+             so they are annotated as explicit indels"
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::VcfPosition;
+    use super::{spell_out_symbolic, VcfPosition, MAX_SPELLED_SYMBOLIC_SPAN};
 
     fn variant(position: usize, ref_allele: &str, alt_allele: &str) -> VcfPosition {
         VcfPosition {
@@ -984,9 +1073,15 @@ mod tests {
         writeln!(f, "#chrom\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO").unwrap();
         writeln!(f, "chr1\t5\t.\tA\tT\t.\tPASS\t.").unwrap();
         drop(f);
-        let by_contig =
-            super::load_vcf_positions_by_contig(path.to_str().unwrap(), None, false, false, false)
-                .unwrap();
+        let by_contig = super::load_vcf_positions_by_contig(
+            path.to_str().unwrap(),
+            None,
+            false,
+            false,
+            false,
+            None,
+        )
+        .unwrap();
         assert_eq!(by_contig.get("chr1").map(std::vec::Vec::len), Some(1));
         assert_eq!(by_contig["chr1"][0].record_start, 5);
         let _ = std::fs::remove_file(path);
@@ -1053,6 +1148,48 @@ mod tests {
     /// insertion at a different placement inside a repeat, which no longer
     /// matched the CIGAR the aligner used. A row with 20 of 20 supporting reads
     /// was then reported at 0, with a warning blaming the input file.
+    #[test]
+    fn symbolic_deletions_and_duplications_are_spelled_out_from_the_reference() {
+        //               1234567890
+        let sequence = "acgtacgtac";
+        // END removes 4-6; the reference's lowercase is written in uppercase.
+        assert_eq!(
+            spell_out_symbolic(3, "G", "<DEL>", "SVTYPE=DEL;END=6", 0, Some(sequence)),
+            Some((3, "GTAC".to_string(), "G".to_string()))
+        );
+        // SVLEN is read per ALT, its sign ignored, when END is missing.
+        assert_eq!(
+            spell_out_symbolic(3, "G", "<DEL:ME:ALU>", "SVLEN=-5,-2", 1, Some(sequence)),
+            Some((3, "GTA".to_string(), "G".to_string()))
+        );
+        // A tandem copy of 4-6 goes in after 6.
+        assert_eq!(
+            spell_out_symbolic(3, "G", "<DUP:TANDEM>", "END=6", 0, Some(sequence)),
+            Some((6, "C".to_string(), "CTAC".to_string()))
+        );
+    }
+
+    #[test]
+    fn symbolic_alleles_that_cannot_be_spelled_out_stay_symbolic() {
+        let sequence = "acgtacgtac";
+        let spell = |alt: &str, ref_base: &str, info: &str, seq: Option<&str>| {
+            spell_out_symbolic(3, ref_base, alt, info, 0, seq)
+        };
+        assert_eq!(spell("<INV>", "G", "END=6", Some(sequence)), None);
+        assert_eq!(spell("<DEL>", "G", "SVTYPE=DEL", Some(sequence)), None);
+        assert_eq!(spell("<DEL>", "G", "END=11", Some(sequence)), None);
+        assert_eq!(spell("<DEL>", "G", "END=3", Some(sequence)), None);
+        assert_eq!(spell("<DEL>", "T", "END=6", Some(sequence)), None);
+        assert_eq!(spell("<DEL>", "G", "END=6", None), None);
+        assert_eq!(spell("A", "G", "END=6", Some(sequence)), None);
+
+        let long = "acgt".repeat(5_000);
+        let over = format!("END={}", 3 + MAX_SPELLED_SYMBOLIC_SPAN + 1);
+        assert_eq!(spell("<DEL>", "G", &over, Some(&long)), None);
+        let at_limit = format!("END={}", 3 + MAX_SPELLED_SYMBOLIC_SPAN);
+        assert!(spell("<DEL>", "G", &at_limit, Some(&long)).is_some());
+    }
+
     #[test]
     fn normalising_an_indel_keeps_its_anchor() {
         let (pos, ref_allele, alt_allele) = super::normalize_ref_alt(29, "CT", "CTGCT");
