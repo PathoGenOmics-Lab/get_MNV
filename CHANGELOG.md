@@ -32,6 +32,14 @@ All notable changes to this project are documented in this file.
   tests passed: each checked the handful of codons whoever wrote it remembered
   changing.
 
+- **The documentation check and the frontend toolchain are off vulnerable
+  releases.** Pillow, which only the documentation check uses to compare the
+  light and dark artwork, moves from 12.3 to 13.0 for thirteen advisories in its
+  GIF, TIFF, APNG, PDF and FreeType code. In the frontend lockfile
+  `brace-expansion` is back on 5.0.12, after a lockfile regeneration had rolled
+  it back to 5.0.9, and `zod` moves to 4.6.7. All three are build or development
+  dependencies, so neither the command-line tool nor the desktop app changes.
+
 ## [1.1.5] - 2026-08-15
 
 ### Added

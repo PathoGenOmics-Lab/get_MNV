@@ -467,7 +467,7 @@ def artwork_problems() -> list[str]:
     # And the dark one has to be light: the whole point is that its ink shows on
     # a dark page. Measured on the pixels that are actually drawn.
     for path, image, wanted in ((light, a, "dark"), (dark, b, "light")):
-        pixels = [p for p in image.getdata() if p[3] > 200]
+        pixels = [p for p in image.get_flattened_data() if p[3] > 200]
         if not pixels:
             problems.append(f"  {path.name} has no opaque ink at all")
             continue
