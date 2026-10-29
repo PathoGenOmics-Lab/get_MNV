@@ -61,14 +61,15 @@ All notable changes to this project are documented in this file.
   `HGVS c.`, and the frame shift downstream. Events over 10,000 bases, past the
   contig, or of another kind such as `<INV>` stay symbolic.
 
-- **A mutational spectrum.** Every substitution now carries its COSMIC SBS96
-  class (`A[C>T]G`), in a new `SBS96 Context` column at the end of the TSV and
-  an `SBS96` INFO key, read from the reference around it and written from the
-  pyrimidine strand. The report counts them into a 96-bar spectrum that follows
-  the filters, counts a base once per sample however many rows mention it, and
-  exports the per-sample counts in the `MutationType` matrix SigProfiler and
-  MutationalPatterns read. On the example run all 951 classes match an
-  independent count from the FASTA.
+- **Mutational spectra: SBS96, DBS78 and ID83.** Every substitution now carries
+  its COSMIC SBS96 class (`A[C>T]G`) in a new `SBS96 Context` column and `SBS96`
+  INFO key, read from the reference around it and written from the pyrimidine
+  strand, and every pure indel its ID83 class (`1:Del:C:2`) in an `ID83 Class`
+  column and `ID83` key, labelled as SigProfiler labels them. The report draws
+  the three spectra, doublets included, follows the filters, counts each event
+  once per sample however many rows mention it, and exports the spectrum shown
+  in the `MutationType` matrix SigProfiler and MutationalPatterns read. On the
+  example run all 951 SBS96 classes match an independent count from the FASTA.
 
 - **`--matrix` writes the cohort as a variant-by-sample table.** The report's
   matrix could only be looked at. `--matrix cohort.tsv` writes one row per
@@ -140,6 +141,12 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- **DBS classes use COSMIC's names for the CG and TA references.** A doublet
+  and its reverse complement are one class, and for the four palindromic
+  reference doublets the tie was broken on the smaller alternate. COSMIC breaks
+  it that way for AT and GC but the other way for CG and TA, so six classes
+  were named differently from SigProfiler's (`CG>AA` for COSMIC's `CG>TT`, for
+  instance). Classes are now matched against COSMIC's literal list of 78.
 - **A gene that starts on GTG or TTG starts with methionine.** The first codon
   was translated like any other, so in a bacterial gene starting on GTG it was
   valine: destroying that start codon was reported as `Val1Ala` missense at

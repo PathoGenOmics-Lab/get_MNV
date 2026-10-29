@@ -69,6 +69,7 @@ Main columns:
 | `SBS96 Context` | COSMIC SBS96 class of each single-base substitution in the row, in Event Components order, written from the pyrimidine strand: `A[C>T]G` for a C>T between A and G, and a G>A in the same context read from the other strand as `C[C>T]T`. `DBS` or `MBS` for a base of a run of two, or three or more, adjacent substitutions, which belongs to that run rather than to the single-base spectrum. `-` for an entry whose trinucleotide context cannot be read (contig end, ambiguous base) and for rows with no substitution. The report counts these into a mutational spectrum. |
 | `Adjacent Substitutions` | HGVS genomic descriptor of the run of two or more adjacent substituted bases this row's substitutions belong to, e.g. `g.103_104delinsAT`. Every row the run touches carries the same descriptor, which is how the two codon rows of a doublet split by a codon boundary are tied together, whether the caller wrote it as one record or two. Read from positions, as COSMIC tools do; read support for the run as a whole is not counted. `-` when no substitution of the row has a substituted neighbour. |
 | `Catalogue` | The `--catalogue` entries this row matches, each written `label (gene variant)` and separated by `; `, with `codon reading only` or `per-SNV reading only` added when a codon row matches through one of its two readings alone. `-` when nothing matches or no catalogue was given. |
+| `ID83 Class` | COSMIC ID83 class of a pure insertion or deletion, as SigProfiler labels it: `1:Del:C:2` for a C deleted from a run of three, `3:Ins:R:5` for a three-base insertion next to five or more copies of itself, `4:Del:M:2` for a four-base deletion with two bases of microhomology at its breakpoint. One-base indels are written from the pyrimidine (`C` or `T`), and copies are counted on both sides of the event, so the class does not depend on where in a repeat the caller placed it. `-` for substitutions, deletion-insertions and symbolic alleles. |
 
 Extra columns when `--bam` is used:
 
@@ -185,6 +186,7 @@ Common INFO fields:
 | `SBS96` | COSMIC SBS96 class of each single-base substitution, comma-separated in `COMP` order (`-` where the context cannot be read, `DBS` or `MBS` for a base of a run of adjacent substitutions) |
 | `ADJSUB` | HGVS genomic descriptor of each run of two or more adjacent substituted bases the record belongs to, shared by every record of the run |
 | `CAT` | `--catalogue` entries the record matches, as in the `Catalogue` column (percent-encoded) |
+| `ID83` | COSMIC ID83 class of a pure insertion or deletion (e.g. `1:Del:C:2`) |
 
 The VCF header records the get_MNV version, command line, and thresholds used.
 When `--emit-filtered` is enabled, VCF records below read-support, frequency,
@@ -370,12 +372,16 @@ The report contains:
 - **A headline count** of the variants currently shown, with supporting tiles for
   samples, genes, MNV rows and high-impact variants, and the **consequence
   distribution** by Sequence Ontology term. All follow the active filters.
-- **A mutational spectrum**: the single-base substitutions in view counted into
-  the 96 COSMIC SBS classes, grouped by substitution type with each type's share
-  above it. A base mentioned by two rows (two overlapping genes) is counted once
-  per sample. Hover a bar to read its class and count, and `Download SBS96
-  matrix` saves the counts per sample in the `MutationType` layout that
-  SigProfiler and MutationalPatterns read. Like the rest, it follows the filters.
+- **Mutational spectra**, switched between three of COSMIC's: SBS96 (the
+  single-base substitutions by trinucleotide context, grouped by substitution
+  type), DBS78 (doublets of adjacent substituted bases, wherever they fall, by
+  reference doublet) and ID83 (small insertions and deletions by size, base,
+  repeat count and microhomology, in COSMIC's two tiers). Each event counts once
+  per sample, however many rows mention it, and a base of a doublet counts in
+  DBS78, not in SBS96. Hover a bar to read its class and count, and
+  `Download matrix` saves the spectrum shown, per sample, in the `MutationType`
+  layout SigProfiler and MutationalPatterns read, with COSMIC's class names in
+  COSMIC's order. Like the rest, they follow the filters.
 - **A variant matrix**, plotted as a small genome browser: samples down the side,
   real genomic coordinates across the top, coloured by the alternate base. Scroll
   to zoom around the cursor, drag to pan, drag on the whole-contig strip to jump,

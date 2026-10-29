@@ -7,6 +7,7 @@ pub mod consequence;
 pub mod declared_phase;
 mod event;
 pub mod hgvs;
+pub mod id83;
 pub mod linkage;
 #[cfg(test)]
 mod property_tests;

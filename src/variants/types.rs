@@ -283,6 +283,11 @@ pub struct VariantAnnotations {
     /// readings only. See [`crate::variants::catalogue`].
     #[serde(default)]
     pub catalogue: Vec<String>,
+    /// COSMIC ID83 class of a pure insertion or deletion (`1:Del:C:2`). `None`
+    /// for substitutions, deletion-insertions and symbolic alleles. See
+    /// [`crate::variants::id83`].
+    #[serde(default)]
+    pub id83: Option<String>,
 }
 
 /// The input caller's phase claim for one row, and whether the reads refute it.

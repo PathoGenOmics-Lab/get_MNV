@@ -18,7 +18,7 @@ const GET_MNV_INFO_TAGS: &[&str] = &[
     "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
     "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ", "SO", "IMPACT", "GD",
     "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "DPHASE", "LD", "LDP", "NMD", "HGVSG", "HGVSC",
-    "SBS96", "ADJSUB", "CAT",
+    "SBS96", "ADJSUB", "CAT", "ID83",
 ];
 
 #[derive(Debug, Clone)]

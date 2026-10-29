@@ -909,6 +909,18 @@ pub(crate) fn process_contig(
             crate::variants::sbs::sbs96_for_variant(variant, reference.sequence, &run_lengths);
         variant.annotations.hgvs_g =
             crate::variants::hgvs::genomic_normalized(variant, reference.sequence);
+        if variant.variant_type == crate::variants::VariantType::Indel {
+            variant.annotations.id83 = match (
+                variant.positions.first(),
+                variant.ref_bases.first(),
+                variant.base_changes.first(),
+            ) {
+                (Some(&pos), Some(r), Some(a)) => {
+                    crate::variants::id83::id83_class(reference.sequence, pos, r, a)
+                }
+                _ => None,
+            };
+        }
         let without_codon = variant.annotations.splice.is_some()
             || variant.annotations.non_coding == Some(crate::variants::NonCodingReason::Intron);
         if without_codon && variant.annotations.hgvs_c.is_none() {

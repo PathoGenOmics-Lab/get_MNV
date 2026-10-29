@@ -17,6 +17,7 @@ use std::path::Path;
 
 const TEMPLATE: &str = include_str!("report_template.html");
 const DATA_PLACEHOLDER: &str = "__GET_MNV_REPORT_DATA__";
+const DBS78_PLACEHOLDER: &str = "__DBS78__";
 
 /// String interner backing the report's dictionary encoding.
 #[derive(Default)]
@@ -74,6 +75,7 @@ struct Row {
     sbs96: Option<String>,
     adjacent: Option<String>,
     catalogue: Option<String>,
+    id83: Option<String>,
 }
 
 #[derive(Default)]
@@ -375,6 +377,7 @@ impl ReportBuilder {
                 sbs96: optional(&get(&record, "SBS96 Context")),
                 adjacent: optional(&get(&record, "Adjacent Substitutions")),
                 catalogue: optional(&get(&record, "Catalogue")),
+                id83: optional(&get(&record, "ID83 Class")),
             };
             self.rows.push(row);
         }
@@ -483,7 +486,19 @@ impl ReportBuilder {
     /// in the header; `generated` is a human-readable timestamp.
     pub fn write(&self, path: &str, command: &str, generated: &str) -> AppResult<()> {
         let json = self.to_json(command, generated);
-        let html = TEMPLATE.replace(DATA_PLACEHOLDER, &json);
+        // The doublet classes come from the one list the annotation uses, so the
+        // report and the DBS Class column cannot name a class differently.
+        let mut dbs78 = String::from("[");
+        for (index, class) in crate::utils::DBS78_CLASSES.iter().enumerate() {
+            if index > 0 {
+                dbs78.push(',');
+            }
+            push_json_str(&mut dbs78, class);
+        }
+        dbs78.push(']');
+        let html = TEMPLATE
+            .replace(DBS78_PLACEHOLDER, &dbs78)
+            .replace(DATA_PLACEHOLDER, &json);
         let mut file = std::fs::File::create(path).map_err(|e| {
             AppError::validation(format!("Cannot create report file '{path}': {e}"))
         })?;
@@ -595,6 +610,8 @@ fn push_row(out: &mut String, row: &Row) {
     push_opt_str(out, row.adjacent.as_deref());
     out.push(',');
     push_opt_str(out, row.catalogue.as_deref());
+    out.push(',');
+    push_opt_str(out, row.id83.as_deref());
     out.push(']');
 }
 

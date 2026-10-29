@@ -88,7 +88,12 @@ fn annotation_cells(variant: &VariantInfo, bam_provided: bool) -> Vec<String> {
     } else {
         variant.annotations.catalogue.join("; ")
     };
-    cells.extend([nmd, hgvs_g, hgvs_c, sbs96, adjacent, catalogue]);
+    let id83 = variant
+        .annotations
+        .id83
+        .clone()
+        .unwrap_or_else(|| "-".to_string());
+    cells.extend([nmd, hgvs_g, hgvs_c, sbs96, adjacent, catalogue, id83]);
     cells
 }
 
@@ -569,6 +574,7 @@ impl TsvWriter {
                 "SBS96 Context",
                 "Adjacent Substitutions",
                 "Catalogue",
+                "ID83 Class",
             ]
         } else {
             vec![
@@ -601,6 +607,7 @@ impl TsvWriter {
                 "SBS96 Context",
                 "Adjacent Substitutions",
                 "Catalogue",
+                "ID83 Class",
             ]
         };
         writer.write_record(&header)?;

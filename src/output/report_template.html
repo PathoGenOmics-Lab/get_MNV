@@ -236,6 +236,11 @@ img{max-width:100%}
 .btn:hover{background:var(--surface-2);border-color:var(--border-strong)}
 .btn:active{background:var(--press);box-shadow:none}
 .btn.sm{min-height:30px;padding:0 10px;font-size:12.5px}
+.seg{display:inline-flex}
+.seg .btn{border-radius:0;margin-left:-1px}
+.seg .btn:first-child{border-radius:var(--r-sm) 0 0 var(--r-sm);margin-left:0}
+.seg .btn:last-child{border-radius:0 var(--r-sm) var(--r-sm) 0}
+.seg .btn[aria-pressed="true"]{background:var(--brand-soft);border-color:var(--brand-line);color:var(--brand-ink);position:relative}
 a.btn{text-decoration:none}
 .btn svg{width:14px;height:14px;flex:none;display:block}
 .mh-actions .btn{gap:7px}
@@ -941,10 +946,15 @@ input[type=checkbox]{accent-color:var(--brand);width:16px;height:16px;flex:none;
 
   <section class="sec" id="sbsPanel">
     <div class="sec-head">
-      <h2>Mutational spectrum</h2>
-      <p>Single-base substitutions in the current view by trinucleotide context (COSMIC SBS96), each substituted base counted once per sample.</p>
+      <h2>Mutational spectra</h2>
+      <p id="sbsLead"></p>
       <div class="ctl">
-        <button class="btn sm" id="sbsExport" type="button">Download SBS96 matrix</button>
+        <div class="seg" role="group" aria-label="Spectrum">
+          <button class="btn sm" type="button" data-spectrum="sbs" aria-pressed="true">SBS96</button>
+          <button class="btn sm" type="button" data-spectrum="dbs" aria-pressed="false">DBS78</button>
+          <button class="btn sm" type="button" data-spectrum="id" aria-pressed="false">ID83</button>
+        </div>
+        <button class="btn sm" id="sbsExport" type="button">Download matrix</button>
       </div>
     </div>
     <div class="panel">
@@ -1038,7 +1048,7 @@ var D = DATA.dict, ROWS = DATA.rows, META = DATA.meta;
 var C = {sample:0,chrom:1,gene:2,pos:3,ref:4,alt:5,aa:6,type:7,change:8,so:9,impact:10,
          grantham:11,shift:12,dbs:13,nmd:14,hgvsg:15,hgvsc:16,freq:17,depth:18,
          refCodon:19,altCodon:20,evClass:21,evComp:22,reads:23,phasing:24,phReads:25,
-         sbs:26,adj:27,cat:28};
+         sbs:26,adj:27,cat:28,id:29};
 
 var TYPE_COLOR = {"SNP":"var(--s1)","MNV":"var(--s2)","SNP/MNV":"var(--s3)","INDEL":"var(--s4)"};
 var IMP_COLOR  = {"HIGH":"var(--critical)","MODERATE":"var(--serious)","LOW":"var(--warning)","MODIFIER":"var(--muted)"};
@@ -1195,34 +1205,108 @@ function drawCharts(){
   }).join("");
 }
 
-// ---------- mutational spectrum (SBS96) ----------
-// Each row lists one class per substitution in Event Components order, so a
-// class is paired with the base it belongs to and counted once per sample,
-// however many rows (two overlapping genes, say) mention that base.
-var SBS_TYPES = ["C>A","C>G","C>T","T>A","T>C","T>G"], SBS_FLANKS = ["A","C","G","T"];
-var SBS_CLASSES = [], SBS_INDEX = {};
-SBS_TYPES.forEach(function(t){ SBS_FLANKS.forEach(function(a){ SBS_FLANKS.forEach(function(b){
-  SBS_INDEX[a+"["+t+"]"+b] = SBS_CLASSES.length; SBS_CLASSES.push(a+"["+t+"]"+b);
-}); }); });
+// ---------- mutational spectra (SBS96, DBS78, ID83) ----------
+// Each spectrum counts one event once per sample, however many rows mention it:
+// a substituted base by its component, a doublet by its run, an indel by its
+// component. The class lists are COSMIC's own, in COSMIC's order, which is the
+// layout SigProfiler reads back from the export.
+var SBS_TYPES = ["C>A","C>G","C>T","T>A","T>C","T>G"], NT4 = ["A","C","G","T"];
+function spectrumOf(classes, groups, extra){
+  var index = {};
+  classes.forEach(function(c, i){ index[c] = i; });
+  var out = {classes:classes, index:index, groups:groups};
+  for(var k in extra) out[k] = extra[k];
+  return out;
+}
+var SPECTRA = {};
+(function(){
+  var sbs = [], sbsGroups = [];
+  SBS_TYPES.forEach(function(t){
+    var start = sbs.length;
+    NT4.forEach(function(a){ NT4.forEach(function(b){ sbs.push(a+"["+t+"]"+b); }); });
+    sbsGroups.push({label:t, start:start, end:sbs.length-1});
+  });
+  SPECTRA.sbs = spectrumOf(sbs, sbsGroups, {name:"SBS96",
+    lead:"Single-base substitutions in the current view by trinucleotide context (COSMIC SBS96), each substituted base counted once per sample. Bases of adjacent substitutions belong to DBS78 instead.",
+    flanks:true, unit:"substitution", file:"get_mnv_sbs96.tsv"});
+
+  var dbs = __DBS78__, dbsGroups = [];
+  dbs.forEach(function(c, i){
+    var ref = c.slice(0, 2);
+    var last = dbsGroups[dbsGroups.length-1];
+    if(last && last.label === ref+">NN") last.end = i;
+    else dbsGroups.push({label:ref+">NN", start:i, end:i});
+  });
+  SPECTRA.dbs = spectrumOf(dbs, dbsGroups, {name:"DBS78",
+    lead:"Doublet-base substitutions in the current view by reference and alternate doublet (COSMIC DBS78): two adjacent substituted bases, wherever they fall, counted once per sample.",
+    unit:"doublet", file:"get_mnv_dbs78.tsv"});
+
+  // ID83 in COSMIC's two tiers: five bands on top, and under the axis the
+  // base (C, T) or the size (2, 3, 4, 5+) each run of bars belongs to.
+  var id = [], idGroups = [];
+  function run(prefix, labels, short){
+    var start = id.length;
+    labels.forEach(function(l){ id.push(prefix + l); });
+    idGroups.push({label:short, short:short, start:start, end:id.length-1});
+  }
+  var counts = ["0","1","2","3","4","5"];
+  run("1:Del:C:", counts, "C"); run("1:Del:T:", counts, "T");
+  run("1:Ins:C:", counts, "C"); run("1:Ins:T:", counts, "T");
+  ["2","3","4","5"].forEach(function(n){ run(n+":Del:R:", counts, n==="5"?"5+":n); });
+  ["2","3","4","5"].forEach(function(n){ run(n+":Ins:R:", counts, n==="5"?"5+":n); });
+  run("2:Del:M:", ["1"], "2"); run("3:Del:M:", ["1","2"], "3");
+  run("4:Del:M:", ["1","2","3"], "4"); run("5:Del:M:", ["1","2","3","4","5"], "5+");
+  var idBands = [
+    {label:"1 bp deletion", from:0, to:1}, {label:"1 bp insertion", from:2, to:3},
+    {label:"deletion at repeat", from:4, to:7}, {label:"insertion at repeat", from:8, to:11},
+    {label:"microhomology", from:12, to:15}
+  ];
+  SPECTRA.id = spectrumOf(id, idGroups, {name:"ID83", bands:idBands,
+    lead:"Small insertions and deletions in the current view by COSMIC ID83 class: one-base indels by base and homopolymer length, longer ones by size and repeat count (R) or microhomology (MH), counted once per sample.",
+    unit:"indel", file:"get_mnv_id83.tsv"});
+})();
+var spectrumKind = "sbs";
 var sbs = {total:0, unread:0, counts:[], bySample:{}, samples:[]};
 
-function countSpectrum(){
-  var counts = [], bySample = {}, samples = [], seen = {}, total = 0, unread = 0;
-  for(var k=0;k<96;k++) counts.push(0);
-  view.forEach(function(idx){
-    var r = ROWS[idx], raw = r[C.sbs];
-    if(!raw) return;
-    var classes = String(raw).split(",");
+// The events of one row for a spectrum: [dedup key, class] pairs.
+function spectrumEvents(r, kind, idx){
+  var out = [];
+  if(kind === "sbs"){
+    var raw = r[C.sbs]; if(!raw) return out;
     var comps = String(r[C.evComp]||"").split("|").map(function(c){ return c.trim(); })
                   .filter(function(c){ return c.indexOf("SNV:")===0; });
-    var who = sampleOf(r);
-    classes.forEach(function(cls, i){
-      var key = r[C.sample]+"|"+r[C.chrom]+"|"+(comps[i] || ("row"+idx+"#"+i));
+    String(raw).split(",").forEach(function(cls, i){
+      cls = cls.trim();
+      if(cls === "DBS" || cls === "MBS") return;  // counted as doublets, or not at all
+      out.push([comps[i] || ("row"+idx+"#"+i), cls]);
+    });
+  } else if(kind === "dbs"){
+    var runs = r[C.adj] ? String(r[C.adj]).split(", ") : [];
+    var classes = r[C.dbs] ? String(r[C.dbs]).split(", ") : [];
+    // Classes are given for the doublets among the runs, in the same order.
+    var doublets = runs.filter(function(d){
+      var m = /^g\.(\d+)_(\d+)delins/.exec(d); return m && (+m[2]) - (+m[1]) === 1;
+    });
+    doublets.forEach(function(d, i){ if(classes[i]) out.push([d, classes[i]]); });
+  } else {
+    if(r[C.id]) out.push([String(r[C.evComp]||("row"+idx)), String(r[C.id])]);
+  }
+  return out;
+}
+
+function countSpectrum(){
+  var spec = SPECTRA[spectrumKind], n = spec.classes.length;
+  var counts = [], bySample = {}, samples = [], seen = {}, total = 0, unread = 0;
+  for(var k=0;k<n;k++) counts.push(0);
+  view.forEach(function(idx){
+    var r = ROWS[idx], who = sampleOf(r);
+    spectrumEvents(r, spectrumKind, idx).forEach(function(ev){
+      var key = r[C.sample]+"|"+r[C.chrom]+"|"+ev[0];
       if(seen[key]) return;
       seen[key] = 1;
-      var at = SBS_INDEX[cls.trim()];
+      var at = spec.index[ev[1]];
       if(at===undefined){ unread++; return; }
-      if(!bySample[who]){ bySample[who] = []; for(var z=0;z<96;z++) bySample[who].push(0); samples.push(who); }
+      if(!bySample[who]){ bySample[who] = []; for(var z=0;z<n;z++) bySample[who].push(0); samples.push(who); }
       counts[at]++; bySample[who][at]++; total++;
     });
   });
@@ -1232,44 +1316,68 @@ function countSpectrum(){
 
 function drawSpectrum(){
   countSpectrum();
+  var spec = SPECTRA[spectrumKind], n = spec.classes.length;
   var host = document.getElementById("sbsChart"), tip = document.getElementById("sbsTip");
   var note = document.getElementById("sbsNote");
+  document.getElementById("sbsLead").textContent = spec.lead;
+  document.querySelectorAll("[data-spectrum]").forEach(function(b){
+    b.setAttribute("aria-pressed", b.getAttribute("data-spectrum") === spectrumKind ? "true" : "false");
+  });
   tip.textContent = "";
   document.getElementById("sbsExport").disabled = !sbs.total;
   if(!sbs.total){
     host.innerHTML = "";
-    note.textContent = "No single-base substitution in the current view has a readable trinucleotide context.";
+    note.textContent = "No " + spec.unit + " in the current view has a " + spec.name + " class.";
     return;
   }
+  var groups = spec.groups;
   var W = Math.max(640, document.getElementById("sbsScroll").clientWidth || 900);
-  var H = 210, L = 44, R = 6, T = 30, B = 22, GROUP_GAP = 10, GAP = 2;
+  var H = 210, L = 44, R = 6, T = 30, B = (spec.flanks || spec.bands) ? 22 : 8, GAP = n > 90 ? 2 : 3;
+  var GROUP_GAP = groups.length > 8 ? 6 : 10;
   var plotW = W - L - R, plotH = H - T - B;
-  var barW = (plotW - GROUP_GAP*5 - GAP*90) / 96;
+  var barW = (plotW - GROUP_GAP*(groups.length-1) - GAP*(n-groups.length)) / n;
+  var groupOf = []; groups.forEach(function(g, gi){ for(var i=g.start;i<=g.end;i++) groupOf[i] = gi; });
+  var x0 = function(i){ return L + i*(barW+GAP) + groupOf[i]*(GROUP_GAP-GAP); };
   var max = Math.max.apply(null, sbs.counts), step = niceStep(max, 4);
   var top = Math.max(step, Math.ceil(max/step)*step);
   var y = function(v){ return T + plotH - (v/top)*plotH; };
-  var x0 = function(i){ var g = Math.floor(i/16); return L + i*(barW+GAP) + g*(GROUP_GAP-GAP); };
   var out = [];
   out.push('<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" role="img" aria-labelledby="sbsDesc">');
   var best = sbs.counts.indexOf(max);
-  out.push('<desc id="sbsDesc">Mutational spectrum of '+sbs.total+' single-base substitutions; most frequent class '+
-           SBS_CLASSES[best]+' with '+max+'.</desc>');
+  out.push('<desc id="sbsDesc">'+esc(spec.name)+' spectrum of '+sbs.total+' '+esc(spec.unit)+'s; most frequent class '+
+           esc(spec.classes[best])+' with '+max+'.</desc>');
   for(var v=0; v<=top; v+=step){
     out.push('<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'"/>');
     out.push('<text class="tick" x="'+(L-6)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+v.toLocaleString()+'</text>');
   }
-  SBS_TYPES.forEach(function(t, g){
-    var a = x0(g*16), b = x0(g*16+15) + barW, n = 0;
-    for(var i=g*16;i<g*16+16;i++) n += sbs.counts[i];
-    out.push('<text class="grp" x="'+a.toFixed(1)+'" y="13">'+esc(t)+'</text>');
-    out.push('<text class="share" x="'+b.toFixed(1)+'" y="13" text-anchor="end">'+(100*n/sbs.total).toFixed(1)+'%</text>');
-    // The 5' base, which is what each run of four bars shares.
-    for(var f=0; f<4; f++){
-      var fa = x0(g*16+f*4), fb = x0(g*16+f*4+3) + barW;
-      out.push('<text class="flank" x="'+((fa+fb)/2).toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle">'+SBS_FLANKS[f]+'</text>');
+  // Top labels: one per band when the spectrum has bands, else one per group.
+  var bands = spec.bands || groups.map(function(g, gi){ return {label:g.label, from:gi, to:gi}; });
+  bands.forEach(function(band){
+    var first = groups[band.from], last = groups[band.to];
+    var a = x0(first.start), b = x0(last.end) + barW, total = 0;
+    for(var i=first.start;i<=last.end;i++) total += sbs.counts[i];
+    var room = b - a;
+    // The share sits right after its own name, so it cannot be read as the
+    // next band's; a band too narrow for both keeps the name, and the tooltip
+    // still gives every count.
+    var share = room > band.label.length*7 + 40
+      ? '<tspan class="share" dx="6">'+(100*total/sbs.total).toFixed(1)+'%</tspan>' : '';
+    out.push('<text class="grp" x="'+a.toFixed(1)+'" y="13">'+esc(band.label)+share+'</text>');
+    if(spec.bands) out.push('<line class="grid" x1="'+a.toFixed(1)+'" x2="'+b.toFixed(1)+'" y1="19" y2="19"/>');
+  });
+  groups.forEach(function(g){
+    if(spec.bands && g.short){
+      var ga = x0(g.start), gb = x0(g.end) + barW;
+      out.push('<text class="flank" x="'+((ga+gb)/2).toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle">'+esc(g.short)+'</text>');
+    }
+    if(spec.flanks){
+      for(var f=0; f<4; f++){
+        var fa = x0(g.start+f*4), fb = x0(g.start+f*4+3) + barW;
+        out.push('<text class="flank" x="'+((fa+fb)/2).toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle">'+NT4[f]+'</text>');
+      }
     }
   });
-  for(var i=0;i<96;i++){
+  for(var i=0;i<n;i++){
     var c = sbs.counts[i], bx = x0(i), by = y(c), bh = T + plotH - by;
     var rr = Math.min(2, barW/2, bh);
     var bar = bh > 0
@@ -1282,17 +1390,23 @@ function drawSpectrum(){
   out.push('<line class="base" x1="'+L+'" x2="'+(W-R)+'" y1="'+(T+plotH)+'" y2="'+(T+plotH)+'"/>');
   out.push('</svg>');
   host.innerHTML = out.join("");
-  note.textContent = sbs.total.toLocaleString()+" substitution"+(sbs.total===1?"":"s")+
-    (sbs.samples.length>1 ? " across "+sbs.samples.length+" samples" : "") +
-    ". Bars run by substitution, then by the 5′ base (letters below), then the 3′ base." +
-    (sbs.unread ? " "+sbs.unread.toLocaleString()+" without a readable context (contig end or ambiguous base) are left out." : "");
+  note.textContent = sbs.total.toLocaleString()+" "+spec.unit+(sbs.total===1?"":"s")+
+    (sbs.samples.length>1 ? " across "+sbs.samples.length+" samples" : "") + "." +
+    (spec.flanks ? " Bars run by substitution, then by the 5′ base (letters below), then the 3′ base." : "") +
+    (sbs.unread ? " "+sbs.unread.toLocaleString()+" without a readable class are left out." : "");
 }
 
 function spectrumReadout(i){
   var n = sbs.counts[i];
-  return SBS_CLASSES[i]+"  ·  "+n.toLocaleString()+" substitution"+(n===1?"":"s")+
+  return SPECTRA[spectrumKind].classes[i]+"  ·  "+n.toLocaleString()+" "+SPECTRA[spectrumKind].unit+(n===1?"":"s")+
          "  ·  "+(100*n/sbs.total).toFixed(1)+"% of "+sbs.total.toLocaleString();
 }
+document.querySelectorAll("[data-spectrum]").forEach(function(button){
+  button.addEventListener("click", function(){
+    spectrumKind = button.getAttribute("data-spectrum");
+    drawSpectrum();
+  });
+});
 document.getElementById("sbsChart").addEventListener("mouseover", function(e){
   var col = e.target.closest && e.target.closest(".col");
   if(!col) return;
@@ -1304,13 +1418,14 @@ document.getElementById("sbsChart").addEventListener("mouseleave", function(){
 document.getElementById("sbsExport").addEventListener("click", function(){
   // The matrix layout SigProfiler and MutationalPatterns read: one row per
   // class in COSMIC order, one column per sample.
+  var spec = SPECTRA[spectrumKind];
   var lines = [["MutationType"].concat(sbs.samples).join("\t")];
-  SBS_CLASSES.forEach(function(cls, i){
+  spec.classes.forEach(function(cls, i){
     lines.push([cls].concat(sbs.samples.map(function(s){ return sbs.bySample[s][i]; })).join("\t"));
   });
   var blob = new Blob([lines.join("\n")+"\n"], {type:"text/tab-separated-values"});
   var a = document.createElement("a");
-  a.href = URL.createObjectURL(blob); a.download = "get_mnv_sbs96.tsv";
+  a.href = URL.createObjectURL(blob); a.download = spec.file;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
 });

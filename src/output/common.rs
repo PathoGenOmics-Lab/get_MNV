@@ -51,6 +51,7 @@ fn is_reserved_info_key(key: &str) -> bool {
             | "SBS96"
             | "ADJSUB"
             | "CAT"
+            | "ID83"
     )
 }
 
@@ -464,6 +465,9 @@ pub(crate) fn build_info_string(
     }
     if !variant.annotations.catalogue.is_empty() {
         builder.push_text("CAT", &variant.annotations.catalogue.join("; "));
+    }
+    if let Some(id83) = variant.annotations.id83.as_deref() {
+        builder.push_text("ID83", id83);
     }
 
     if let Some((sr, srf, srr)) = snp_metrics {
@@ -882,6 +886,10 @@ pub(crate) fn write_info_header(
     writeln!(
         writer,
         "##INFO=<ID=CAT,Number=1,Type=String,Description=\"--catalogue entries this record matches, as label (gene variant), with a note when a codon matches through one of its readings only; percent-encoded per the VCF spec\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=ID83,Number=1,Type=String,Description=\"COSMIC ID83 class of a pure insertion or deletion, as SigProfiler labels it (size:Type:Subtype:count, e.g. 1:Del:C:2)\">"
     )?;
     writeln!(
         writer,

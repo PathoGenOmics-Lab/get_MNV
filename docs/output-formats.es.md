@@ -71,6 +71,7 @@ Columnas principales:
 | `SBS96 Context` | Clase COSMIC SBS96 de cada sustitución de una base de la fila, en el orden de Event Components, escrita desde la hebra de la pirimidina: `A[C>T]G` para una C>T entre A y G, y una G>A en el mismo contexto se lee desde la otra hebra como `C[C>T]T`. `DBS` o `MBS` para una base de una racha de dos, o de tres o más, sustituciones adyacentes, que pertenece a esa racha y no al espectro de una base. `-` para una entrada cuyo contexto de trinucleótido no se puede leer (final del contig, base ambigua) y para filas sin sustitución. El informe las cuenta en un espectro mutacional. |
 | `Adjacent Substitutions` | Descriptor HGVS genómico de la racha de dos o más bases sustituidas adyacentes a la que pertenecen las sustituciones de la fila, p. ej. `g.103_104delinsAT`. Todas las filas que toca la racha llevan el mismo descriptor, y así quedan enlazadas las dos filas de codón de un doblete partido por un límite de codón, tanto si el llamador lo escribió como un registro como si fueron dos. Se lee por posiciones, como hacen las herramientas de COSMIC; no se cuenta el soporte de lecturas de la racha completa. `-` cuando ninguna sustitución de la fila tiene una vecina sustituida. |
 | `Catalogue` | Las entradas de `--catalogue` con las que coincide la fila, cada una escrita `label (gene variant)` y separadas por `; `, con `codon reading only` o `per-SNV reading only` añadido cuando una fila de codón coincide solo por una de sus dos lecturas. `-` cuando no coincide nada o no se dio catálogo. |
+| `ID83 Class` | Clase COSMIC ID83 de una inserción o deleción pura, como la etiqueta SigProfiler: `1:Del:C:2` para una C borrada de una racha de tres, `3:Ins:R:5` para una inserción de tres bases junto a cinco o más copias de sí misma, `4:Del:M:2` para una deleción de cuatro bases con dos de microhomología en su punto de rotura. Los indels de una base se escriben desde la pirimidina (`C` o `T`), y las copias se cuentan a los dos lados del evento, así que la clase no depende de dónde colocó el llamador el indel dentro de una repetición. `-` para sustituciones, deleciones-inserciones y alelos simbólicos. |
 
 Columnas adicionales cuando se usa `--bam`:
 
@@ -187,6 +188,7 @@ Campos INFO comunes:
 | `SBS96` | Clase COSMIC SBS96 de cada sustitución de una base, separadas por comas en el orden de `COMP` (`-` donde no se puede leer el contexto, `DBS` o `MBS` para una base de una racha de sustituciones adyacentes) |
 | `ADJSUB` | Descriptor HGVS genómico de cada racha de dos o más bases sustituidas adyacentes a la que pertenece el registro, compartido por todos los registros de la racha |
 | `CAT` | Entradas de `--catalogue` con las que coincide el registro, como en la columna `Catalogue` (percent-encoded) |
+| `ID83` | Clase COSMIC ID83 de una inserción o deleción pura (p. ej. `1:Del:C:2`) |
 
 La cabecera del VCF registra la versión de get_MNV, la línea de comandos y los umbrales usados.
 Cuando `--emit-filtered` está habilitado, los registros VCF que quedan por debajo de los umbrales de
@@ -376,13 +378,17 @@ El informe contiene:
 - **Una cifra principal** de las variantes mostradas, con tarjetas de apoyo para
   muestras, genes, filas MNV y variantes de alto impacto, y la **distribución de
   consecuencias** por término de Sequence Ontology. Todo sigue los filtros activos.
-- **Un espectro mutacional**: las sustituciones de una base a la vista contadas
-  en las 96 clases SBS de COSMIC, agrupadas por tipo de sustitución con la
-  proporción de cada tipo encima. Una base que nombran dos filas (dos genes
-  solapados) cuenta una vez por muestra. Al pasar por una barra se lee su clase y
-  su recuento, y `Download SBS96 matrix` guarda los recuentos por muestra con la
-  disposición `MutationType` que leen SigProfiler y MutationalPatterns. Como lo
-  demás, sigue los filtros.
+- **Espectros mutacionales**, que se alternan entre tres de COSMIC: SBS96 (las
+  sustituciones de una base por contexto de trinucleótido, agrupadas por tipo de
+  sustitución), DBS78 (dobletes de bases sustituidas adyacentes, caigan donde
+  caigan, por doblete de referencia) e ID83 (inserciones y deleciones pequeñas
+  por tamaño, base, número de repeticiones y microhomología, en los dos niveles
+  de COSMIC). Cada evento cuenta una vez por muestra, aunque lo nombren varias
+  filas, y una base de un doblete cuenta en DBS78, no en SBS96. Al pasar por una
+  barra se lee su clase y su recuento, y `Download matrix` guarda el espectro que
+  se muestra, por muestra, con la disposición `MutationType` que leen SigProfiler
+  y MutationalPatterns, con los nombres de clase de COSMIC en el orden de
+  COSMIC. Como lo demás, siguen los filtros.
 - **Una matriz de variantes**, dibujada como un pequeño navegador genómico: las
   muestras en el lateral, coordenadas genómicas reales arriba y color por la base
   alternativa. Rueda para hacer zoom alrededor del cursor, arrastrar para

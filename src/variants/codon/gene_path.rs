@@ -63,6 +63,8 @@ pub(super) fn compute_annotations(
         hgvs_g: None,
         // Filled in per contig by the pipeline, which has the catalogue.
         catalogue: Vec::new(),
+        // Indels only, filled in per contig by the pipeline.
+        id83: None,
     }
 }
 

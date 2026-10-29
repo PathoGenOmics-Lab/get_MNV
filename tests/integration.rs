@@ -4640,6 +4640,9 @@ fn test_e2e_catalogue_matches_protein_coding_upstream_and_loss_of_function() {
         format!("promoter (geneA c.-15{}>{})", at(86), other(at(86)))
     );
     assert_eq!(at_position("460"), "loss (geneB LoF)");
+    // That deletion removes the C of a GCT with no other C beside it.
+    let deletion = rows.iter().find(|row| row["Positions"] == "460").unwrap();
+    assert_eq!(deletion["ID83 Class"], "1:Del:C:0");
     assert!(
         rows.iter()
             .all(|row| !row["Catalogue"].contains("elsewhere")),
