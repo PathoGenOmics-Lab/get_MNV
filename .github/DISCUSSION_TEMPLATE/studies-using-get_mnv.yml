@@ -32,7 +32,7 @@ body:
         amino acid reported for a mitochondrial `ATA` codon was corrected after
         1.1.5, so an analysis run with tables 2, 3 or 5 before that fix wants
         reading with it in mind.
-      placeholder: get_mnv 1.1.5
+      placeholder: get_mnv 1.1.6
     validations:
       required: true
 

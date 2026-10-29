@@ -7,7 +7,7 @@
 
 <a href="LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/license-AGPL%20v3-%23af64d1?style=flat-square&amp;labelColor=21262d"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL%20v3-%23af64d1?style=flat-square"></picture></a>
 <a href="https://anaconda.org/bioconda/get_mnv"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/conda/dn/bioconda/get_mnv.svg?style=flat-square&amp;label=bioconda&amp;labelColor=21262d"><img alt="Bioconda" src="https://img.shields.io/conda/dn/bioconda/get_mnv.svg?style=flat-square&amp;label=bioconda"></picture></a>
-<a href="https://github.com/PathoGenOmics-Lab/get_MNV/releases"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/version-1.1.5-%23149389?style=flat-square&amp;labelColor=21262d"><img alt="Version" src="https://img.shields.io/badge/version-1.1.5-%23149389?style=flat-square"></picture></a>
+<a href="https://github.com/PathoGenOmics-Lab/get_MNV/releases"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/version-1.1.6-%23149389?style=flat-square&amp;labelColor=21262d"><img alt="Version" src="https://img.shields.io/badge/version-1.1.6-%23149389?style=flat-square"></picture></a>
 <a href="https://doi.org/10.5281/zenodo.13907422"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13907422-%23ff0077?style=flat-square&amp;labelColor=21262d"><img alt="DOI" src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13907422-%23ff0077?style=flat-square"></picture></a>
 <a href="https://pathogenomics-lab.github.io/get_MNV/es/"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/docs-en%20l%C3%ADnea-%230a7ea4?style=flat-square&amp;labelColor=21262d"><img alt="Documentación" src="https://img.shields.io/badge/docs-en%20l%C3%ADnea-%230a7ea4?style=flat-square"></picture></a>
 <a href="https://github.com/PathoGenOmics-Lab/get_MNV/discussions"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/github/discussions/PathoGenOmics-Lab/get_MNV?style=flat-square&amp;color=f5a623&amp;labelColor=21262d"><img alt="Discusiones" src="https://img.shields.io/github/discussions/PathoGenOmics-Lab/get_MNV?style=flat-square&amp;color=f5a623"></picture></a>
@@ -61,8 +61,8 @@ Descarga la última versión para tu plataforma:
 
 | Plataforma | Descarga |
 |---|---|
-| 🍎 macOS (Apple Silicon) | [**get_MNV_1.1.5_aarch64.dmg**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
-| 🍎 macOS (Intel) | [**get_MNV_1.1.5_x64.dmg**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
+| 🍎 macOS (Apple Silicon) | [**get_MNV_1.1.6_aarch64.dmg**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
+| 🍎 macOS (Intel) | [**get_MNV_1.1.6_x64.dmg**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
 | 🐧 Linux | [**Página de releases**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
 | 🪟 Windows | [**Página de releases**](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest) |
 
@@ -195,7 +195,7 @@ Si usas get_MNV en tu investigación, cita por favor:
   year      = {2026},
   doi       = {10.5281/zenodo.13907422},
   url       = {https://github.com/PathoGenOmics-Lab/get_MNV},
-  version   = {1.1.5},
+  version   = {1.1.6},
   license   = {AGPL-3.0}
 }
 ```

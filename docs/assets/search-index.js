@@ -341,7 +341,7 @@ window.GET_MNV_DOCS_INDEX = [
 "page": "CLI Reference",
 "section": "",
 "url": "cli-reference/index.html",
-"text": "Full reference for the get_mnv command-line options (version 1.1.5). Run get_mnv --help for the same list in your terminal."
+"text": "Full reference for the get_mnv command-line options (version 1.1.6). Run get_mnv --help for the same list in your terminal."
 },
 {
 "lang": "en",
@@ -1426,7 +1426,7 @@ window.GET_MNV_DOCS_INDEX = [
 "page": "Referencia de CLI",
 "section": "",
 "url": "es/cli-reference/index.html",
-"text": "Referencia completa de las opciones de línea de comandos de get_mnv (versión 1.1.5). Ejecuta get_mnv --help para ver la misma lista en tu terminal."
+"text": "Referencia completa de las opciones de línea de comandos de get_mnv (versión 1.1.6). Ejecuta get_mnv --help para ver la misma lista en tu terminal."
 },
 {
 "lang": "es",

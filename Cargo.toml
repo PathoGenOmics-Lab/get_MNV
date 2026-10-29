@@ -4,7 +4,7 @@ resolver = "2"
 
 [package]
 name = "get_mnv"
-version = "1.1.5"
+version = "1.1.6"
 edition = "2021"
 license = "AGPL-3.0-only"
 description = "Codon-level Multi-Nucleotide Variant detection and indel annotation from VCF or iVar TSV"

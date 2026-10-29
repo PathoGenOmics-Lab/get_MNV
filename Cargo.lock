@@ -1260,7 +1260,7 @@ dependencies = [
 
 [[package]]
 name = "get-mnv-gui"
-version = "1.1.5"
+version = "1.1.6"
 dependencies = [
  "clap",
  "env_logger",
@@ -1277,7 +1277,7 @@ dependencies = [
 
 [[package]]
 name = "get_mnv"
-version = "1.1.5"
+version = "1.1.6"
 dependencies = [
  "clap",
  "csv",

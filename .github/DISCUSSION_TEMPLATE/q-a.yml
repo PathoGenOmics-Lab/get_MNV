@@ -24,7 +24,7 @@ body:
     attributes:
       label: Version
       description: The output of `get_mnv --version`, or the version the desktop app shows.
-      placeholder: get_mnv 1.1.5
+      placeholder: get_mnv 1.1.6
     validations:
       required: true
 
