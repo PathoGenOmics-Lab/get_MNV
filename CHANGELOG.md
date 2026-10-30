@@ -11,10 +11,10 @@ All notable changes to this project are documented in this file.
   groups 1 and 2 of the 2023 catalogue (second edition), labelled with the drug
   and grade (`RIF: Assoc w R`), and `tools/who_catalogue_to_tsv.py` builds it,
   or any other choice of groups, from WHO's own files with Python's standard
-  library alone. Most entries are already written as get_MNV writes the same
-  change; a duplication becomes the insertion get_MNV names, a lost stop the
-  residue that replaces it, and an indel outside a coding sequence the `g.`
-  get_MNV gives it, placed from WHO's genomic coordinates on the run's FASTA.
+  library alone. Most entries, in-frame duplications among them, are already
+  written as get_MNV writes the same change; a lost stop becomes the residue
+  that replaces it, and an indel outside a coding sequence the `g.` get_MNV
+  gives it, placed from WHO's genomic coordinates on the run's FASTA.
   The four whole-gene deletions, which no VCF of changes inside genes
   describes, are listed as not converted. Of the 26,231 genomic variants WHO
   links to those groups, 26,227 come out flagged for their drug, among them
@@ -78,8 +78,26 @@ All notable changes to this project are documented in this file.
   installing their logger with `get_mnv::logging::install`; with any other
   logger the samples run one after another, as before.
 
+- **An in-frame duplication is written `dup` in `AA Changes`.** An insertion
+  that repeats the residues just before it is now named as their duplication
+  at the 3'-most copy, as HGVS asks: rpoB `761102 A>ATTC` is `Phe433dup`, no
+  longer `Phe433_Met434insPhe`, and a run is `His68_Leu70dup`. The `HGVS c.`
+  and `HGVS g.` columns of the same row already said `dup`, and the WHO
+  catalogue writes these variants so: its `p.Phe433dup` and `p.Thr444dup` now
+  match as written, and the converter no longer rewrites a duplication, which
+  needed the residue after it and sent 36 of the 74 in the catalogue to WHO's
+  genomic coordinates. Other insertions keep the flanking residues
+  (`Lys2_Phe3insGly`).
+
 ### Fixed
 
+- **A copy of the stop codon is not a stop gained.** An in-frame insertion
+  that repeats the terminal stop codon, alone or with the codon before it
+  (`TAA` to `TAATAA`), adds a stop no ribosome reaches and leaves the protein
+  as it was. The stops were counted over the whole translation, so it came out
+  `stop_gained` at HIGH impact and matched a catalogue's `LoF` entry for the
+  gene, and in a spliced gene the copy, read a codon upstream of where it
+  stands, got an NMD prediction. It is now synonymous, with no NMD call.
 - **A `g.` catalogue entry matches wherever its change is.** A genomic
   descriptor other than a single substitution (`g.2289247del`) was compared only
   with the rows of the entry's gene, and a deletion upstream of a gene sits on

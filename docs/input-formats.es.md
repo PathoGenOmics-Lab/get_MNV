@@ -312,9 +312,8 @@ conservan tal cual; las demás se reescriben:
 
 | La OMS escribe | La tabla guarda |
 |---|---|
-| `p.Ser450Leu`, `p.Trp122*`, `p.Asp379fs`, `p.Met1?`, un `del`, `ins` o `delins` en fase | lo mismo |
+| `p.Ser450Leu`, `p.Trp122*`, `p.Asp379fs`, `p.Met1?`, un `del`, `ins`, `dup` o `delins` en fase | lo mismo |
 | `c.-15C>T`, `c.102G>A`, `n.1401A>G`, `LoF` | lo mismo |
-| `p.Phe433dup`, una duplicación en fase | `p.Phe433_Met434insPhe`, la inserción como la nombra get_MNV, con los residuos sacados de las demás entradas del catálogo |
 | `p.Ter187Argext*?`, una parada perdida | `p.Ter187Arg`, el residuo que la sustituye |
 | `c.421_423delTTGinsCTC`, misma longitud a la entrada y a la salida | `c.[421T>C;423G>C]`, las sustituciones que produce |
 | `c.-5delG` o `n.2269_2270insT`, un indel fuera de una secuencia codificante | el `HGVS g.` que get_MNV da al cambio, `g.2289247del`, a partir de las coordenadas genómicas de la OMS y del FASTA de la ejecución (`--coordinates`, `--fasta`) |

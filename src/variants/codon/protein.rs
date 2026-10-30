@@ -151,7 +151,22 @@ pub(super) fn describe_protein_change(
             )
         };
 
-        if ref_mid.is_empty() {
+        if ref_mid.is_empty() && repeats_residues_before(&ref_chars, prefix, alt_mid) {
+            // HGVS writes an insertion that repeats the residues just before it
+            // as a duplication of them, `Phe433dup` or `His68_Leu70dup`, as the
+            // `c.` and `g.` descriptors of the same row already do. `prefix` is
+            // the longest common prefix, so the insertion already sits at its
+            // 3'-most place and the copy it repeats is the 3'-most copy.
+            let last = start_pos - 1;
+            let first = start_pos - alt_mid.len();
+            let first_aa = aa_three_letter(alt_mid[0]);
+            if first == last {
+                format!("{first_aa}{last}dup")
+            } else {
+                let last_aa = aa_three_letter(alt_mid[alt_mid.len() - 1]);
+                format!("{first_aa}{first}_{last_aa}{last}dup")
+            }
+        } else if ref_mid.is_empty() {
             // HGVS protein insertions name the two flanking (unchanged) residues
             // bracketing the insertion point, e.g. `Lys2_Phe3insGly`, matching
             // the residue-aware form already used for `del` / `delins`. The
@@ -179,6 +194,16 @@ pub(super) fn describe_protein_change(
     };
 
     (build(protein_pos), build(local_pos))
+}
+
+/// Whether residues inserted after the first `prefix` residues repeat the ones
+/// just before them, which HGVS writes as a duplication of those residues. A
+/// residue that could not be read (`X`, a codon with an `N`) repeats nothing.
+fn repeats_residues_before(ref_chars: &[char], prefix: usize, inserted: &[char]) -> bool {
+    !inserted.is_empty()
+        && !inserted.contains(&'X')
+        && prefix >= inserted.len()
+        && ref_chars[prefix - inserted.len()..prefix] == *inserted
 }
 
 pub(super) fn complement_base(base: char) -> char {
@@ -226,6 +251,51 @@ mod tests {
         // bare-position form rather than fabricating a residue.
         let (protein, _) = describe_protein_change("MKF", "MKFG", 0, false);
         assert_eq!(protein, "3_4insGly");
+    }
+
+    #[test]
+    fn insertion_repeating_the_residues_before_it_is_a_duplication() {
+        // rpoB 761102 A>ATTC: a second Phe after Phe433, which HGVS and the WHO
+        // catalogue write p.Phe433dup rather than p.Phe433_Met434insPhe.
+        let (protein, local) = describe_protein_change("MKFM", "MKFFM", 430, false);
+        assert_eq!(protein, "Phe433dup");
+        assert_eq!(local, "Phe3dup");
+        // A run of residues: His68_Leu70dup.
+        let (run, _) = describe_protein_change("MHQLA", "MHQLHQLA", 66, false);
+        assert_eq!(run, "His68_Leu70dup");
+        // Beside the stop, and with no residue after it at all, the copy is
+        // still a duplication: no flank needs naming.
+        let (before_stop, _) = describe_protein_change("MKF*", "MKFF*", 0, false);
+        assert_eq!(before_stop, "Phe3dup");
+        let (c_terminal, _) = describe_protein_change("MKF", "MKFF", 0, false);
+        assert_eq!(c_terminal, "Phe3dup");
+    }
+
+    #[test]
+    fn duplication_in_a_repeat_names_its_three_prime_copy() {
+        // Phe3 and Phe4 are both Phe: the copy is the 3'-most, Phe4.
+        let (single, _) = describe_protein_change("MKFFM", "MKFFFM", 0, false);
+        assert_eq!(single, "Phe4dup");
+        // His-Gln twice: the copy is the second pair, His4_Gln5.
+        let (pair, _) = describe_protein_change("MHQHQA", "MHQHQHQA", 0, false);
+        assert_eq!(pair, "His4_Gln5dup");
+        // Phe-Met put in front of Phe3-Met4 makes the same protein as Phe-Met
+        // put after them, so it too is their duplication.
+        let (in_front, _) = describe_protein_change("MKFMA", "MKFMFMA", 0, false);
+        assert_eq!(in_front, "Phe3_Met4dup");
+    }
+
+    #[test]
+    fn insertion_of_residues_not_just_before_it_stays_an_insertion() {
+        // Lys is in the protein, but not just before the insertion point.
+        let (protein, _) = describe_protein_change("MKFM", "MKFKM", 0, false);
+        assert_eq!(protein, "Phe3_Met4insLys");
+        // Phe-Phe after a single Phe repeats more than the residues before it.
+        let (longer, _) = describe_protein_change("MKFM", "MKFFFM", 0, false);
+        assert_eq!(longer, "Phe3_Met4insPhePhe");
+        // Two residues that could not be read are not known to be the same.
+        let (unread, _) = describe_protein_change("MKXM", "MKXXM", 0, false);
+        assert_eq!(unread, "X3_Met4insX");
     }
 
     #[test]

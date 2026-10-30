@@ -43,16 +43,19 @@ Around 1560 cases, each run as its own VCF so no two expectations interfere.
 Each is checked on gene, amino-acid change, change type, reference codon,
 alternate codon, and the HGVS `c.` descriptor.
 
-Plus 2130 indels: deletions and insertions of 1, 2 and 3 bases at **every
-position of every exon**. Where an insertion goes is the subtlest decision in
+Plus 2842 indels: deletions and insertions of 1, 2 and 3 bases, and
+duplications of the 3 and 6 bases before the gap, at **every position of every
+exon**. Where an insertion goes is the subtlest decision in
 the indel path, so it is not sampled: the bases must be reverse-complemented on
 the minus strand, they must land between the right two residues, and the gap
 above the gene's highest coordinate is outside the CDS on *either* strand,
 because there it is the 3' end of a plus-strand transcript and the 5' end of a
 minus one. Anchors spread through the exon would leave those edges untested. Their expectation comes from the same re-translation, with the
 indel applied in CDS coordinate space rather than by cutting the genome, since
-the surrounding bases keep their coordinates. Checked on change type, event
-class and both codons; the HGVS protein notation for indels is get_MNV's own
+the surrounding bases keep their coordinates. A duplication of the stop codon
+adds a stop no ribosome reaches, so it changes nothing, whatever the count of
+stops in the whole translation says. Checked on change type, event class and
+both codons; the HGVS protein notation for indels is get_MNV's own
 formatting, so reproducing it here would test spelling rather than biology.
 
 The whole run takes about six seconds.
@@ -82,6 +85,8 @@ GET_MNV_BIN=/path/to/older/get_mnv python3 tests/truth/run.py
 Against the build before the codon-orientation fix this reports 240
 disagreements, all on the minus-strand genes. Against the build before the
 start-codon fix it reports 11 more, all indels that remove the initiator.
+Against the build before the stop-codon duplication fix it reports 14, all
+insertions copying a stop codon that it called a stop gained.
 Against the build that still read the codon an indel leaves first as an
 initiator it reports 7: three-base indels that split an ATG and leave ATA or
 ATC first, which table 11 can start on but which are not the gene's start.

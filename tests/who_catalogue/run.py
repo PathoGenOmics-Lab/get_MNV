@@ -87,7 +87,7 @@ EXPECTED = [
     ("pncA", "p.Ter187Arg", "PZA: Assoc w R - Interim, WHO p.Ter187Argext*?"),
     ("rpoB", "p.Asn438del", "RIF: Assoc w R - Interim"),
     ("rpoB", "p.Met434Ile", "RIF: Assoc w R - Interim"),
-    ("rpoB", "p.Phe433_Met434insPhe", "RIF: Assoc w R, WHO p.Phe433dup"),
+    ("rpoB", "p.Phe433dup", "RIF: Assoc w R"),
     ("rpoB", "p.Ser441Gln", "RIF: Assoc w R"),
     ("rpoB", "p.Ser450Leu", "RIF: Assoc w R"),
     ("rpoB", "p.Ser450Phe", "RIF: Assoc w R"),
@@ -165,21 +165,10 @@ def test_helpers() -> None:
     single = converter.CODING_DELINS.fullmatch("c.10_12delAGCinsAGT")
     check(converter.coding_brackets(single) == "c.12C>T", "coding_brackets, one base")
 
-    residues = {433: "Phe", 434: "Met", 68: "His", 69: "Gln", 70: "Leu", 71: "Ala"}
-    check(converter.convert("p.Phe433dup", residues) == ["p.Phe433_Met434insPhe"], "dup of one")
-    check(
-        converter.convert("p.His68_Leu70dup", residues) == ["p.Leu70_Ala71insHisGlnLeu"],
-        "dup of a run",
-    )
-    try:
-        converter.convert("p.Phe433dup", {433: "Phe"})
-        failures.append("a duplication beside an unnamed residue was converted")
-    except converter.Unconverted as why:
-        check("--coordinates" in str(why), f"dup without residues: {why}")
     check(converter.convert("p.Ter187Argext*?") == ["p.Ter187Arg"], "stop loss")
     for kept in ("p.Ser450Leu", "p.Trp122*", "p.Asp379fs", "p.Met1?", "p.Asn438del",
-                 "p.Gln432_Asp435delinsHis", "p.Leu430_Ser431insArg", "c.-15C>T",
-                 "n.1401A>G", "c.102G>A", "LoF"):
+                 "p.Phe433dup", "p.His68_Leu70dup", "p.Gln432_Asp435delinsHis",
+                 "p.Leu430_Ser431insArg", "c.-15C>T", "n.1401A>G", "c.102G>A", "LoF"):
         check(converter.convert(kept) == [kept], f"{kept} is kept as written")
     try:
         converter.convert("deletion")
@@ -364,22 +353,16 @@ def test_shipped_table(get_mnv: Path) -> None:
     entries = read_table(SHIPPED)
     check(len(entries) == 1379, f"shipped table: {len(entries)} entries, want 1379")
     check({row["grade"][0] for row in entries} == {"1", "2"}, "shipped table: groups 1 and 2")
-    residues: dict[str, dict[int, str]] = {}
-    for row in entries:
-        mutation = row["who_variant"].split("_", 1)[1]
-        for residue, position in converter.NAMED_RESIDUE.findall(mutation):
-            residues.setdefault(row["gene"], {}).setdefault(int(position), residue)
     drifted = []
     for row in entries:
         mutation = row["who_variant"].split("_", 1)[1]
         try:
-            ours = converter.name_level(mutation, residues.get(row["gene"], {}))
+            ours = converter.name_level(mutation)
         except converter.NeedsGenome:
             ours = None
         if ours is None:
-            # A duplication may take its neighbour from a group this table
-            # leaves out; anything else with no form of its own is a `g.`.
-            if not (row["variant"].startswith("g.") or converter.DUPLICATION.fullmatch(mutation)):
+            # An entry with no form of its own is placed as a `g.`.
+            if not row["variant"].startswith("g."):
                 drifted.append(f"{row['who_variant']}: {row['variant']}, want a g. entry")
         elif row["variant"] not in ours:
             drifted.append(f"{row['who_variant']}: {row['variant']}, the converter writes {ours}")

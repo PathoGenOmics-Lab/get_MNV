@@ -424,16 +424,18 @@ def expected_indel(
         start_taken or alternate_protein[:1] not in ("M", "*")
     ):
         change_type = "Start lost"
-    elif alternate_protein.count("*") > reference_protein.count("*"):
-        change_type = "Stop gained"
-    elif alternate_protein.count("*") < reference_protein.count("*"):
-        change_type = "Stop lost"
     elif made(reference_protein) == made(alternate_protein):
         # An in-frame indel that leaves the made protein byte for byte the same
         # changed nothing. An insertion inside the terminal stop codon that keeps
         # a stop there is the case, and it used to be reported as a residue
-        # inserted one position past the protein's last one.
+        # inserted one position past the protein's last one. So is one that
+        # copies the stop codon: the second stop is never reached, and counting
+        # the stops of the whole translation called it a stop gained.
         change_type = "Synonymous"
+    elif alternate_protein.count("*") > reference_protein.count("*"):
+        change_type = "Stop gained"
+    elif alternate_protein.count("*") < reference_protein.count("*"):
+        change_type = "Stop lost"
     else:
         change_type = "In-frame Indel"
 
@@ -467,7 +469,8 @@ def expected_indel(
 
 
 def build_indel_cases(genome: str, genes: list[Gene]) -> list[IndelCase]:
-    """Deletions and insertions of 1, 2 and 3 bases across each gene."""
+    """Deletions and insertions of 1, 2 and 3 bases across each gene, and
+    duplications of the 3 and 6 bases ending at each position."""
     cases: list[IndelCase] = []
     for gene in genes:
         for segment_start, segment_end in gene.segments:
@@ -495,6 +498,19 @@ def build_indel_cases(genome: str, genes: list[Gene]) -> list[IndelCase]:
                     )
                     if case:
                         case.note = f"ins{length} {gene.name} at {anchor}"
+                        cases.append(case)
+                # A duplication: a copy of the bases just before the gap, in
+                # step with the codons or across them, and of the stop codon
+                # itself at the gene's end, where the second stop is never read.
+                for length in (3, 6):
+                    if anchor <= length:
+                        continue
+                    copied = genome[anchor - length : anchor]
+                    case = expected_indel(
+                        genome, gene, anchor, genome[anchor - 1], genome[anchor - 1] + copied
+                    )
+                    if case:
+                        case.note = f"dup{length} {gene.name} at {anchor}"
                         cases.append(case)
     return cases
 

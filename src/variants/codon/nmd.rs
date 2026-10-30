@@ -82,6 +82,16 @@ pub(super) fn indel_nmd_prediction(
     let alt_cds = apply_allele_to_feature(gene, reference, variant)?;
     let ref_protein = translate_cds(&ref_cds, genetic_code);
     let alt_protein = translate_cds(&alt_cds, genetic_code);
+    // A protein made exactly as before has no premature stop, whatever follows
+    // its stop. An insertion that copies the terminal stop codon puts the copy
+    // where the natural stop stood; the length change was subtracted from it as
+    // from any stop downstream of the indel, so it came out a codon early, and a
+    // row whose protein is unchanged got an NMD call.
+    if super::protein::translated_part(&ref_protein)
+        == super::protein::translated_part(&alt_protein)
+    {
+        return None;
+    }
 
     // The premature stop is the alternate protein's first stop, and only when it
     // sits earlier in the transcript than the reference's natural stop. Both

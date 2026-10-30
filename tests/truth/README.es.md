@@ -44,16 +44,18 @@ Unos 1560 casos, cada uno como su propio VCF para que no se interfieran. De cada
 uno se comprueban gen, cambio de aminoácido, tipo de cambio, codón de
 referencia, codón alternativo y el descriptor `HGVS c.`.
 
-Más 2130 indels: deleciones e inserciones de 1, 2 y 3 bases en **cada posición
-de cada exón**. Dónde va una inserción es la decisión más sutil de todo el
+Más 2842 indels: deleciones e inserciones de 1, 2 y 3 bases, y duplicaciones
+de las 3 y 6 bases de antes del hueco, en **cada posición de cada exón**. Dónde va una inserción es la decisión más sutil de todo el
 camino de indels, así que no se muestrea: las bases deben ir en complemento
 inverso en la hebra menos, deben caer entre los dos residuos correctos, y el
 hueco por encima de la coordenada más alta del gen queda fuera del CDS en
 *ambas* hebras, porque ahí es el extremo 3' de un transcrito de hebra más y el
 5' de uno de hebra menos. Con anclas repartidas esos bordes quedarían sin probar. Su expectativa sale de la misma retraducción, aplicando el indel en el
 espacio de coordenadas del CDS y no recortando el genoma, porque las bases de
-alrededor conservan sus coordenadas. Se comprueban tipo de cambio, clase de
-evento y ambos codones; la notación HGVS de proteína para indels es formato
+alrededor conservan sus coordenadas. Una duplicación del codón de parada añade
+una parada a la que ningún ribosoma llega, así que no cambia nada, diga lo que
+diga la cuenta de paradas de toda la traducción. Se comprueban tipo de cambio,
+clase de evento y ambos codones; la notación HGVS de proteína para indels es formato
 propio de get_MNV, así que reproducirla aquí probaría ortografía, no biología.
 
 La ejecución completa tarda unos seis segundos.
@@ -83,6 +85,8 @@ GET_MNV_BIN=/ruta/a/get_mnv/anterior python3 tests/truth/run.py
 Contra el binario anterior al arreglo de orientación de codón reporta 240
 discrepancias, todas en los genes de hebra menos. Contra el anterior al arreglo
 del codón de inicio reporta 11 más, todas indels que eliminan el iniciador.
+Contra el anterior al arreglo de la duplicación del codón de parada reporta 14,
+todas inserciones que copian un codón de parada y que llamaba stop gained.
 Contra el que todavía leía como iniciador el codón que un indel deja primero
 reporta 7: indels de tres bases que parten un ATG y dejan primero ATA o ATC,
 con los que la tabla 11 puede empezar pero que no son el inicio del gen.
