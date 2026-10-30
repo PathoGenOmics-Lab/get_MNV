@@ -290,13 +290,13 @@ fn removes_initiation_codon(
 ///
 /// A deletion in a repeat can be written anywhere along the repeat, and the
 /// feature clips a deletion at its edges. Left-aligned, as `bcftools norm` and
-/// `--left-align` write it, deleting the second ATG of `ATGATG` begins on the G
-/// before the gene, so only two of its three bases were coding: a frameshift
-/// that lost the start, where the same deletion written inside the gene was
-/// `Met2del`. Placed 3'-most, a deletion lies inside the coding sequence
-/// whenever any spelling of it does, and every spelling of it is read the same.
-/// One that still reaches the base before the start codon there really removes
-/// the start.
+/// `--left-align` write it, deleting the second ATG of a gene that starts
+/// `ATGATG` right after a G begins on that G, so only two of its three bases
+/// were coding: a frameshift that lost the start, where the same deletion
+/// written inside the gene was `Met2del`. Placed 3'-most, a deletion lies
+/// inside the coding sequence whenever any spelling of it does, and every
+/// spelling of it is read the same. One that still reaches the base before the
+/// start codon there really removes the start.
 pub(super) fn coding_placement(
     gene: &Gene,
     reference: &crate::io::Reference<'_>,

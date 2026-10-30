@@ -101,10 +101,11 @@ All notable changes to this project are documented in this file.
 - **A deletion written across a gene's start reads as it does written inside
   the gene.** A deletion in a repeat can be written at several places, and the
   gene's edge clipped one that began before it. Left-aligned, as `bcftools norm`
-  and `--left-align` write it, deleting the second ATG of `ATGATG` begins on the
-  base before the gene and kept only two coding bases: a frameshift that lost
-  the start and shifted every codon behind it, where the same deletion written
-  inside the gene was `Met2del`, so turning `--left-align` on changed the call.
+  and `--left-align` write it, deleting the second ATG of a gene that starts
+  `ATGATG` right after a G begins on that G and kept only two coding bases: a
+  frameshift that lost the start and shifted every codon behind it, where the
+  same deletion written inside the gene was `Met2del`, so turning
+  `--left-align` on changed the call.
   A deletion from the bases before the start codon into the gene is now read at
   its 3'-most place along the transcript within the first exon, as HGVS places
   it, so it gets the codons, `c.` and protein change of that place; the row

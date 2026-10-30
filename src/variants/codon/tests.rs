@@ -496,13 +496,13 @@ fn an_indel_inside_the_start_codon_loses_the_start() {
 /// A deletion written across the protein's start is read where it lies inside
 /// the gene, when it can be moved there.
 ///
-/// Deleting the second ATG of `ATGATG` can be written left-aligned, as
-/// `bcftools norm` and `--left-align` write it, starting on the G before the
-/// gene. Clipped at the gene's edge, that removed two coding bases rather than
-/// three: a frameshift that lost the start, carried onto every codon behind it,
-/// where the same deletion written inside the gene was `Met2del`. A deletion
-/// that cannot be moved clear of the base before the start codon still loses
-/// the start.
+/// Deleting the second ATG of a gene that starts `ATGATG` right after a G can be
+/// written left-aligned, as `bcftools norm` and `--left-align` write it,
+/// starting on that G. Clipped at the gene's edge, that removed two coding
+/// bases rather than three: a frameshift that lost the start, carried onto
+/// every codon behind it, where the same deletion written inside the gene was
+/// `Met2del`. A deletion that cannot be moved clear of the base before the
+/// start codon still loses the start.
 #[test]
 fn a_deletion_written_across_the_start_is_read_where_it_lies_inside() {
     // CCCCG | ATG ATG AAA TTT TAA | CCCCC: Met-Met-Lys-Phe, CDS 6-20.
