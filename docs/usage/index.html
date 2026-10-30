@@ -134,6 +134,26 @@
 <p>The report is a single self-contained HTML file, so it opens with no server and travels as one attachment. It needs the TSV output, which is the default. <code>--convert</code> writes the VCF <em>instead</em> of the TSV, so reach for <code>--both</code> when you want a report and a VCF.</p>
 <p>For a cohort already processed one sample per run, build the report from the existing outputs instead of running the pipeline again:</p>
 <div class="code" data-lang="bash"><pre><code>get_mnv --report-from run1.MNV.tsv run2.MNV.tsv --report cohort.html</code></pre></div>
+<h2 id="flag-known-resistance-mutations-in-m-tuberculosis">Flag Known Resistance Mutations in <em>M. tuberculosis</em><a class="anchor" href="#flag-known-resistance-mutations-in-m-tuberculosis" aria-hidden="true" tabindex="-1">#</a></h2>
+<p><code>example/who_catalogue_2023.tsv</code> is the WHO catalogue of <em>M. tuberculosis</em> resistance mutations (2023), its groups 1 and 2, in the form <code>--catalogue</code> reads. On the example's reference and gene table:</p>
+<div class="code" data-lang="bash"><pre><code>get_mnv \
+  --vcf variants.vcf \
+  --fasta example/MTB_ancestor.fas \
+  --genes example/anot_genes.txt \
+  --catalogue example/who_catalogue_2023.tsv</code></pre></div>
+<p>A call that matches gets the entry in its <code>Catalogue</code> column. A codon with two substitutions is matched as the codon it makes, which base-by-base annotation does not see: rpoB <code>p.Ser450Phe</code> needs two changes in codon 450, and its row reads</p>
+<div class="code" data-lang="text"><pre><code>RIF: Assoc w R (rpoB p.Ser450Leu, per-SNV reading only); RIF: Assoc w R (rpoB p.Ser450Phe, codon reading only)</code></pre></div>
+<p>that is, the codon is Ser450Phe, and an annotator reading one base at a time would have reported Ser450Leu. For <code>p.Ser441Gln</code> it would have reported Ser441Pro and a premature stop. To keep other groups, or to place the table on another reference, build it from WHO's files:</p>
+<div class="code" data-lang="bash"><pre><code>base=&quot;https://raw.githubusercontent.com/GTB-tbsequencing/mutation-catalogue-2023/main/Final%20Result%20Files&quot;
+curl -LO &quot;$base/WHO-UCN-TB-2023.6-eng_catalogue_master_file.txt&quot;
+curl -LO &quot;$base/WHO-UCN-TB-2023.7-eng_genomic_coordinates.txt&quot;
+python3 tools/who_catalogue_to_tsv.py WHO-UCN-TB-2023.6-eng_catalogue_master_file.txt \
+  --grades 1,2,5 \
+  --coordinates WHO-UCN-TB-2023.7-eng_genomic_coordinates.txt \
+  --fasta example/MTB_ancestor.fas \
+  --unconverted who_unconverted.tsv \
+  -o who_catalogue.tsv</code></pre></div>
+<p>What the converter rewrites, what it cannot convert, and what a gene table or reference of your own needs are in <a href="../input-formats/index.html#the-who-catalogue-of-m-tuberculosis-resistance-mutations">Input formats</a>.</p>
 <h2 id="analyze-cds-features-in-a-gff">Analyze CDS Features in a GFF<a class="anchor" href="#analyze-cds-features-in-a-gff" aria-hidden="true" tabindex="-1">#</a></h2>
 <div class="code" data-lang="bash"><pre><code>get_mnv \
   --vcf variants.vcf \
@@ -146,7 +166,7 @@
 <p class="edit"><a href="https://github.com/PathoGenOmics-Lab/get_MNV/blob/main/docs/usage.md"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Edit this page on GitHub</a></p>
 <nav class="pager" aria-label="Previous and next page"><a class="prev" href="../getting-started/index.html"><span>Previous</span>Command Line Tutorial</a><a class="next" href="../gui/index.html"><span>Next</span>Desktop GUI</a></nav>
 </main>
-<aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-2"><a href="#basic-command">Basic Command</a></li><li class="toc-2"><a href="#vcf-input">VCF Input</a></li><li class="toc-2"><a href="#ivar-tsv-input">iVar TSV Input</a></li><li class="toc-2"><a href="#add-bam-read-support">Add BAM Read Support</a></li><li class="toc-2"><a href="#filter-on-recounted-read-support">Filter on Recounted Read Support</a></li><li class="toc-2"><a href="#write-both-tsv-and-vcf">Write Both TSV and VCF</a></li><li class="toc-2"><a href="#build-the-interactive-report">Build the Interactive Report</a></li><li class="toc-2"><a href="#analyze-cds-features-in-a-gff">Analyze CDS Features in a GFF</a></li><li class="toc-2"><a href="#notes">Notes</a></li></ul></aside>
+<aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-2"><a href="#basic-command">Basic Command</a></li><li class="toc-2"><a href="#vcf-input">VCF Input</a></li><li class="toc-2"><a href="#ivar-tsv-input">iVar TSV Input</a></li><li class="toc-2"><a href="#add-bam-read-support">Add BAM Read Support</a></li><li class="toc-2"><a href="#filter-on-recounted-read-support">Filter on Recounted Read Support</a></li><li class="toc-2"><a href="#write-both-tsv-and-vcf">Write Both TSV and VCF</a></li><li class="toc-2"><a href="#build-the-interactive-report">Build the Interactive Report</a></li><li class="toc-2"><a href="#flag-known-resistance-mutations-in-m-tuberculosis">Flag Known Resistance Mutations in M. tuberculosis</a></li><li class="toc-2"><a href="#analyze-cds-features-in-a-gff">Analyze CDS Features in a GFF</a></li><li class="toc-2"><a href="#notes">Notes</a></li></ul></aside>
 </div>
 <footer class="foot">
   <div class="foot-in">

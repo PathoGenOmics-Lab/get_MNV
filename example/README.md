@@ -13,6 +13,7 @@ GUI read viewer.
 | `G35894.var.snp.MNV.tsv` | Pre-computed get_MNV output for that VCF (no BAM) |
 | `G35894.demo.bam` (`.bai`) | Tiny synthetic alignment for the read viewer (see below) |
 | `make_demo_bam.py` | Regenerates `G35894.demo.bam` from the reference |
+| `who_catalogue_2023.tsv` | WHO catalogue of resistance mutations (2023), groups 1 and 2, for `--catalogue` (see below) |
 
 ## Run the CLI
 
@@ -59,3 +60,27 @@ then open that `SNP/MNV` row to see the 24 reads in the pileup.
 ```bash
 cd example && python3 make_demo_bam.py   # needs samtools on PATH (or $SAMTOOLS)
 ```
+
+## Flag WHO resistance mutations
+
+`who_catalogue_2023.tsv` holds the 1,379 entries of groups 1 and 2 (associated
+with resistance) of the WHO catalogue of mutations in the *M. tuberculosis*
+complex, second edition (2023), converted by `tools/who_catalogue_to_tsv.py`
+and placed on `MTB_ancestor.fas`:
+
+```bash
+get_mnv \
+  --vcf example/G35894.var.snp.vcf \
+  --fasta example/MTB_ancestor.fas \
+  --genes example/anot_genes.txt \
+  --catalogue example/who_catalogue_2023.tsv
+```
+
+G35894 carries none of them, so every row's `Catalogue` stays `-`. How the
+table is built, and what a sample that does carry them looks like, is in the
+documentation's recipe and input-format pages.
+
+The table contains information from the
+[WHO mutation catalogue](https://github.com/GTB-tbsequencing/mutation-catalogue-2023),
+which is made available under the
+[ODC Attribution License](https://opendatacommons.org/licenses/by/1-0/).
