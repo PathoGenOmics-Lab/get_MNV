@@ -4931,6 +4931,59 @@ fn test_e2e_catalogue_matches_protein_coding_upstream_and_loss_of_function() {
     fs::remove_dir_all(&tmp).ok();
 }
 
+/// Two entries the WHO catalogue of M. tuberculosis resistance mutations needs,
+/// on the example's MTBC ancestor: a deletion upstream of pncA, whose row is
+/// intergenic, and rrs A1401G, written `n.` because rrs is never translated.
+/// The deletion's entry was compared only with rows of pncA, and the `n.` one
+/// was read as a protein change, so neither could match.
+#[test]
+fn test_e2e_catalogue_matches_an_upstream_deletion_and_a_non_coding_gene() {
+    let tmp = temp_dir("e2e_catalogue_who");
+    // pncA (minus strand) ends at 2289241, so 2289246 is its c.-5. That C sits
+    // in a run of two, and HGVS writes the deletion at the 3' one.
+    fs::write(
+        tmp.join("calls.vcf"),
+        "##fileformat=VCFv4.2\n##contig=<ID=MTB_anc,length=4411532>\n\
+         #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+         MTB_anc\t1473246\t.\tA\tG\t50\tPASS\tDP=30\n\
+         MTB_anc\t2289245\t.\tTC\tT\t50\tPASS\tDP=30\n",
+    )
+    .unwrap();
+    fs::write(
+        tmp.join("catalogue.tsv"),
+        "gene\tvariant\tlabel\n\
+         rrs\tn.1401A>G\tAMK: Assoc w R\n\
+         pncA\tg.2289247del\tPZA: Assoc w R\n\
+         nosuchgene\tg.2289247del\tno contig\n",
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(tmp.join("calls.vcf").to_string_lossy().into());
+    args.catalogue = Some(tmp.join("catalogue.tsv").to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("who".to_string());
+    pipeline::run(&args).expect("catalogue run");
+
+    let rows = read_tsv_rows(&tmp.join("who.MNV.tsv"));
+    let at_position = |positions: &str| -> &HashMap<String, String> {
+        rows.iter()
+            .find(|row| row["Positions"] == positions)
+            .unwrap_or_else(|| panic!("no row at {positions}: {rows:?}"))
+    };
+    let rrs = at_position("1473246");
+    assert_eq!(rrs["Gene"], "rrs_Rvnr01");
+    assert_eq!(rrs["Catalogue"], "AMK: Assoc w R (rrs n.1401A>G)");
+    let upstream = at_position("2289245");
+    assert_eq!(upstream["Gene"], "intergenic");
+    assert_eq!(upstream["HGVS g."], "g.2289247del");
+    assert_eq!(
+        upstream["Catalogue"], "PZA: Assoc w R (pncA g.2289247del)",
+        "the same descriptor under a gene the annotation lacks names no contig, so it matches nothing"
+    );
+    fs::remove_dir_all(&tmp).ok();
+}
+
 /// An insertion inside the terminal stop codon truncates nothing, so it gets no
 /// NMD prediction, on either strand.
 ///
