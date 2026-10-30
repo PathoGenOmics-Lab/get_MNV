@@ -56,59 +56,43 @@ Solución:
 
 ## Registros VCF multialélicos
 
-Ejemplo:
+Desde la 1.1.6 se dividen solos, así que el error
+`Multiallelic VCF record is not supported` ya no aparece. Una versión anterior
+necesita `--split-multiallelic`, o un VCF dividido de antemano con
+`bcftools norm -m - input.vcf > split.vcf`.
 
-```text
-Multiallelic VCF record is not supported
-```
-
-Solución:
-
-```bash
-get_mnv ... --split-multiallelic
-```
-
-o divide el VCF de antemano:
-
-```bash
-bcftools norm -m - input.vcf > split.vcf
-```
-
-`--split-multiallelic` emite una fila anotada por cada ALT, incluso cuando
-varios alts comparten la misma posición de codón. Cada fila indica su propio
+La división emite una fila anotada por cada ALT, incluso cuando varios alts
+comparten la misma posición de codón. Cada fila indica su propio
 efecto sobre el aminoácido, su codón y el soporte de lecturas derivado del BAM.
 Dividir el VCF de antemano con `bcftools norm -m -` produce la misma salida.
 
 ## Entrada BCF
 
-Ejemplo:
+Desde la 1.1.6 un `.bcf` se lee directamente con `--vcf`. Las versiones
+anteriores se detienen con `BCF input is not supported. Convert to VCF first`;
+para ellas, conviértelo con `bcftools view input.bcf > input.vcf`.
 
-```text
-BCF input is not supported. Convert to VCF first
-```
-
-Solución:
-
-```bash
-bcftools view input.bcf > input.vcf
-get_mnv --vcf input.vcf ...
-```
-
-`--bcf` es solo una opción de salida; no hace que el BCF sea válido como
-entrada.
+Un BCF cortado, por ejemplo por una copia interrumpida, detiene la ejecución con
+un error `invalid BCF record` o `invalid BCF header` en lugar de leerse como un
+VCF con menos registros. Vuelve a copiar el archivo.
 
 ## Anotación TSV con múltiples contigs
 
 Ejemplo:
 
 ```text
-TSV annotation does not include contig names
+TSV annotation has 2 row(s) without a contig, which cannot be placed in a multi-contig VCF
 ```
 
 Solución:
 
-- Usa `--gff` para datos de múltiples contigs.
+- Nombra el contig de cada fila en una séptima columna (consulta
+  [Formatos de entrada](input-formats.es.md)).
+- O usa `--gff` para datos de múltiples contigs.
 - O restringe la ejecución a un solo contig con `--chrom`.
+
+Las versiones anteriores a la 1.1.6 no tenían columna de contig y daban en su
+lugar `TSV annotation does not include contig names`.
 
 ## Salen menos filas que registros tiene el VCF
 
@@ -256,7 +240,6 @@ El cuarto por sí solo no cambia nada.
 |---|---|
 | `The MNV thresholds will not remove any SNP/MNV row` | Los umbrales de MNV siguen filtrando las filas MNV, de indel e intergénicas. A lo que no llegan es a las filas SNP/MNV: una sobrevive cuando *cualquiera* de los dos lados, sus SNV o su haplotipo, supera su listón, así que con los umbrales de SNP a `0` el lado SNP siempre pasa. Sube también `--snp`, `--min-snp-frequency` o `--min-snp-strand` para filtrar las filas a nivel de codón. |
 
-
 ### Faltaba un programa externo opcional
 
 | Aviso | Qué significa |
@@ -289,12 +272,12 @@ El cuarto por sí solo no cambia nada.
 | `15` | Error de análisis de números en coma flotante |
 | `16` | Error de JSON |
 
-
-!!! question "¿Sigues atascado?"
-
-    Arriba está cada mensaje que la herramienta puede dar y qué pide cada uno.
-    Si lo que ves no aparece, o la respuesta no encaja con tus datos, pregunta
-    en [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a).
-
-    Las respuestas se marcan como tales, así que la siguiente persona con tu
-    mismo problema la encuentra sin tener que preguntar.
+> [!NOTE]
+> **¿Sigues atascado?**
+>
+> Arriba está cada mensaje que la herramienta puede dar y qué pide cada uno.
+> Si lo que ves no aparece, o la respuesta no encaja con tus datos, pregunta
+> en [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a).
+>
+> Las respuestas se marcan como tales, así que la siguiente persona con tu
+> mismo problema la encuentra sin tener que preguntar.

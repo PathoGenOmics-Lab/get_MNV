@@ -7,11 +7,19 @@ use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn unique_temp_path(prefix: &str, suffix: &str) -> std::path::PathBuf {
+    // The clock alone does not make a name unique: macOS reads it in
+    // microseconds, and two tests running in parallel took the same file, one
+    // deleting it while the other still read it.
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system time before UNIX_EPOCH")
         .as_nanos();
-    std::env::temp_dir().join(format!("{prefix}_{nanos}_{suffix}"))
+    std::env::temp_dir().join(format!(
+        "{prefix}_{}_{nanos}_{n}_{suffix}",
+        std::process::id()
+    ))
 }
 
 #[test]
@@ -330,14 +338,26 @@ fn test_load_vcf_positions_multiallelic_split_mode() {
     )
     .expect("failed to write temp vcf");
 
-    let err =
-        load_vcf_positions_by_contig(path.to_string_lossy().as_ref(), None, false, false, false)
-            .expect_err("multiallelic should fail without split mode");
+    let err = load_vcf_positions_by_contig(
+        path.to_string_lossy().as_ref(),
+        None,
+        false,
+        false,
+        false,
+        None,
+    )
+    .expect_err("multiallelic should fail without split mode");
     assert!(err.to_string().contains("Multiallelic"));
 
-    let parsed =
-        load_vcf_positions_by_contig(path.to_string_lossy().as_ref(), None, true, false, false)
-            .expect("split mode should parse");
+    let parsed = load_vcf_positions_by_contig(
+        path.to_string_lossy().as_ref(),
+        None,
+        true,
+        false,
+        false,
+        None,
+    )
+    .expect("split mode should parse");
     let positions = parsed.get("chr1").expect("missing chr1");
     assert_eq!(positions.len(), 2);
     assert_eq!(positions[0].record_start, 2);
@@ -345,4 +365,303 @@ fn test_load_vcf_positions_multiallelic_split_mode() {
     assert_eq!(positions[1].alt_allele, "G");
 
     let _ = fs::remove_file(path);
+}
+
+// ---- BCF input ----
+
+const BCF_FIXTURE_VCF: &str = "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=100>\n\
+##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">\n\
+##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency\">\n\
+##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n\
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n\
+chr1\t2\t.\tT\tC,G\t50\tPASS\tDP=10;AF=0.5,0.3\tGT:DP\t1/2:10\n\
+chr1\t5\t.\tA\tAT\t50\tPASS\tDP=12;AF=0.25\tGT:DP\t0/1:12\n\
+chr1\t9\t.\tGC\tTA\t50\tPASS\tDP=8;AF=1\tGT:DP\t1/1:8\n";
+
+/// Writes `vcf_text` as BCF through noodles, the way a caller's own BCF would
+/// arrive, so the reader is tested against a real binary encoding.
+fn write_bcf(vcf_text: &str, path: &std::path::Path) {
+    use noodles::vcf::variant::io::Write as _;
+    let mut reader = noodles::vcf::io::Reader::new(std::io::Cursor::new(vcf_text.as_bytes()));
+    let header = reader.read_header().expect("fixture VCF header");
+    let mut writer = noodles::bcf::io::Writer::new(fs::File::create(path).expect("create BCF"));
+    writer.write_header(&header).expect("write BCF header");
+    // Close the header's BGZF block, so the records start a block of their own
+    // and a test can damage them without touching the header.
+    std::io::Write::flush(writer.get_mut()).expect("flush BCF header block");
+    for record in reader.records() {
+        let record = record.expect("fixture VCF record");
+        writer
+            .write_variant_record(&header, &record)
+            .expect("write BCF record");
+    }
+    writer.try_finish().expect("finish BCF");
+}
+
+fn describe(positions: &HashMap<String, Vec<VcfPosition>>) -> Vec<String> {
+    let mut rows: Vec<String> = positions
+        .iter()
+        .flat_map(|(contig, values)| {
+            values.iter().map(move |v| {
+                format!(
+                    "{contig}:{} {}>{} dp={:?} freq={:?}",
+                    v.record_start, v.ref_allele, v.alt_allele, v.original_dp, v.original_freq
+                )
+            })
+        })
+        .collect();
+    rows.sort();
+    rows
+}
+
+#[test]
+fn test_bcf_input_reads_the_same_as_the_vcf_it_encodes() {
+    let base = unique_temp_path("get_mnv_bcf_same", "in");
+    let vcf = base.with_extension("vcf");
+    let bcf = base.with_extension("bcf");
+    fs::write(&vcf, BCF_FIXTURE_VCF).unwrap();
+    write_bcf(BCF_FIXTURE_VCF, &bcf);
+
+    let from_vcf =
+        load_vcf_positions_by_contig(vcf.to_str().unwrap(), None, true, false, false, None)
+            .expect("VCF loads");
+    let from_bcf =
+        load_vcf_positions_by_contig(bcf.to_str().unwrap(), None, true, false, false, None)
+            .expect("BCF loads");
+    assert_eq!(describe(&from_vcf).len(), 4, "{:?}", describe(&from_vcf));
+    assert_eq!(describe(&from_bcf), describe(&from_vcf));
+
+    assert_eq!(
+        super::vcf::list_vcf_samples(bcf.to_str().unwrap()).unwrap(),
+        vec!["S1".to_string()]
+    );
+    let headers = super::vcf::extract_original_info_headers(bcf.to_str().unwrap()).unwrap();
+    assert!(
+        headers.iter().any(|line| line.contains("ID=AF")),
+        "{headers:?}"
+    );
+
+    fs::remove_file(&vcf).ok();
+    fs::remove_file(&bcf).ok();
+}
+
+/// VarScan writes its frequency as a string with a percent sign. Read from a
+/// BCF it came back percent-encoded (`20%25`) and parsed as nothing, so the
+/// same calls lost their frequency, and a frameshift its frequency gate, only
+/// because the file was binary.
+#[test]
+fn test_bcf_keeps_a_percent_sign_as_the_vcf_has_it() {
+    let text = "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=100>\n\
+##INFO=<ID=XS,Number=1,Type=String,Description=\"Free text\">\n\
+##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n\
+##FORMAT=<ID=FREQ,Number=1,Type=String,Description=\"Variant allele frequency\">\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n\
+chr1\t2\t.\tT\tC\t50\tPASS\tXS=a%b\tGT:FREQ\t0/1:20%\n";
+    let base = unique_temp_path("get_mnv_bcf_percent", "in");
+    let vcf = base.with_extension("vcf");
+    let bcf = base.with_extension("bcf");
+    fs::write(&vcf, text).unwrap();
+    write_bcf(text, &bcf);
+    let from_vcf =
+        load_vcf_positions_by_contig(vcf.to_str().unwrap(), None, true, false, true, None)
+            .expect("VCF loads");
+    let from_bcf =
+        load_vcf_positions_by_contig(bcf.to_str().unwrap(), None, true, false, true, None)
+            .expect("BCF loads");
+    assert_eq!(describe(&from_bcf), describe(&from_vcf));
+    assert_eq!(from_bcf["chr1"][0].original_freq, Some(0.2));
+    assert_eq!(from_bcf["chr1"][0].original_info.as_deref(), Some("XS=a%b"));
+    fs::remove_file(&vcf).ok();
+    fs::remove_file(&bcf).ok();
+}
+
+/// A BGZF file cut between two blocks decodes cleanly up to the cut, so it read
+/// as a VCF with fewer records and the run succeeded on part of the input.
+/// htslib ends each block of a `.vcf.gz` on a line, so a copy that stops at a
+/// block boundary is the usual way such a file arrives.
+#[test]
+fn test_a_file_cut_between_blocks_fails_instead_of_reading_short() {
+    use std::io::Write as _;
+    let load = |path: &std::path::Path| {
+        load_vcf_positions_by_contig(path.to_str().unwrap(), None, true, false, false, None)
+    };
+    let base = unique_temp_path("get_mnv_cut_between_blocks", "in");
+
+    let gz = base.with_extension("vcf.gz");
+    let lines: Vec<&str> = BCF_FIXTURE_VCF.split_inclusive('\n').collect();
+    let first_block = lines
+        .iter()
+        .take_while(|line| line.starts_with('#'))
+        .count()
+        + 2;
+    let mut writer = noodles::bgzf::io::Writer::new(Vec::new());
+    for line in &lines[..first_block] {
+        writer.write_all(line.as_bytes()).unwrap();
+    }
+    writer.flush().unwrap();
+    let cut = writer.get_ref().len();
+    for line in &lines[first_block..] {
+        writer.write_all(line.as_bytes()).unwrap();
+    }
+    let whole = writer.finish().unwrap();
+    fs::write(&gz, &whole).unwrap();
+    assert_eq!(describe(&load(&gz).expect("whole file loads")).len(), 4);
+    fs::write(&gz, &whole[..cut]).unwrap();
+    let err = load(&gz).expect_err("a .vcf.gz cut after two records must not load");
+    assert!(err.to_string().contains("end-of-file block"), "{err}");
+
+    let bcf = base.with_extension("bcf");
+    write_bcf(BCF_FIXTURE_VCF, &bcf);
+    let bytes = fs::read(&bcf).unwrap();
+    // noodles writes the end-of-file block twice, once more when the writer
+    // drops, so take off every copy.
+    let eof = &bytes[bytes.len() - 28..];
+    let mut end = bytes.len();
+    while bytes[..end].ends_with(eof) {
+        end -= 28;
+    }
+    fs::write(&bcf, &bytes[..end]).unwrap();
+    let err = load(&bcf).expect_err("a BCF without its end-of-file block must not load");
+    assert!(err.to_string().contains("end-of-file block"), "{err}");
+
+    fs::remove_file(&gz).ok();
+    fs::remove_file(&bcf).ok();
+}
+
+#[test]
+fn test_damaged_bcf_fails_instead_of_reading_short() {
+    let bcf = unique_temp_path("get_mnv_bcf_damaged", "in").with_extension("bcf");
+    write_bcf(BCF_FIXTURE_VCF, &bcf);
+    let bytes = fs::read(&bcf).unwrap();
+    // Walk the BGZF blocks (BSIZE, bytes 16-17, is the block length minus one)
+    // and cut the records block in half, after a header that decodes cleanly.
+    let mut blocks = Vec::new();
+    let mut offset = 0usize;
+    while offset + 18 <= bytes.len() {
+        let length = u16::from_le_bytes([bytes[offset + 16], bytes[offset + 17]]) as usize + 1;
+        blocks.push((offset, length));
+        offset += length;
+    }
+    let (records_start, records_length) = blocks[1];
+    assert!(
+        records_length > 28,
+        "second block should hold the records: {blocks:?}"
+    );
+    // Keep the file's end-of-file block, so only the decoder can tell.
+    let mut damaged = bytes[..records_start + records_length / 2].to_vec();
+    damaged.extend_from_slice(&bytes[bytes.len() - 28..]);
+    fs::write(&bcf, &damaged).unwrap();
+
+    let samples =
+        super::vcf::list_vcf_samples(bcf.to_str().unwrap()).expect("the header alone still reads");
+    assert_eq!(samples, vec!["S1".to_string()]);
+    let result =
+        load_vcf_positions_by_contig(bcf.to_str().unwrap(), None, true, false, false, None);
+    assert!(
+        result.is_err(),
+        "a truncated BCF must not read as a shorter VCF"
+    );
+
+    fs::remove_file(&bcf).ok();
+}
+
+/// Writes `text` as a `.vcf` and as a `.vcf.gz`, the two files the two readers
+/// take, and returns both paths.
+fn write_both_containers(text: &str, prefix: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+    use std::io::Write as _;
+    let base = unique_temp_path(prefix, "in");
+    let plain = base.with_extension("vcf");
+    let gz = base.with_extension("vcf.gz");
+    fs::write(&plain, text).unwrap();
+    let mut writer = noodles::bgzf::io::Writer::new(Vec::new());
+    writer.write_all(text.as_bytes()).unwrap();
+    fs::write(&gz, writer.finish().unwrap()).unwrap();
+    (plain, gz)
+}
+
+fn load_with_either_reader(
+    path: &std::path::Path,
+    sample: Option<&str>,
+) -> crate::error::AppResult<HashMap<String, Vec<VcfPosition>>> {
+    super::vcf::load_vcf(path.to_str().unwrap(), sample, true, false, false, None)
+}
+
+/// A `*` ALT stands for a deletion that starts upstream and is annotated at its
+/// own record. GATK writes one beside a real ALT whenever one sample's deletion
+/// overlaps another sample's SNV, and with splitting the default such a record
+/// stopped a `--sample all` run at the first sample that carried the `*`.
+#[test]
+fn test_a_star_allele_is_skipped_in_both_readers() {
+    let text = "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=100>\n\
+##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\tS2\n\
+chr1\t2\t.\tT\tC,*\t50\tPASS\t.\tGT\t1\t2\n\
+chr1\t9\t.\tG\t*\t50\tPASS\t.\tGT\t0\t1\n";
+    let (plain, gz) = write_both_containers(text, "get_mnv_star_allele");
+    for path in [&plain, &gz] {
+        let first = load_with_either_reader(path, Some("S1")).expect("S1 loads");
+        assert_eq!(
+            describe(&first),
+            vec!["chr1:2 T>C dp=None freq=None"],
+            "{path:?}"
+        );
+        let second =
+            load_with_either_reader(path, Some("S2")).expect("S2 loads, carrying only '*'");
+        assert!(
+            second["chr1"].is_empty(),
+            "{path:?}: {:?}",
+            describe(&second)
+        );
+    }
+    fs::remove_file(&plain).ok();
+    fs::remove_file(&gz).ok();
+}
+
+/// The reader for plain `.vcf` stopped on a trailing blank line and listed no
+/// samples under a lowercase `#chrom`, while the `.vcf.gz` reader took both, so
+/// the same text ran in one container and failed in the other.
+#[test]
+fn test_both_readers_take_a_lowercase_header_and_a_blank_line() {
+    let text = "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=100>\n\
+##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n\
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allelic depths\">\n\
+#chrom\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\tS2\n\
+chr1\t2\t.\tT\tC,G\t50\tPASS\t.\tGT:AD\t1:.,5,3\t1:10,5,.\n\
+chr1\t9\t.\tG\tA\t50\tPASS\t.\tGT:AD\t1:6,2\t1:3,3\n\
+\n";
+    let (plain, gz) = write_both_containers(text, "get_mnv_reader_parity");
+    let samples = |path: &std::path::Path| {
+        let path = path.to_str().unwrap();
+        if super::vcf_fast::use_fast_parser(path) {
+            super::vcf_fast::list_text_vcf_samples(path)
+        } else {
+            super::vcf::list_vcf_samples(path)
+        }
+        .unwrap()
+    };
+    assert_eq!(samples(&plain), vec!["S1".to_string(), "S2".to_string()]);
+    assert_eq!(samples(&gz), samples(&plain));
+    for sample in ["S1", "S2"] {
+        let from_plain = load_with_either_reader(&plain, Some(sample)).expect("plain loads");
+        let from_gz = load_with_either_reader(&gz, Some(sample)).expect("gz loads");
+        assert_eq!(describe(&from_plain), describe(&from_gz), "{sample}");
+    }
+    // Each ALT keeps its own count. S1's REF count is missing, so its C has no
+    // frequency, where it took G's 3 of 8 before. S2's G count is missing,
+    // which is what `bcftools merge` writes for an allele the sample was not
+    // called with, so its C is 5 of 15.
+    for path in [&plain, &gz] {
+        let first = load_with_either_reader(path, Some("S1")).unwrap();
+        assert_eq!(first["chr1"][0].original_freq, None, "{path:?}");
+        let second = load_with_either_reader(path, Some("S2")).unwrap();
+        let freq = second["chr1"][0].original_freq.expect("C from 10,5,.");
+        assert!((freq - 5.0 / 15.0).abs() < 1e-9, "{path:?}: {freq}");
+    }
+    fs::remove_file(&plain).ok();
+    fs::remove_file(&gz).ok();
 }

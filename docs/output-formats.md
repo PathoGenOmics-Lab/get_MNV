@@ -41,7 +41,7 @@ Main columns:
 | `Positions` | One position for SNPs, multiple comma-separated positions for MNVs, in ascending genomic order on both strands. The per-SNV columns (`Reference Bases`, `Base Changes`, `SNP AA Changes`, `SNP Codon`, `Event Components`, and the read-support columns) are parallel arrays in that same order. |
 | `Reference Bases` | Reference bases at those positions. |
 | `Base Changes` | Alternative bases. |
-| `AA Changes` | Amino acid change after combining all SNVs in the codon. |
+| `AA Changes` | Amino acid change after combining all SNVs in the codon. The protein's first codon is read as an initiator: any initiation codon of the translation table (GTG and TTG among them in bacteria) starts the protein as Met. A change that loses the initiator is written `Met1?`, as HGVS asks, since where translation then starts cannot be predicted; one that swaps it for another initiation codon keeps the Met (`Met1Met`). |
 | `SNP AA Changes` | Amino acid change for each SNV considered separately. |
 | `Local AA Changes` | Exon-local numbering, which is what get_MNV reported before 1.1.2. Identical to `AA Changes` when the feature has no transcript context (a genes TSV, a prokaryotic or single-exon CDS, and the first exon of a spliced model), and different for the later exons of a spliced transcript, where `AA Changes` counts from the start of the protein and this counts from the start of the exon. |
 | `Local SNP AA Changes` | Per-SNP amino acid changes in local numbering. |
@@ -52,20 +52,24 @@ Main columns:
 | `MNV Codon` | Codon with all grouped substitutions, same orientation as `Reference Codon`. |
 | `Event Class` | Canonical allele event class: `snp`, `mnv`, `insertion`, `deletion`, `delins`, `complex_indel`, or `symbolic`. |
 | `Event Components` | REF/ALT decomposition such as `SNV:10:A>G`, `INS:10:+T`, or `DEL:11-12:TG`. |
-| `SO Term` | Sequence Ontology consequence term (`missense_variant`, `synonymous_variant`, `stop_gained`, `start_lost`, `frameshift_variant`, `inframe_deletion`, `intergenic_variant`, …). Variants near an internal exon-exon junction of a spliced transcript also carry a splice term: `splice_donor_variant` / `splice_acceptor_variant` (the two essential intronic bases at each intron end, `HIGH`) or `splice_region_variant` (the exon's first or last 3 bases, or the intron's 3rd-8th bases, `LOW`). An exonic change near a junction is combined with its coding consequence, e.g. `missense_variant&splice_region_variant` for a substitution and `frameshift_variant&splice_region_variant` for an indel, as one row rather than two. A junction means a real intron: CDS segments that abut or overlap (a ribosomal-slippage join such as SARS-CoV-2 ORF1ab) are one continuous reading frame and carry no splice terms. A variant inside an intron but away from its splice sites is `intron_variant` (`MODIFIER`), reported against its gene rather than as intergenic, and a variant in a feature declared non-coding is `non_coding_transcript_exon_variant` (`MODIFIER`) with no amino-acid change. |
+| `SO Term` | Sequence Ontology consequence term (`missense_variant`, `synonymous_variant`, `stop_gained`, `start_lost`, `frameshift_variant`, `inframe_deletion`, `intergenic_variant`, …). Variants near an internal exon-exon junction of a spliced transcript also carry a splice term: `splice_donor_variant` / `splice_acceptor_variant` (the two essential intronic bases at each intron end, `HIGH`) or `splice_region_variant` (the exon's first or last 3 bases, or the intron's 3rd-8th bases, `LOW`). An exonic change near a junction is combined with its coding consequence, e.g. `missense_variant&splice_region_variant` for a substitution and `frameshift_variant&splice_region_variant` for an indel, as one row rather than two. A frameshift that destroys the start codon is `frameshift_variant&start_lost`, matching the `start_lost` a substitution there gets. A junction means a real intron: CDS segments that abut or overlap (a ribosomal-slippage join such as SARS-CoV-2 ORF1ab) are one continuous reading frame and carry no splice terms. A variant inside an intron but away from its splice sites is `intron_variant` (`MODIFIER`), reported against its gene rather than as intergenic, and a variant in a feature declared non-coding is `non_coding_transcript_exon_variant` (`MODIFIER`) with no amino-acid change. |
 | `Impact` | Predicted impact following SnpEff/VEP conventions: `HIGH`, `MODERATE`, `LOW` or `MODIFIER`. A combined splice/coding consequence keeps the more severe impact. |
 | `Grantham` | Grantham distance and conservation category of a missense change (e.g. `177 (radical)`); `-` for synonymous, nonsense or non-coding changes. |
 | `MNV Consequence Shift` | How the combined MNV compares with its individual SNVs: `MNV-gained` (more severe than any single SNV, which is what per-SNV annotators miss), `MNV-masked` (a nonsense SNV rescued by its neighbour) or `Concordant`. `-` for single SNVs. |
-| `DBS Class` | COSMIC-style doublet base substitution class for an MNV of two adjacent single-base substitutions, e.g. `CC>TT` (reverse-complement collapsed, so `GG>AA` reports as `CC>TT`). `-` for single SNVs, indels, and non-adjacent or 3-SNV MNVs. |
-| `Declared Phase` | The phase the **input VCF** declared for this row's alleles, as `cis:12345` (verdict and `PS` phase set) or just `cis` when the caller phased without a phase set. Read from a `|`-separated `GT`; a `/` genotype is the caller saying it did not resolve the phase, and is reported as `-`. `|contradicted-by-reads` is appended when the BAM leaves the claim no room: a declared cis that not one spanning read carries whole, or a declared trans that every informative read carries. This is the caller's claim, not an observation; the phasing columns beside it are the evidence. `-` for single-position rows and unphased input. |
+| `DBS Class` | COSMIC DBS78 class of the doublet this row's substitutions belong to: exactly two adjacent substituted bases, wherever they fall, including across a codon boundary or outside genes, e.g. `CC>TT` (reverse-complement collapsed, so `GG>AA` reports as `CC>TT`). Both rows of a doublet split by a codon boundary carry it. `-` for single SNVs, indels, non-adjacent substitutions, and runs of three or more adjacent bases, which COSMIC counts as multi-base substitutions instead. |
+| `Declared Phase` | The phase the **input VCF** declared for this row's alleles, as `cis:12345` (verdict and `PS` phase set) or just `cis` when the caller phased without a phase set. Read from a `\|`-separated `GT`; a `/` genotype is the caller saying it did not resolve the phase, and is reported as `-`. `\|contradicted-by-reads` is appended when the BAM leaves the claim no room: a declared cis that not one spanning read carries whole, or a declared trans that every informative read carries. This is the caller's claim, not an observation; the phasing columns beside it are the evidence. `-` for single-position rows and unphased input. |
 | `MNV Phasing Support` | BAM-derived phasing (linkage) support: among the reads that observe *every* position of the codon and carry the least-supported constituent SNV, the fraction that also carry the full MNV haplotype. `1.0000` = perfect co-occurrence (a genuine haplotype); low values mean the SNVs largely fall on different molecules (a same-codon coincidence, not a real MNV). `0.0000` is a finding: reads did span the codon and none carried both. `-` means the question could not be answered: no `--bam`, a single SNV, or no read reaching across the codon (common when a codon straddles an intron and the fragments are shorter than the intron). |
 | `Haplotype LD` | Read-level linkage disequilibrium (`D'`) between the variants this row claims travel together, over the molecules that observed them. It covers both kinds of multi-variant row: a codon MNV and a local indel haplotype. A co-occurrence ratio cannot separate a haplotype from an accident of frequency: two substitutions on 90% of molecules each are found together on 81% of them by arithmetic alone, and the ratio calls that 0.9. `D'` measures the excess over what the two frequencies predict, normalised by the most it could have been. `+1` = they travel together as far as their frequencies allow, so the MNV is one haplotype. `~0` = they co-occur exactly as chance predicts, so they merely share a codon. `-1` = they exclude each other: both present, never on one molecule, which in a haploid population is two competing lineages rather than one variant. With three or more variants the weakest pair decides, since the row claims one molecule carries all of them. It answers a different question from the read count beside it: the count is how many molecules *are* this combination, while `D'` is whether its variants co-occur more than their own frequencies predict, so a haplotype carried by few molecules can still be perfectly linked and one carried by many can be a coincidence. `-` when no molecule observed the variants together, or when one of them is on every such molecule or none, which leaves nothing to correlate. Only present with `--bam`. |
 | `Haplotype LD p` | Two-tailed Fisher exact p-value for that table, so a `D'` of 1.0 from four molecules is not read as one from four hundred. `-` under the same conditions as the column above. Only present with `--bam`. See [Linkage](linkage.md). |
 | `MNV Phasing Reads` | How many reads `MNV Phasing Support` was computed from, so `1.0000` from 3 reads is not read as `1.0000` from 300. `-` exactly when that column is `-`, which is not the same condition as the two linkage columns beside it. Only present with `--bam`. |
-| `Frameshift Phasing` | What the reads said about this codon sharing molecules with each upstream indel, as `trans:1234:0/18`: the verdict, the indel's position, and the cis reads out of the reads able to answer. Several are joined with ` | `. A codon that is not labelled frameshifted otherwise looks the same whether the reads proved the indel is on other molecules or nobody asked; `-` is that second case. Only present with `--bam`. |
+| `Frameshift Phasing` | What the reads said about this codon sharing molecules with each upstream indel, as `trans:1234:0/18`: the verdict, the indel's position, and the cis reads out of the reads able to answer. Several are joined with ` \| `. A codon that is not labelled frameshifted otherwise looks the same whether the reads proved the indel is on other molecules or nobody asked; `-` is that second case. Only present with `--bam`. |
 | `NMD Prediction` | Nonsense-mediated decay prediction for a premature stop under the 50-nt rule: `NMD-triggering` when the PTC is more than 50 nt upstream of the last exon-exon junction, `NMD-escaping` when it is in the last exon or within 50 nt of that junction. `-` for variants without a premature stop and for transcripts with no exon-exon junction. Requires a spliced (GFF/GTF transcript) CDS model whose segments are separated by real introns; a single CDS segment, or segments joined by ribosomal slippage, has no junction. |
-| `HGVS g.` | HGVS genomic descriptor: `g.100A>G` for an SNV, the allele-bracket `g.[28G>T;30T>A]` for an MNV, and `g.101_102del` / `g.100_101insTG` / `g.101delinsC` for indels. Not 3'-shifted (uses the input allele placement) and carries no reference-accession prefix. |
-| `HGVS c.` | HGVS coding descriptor for a coding substitution, numbered from the CDS start with coding-strand bases: `c.30A>G` (SNV) or the allele bracket `c.[28G>A;30T>C]` (MNV). `-` for indels and non-coding variants; the protein change (`p.`) in the AA columns conveys indel consequences. |
+| `HGVS g.` | HGVS genomic descriptor: `g.100A>G` for an SNV, the allele-bracket `g.[28G>T;30T>A]` for an MNV, and `g.101_102del` / `g.100_101insTG` / `g.101delinsC` / `g.295_297dup` for indels. An indel in a repeat is placed at its 3'-most equivalent position in the reference, and an insertion that repeats the bases before it is a `dup`, as HGVS asks; the `Positions` column keeps the input's placement. No reference-accession prefix. |
+| `HGVS c.` | HGVS coding descriptor, numbered from the CDS start with coding-strand bases: `c.30A>G` (SNV), the allele bracket `c.[28G>A;30T>C]` (MNV), or `c.31del`, `c.30_31insGCT`, `c.28_30delinsTCGCTA`, `c.295_297dup` (indels, with inserted bases on the coding strand). Like `HGVS g.`, an indel is placed 3'-most, here along the coding sequence (never past its end), and a copy of the bases before it is a `dup`. A base in an intron of a spliced transcript is numbered from the nearer exon, `c.100+2` after an exon's last base and `c.101-5` before an exon's first, so intronic and splice-site rows carry a descriptor too (`c.100+5G>A`, `c.101-2_101-1del`), and an indel wholly inside an intron is placed 3'-most within it. An insertion right after an internal exon's last base is placed at the exon junction, as the protein change reads it. `-` for intergenic and non-coding variants and for a change reaching a UTR or the flank (`c.-15`, `c.*3`), which the tool does not number. The consequence columns keep reading the change where the input placed it, as VEP does by default. |
+| `SBS96 Context` | COSMIC SBS96 class of each single-base substitution in the row, in Event Components order, written from the pyrimidine strand: `A[C>T]G` for a C>T between A and G, and a G>A in the same context read from the other strand as `C[C>T]T`. `DBS` or `MBS` for a base of a run of two, or three or more, adjacent substitutions, which belongs to that run rather than to the single-base spectrum. `-` for an entry whose trinucleotide context cannot be read (contig end, ambiguous base) and for rows with no substitution. The report counts these into a mutational spectrum. |
+| `Adjacent Substitutions` | HGVS genomic descriptor of the run of two or more adjacent substituted bases this row's substitutions belong to, e.g. `g.103_104delinsAT`. Every row the run touches carries the same descriptor, which is how the two codon rows of a doublet split by a codon boundary are tied together, whether the caller wrote it as one record or two. Read from positions, as COSMIC tools do; read support for the run as a whole is not counted. `-` when no substitution of the row has a substituted neighbour. |
+| `Catalogue` | The `--catalogue` entries this row matches, each written `label (gene variant)` and separated by `; `, with `codon reading only` or `per-SNV reading only` added when a codon row matches through one of its two readings alone. `-` when nothing matches or no catalogue was given. |
+| `ID83 Class` | COSMIC ID83 class of a pure insertion or deletion, as SigProfiler labels it: `1:Del:C:2` for a C deleted from a run of three, `3:Ins:R:5` for a three-base insertion next to five or more copies of itself, `4:Del:M:2` for a four-base deletion with two bases of microhomology at its breakpoint. One-base indels are written from the pyrimidine (`C` or `T`), and copies are counted on both sides of the event, so the class does not depend on where in a repeat the caller placed it. `-` for substitutions, deletion-insertions and symbolic alleles. |
 
 Extra columns when `--bam` is used:
 
@@ -169,7 +173,7 @@ Common INFO fields:
 | `SO`, `IMPACT` | Sequence Ontology consequence term and predicted impact |
 | `GD` | Grantham distance of a missense change |
 | `MNVSHIFT` | Combined MNV consequence vs. its individual SNVs |
-| `DBS` | COSMIC-style doublet class for adjacent 2-SNV MNVs (e.g. `CC>TT`) |
+| `DBS` | COSMIC DBS78 class of the doublet this record belongs to, across codon boundaries too (e.g. `CC>TT`) |
 | `MNVPS` | MNV phasing support (of the codon-spanning reads carrying the limiting SNV, the fraction carrying the full haplotype) |
 | `MNVPR` | Reads that ratio was computed from |
 | `FSPH` | Read-level phasing with each upstream indel, as verdict:position:cis/informative |
@@ -178,13 +182,61 @@ Common INFO fields:
 | `LDP` | Fisher exact p-value for that linkage table |
 | `NMD` | Nonsense-mediated decay prediction for a premature stop (50-nt rule) |
 | `HGVSG` | HGVS genomic descriptor (MNV allele-bracket `;` percent-encoded) |
-| `HGVSC` | HGVS coding descriptor for a coding substitution (`;` percent-encoded) |
+| `HGVSC` | HGVS coding descriptor for a coding substitution or indel (`;` percent-encoded) |
+| `SBS96` | COSMIC SBS96 class of each single-base substitution, comma-separated in `COMP` order (`-` where the context cannot be read, `DBS` or `MBS` for a base of a run of adjacent substitutions) |
+| `ADJSUB` | HGVS genomic descriptor of each run of two or more adjacent substituted bases the record belongs to, shared by every record of the run |
+| `CAT` | `--catalogue` entries the record matches, as in the `Catalogue` column (percent-encoded) |
+| `ID83` | COSMIC ID83 class of a pure insertion or deletion (e.g. `1:Del:C:2`) |
+| `ANN` | The record's annotation in the format snpEff writes, described [below](#the-ann-field) |
 
 The VCF header records the get_MNV version, command line, and thresholds used.
 When `--emit-filtered` is enabled, VCF records below read-support, frequency,
 strand-support, or strand-bias thresholds are written with FILTER tags such as
 `LowSupport`, `LowFrequency`, `StrandSupport`, or `StrandBias`; otherwise they
 are skipped.
+
+### The `ANN` field
+
+Every record also carries its annotation in the format snpEff writes, which
+`bcftools +split-vep`, SnpSift and most VCF tooling read without knowing
+get_MNV's own keys:
+
+```bash
+bcftools +split-vep -a ANN -f '%POS\t%REF\t%ALT\t%Gene_Name\t%Annotation\t%HGVS.c\t%HGVS.p\n' sample.MNV.vcf
+```
+
+Each entry is about its own record's ALT. On the record of one base of a codon
+that changes two or more, that is the base on its own, as the record's `AA`
+already reads; the codon's combined change is on the codon's record, marked
+`INFO_COMPOUND_ANNOTATION`, snpEff's mark for an effect that comes from
+combining variants. `SO`, `IMPACT` and `CT` stay the codon's on every record.
+
+| Field | Content |
+|---|---|
+| `Allele` | The record's ALT |
+| `Annotation`, `Annotation_Impact` | Sequence Ontology term and impact, as in `SO` and `IMPACT` |
+| `Gene_Name`, `Gene_ID`, `Feature_ID` | The gene as get_MNV names it; empty for an intergenic record |
+| `Feature_Type` | `transcript`, or `intergenic_region` |
+| `Transcript_BioType` | `protein_coding`, or `Noncoding` for a gene that is not translated |
+| `HGVS.c`, `HGVS.p` | The record's coding and protein change (`p.Ser450Leu`, `p.Met1?`, `p.Ter23Argext*?`); empty where `AA` holds a label rather than a change |
+| `ERRORS / WARNINGS / INFO` | `INFO_COMPOUND_ANNOTATION` on a codon's record |
+
+Rank, the cDNA, CDS and protein positions and the distance are left empty. A
+value that would break the field is percent-encoded, like the allele list in
+`c.[274G>C%3B275G>A]`.
+
+An `ANN` the input already carried is not dropped by `--keep-original-info`:
+its entries for the record's ALT follow get_MNV's, so a lab's own snpEff
+categories stay with the base they were written for. They are left off a
+codon's record, whose allele no input record had.
+
+The bundled example's input was annotated by snpEff 4.1, and on its 802 bases
+both annotate, get_MNV's entry gives the same consequence, impact, `HGVS.c` and
+`HGVS.p` as snpEff's apart from two cases: snpEff 4.1 also calls the last bases
+of a single-exon gene a splice region, and one gene's annotated first codon is
+not a start codon. On the two bases in RNA genes both say the same thing, under
+two names for one term: `non_coding_transcript_exon_variant` is what Sequence
+Ontology renamed snpEff's `non_coding_exon_variant` to.
 
 ## BCF Output
 
@@ -195,7 +247,6 @@ Write BCF with:
 ```
 
 BCF requires VCF output mode, so use it with `--convert` or `--both`.
-This is output conversion only; BCF is not accepted as an input format.
 
 The conversion is done by `bcftools view`, taken from `PATH`. Without bcftools
 installed the run warns, writes no BCF, and still exits `0` with its TSV and VCF
@@ -246,39 +297,43 @@ Inside `global`:
 | `snp_variants`, `mnv_variants`, `snp_mnv_variants`, `indel_variants`, `intergenic_variants` | The same total split by type |
 | `region_cache_hits`, `region_cache_misses` | BAM region cache, only meaningful with `--bam` |
 
-!!! warning "These counts are what get_MNV produced, before the output filters"
-    `produced_variants` and the per-type counts beside it are taken after
-    annotation and before the read-support, frequency and strand filters that
-    decide what reaches the TSV. On a filtered run the two disagree on purpose:
-    the same command can log `produced variants=941` and write a one-row TSV,
-    and the HTML report, which counts rows, will say `1`. Read the summary as
-    what the annotation found and the TSV as what passed.
+> [!WARNING]
+> **These counts are what get_MNV produced, before the output filters**
+>
+> `produced_variants` and the per-type counts beside it are taken after
+> annotation and before the read-support, frequency and strand filters that
+> decide what reaches the TSV. On a filtered run the two disagree on purpose:
+> the same command can log `produced variants=941` and write a one-row TSV,
+> and the HTML report, which counts rows, will say `1`. Read the summary as
+> what the annotation found and the TSV as what passed.
 
-!!! danger "`--sample all` writes a different object, not a longer one"
-    Every key above moves. A `--sample all` summary has `mode` set to
-    `sample_all`, `sample_count`, `sample_names`, one `aggregate` object holding
-    run-wide totals, and a `samples` array holding one object per sample. Each
-    of those, and `aggregate` too, has the single-sample shape described above,
-    so `data["global"]["produced_variants"]` becomes
-    `data["aggregate"]["global"]["produced_variants"]`.
-
-    `aggregate` sums the counts across samples and names no output file of its
-    own: `aggregate.output_tsv` is `null`, and the per-sample paths are on the
-    `samples` entries. Its `contigs` array is always empty as well, because the
-    per-contig breakdown belongs to each sample; read it from the `samples`
-    entries. Branch on the key that only one shape has:
-
-    ```python
-    import json
-
-    data = json.load(open("run.summary.json"))
-    if data.get("mode") == "sample_all":
-        totals = data["aggregate"]["global"]
-        per_sample = {s["sample"]: s["global"] for s in data["samples"]}
-    else:
-        totals = data["global"]
-        per_sample = {data["sample"]: data["global"]}
-    ```
+> [!CAUTION]
+> **`--sample all` writes a different object, not a longer one**
+>
+> Every key above moves. A `--sample all` summary has `mode` set to
+> `sample_all`, `sample_count`, `sample_names`, one `aggregate` object holding
+> run-wide totals, and a `samples` array holding one object per sample. Each
+> of those, and `aggregate` too, has the single-sample shape described above,
+> so `data["global"]["produced_variants"]` becomes
+> `data["aggregate"]["global"]["produced_variants"]`.
+>
+> `aggregate` sums the counts across samples and names no output file of its
+> own: `aggregate.output_tsv` is `null`, and the per-sample paths are on the
+> `samples` entries. Its `contigs` array is always empty as well, because the
+> per-contig breakdown belongs to each sample; read it from the `samples`
+> entries. Branch on the key that only one shape has:
+>
+> ```python
+> import json
+>
+> data = json.load(open("run.summary.json"))
+> if data.get("mode") == "sample_all":
+>     totals = data["aggregate"]["global"]
+>     per_sample = {s["sample"]: s["global"] for s in data["samples"]}
+> else:
+>     totals = data["global"]
+>     per_sample = {data["sample"]: data["global"]}
+> ```
 
 ### Run Manifest
 
@@ -334,7 +389,7 @@ called variants. It embeds its data, loads no external scripts or fonts, and
 therefore opens offline by double-clicking and can be attached to an email or
 archived with the results.
 
-[**Open the example report**](assets/example-report.html){ target=_blank }: 941
+[**Open the example report**](assets/example-report.html): 941
 variants called from the single-sample dataset bundled in `example/`, so it is the
 real output of the command below rather than a mock-up. Regenerate it with
 `scripts/build_example_report.sh`. The cohort views (the matrix rows, haplotype
@@ -361,6 +416,16 @@ The report contains:
 - **A headline count** of the variants currently shown, with supporting tiles for
   samples, genes, MNV rows and high-impact variants, and the **consequence
   distribution** by Sequence Ontology term. All follow the active filters.
+- **Mutational spectra**, switched between three of COSMIC's: SBS96 (the
+  single-base substitutions by trinucleotide context, grouped by substitution
+  type), DBS78 (doublets of adjacent substituted bases, wherever they fall, by
+  reference doublet) and ID83 (small insertions and deletions by size, base,
+  repeat count and microhomology, in COSMIC's two tiers). Each event counts once
+  per sample, however many rows mention it, and a base of a doublet counts in
+  DBS78, not in SBS96. Hover a bar to read its class and count, and
+  `Download matrix` saves the spectrum shown, per sample, in the `MutationType`
+  layout SigProfiler and MutationalPatterns read, with COSMIC's class names in
+  COSMIC's order. Like the rest, they follow the filters.
 - **A variant matrix**, plotted as a small genome browser: samples down the side,
   real genomic coordinates across the top, coloured by the alternate base. Scroll
   to zoom around the cursor, drag to pan, drag on the whole-contig strip to jump,
@@ -432,3 +497,30 @@ so a cohort of tens of thousands of variants stays in the low megabytes.
 - SNP and MNV read-support and strand-support filters are also independent.
 - `--sample all` writes one output set per VCF sample, each holding the variants that sample's genotype carries.
 - `--keep-original-info` preserves non-get_MNV INFO fields from the input VCF.
+  The record of one base of a codon carries that base's own input record's
+  fields, and an input `ANN` follows get_MNV's own entries
+  ([The `ANN` field](#the-ann-field)).
+
+## Variant-by-sample matrix
+
+`--matrix <FILE.tsv>` writes the same variants the report shows as one table
+with a column per sample, for loading into R or pandas:
+
+```bash
+get_mnv --report-from results/*.MNV.tsv --matrix cohort_matrix.tsv
+get_mnv --vcf cohort.vcf --fasta ref.fasta --gff ref.gff --sample all --matrix cohort_matrix.tsv
+```
+
+It is built from the same TSVs as the report, so it works in a normal run, with
+`--sample all` and with `--report-from`, with or without `--report` beside it.
+
+| Column | Description |
+|---|---|
+| `Chromosome`, `Gene`, `Positions`, `Reference Bases`, `Base Changes` | The variant. A codon MNV and a lone SNV at one of its bases are different variants here, as they are in the TSV. |
+| `AA Changes`, `Variant Type`, `SO Term`, `Impact` | Taken from the first sample that carries the variant. |
+| `Samples Called` | How many samples have a call. |
+| one column per sample | The allele frequency the reads gave (`0.4500`); `called` for a call with no measured frequency, which is every call of a run without a BAM and a call the BAM does not cover; `NA` where the sample has no call of this variant. A sample can carry one of its bases inside a different variant, such as a codon MNV, and still read `NA` here. |
+
+`NA` is never written as 0 on purpose: a get_MNV TSV cannot tell a reference
+base from a position no read covered, so a missing call means "reference or no
+coverage". Rows are sorted by contig, then position.

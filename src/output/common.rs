@@ -6,49 +6,12 @@ use crate::variants::{VariantInfo, VariantType};
 use std::io::Write;
 
 /// INFO keys emitted by get_mnv itself. Original VCF fields with these names
-/// are silently skipped when `--keep-original-info` is active to prevent
-/// duplicate INFO keys in the output VCF.
+/// are skipped when `--keep-original-info` is active, so the output VCF never
+/// holds a key twice: the readers' list of get_MNV's own keys, and `ANN`, whose
+/// input entries are merged into get_MNV's own instead. One list for readers
+/// and writer, so a key added to one cannot be missing from the other.
 fn is_reserved_info_key(key: &str) -> bool {
-    matches!(
-        key,
-        "GENE"
-            | "AA"
-            | "CT"
-            | "TYPE"
-            | "SR"
-            | "SRF"
-            | "SRR"
-            | "MR"
-            | "MRF"
-            | "MRR"
-            | "SBP"
-            | "MSBP"
-            | "ODP"
-            | "OFREQ"
-            | "DP"
-            | "FREQ"
-            | "EC"
-            | "COMP"
-            | "ER"
-            | "ERF"
-            | "ERR"
-            | "EDP"
-            | "EFREQ"
-            | "SO"
-            | "IMPACT"
-            | "GD"
-            | "MNVSHIFT"
-            | "DBS"
-            | "MNVPS"
-            | "MNVPR"
-            | "FSPH"
-            | "DPHASE"
-            | "LD"
-            | "LDP"
-            | "NMD"
-            | "HGVSG"
-            | "HGVSC"
-    )
+    crate::io::vcf::header_written_by_get_mnv(key)
 }
 
 /// Severity rank of an impact level, for keeping the more severe of two.
@@ -82,8 +45,18 @@ fn states_a_protein_consequence(variant: &VariantInfo, base_term: &str) -> bool 
 /// junction is combined (`missense_variant&splice_region_variant`, keeping the
 /// more severe impact), and an intronic splice site stands on its own.
 pub(crate) fn so_consequence(variant: &VariantInfo) -> (String, &'static str) {
-    let (base_term, base_impact) = base_so_consequence(variant);
-    match variant.annotations.splice {
+    so_consequence_for(variant, variant.change_type, variant.annotations.splice)
+}
+
+/// [`so_consequence`] for one part of a row: a change type and a splice
+/// consequence of its own, read in the row's gene.
+pub(crate) fn so_consequence_for(
+    variant: &VariantInfo,
+    change_type: crate::variants::ChangeType,
+    splice: Option<crate::variants::SpliceConsequence>,
+) -> (String, &'static str) {
+    let (base_term, base_impact) = base_so_consequence(variant, change_type);
+    match splice {
         None => (base_term.to_string(), base_impact),
         Some(splice) => {
             let (splice_term, splice_impact) = (splice.as_str(), splice.impact());
@@ -112,7 +85,10 @@ pub(crate) fn so_consequence(variant: &VariantInfo) -> (String, &'static str) {
 
 /// Base SO consequence from the gene context and change type, before any splice
 /// refinement.
-fn base_so_consequence(variant: &VariantInfo) -> (&'static str, &'static str) {
+fn base_so_consequence(
+    variant: &VariantInfo,
+    change_type: crate::variants::ChangeType,
+) -> (&'static str, &'static str) {
     use crate::variants::ChangeType;
     if variant.gene == "intergenic" {
         return ("intergenic_variant", "MODIFIER");
@@ -122,12 +98,23 @@ fn base_so_consequence(variant: &VariantInfo) -> (&'static str, &'static str) {
     if let Some(reason) = variant.annotations.non_coding {
         return (reason.as_str(), "MODIFIER");
     }
-    match variant.change_type {
+    match change_type {
         ChangeType::Synonymous => ("synonymous_variant", "LOW"),
         ChangeType::NonSynonymous => ("missense_variant", "MODERATE"),
         ChangeType::StartLost => ("start_lost", "HIGH"),
         ChangeType::StopGained | ChangeType::FrameshiftStopGained => ("stop_gained", "HIGH"),
         ChangeType::StopLost | ChangeType::FrameshiftStopLost => ("stop_lost", "HIGH"),
+        // A frameshift that destroys the start codon has lost the protein's
+        // start as well as its frame, and says both, as the substitution path
+        // says start_lost for the same initiator.
+        ChangeType::FrameshiftIndel
+        | ChangeType::FrameshiftSynonymous
+        | ChangeType::FrameshiftNonSynonymous
+        | ChangeType::FrameshiftUnknown
+            if variant.annotations.initiator_lost =>
+        {
+            ("frameshift_variant&start_lost", "HIGH")
+        }
         ChangeType::FrameshiftIndel
         | ChangeType::FrameshiftSynonymous
         | ChangeType::FrameshiftNonSynonymous
@@ -163,6 +150,16 @@ impl InfoBuilder {
     fn push_text(&mut self, key: &str, value: &str) {
         self.fields
             .push((key.to_string(), encode_info_value(value)));
+    }
+
+    /// Push a list: each value encoded on its own, joined by the comma that
+    /// separates the values of a `Number=.` key. Nothing is pushed for an empty
+    /// list.
+    fn push_list<'a>(&mut self, key: &str, values: impl IntoIterator<Item = &'a str>) {
+        let encoded: Vec<String> = values.into_iter().map(encode_info_value).collect();
+        if !encoded.is_empty() {
+            self.fields.push((key.to_string(), encoded.join(",")));
+        }
     }
 
     fn build(self) -> String {
@@ -379,6 +376,7 @@ fn push_original_metrics(builder: &mut InfoBuilder, variant: &VariantInfo, index
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_info_string(
     variant: &VariantInfo,
+    alt: &str,
     aa: Option<&str>,
     variant_type: &str,
     snp_metrics: Option<(usize, usize, usize)>,
@@ -391,6 +389,15 @@ pub(crate) fn build_info_string(
     original_info: Option<&str>,
 ) -> String {
     let mut builder = InfoBuilder::default();
+    // The record of one base of a row that has several describes that base: of
+    // the row's runs, doublets and catalogue matches, only those of its base.
+    let base = original_index.filter(|_| variant.positions.len() > 1);
+    let base_position = base.and_then(|i| variant.positions.get(i).copied());
+    let holds = |descriptor: &str| {
+        base_position.is_none_or(|p| {
+            crate::variants::runs::run_span(descriptor).is_some_and(|(s, e)| s <= p && p <= e)
+        })
+    };
     builder.push_text("GENE", &variant.gene);
     if let Some(aa_change) = aa {
         builder.push_text("AA", aa_change);
@@ -407,7 +414,28 @@ pub(crate) fn build_info_string(
         builder.push_text("MNVSHIFT", variant.annotations.consequence_shift.as_str());
     }
     if let Some(dbs) = variant.annotations.dbs_class.as_deref() {
-        builder.push_text("DBS", dbs);
+        let classes: Vec<&str> = dbs.split(", ").collect();
+        let runs = &variant.annotations.adjacent_substitutions;
+        // One class per doublet among the runs, in their order; a row the run
+        // pass left alone has its codon's own class and no runs.
+        let shown: Vec<&str> = if runs.is_empty() {
+            classes
+        } else {
+            runs.iter()
+                .filter(|d| crate::variants::runs::run_span(d).is_some_and(|(s, e)| e == s + 1))
+                .zip(classes)
+                .filter(|(d, _)| holds(d))
+                .map(|(_, class)| class)
+                .collect()
+        };
+        if shown.iter().any(|class| *class != "-") {
+            builder.push_list(
+                "DBS",
+                shown
+                    .iter()
+                    .map(|class| if *class == "-" { "." } else { class }),
+            );
+        }
     }
     if let Some(phasing) = mnv_phasing_support(variant) {
         builder.push("MNVPS", format_freq(phasing));
@@ -428,11 +456,44 @@ pub(crate) fn build_info_string(
     if let Some(nmd) = variant.annotations.nmd {
         builder.push_text("NMD", nmd.as_str());
     }
-    if let Some(hgvs_g) = crate::variants::hgvs::genomic(variant) {
+    if let Some(hgvs_g) = variant
+        .annotations
+        .hgvs_g
+        .clone()
+        .or_else(|| crate::variants::hgvs::genomic(variant))
+    {
         builder.push_text("HGVSG", &hgvs_g);
     }
     if let Some(hgvs_c) = variant.annotations.hgvs_c.as_deref() {
         builder.push_text("HGVSC", hgvs_c);
+    }
+    builder.push_list(
+        "SBS96",
+        variant.annotations.sbs96.iter().map(String::as_str),
+    );
+    builder.push_list(
+        "ADJSUB",
+        variant
+            .annotations
+            .adjacent_substitutions
+            .iter()
+            .map(String::as_str)
+            .filter(|d| holds(d)),
+    );
+    let catalogue = match base {
+        Some(i) if !variant.annotations.catalogue_bases.is_empty() => variant
+            .annotations
+            .catalogue_bases
+            .get(i)
+            .cloned()
+            .unwrap_or_default(),
+        _ => variant.annotations.catalogue.clone(),
+    };
+    if !catalogue.is_empty() {
+        builder.push_text("CAT", &catalogue.join("; "));
+    }
+    if let Some(id83) = variant.annotations.id83.as_deref() {
+        builder.push_text("ID83", id83);
     }
 
     if let Some((sr, srf, srr)) = snp_metrics {
@@ -489,6 +550,18 @@ pub(crate) fn build_info_string(
             builder.push("EFREQ", format_freq(allele_frequency(reads, depth)));
         }
     }
+
+    // The record of one base of a codon passes on that base's own input INFO:
+    // the row's is its first base's.
+    let original_info = base
+        .and_then(|index| variant.annotations.single_bases.get(index))
+        .map_or(original_info, |single| single.original_info.as_deref());
+
+    // Already encoded field by field: its `|` and `,` are the format's own.
+    builder.push(
+        "ANN",
+        super::ann::ann_field(variant, alt, original_index, aa, original_info),
+    );
 
     // Append original INFO fields from the input VCF (if --keep-original-info).
     // Skip keys that collide with get_mnv's own INFO fields to avoid duplicate
@@ -802,7 +875,7 @@ pub(crate) fn write_info_header(
     )?;
     writeln!(
         writer,
-        "##INFO=<ID=DBS,Number=1,Type=String,Description=\"COSMIC-style doublet base substitution class for adjacent 2-SNV MNVs (reverse-complement collapsed)\">"
+        "##INFO=<ID=DBS,Number=.,Type=String,Description=\"COSMIC DBS78 class of each doublet (two adjacent substituted bases, across codon boundaries too) this record's substitutions belong to, in ADJSUB order; '.' for a doublet with no class\">"
     )?;
     writeln!(
         writer,
@@ -838,8 +911,25 @@ pub(crate) fn write_info_header(
     )?;
     writeln!(
         writer,
-        "##INFO=<ID=HGVSC,Number=1,Type=String,Description=\"HGVS coding descriptor for a coding substitution (SNV/MNV); ';' percent-encoded per the VCF spec\">"
+        "##INFO=<ID=HGVSC,Number=1,Type=String,Description=\"HGVS coding descriptor for a coding substitution (SNV/MNV) or indel; ';' percent-encoded per the VCF spec\">"
     )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=SBS96,Number=.,Type=String,Description=\"COSMIC SBS96 class of each single-base substitution, in COMP order, written from the pyrimidine strand (e.g. A[C>T]G); '-' where the trinucleotide context cannot be read, DBS or MBS for a base of a run of adjacent substitutions\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=ADJSUB,Number=.,Type=String,Description=\"HGVS genomic descriptor of each run of two or more adjacent substituted bases this record's substitutions belong to, shared by every record of the run\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=CAT,Number=1,Type=String,Description=\"--catalogue entries this record matches, as label (gene variant), with a note when a codon matches through one of its readings only; percent-encoded per the VCF spec\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=ID83,Number=1,Type=String,Description=\"COSMIC ID83 class of a pure insertion or deletion, as SigProfiler labels it (size:Type:Subtype:count, e.g. 1:Del:C:2)\">"
+    )?;
+    writeln!(writer, "{}", super::ann::ANN_HEADER)?;
     writeln!(
         writer,
         "##INFO=<ID=EC,Number=1,Type=String,Description=\"Canonical allele event class derived from REF/ALT\">"
@@ -1001,6 +1091,7 @@ mod tests {
         v.gene = "weird;gene=x,y".to_string();
         let info = build_info_string(
             &v,
+            "T",
             Some("Ala10Val"),
             "SNP",
             None,
@@ -1016,6 +1107,11 @@ mod tests {
         // into spurious INFO keys via its ';' and '='.
         let gene_field = info.split(';').next().unwrap();
         assert_eq!(gene_field, "GENE=weird%3Bgene%3Dx%2Cy", "got: {info}");
+        // Nor through the gene fields of ANN, which also split on `|` and `,`.
+        assert!(
+            info.contains("|weird%3Bgene%3Dx%2Cy|weird%3Bgene%3Dx%2Cy|transcript|"),
+            "got: {info}"
+        );
     }
 
     // ---- mnv_phasing_support ----
@@ -1140,6 +1236,7 @@ mod tests {
         let variant = make_snp_variant();
         let info = build_info_string(
             &variant,
+            "T",
             Some("Ala10Val"),
             "SNP",
             Some((5, 3, 2)),
@@ -1168,6 +1265,7 @@ mod tests {
         let variant = make_snp_variant();
         let info = build_info_string(
             &variant,
+            "T",
             Some("Ala10Val"),
             "SNP",
             None,
@@ -1179,8 +1277,80 @@ mod tests {
             None,
             Some("ANN=missense;CLNSIG=pathogenic"),
         );
-        assert!(info.contains("ANN=missense"));
         assert!(info.contains("CLNSIG=pathogenic"));
+        // One ANN key, get_MNV's: the input's entry names no allele this record
+        // has, so it does not follow.
+        let anns: Vec<&str> = info.split(';').filter(|f| f.starts_with("ANN=")).collect();
+        assert_eq!(anns.len(), 1, "{info}");
+        assert!(
+            anns[0].starts_with("ANN=T|missense_variant|MODERATE|geneA|"),
+            "{info}"
+        );
+    }
+
+    /// A list key is a list a VCF reader can split, and the record of one base
+    /// of a codon carries only the runs, doublets and catalogue matches of its
+    /// own base.
+    #[test]
+    fn lists_are_lists_and_a_base_record_keeps_to_its_base() {
+        let mut variant = make_snp_variant();
+        variant.positions = vec![37, 39];
+        variant.ref_bases = vec!["A".into(), "C".into()];
+        variant.base_changes = vec!["C".into(), "T".into()];
+        variant.variant_type = VariantType::SnpMnv;
+        variant.annotations.adjacent_substitutions =
+            vec!["g.36_37delinsGC".into(), "g.39_40delinsTC".into()];
+        variant.annotations.dbs_class = Some("TT>GC, CT>TC".into());
+        variant.annotations.sbs96 = vec!["DBS".into(), "DBS".into()];
+        variant.annotations.catalogue = vec!["codon hit".into()];
+        variant.annotations.catalogue_bases = vec![vec!["first base hit".into()], vec![]];
+        let field = |info: &str, key: &str| -> Option<String> {
+            info.split(';')
+                .find_map(|f| f.strip_prefix(&format!("{key}=")).map(str::to_string))
+        };
+        let whole = build_info_string(
+            &variant, "CAT", None, "MNV", None, None, None, None, None, None, None, None,
+        );
+        assert_eq!(field(&whole, "SBS96").as_deref(), Some("DBS,DBS"));
+        assert_eq!(
+            field(&whole, "ADJSUB").as_deref(),
+            Some("g.36_37delinsGC,g.39_40delinsTC")
+        );
+        assert_eq!(field(&whole, "DBS").as_deref(), Some("TT>GC,CT>TC"));
+        assert_eq!(field(&whole, "CAT").as_deref(), Some("codon hit"));
+        let second = build_info_string(
+            &variant,
+            "T",
+            None,
+            "SNP",
+            None,
+            None,
+            Some(1),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(field(&second, "ADJSUB").as_deref(), Some("g.39_40delinsTC"));
+        assert_eq!(field(&second, "DBS").as_deref(), Some("CT>TC"));
+        assert_eq!(field(&second, "CAT"), None);
+        let first = build_info_string(
+            &variant,
+            "C",
+            None,
+            "SNP",
+            None,
+            None,
+            Some(0),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(field(&first, "DBS").as_deref(), Some("TT>GC"));
+        assert_eq!(field(&first, "CAT").as_deref(), Some("first base hit"));
     }
 
     #[test]
@@ -1189,6 +1359,7 @@ mod tests {
         // DP and FREQ are reserved — should NOT appear from original_info
         let info = build_info_string(
             &variant,
+            "T",
             None,
             "SNP",
             None,
@@ -1286,6 +1457,7 @@ mod tests {
         let sbp_of = |p: f64| {
             let info = build_info_string(
                 &make_snp_variant(),
+                "T",
                 Some("Ala10Val"),
                 "SNP",
                 None,

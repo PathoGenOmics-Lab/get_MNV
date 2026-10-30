@@ -8,9 +8,11 @@ the command line, with drag-and-drop inputs and an interactive results viewer.
 Download the latest build for your platform from the
 [Releases page](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest).
 
-!!! note "macOS users"
-    The app is not signed with an Apple Developer certificate. On first launch,
-    right-click the app → **Open** → click **Open** in the dialog.
+> [!NOTE]
+> **macOS users**
+>
+> The app is not signed with an Apple Developer certificate. On first launch,
+> right-click the app → **Open** → click **Open** in the dialog.
 
 ## Workflow
 
@@ -70,10 +72,8 @@ them with the CLI's own parser, so a sixth divergence fails the build.
 
 ## Genomic track viewer
 
-<div style="text-align: center;" markdown>
-![get_MNV genomic track viewer: codon tracks and the read pileup for an MNV](assets/gui-06-reads.png#only-light){ width="840" }
-![get_MNV genomic track viewer: codon tracks and the read pileup for an MNV](assets/gui-06-reads-dark.png#only-dark){ width="840" }
-</div>
+![get_MNV genomic track viewer: codon tracks and the read pileup for an MNV](assets/gui-06-reads.png#gh-light-mode-only)
+![get_MNV genomic track viewer: codon tracks and the read pileup for an MNV](assets/gui-06-reads-dark.png#gh-dark-mode-only)
 
 *The track viewer for the `Rv2036` MNV (`GTT → GCC`, Val93Ala) in the bundled example: codon tracks plus the read pileup, with the ALT bases highlighted across all 24 supporting reads.*
 
@@ -90,15 +90,19 @@ Selecting a variant row opens an IGV-style view that lines up, column by column:
 This makes it easy to confirm visually that the reads carry the combined codon
 change, not just the individual SNVs.
 
-!!! tip "Try it with the example"
-    Follow the [Command Line Tutorial](getting-started.md) tutorial and load the
-    bundled `example/G35894.demo.bam`. Opening the `Rv2036` row shows all 24
-    reads carrying both ALT bases of the `GTT → GCC` (Val93Ala) codon.
+> [!TIP]
+> **Try it with the example**
+>
+> Follow the [Command Line Tutorial](getting-started.md) tutorial and load the
+> bundled `example/G35894.demo.bam`. Opening the `Rv2036` row shows all 24
+> reads carrying both ALT bases of the `GTT → GCC` (Val93Ala) codon.
 
-!!! note "Read viewer requirements"
-    The pileup needs a coordinate-sorted, indexed BAM (`.bai`) and an indexed
-    FASTA (`.fai`); get_MNV creates the FASTA index automatically when needed.
-    Rows without read data still show the codon and amino-acid tracks.
+> [!NOTE]
+> **Read viewer requirements**
+>
+> The pileup needs a coordinate-sorted, indexed BAM (`.bai`) and an indexed
+> FASTA (`.fai`); get_MNV creates the FASTA index automatically when needed.
+> Rows without read data still show the codon and amino-acid tracks.
 
 ## Build from source
 

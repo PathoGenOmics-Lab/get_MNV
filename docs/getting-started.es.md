@@ -17,7 +17,7 @@ del repositorio trae todo lo necesario:
 | Archivo | Papel |
 |---|---|
 | `MTB_ancestor.fas` | Referencia (un único contig, `MTB_anc`) |
-| `anot_genes.txt` | Tabla de genes (`nombre`, `inicio`, `fin`, `hebra`) |
+| `anot_genes.txt` | Tabla de genes (`nombre`, `inicio`, `fin`, `hebra` y, en sus genes de ARN, `fase` y `biotipo`) |
 | `G35894.var.snp.vcf` | Llamadas de variantes al estilo VarScan |
 | `G35894.demo.bam` | Subconjunto diminuto de lecturas alineadas |
 
@@ -49,23 +49,27 @@ ejecución imprime toda su configuración, y luego las líneas que importan:
 
 Escribe `G35894.var.snp.MNV.tsv` en el directorio actual.
 
-!!! tip "Lee la línea de resumen, siempre"
-    `950` registros se convierten en `941` variantes porque un codón que lleva
-    dos sustituciones se reporta una sola vez. `SNP/MNV=10` es el trabajo a nivel
-    de codón: diez codones donde se combinan registros separados del VCF.
-    `MNV=0` significa que ningún registro traía ya más de una base sustituida.
+> [!TIP]
+> **Lee la línea de resumen, siempre**
+>
+> `950` registros se convierten en `941` variantes porque un codón que lleva
+> dos sustituciones se reporta una sola vez. `SNP/MNV=10` es el trabajo a nivel
+> de codón: diez codones donde se combinan registros separados del VCF.
+> `MNV=0` significa que ningún registro traía ya más de una base sustituida.
+>
+> `intergenic=134` es tu comprobación de cordura sobre la anotación. get_MNV no
+> puede distinguir una variante que está fuera de un gen de una variante cuyo
+> gen no ha sabido encontrar, así que una anotación que no cuadra no falla:
+> termina bien, reporta casi todo como intergénico e imprime
+> `Processing complete`. Si esa cifra es la mayoría de tus variantes, tus
+> coordenadas de genes no encajan con tu referencia.
 
-    `intergenic=134` es tu comprobación de cordura sobre la anotación. get_MNV no
-    puede distinguir una variante que está fuera de un gen de una variante cuyo
-    gen no ha sabido encontrar, así que una anotación que no cuadra no falla:
-    termina bien, reporta casi todo como intergénico e imprime
-    `Processing complete`. Si esa cifra es la mayoría de tus variantes, tus
-    coordenadas de genes no encajan con tu referencia.
-
-!!! note "Código genético"
-    get_MNV usa por defecto la tabla de traducción 11 del NCBI (bacteriana), que
-    es la correcta para *M. tuberculosis*. Usa `--translation-table` para otros
-    organismos.
+> [!NOTE]
+> **Código genético**
+>
+> get_MNV usa por defecto la tabla de traducción 11 del NCBI (bacteriana), que
+> es la correcta para *M. tuberculosis*. Usa `--translation-table` para otros
+> organismos.
 
 Con `--dry-run` obtienes el mismo resumen sin escribir nada, que es la forma
 barata de comprobar las entradas antes de una ejecución larga.
@@ -124,19 +128,23 @@ La fila de `Rv2036` gana sus columnas de evidencia:
 reparten la evidencia en vez de contarla dos veces. Ninguna lectura lleva una
 sustitución sola, así que nada cae en los recuentos sueltos.
 
-!!! note "Por qué `Haplotype LD` está vacío en un haplotipo perfecto"
-    `D'` mide si dos variantes coinciden más de lo que predicen sus propias
-    frecuencias. Aquí las dos están en las 24 moléculas, así que ninguna varía y
-    no queda nada que correlacionar: la respuesta honesta es `-`, no `1`. Esa es
-    una pregunta distinta de la que responde `MNV Phasing Support`, que mide
-    cuántas de las lecturas que podían responder llevaban el haplotipo completo,
-    y contesta `1.0000`. [Ligamiento](linkage.es.md) recorre los casos en que las
-    dos divergen.
+> [!NOTE]
+> **Por qué `Haplotype LD` está vacío en un haplotipo perfecto**
+>
+> `D'` mide si dos variantes coinciden más de lo que predicen sus propias
+> frecuencias. Aquí las dos están en las 24 moléculas, así que ninguna varía y
+> no queda nada que correlacionar: la respuesta honesta es `-`, no `1`. Esa es
+> una pregunta distinta de la que responde `MNV Phasing Support`, que mide
+> cuántas de las lecturas que podían responder llevaban el haplotipo completo,
+> y contesta `1.0000`. [Ligamiento](linkage.es.md) recorre los casos en que las
+> dos divergen.
 
-!!! tip "Requisitos del BAM"
-    El BAM tiene que estar ordenado por coordenada e indexado (`.bai`), y
-    alineado a la misma referencia. El `G35894.demo.bam` incluido cubre solo el
-    locus de `Rv2036`, y por eso las demás filas no reportan soporte.
+> [!TIP]
+> **Requisitos del BAM**
+>
+> El BAM tiene que estar ordenado por coordenada e indexado (`.bai`), y
+> alineado a la misma referencia. El `G35894.demo.bam` incluido cubre solo el
+> locus de `Rv2036`, y por eso las demás filas no reportan soporte.
 
 ## 5. Filtra por ese soporte
 
@@ -170,10 +178,8 @@ get_mnv \
   --report sample.html
 ```
 
-<div style="text-align: center;" markdown>
-![El informe HTML interactivo que escribe get_MNV: recuentos de resumen, desglose por consecuencia, búsqueda y una matriz de variantes](assets/cli-01-report.png#only-light){ width="840" }
-![El informe HTML interactivo que escribe get_MNV: recuentos de resumen, desglose por consecuencia, búsqueda y una matriz de variantes](assets/cli-01-report-dark.png#only-dark){ width="840" }
-</div>
+![El informe HTML interactivo que escribe get_MNV: recuentos de resumen, desglose por consecuencia, búsqueda y una matriz de variantes](assets/cli-01-report.png#gh-light-mode-only)
+![El informe HTML interactivo que escribe get_MNV: recuentos de resumen, desglose por consecuencia, búsqueda y una matriz de variantes](assets/cli-01-report-dark.png#gh-dark-mode-only)
 
 *El informe se abre en cualquier navegador sin servidor y viaja como un solo
 adjunto. Arriba deja constancia del comando exacto que lo generó.*

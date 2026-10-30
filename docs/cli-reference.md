@@ -1,6 +1,6 @@
 # CLI Reference
 
-Full reference for the `get_mnv` command-line options (version 1.1.5). Run
+Full reference for the `get_mnv` command-line options (version 1.1.6). Run
 `get_mnv --help` for the same list in your terminal.
 
 ## Synopsis
@@ -18,9 +18,9 @@ and needs none of them.
 
 | Option | Description |
 |---|---|
-| `-v, --vcf <FILE>` | Variant input in plain or BGZF-compressed VCF (SNVs/MNVs and indels). |
+| `-v, --vcf <FILE>` | Variant input in plain VCF, BGZF-compressed VCF or BCF (SNVs/MNVs and indels). |
 | `--tsv <FILE>` | iVar `variants.tsv` input. |
-| `-b, --bam <FILE>` | Optional aligned reads for read support. Must be coordinate-sorted and indexed. |
+| `-b, --bam <FILE>` | Optional aligned reads for read support, as BAM or CRAM. Must be coordinate-sorted and indexed; a CRAM is decoded against `--fasta`. |
 | `-f, --fasta <FILE>` | Reference FASTA (required). |
 | `--sample <NAME>` | Sample to annotate in a multi-sample VCF (default: first sample; `all` for all). Its FORMAT metrics become the original depth and frequency, and its genotype decides which ALT alleles it carries. |
 | `--chrom <NAME>` | Restrict processing to one contig (default: all contigs in the input). |
@@ -51,38 +51,40 @@ These apply only when `--bam` is provided.
 | `--min-mnv-strand <N>` | `0` | Minimum MNV-supporting reads on each strand. |
 | `--min-strand-bias-p <F>` | `0.0` | Minimum Fisher exact p-value accepted for strand-bias metrics. **VCF output only**: the TSV writer has no strand-bias threshold, so this never removes a TSV row. |
 
-!!! note "How the SNP and MNV thresholds combine"
-    Frequency and read-count filters use support recalculated from `--bam`, not
-    the original `OFREQ`/`ODP` from the input.
-
-    A codon-level (`SNP/MNV`) row is kept when **either** side clears its bar:
-    its individual SNVs pass the SNP thresholds, **or** its haplotype passes the
-    MNV thresholds. That keeps a well-supported haplotype whose individual SNVs
-    are weak, and it also works the other way: with the SNP thresholds left at
-    their default of `0` the SNP side always passes, so raising `--mnv` alone
-    removes nothing. Raise both, or neither. The run warns when you have asked
-    for an MNV threshold that cannot reach a codon-level row.
-
-    Which thresholds govern which row:
-
-    | Row | Judged by |
-    |---|---|
-    | `SNP` | the SNP thresholds |
-    | `MNV`, `SNP/MNV` | either side, as above |
-    | `INDEL` | the **MNV** thresholds, measured against the indel's own event support (`Event Reads`, `Event Forward Reads`, `Event Reverse Reads`, `Event Depth`), not against any SNP column |
-
-    A TSV row is kept or dropped whole, and a codon-level row clears the SNP
-    side only when **every** one of its substitutions does. A VCF record is one
-    allele, filtered on its own. So a `--both` run under a threshold that one
-    substitution meets and another does not writes that allele to the VCF while
-    no TSV row carries it: the row failed, the allele did not. Neither output is
-    wrong; they are different units.
-
-    So an indel is filtered with `--mnv`, `--min-mnv-frequency` and
-    `--min-mnv-strand`; `--snp` never touches it. That holds outside genes too: an
-    intergenic indel is counted and judged on its own support like any other. Only
-    a row that reached no counter at all is exempt, since a threshold cannot be
-    applied to a measurement nobody took.
+> [!NOTE]
+> **How the SNP and MNV thresholds combine**
+>
+> Frequency and read-count filters use support recalculated from `--bam`, not
+> the original `OFREQ`/`ODP` from the input.
+>
+> A codon-level (`SNP/MNV`) row is kept when **either** side clears its bar:
+> its individual SNVs pass the SNP thresholds, **or** its haplotype passes the
+> MNV thresholds. That keeps a well-supported haplotype whose individual SNVs
+> are weak, and it also works the other way: with the SNP thresholds left at
+> their default of `0` the SNP side always passes, so raising `--mnv` alone
+> removes nothing. Raise both, or neither. The run warns when you have asked
+> for an MNV threshold that cannot reach a codon-level row.
+>
+> Which thresholds govern which row:
+>
+> | Row | Judged by |
+> |---|---|
+> | `SNP` | the SNP thresholds |
+> | `MNV`, `SNP/MNV` | either side, as above |
+> | `INDEL` | the **MNV** thresholds, measured against the indel's own event support (`Event Reads`, `Event Forward Reads`, `Event Reverse Reads`, `Event Depth`), not against any SNP column |
+>
+> A TSV row is kept or dropped whole, and a codon-level row clears the SNP
+> side only when **every** one of its substitutions does. A VCF record is one
+> allele, filtered on its own. So a `--both` run under a threshold that one
+> substitution meets and another does not writes that allele to the VCF while
+> no TSV row carries it: the row failed, the allele did not. Neither output is
+> wrong; they are different units.
+>
+> So an indel is filtered with `--mnv`, `--min-mnv-frequency` and
+> `--min-mnv-strand`; `--snp` never touches it. That holds outside genes too: an
+> intergenic indel is counted and judged on its own support like any other. Only
+> a row that reached no counter at all is exempt, since a threshold cannot be
+> applied to a measurement nobody took.
 
 ## Indel tuning
 
@@ -94,7 +96,7 @@ These apply only when `--bam` is provided.
 | `--count-mates-separately` | off | Count the two mates of a paired-end fragment as two observations instead of one molecule. |
 | `--phased-indel-min-freq <F>` | `0.0` | Minimum BAM-derived frequency to emit a phased indel/complex haplotype row. |
 | `--normalize-alleles` | off | Trim shared REF/ALT prefix/suffix before processing. |
-| `--split-multiallelic` | off | Split multiallelic VCF records into independent ALT alleles instead of failing. |
+| `--split-multiallelic` | on | Split multiallelic VCF records into independent ALT alleles. On by default since 1.1.6; still accepted so existing commands keep working. |
 
 ## Output
 
@@ -111,27 +113,29 @@ These apply only when `--bam` is provided.
 | `--keep-original-info` | Preserve original VCF INFO fields in the output (requires `--convert`/`--both`). |
 | `--emit-filtered` | Emit records that fail thresholds with `FILTER` tags instead of skipping them. |
 
-!!! info "`--index-vcf-gz` and `--bcf` call external programs"
-
-    Everything else get_MNV writes is written by get_MNV. These two are not:
-    `--index-vcf-gz` runs `tabix` and `--bcf` runs `bcftools`, both taken from
-    `PATH`. They come with samtools/htslib and bcftools respectively, and
-    neither is a build dependency, so a machine can have get_MNV and not have
-    them.
-
-    A missing program is not a failed run. get_MNV warns, skips that one step,
-    and finishes: the TSV and the VCF are written either way, and the run exits
-    `0`. Nothing else claims the file that was not written, so the summary JSON
-    reports no BCF and `--run-manifest` records no checksum for one. Check the
-    warnings, or check for the file, if a later step needs it.
-
+> [!NOTE]
+> **`--index-vcf-gz` and `--bcf` call external programs**
+>
+> Everything else get_MNV writes is written by get_MNV. These two are not:
+> `--index-vcf-gz` runs `tabix` and `--bcf` runs `bcftools`, both taken from
+> `PATH`. They come with samtools/htslib and bcftools respectively, and
+> neither is a build dependency, so a machine can have get_MNV and not have
+> them.
+>
+> A missing program is not a failed run. get_MNV warns, skips that one step,
+> and finishes: the TSV and the VCF are written either way, and the run exits
+> `0`. Nothing else claims the file that was not written, so the summary JSON
+> reports no BCF and `--run-manifest` records no checksum for one. Check the
+> warnings, or check for the file, if a later step needs it.
 
 ## Interactive HTML report
 
 | Option | Description |
 |---|---|
 | `--report <HTML_FILE>` | Write a self-contained interactive HTML report of the called variants. Needs the TSV output, which is the default. `--convert` writes the VCF *instead* of the TSV, and the two flags are mutually exclusive, so use `--both` rather than `--convert` when you want a report alongside VCF output. With `--sample all` the report covers every sample. |
-| `--report-from <TSV>...` | Build the report from existing get_MNV TSV files instead of running the pipeline, for cohorts processed one sample per run. Each file becomes one sample, labelled by its file name. Requires `--report` for the output path. |
+| `--report-from <TSV>...` | Build the report from existing get_MNV TSV files instead of running the pipeline, for cohorts processed one sample per run. Each file becomes one sample, labelled by its file name. Requires `--report`, `--matrix` or both for the output. |
+| `--matrix <TSV_FILE>` | Write a variant-by-sample matrix as TSV: one row per variant, one column per sample, holding the allele frequency the reads gave, `called` for a call with no measured frequency, or `NA` where the sample has no call. Works in a normal run, with `--sample all`, and with `--report-from`; needs the TSV output like `--report`. |
+| `--catalogue <TSV_FILE>` | Flag calls that match a catalogue of known variants: a tab-separated table with `gene`, `variant` and optional `label` columns, the variant written as `p.`, `c.`, `g.` or `LoF`. Matches go to the `Catalogue` column and `CAT` INFO key. See [Input formats](input-formats.md#5-catalogue-of-known-variants-optional). |
 
 See [Output formats](output-formats.md#interactive-html-report) for what the report contains.
 

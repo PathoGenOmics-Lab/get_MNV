@@ -25,6 +25,11 @@ The default is `11` (bacterial), correct for organisms like *M. tuberculosis*.
 For the standard nuclear code use `1`; other supported tables are 2, 3, 4, 5, 6,
 12 and 25. See the [CLI Reference](cli-reference.md).
 
+The table also decides which codons can start a protein. Under table 11 GTG,
+TTG, CTG, ATT, ATC and ATA start one as well as ATG, as NCBI lists them, and a
+gene's first codon is read as methionine when it is one of them, so a gene that
+starts on GTG is annotated from `Met1`, not `Val1`.
+
 ## Why did two of my SNPs become one MNV?
 
 When two or more SNVs fall in the same codon, the amino acid effect depends on
@@ -46,15 +51,16 @@ show for each SNV, MNV haplotype and indel event.
 
 ## Can I use a BCF file as input?
 
-Not directly. Convert it to VCF first, for example with
-`bcftools view input.bcf -O v -o input.vcf`. get_MNV can *write* BCF output via
-`--bcf`. See [Troubleshooting](troubleshooting.md).
+Yes, since 1.1.6: pass it to `--vcf` like any VCF. It is decoded to VCF text as
+it is read, so it annotates exactly as the VCF it encodes would. Older versions
+need it converted first with `bcftools view input.bcf -O v -o input.vcf`.
 
 ## My VCF has multiallelic records: what happens?
 
-By default get_MNV stops so you can decide how to handle them. Pass
-`--split-multiallelic` to split each record into independent ALT alleles, or
-pre-split with `bcftools norm -m -`.
+get_MNV splits each record into independent ALT alleles, one annotated row per
+ALT, which is the same output `bcftools norm -m -` gives. Before 1.1.6 the run
+stopped instead unless `--split-multiallelic` was passed; the flag is still
+accepted and changes nothing.
 
 ## Are indels supported?
 
@@ -81,9 +87,9 @@ The desktop app is not signed with an Apple Developer certificate. On first
 launch, right-click the app → **Open** → click **Open** in the dialog. See the
 [Desktop GUI](gui.md) guide.
 
-
-!!! question "Your question is not here"
-
-    Ask it in [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a). Questions about why a variant was annotated the way it
-    was are welcome there, and are easiest to answer with the record and the
-    command that produced it.
+> [!NOTE]
+> **Your question is not here**
+>
+> Ask it in [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a). Questions about why a variant was annotated the way it
+> was are welcome there, and are easiest to answer with the record and the
+> command that produced it.

@@ -113,7 +113,7 @@ export async function invoke<T = unknown>(
 ): Promise<T> {
   switch (cmd) {
     case "get_core_version":
-      return "1.1.5 (demo)" as T;
+      return "1.1.6 (demo)" as T;
 
     case "detect_variant_input_format":
       return (String(args?.path ?? "").endsWith(".vcf") ? "vcf" : "tsv") as T;

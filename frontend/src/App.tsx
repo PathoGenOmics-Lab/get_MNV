@@ -19,6 +19,7 @@ type Tab = "analysis" | "results";
 const EXT_MAP: Record<string, keyof AnalysisConfig> = {
   vcf: "vcfFile",
   "vcf.gz": "vcfFile",
+  bcf: "vcfFile",
   fasta: "fastaFile",
   fas: "fastaFile",
   fa: "fastaFile",
@@ -31,6 +32,7 @@ const EXT_MAP: Record<string, keyof AnalysisConfig> = {
   csv: "genesFile",
   txt: "genesFile",
   bam: "bamFile",
+  cram: "bamFile",
 };
 
 /** Keyword patterns in filenames → config field (fallback when extension fails) */
@@ -38,12 +40,19 @@ const NAME_HINTS: [RegExp, keyof AnalysisConfig][] = [
   [/vcf|variant|snp/i, "vcfFile"],
   [/\.fa$|fasta|refseq|reference|genome/i, "fastaFile"],
   [/gene|annot|gff|gtf|feature|cds/i, "genesFile"],
-  [/\.bam$|align|mapping/i, "bamFile"],
+  [/\.(bam|cram)$|align|mapping/i, "bamFile"],
 ];
+
+/** Index files: each is found beside the file it indexes, so none fills a slot. */
+const INDEX_EXTENSION = /\.(bai|crai|csi|tbi|fai|gzi)$/;
 
 function classifyFile(path: string): keyof AnalysisConfig | null {
   const lower = path.toLowerCase();
   const filename = lower.split(/[\\/]/).pop() ?? "";
+
+  // 0. An index, before its name can match a hint: `x.snp.cram.crai` and
+  // `x.bcf.csi` were taken for variant files and made samples of their own.
+  if (INDEX_EXTENSION.test(lower)) return null;
 
   // 1. Compound extensions first
   if (lower.endsWith(".vcf.gz")) return "vcfFile";
@@ -104,7 +113,7 @@ function preferredGffFeatures(available: string[]): string[] {
 
 /** Extract filename stem — removes path and known bioinformatics extensions */
 function filenameStem(path: string): string {
-  return (path.split(/[\\/]/).pop() ?? "").replace(/\.(vcf\.gz|vcf|tsv|txt|bam)$/i, "");
+  return (path.split(/[\\/]/).pop() ?? "").replace(/\.(vcf\.gz|vcf|bcf|tsv|txt|bam|cram)$/i, "");
 }
 
 /** Extract the core sample ID (first dot-segment) from a filename */
@@ -327,7 +336,7 @@ function App() {
   const [gffAvailableFeatures, setGffAvailableFeatures] = useState<string[]>([]);
   const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme);
   const [showCrab, setShowCrab] = useState(getInitialCrab);
-  const [appVersion, setAppVersion] = useState("v1.1.5");
+  const [appVersion, setAppVersion] = useState("v1.1.6");
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const [runProgress, setRunProgress] = useState<ProgressEvent | null>(null);
   const [confirmationPrompt, setConfirmationPrompt] = useState<ConfirmationPrompt | null>(null);
@@ -958,7 +967,7 @@ function App() {
                     label={samples.length > 1 ? `Variant calls (${samples.length})` : "Variant calls"}
                     value={samples.length === 1 ? samples[0].vcfPath : samples.length > 1 ? `${samples.length} samples loaded` : ""}
                     onChange={handleVcfChange}
-                    filters={[{ name: "Variants", extensions: ["vcf", "vcf.gz", "tsv", "txt"] }]}
+                    filters={[{ name: "Variants", extensions: ["vcf", "vcf.gz", "bcf", "tsv", "txt"] }]}
                     required
                     isDragActive={dragActive}
                     justAssigned={justAssigned.has("vcfFile")}
@@ -1004,7 +1013,7 @@ function App() {
                         bamFile: path.length > 0 ? path : undefined,
                       }))
                     }
-                    filters={[{ name: "BAM", extensions: ["bam"] }]}
+                    filters={[{ name: "BAM or CRAM", extensions: ["bam", "cram"] }]}
                     isDragActive={dragActive}
                     justAssigned={justAssigned.has("bamFile")}
                     fileType="BAM"

@@ -239,7 +239,126 @@ fn test_transcript_start_lost_snp_is_start_lost() {
     );
     assert_eq!(variants.len(), 1);
     assert_eq!(variants[0].change_type, ChangeType::StartLost);
-    assert_eq!(variants[0].aa_changes, vec!["Met1Thr".to_string()]);
+    // HGVS writes a lost initiator as Met1?: where translation starts without
+    // it cannot be predicted, so the residue now at position 1 is not named.
+    assert_eq!(variants[0].aa_changes, vec!["Met1?".to_string()]);
+}
+
+/// Bacteria start many genes on GTG or TTG, and the ribosome reads that first
+/// codon as methionine. Translated literally, a GTG start came out as Val1, so
+/// destroying it was an ordinary missense at MODERATE impact and turning it into
+/// ATG was a Val1Met missense, when the first loses the protein's start and the
+/// second keeps it.
+#[test]
+fn a_gtg_start_codon_is_read_as_methionine_on_both_paths() {
+    let snv = |position: usize, ref_allele: &str, alt_allele: &str| crate::io::VcfPosition {
+        record_start: position,
+        ref_allele: ref_allele.to_string(),
+        alt_allele: alt_allele.to_string(),
+        original_dp: None,
+        original_freq: None,
+        original_info: None,
+        declared_phase: None,
+    };
+    let reference = crate::io::Reference {
+        sequence: "GTGAAATTT",
+    };
+    let genomic = single_exon_gene("cds", 1, 9, Strand::Plus);
+    let transcript = transcript_gene("tx_cds", Strand::Plus, &[(1, 9)]);
+    for gene in [&genomic, &transcript] {
+        let annotate = |variant| {
+            crate::variants::get_mnv_variants_for_gene(
+                gene,
+                &[variant],
+                &reference,
+                "chr1",
+                crate::genetic_code::GeneticCode::default(),
+            )
+        };
+        // GTG -> GCG: no longer an initiation codon in table 11.
+        let lost = annotate(snv(2, "T", "C"));
+        assert_eq!(lost[0].change_type, ChangeType::StartLost, "{}", gene.name);
+        assert_eq!(lost[0].aa_changes, vec!["Met1?".to_string()]);
+        // GTG -> ATG: still an initiation codon, still Met.
+        let kept = annotate(snv(1, "G", "A"));
+        assert_eq!(kept[0].change_type, ChangeType::Synonymous, "{}", gene.name);
+        assert_eq!(kept[0].aa_changes, vec!["Met1Met".to_string()]);
+    }
+}
+
+/// A CDS that starts mid-codon (a 5'-partial feature, phase 1 or 2) does not
+/// begin at the protein's first codon, so its first complete codon is not an
+/// initiator: a GTG there is valine, on the substitution and indel paths alike.
+/// The substitution path used to call any change to it a lost start, HIGH,
+/// while the indel path, at the same codon, already read it as valine.
+#[test]
+fn a_cds_that_starts_mid_codon_has_no_initiator() {
+    let snv = |position: usize, ref_allele: &str, alt_allele: &str| crate::io::VcfPosition {
+        record_start: position,
+        ref_allele: ref_allele.to_string(),
+        alt_allele: alt_allele.to_string(),
+        original_dp: None,
+        original_freq: None,
+        original_info: None,
+        declared_phase: None,
+    };
+    // Phase 1: base 1 belongs to the previous codon; codon 1 is GTG at 2-4.
+    let reference = crate::io::Reference {
+        sequence: "AGTGAAATTTA",
+    };
+    let genomic = crate::test_support::single_exon_gene_with_phase("cds", 1, 10, Strand::Plus, 1);
+    let transcript = crate::test_support::gene_from_gff(
+        "chr1\ttest\tCDS\t1\t10\t.\t+\t1\tID=cds-tx;Parent=tx;Name=tx\n",
+    );
+    for gene in [&genomic, &transcript] {
+        assert!(!gene.starts_protein(), "{}", gene.name);
+        let variants = crate::variants::get_mnv_variants_for_gene(
+            gene,
+            &[snv(3, "T", "C")],
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+        assert_eq!(
+            variants[0].change_type,
+            ChangeType::NonSynonymous,
+            "{}",
+            gene.name
+        );
+        assert_eq!(
+            variants[0].aa_changes,
+            vec!["Val1Ala".to_string()],
+            "{}",
+            gene.name
+        );
+    }
+}
+
+/// The initiator rule is for the protein's first codon only: the same GTG
+/// inside the protein is valine, and a change to it is an ordinary missense.
+#[test]
+fn an_initiation_codon_inside_the_protein_is_its_ordinary_residue() {
+    let reference = crate::io::Reference {
+        sequence: "ATGGTGTTT",
+    };
+    let gene = single_exon_gene("cds", 1, 9, Strand::Plus);
+    let variants = crate::variants::get_mnv_variants_for_gene(
+        &gene,
+        &[crate::io::VcfPosition {
+            record_start: 5, // GTG -> GCG at codon 2: Val2Ala
+            ref_allele: "T".to_string(),
+            alt_allele: "C".to_string(),
+            original_dp: None,
+            original_freq: None,
+            original_info: None,
+            declared_phase: None,
+        }],
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+    assert_eq!(variants[0].change_type, ChangeType::NonSynonymous);
+    assert_eq!(variants[0].aa_changes, vec!["Val2Ala".to_string()]);
 }
 
 #[test]
@@ -427,6 +546,11 @@ fn test_plus_strand_insertion_at_internal_exon_junction_is_coding() {
     assert_eq!(variants[0].variant_type, VariantType::Indel);
     assert_eq!(variants[0].change_type, ChangeType::InFrameIndel);
     assert_eq!(variants[0].event_components, vec!["INS:3:+GGG".to_string()]);
+    // Between the last base of exon 1 (CDS 3) and the first of exon 2 (CDS 4).
+    assert_eq!(
+        variants[0].annotations.hgvs_c.as_deref(),
+        Some("c.3_4insGGG")
+    );
 }
 
 #[test]
@@ -460,6 +584,12 @@ fn test_minus_strand_insertion_at_internal_exon_junction_is_coding() {
     assert_eq!(variants[0].variant_type, VariantType::Indel);
     assert_eq!(variants[0].change_type, ChangeType::InFrameIndel);
     assert_eq!(variants[0].event_components, vec!["INS:3:+GGG".to_string()]);
+    // ATGAAA|CCC|TTT: the inserted GGG reads CCC on the coding strand, between
+    // CDS 6 (the end of the first exon in transcript order) and CDS 7.
+    assert_eq!(
+        variants[0].annotations.hgvs_c.as_deref(),
+        Some("c.6_7insCCC")
+    );
 }
 
 // H5: an in-frame insertion that introduces a stop codon must be classified
@@ -1129,6 +1259,7 @@ fn test_process_codon_mnv_two_snps_in_codon() {
         codon_start: 100,
         codon_end: 102,
         protein_offset: 0,
+        starts_protein: true,
     };
     let result = process_codon(
         codon_info,
@@ -1160,6 +1291,7 @@ fn test_process_codon_emits_expected_variant_type_for_single_snp() {
         codon_start: 100,
         codon_end: 102,
         protein_offset: 0,
+        starts_protein: true,
     };
 
     let result = process_codon(
@@ -1200,6 +1332,7 @@ fn test_construct_codon_uppercase_alt() {
         codon_start: 100,
         codon_end: 102,
         protein_offset: 0,
+        starts_protein: true,
     };
     let result = process_codon(
         codon_info,
@@ -1792,5 +1925,54 @@ fn test_insertion_above_the_gene_is_not_coding_on_either_strand() {
     assert!(
         anchored_above(single_exon_gene("gm", 1, 12, Strand::Minus)).is_empty(),
         "the gap above the first transcript base is 5' UTR"
+    );
+}
+
+/// An indel inside an intron is numbered from the nearer exon and placed
+/// 3'-most along the transcript, within the intron, on either strand.
+///
+/// Exon 1-9, intron 10-19 with a run of T at 11-17, exon 20-28. On the plus
+/// strand the run's 3' end is genomic 17, counted back from the next exon as
+/// c.10-3; on the minus strand the transcript reads leftwards, so its 3' end is
+/// genomic 11, which is also counted back from the exon that follows it, c.10-2.
+#[test]
+fn an_intronic_indel_is_numbered_from_the_nearer_exon_and_shifted_three_prime() {
+    let sequence = "ATGAAACCCGTTTTTTTAGGGGCCCTAA";
+    let row = |position: usize, ref_allele: &str, alt_allele: &str| {
+        crate::variants::build_intron_variant(
+            "chr1",
+            &crate::io::VcfPosition {
+                record_start: position,
+                ref_allele: ref_allele.to_string(),
+                alt_allele: alt_allele.to_string(),
+                original_dp: None,
+                original_freq: None,
+                original_info: None,
+                declared_phase: None,
+            },
+            "tx",
+        )
+    };
+    let plus = spliced_gene("tx", Strand::Plus, &[(1, 9), (20, 28)]);
+    let minus = spliced_gene("tx", Strand::Minus, &[(20, 28), (1, 9)]);
+    let describe = |gene: &crate::variants::Gene, variant: &crate::variants::VariantInfo| {
+        crate::variants::noncodon_hgvs_c(gene, variant, sequence)
+    };
+
+    // One T deleted from the run, written at its first base.
+    let deletion = row(11, "TT", "T");
+    assert_eq!(describe(&plus, &deletion).as_deref(), Some("c.10-3del"));
+    assert_eq!(describe(&minus, &deletion).as_deref(), Some("c.10-2del"));
+    // One T inserted into the run copies the T at its 3' end.
+    let insertion = row(13, "T", "TT");
+    assert_eq!(describe(&plus, &insertion).as_deref(), Some("c.10-3dup"));
+    assert_eq!(describe(&minus, &insertion).as_deref(), Some("c.10-2dup"));
+    // A substitution is numbered without moving: genomic 12 is c.9+3 on the
+    // plus strand, and T>G there reads A>C on the minus strand at c.10-3.
+    let substitution = row(12, "T", "G");
+    assert_eq!(describe(&plus, &substitution).as_deref(), Some("c.9+3T>G"));
+    assert_eq!(
+        describe(&minus, &substitution).as_deref(),
+        Some("c.10-3A>C")
     );
 }

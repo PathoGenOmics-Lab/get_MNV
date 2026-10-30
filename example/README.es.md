@@ -8,7 +8,7 @@ a fin, incluido el visor de lecturas de la GUI.
 | Archivo | Qué es |
 |---|---|
 | `MTB_ancestor.fas` (`.fai`) | Referencia, un único contig `MTB_anc` (4,411,532 bp) |
-| `anot_genes.txt` | Tabla de genes: `name`, `start`, `end`, `strand` (separados por tabuladores) |
+| `anot_genes.txt` | Tabla de genes: `name`, `start`, `end`, `strand` (separados por tabuladores); sus 70 genes de ARN añaden `phase` y `biotype` |
 | `G35894.var.snp.vcf` | Llamadas VCF estilo VarScan para la muestra G35894 |
 | `G35894.var.snp.MNV.tsv` | Salida de get_MNV precalculada para ese VCF (sin BAM) |
 | `G35894.demo.bam` (`.bai`) | Alineamiento sintético minúsculo para el visor de lecturas (ver abajo) |

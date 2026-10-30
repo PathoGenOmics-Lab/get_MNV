@@ -56,58 +56,43 @@ Fix:
 
 ## Multiallelic VCF Records
 
-Example:
+Since 1.1.6 these are split for you, so the error
+`Multiallelic VCF record is not supported` no longer appears. An older version
+needs `--split-multiallelic`, or a VCF pre-split with
+`bcftools norm -m - input.vcf > split.vcf`.
 
-```text
-Multiallelic VCF record is not supported
-```
-
-Fix:
-
-```bash
-get_mnv ... --split-multiallelic
-```
-
-or pre-split the VCF:
-
-```bash
-bcftools norm -m - input.vcf > split.vcf
-```
-
-`--split-multiallelic` emits one annotated row per ALT, even when multiple
-alts share the same codon position. Each row reports its own amino-acid
+Splitting emits one annotated row per ALT, even when multiple alts share the
+same codon position. Each row reports its own amino-acid
 effect, codon, and BAM-derived read support. Pre-splitting the VCF with
 `bcftools norm -m -` produces the same output.
 
 ## BCF Input
 
-Example:
+Since 1.1.6 a `.bcf` is read directly through `--vcf`. Older versions stop with
+`BCF input is not supported. Convert to VCF first`; convert with
+`bcftools view input.bcf > input.vcf` for those.
 
-```text
-BCF input is not supported. Convert to VCF first
-```
-
-Fix:
-
-```bash
-bcftools view input.bcf > input.vcf
-get_mnv --vcf input.vcf ...
-```
-
-`--bcf` is an output option only; it does not make BCF valid as input.
+A BCF that is cut short, for example by an interrupted copy, stops the run with
+an `invalid BCF record` or `invalid BCF header` error rather than reading as a
+VCF with fewer records. Copy the file again.
 
 ## TSV Annotation with Multiple Contigs
 
 Example:
 
 ```text
-TSV annotation does not include contig names
+TSV annotation has 2 row(s) without a contig, which cannot be placed in a multi-contig VCF
 ```
 
 Fix:
 
-- Use `--gff` for multi-contig data.
+- Name each row's contig in a seventh column (see
+  [Input formats](input-formats.md)).
+- Or use `--gff` for multi-contig data.
 - Or restrict the run to one contig with `--chrom`.
+
+Versions before 1.1.6 had no contig column and gave
+`TSV annotation does not include contig names` instead.
 
 ## Fewer Rows Than Records in the VCF
 
@@ -248,7 +233,6 @@ its own.
 |---|---|
 | `The MNV thresholds will not remove any SNP/MNV row` | The MNV thresholds are still filtering MNV, indel and intergenic rows. What they cannot reach is the SNP/MNV rows: one survives when *either* its SNVs or its haplotype clears its bar, so with the SNP thresholds at `0` the SNP side always passes. Raise `--snp`, `--min-snp-frequency` or `--min-snp-strand` as well to filter codon-level rows. |
 
-
 ### An optional external program was missing
 
 | Warning | What it means |
@@ -281,12 +265,12 @@ its own.
 | `15` | Floating-point parsing error |
 | `16` | JSON error |
 
-
-!!! question "Still stuck?"
-
-    Everything above is a message the tool can produce and what it is asking
-    for. If what you are seeing is not here, or the answer here did not fit your
-    data, ask in [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a).
-
-    Answers there get marked as answers, so the next person with your problem
-    finds it before they have to ask.
+> [!NOTE]
+> **Still stuck?**
+>
+> Everything above is a message the tool can produce and what it is asking
+> for. If what you are seeing is not here, or the answer here did not fit your
+> data, ask in [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a).
+>
+> Answers there get marked as answers, so the next person with your problem
+> finds it before they have to ask.

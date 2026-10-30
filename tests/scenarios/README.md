@@ -171,7 +171,7 @@ expected TSV rows.
 | # | Name | What it validates |
 |---|------|-------------------|
 | 18 | `stop_gained_via_mnv` | Three-SNV MNV in codon 50 `GCT`→`TAA` → `Ala50Ter`, `Change Type = Stop gained` |
-| 19 | `start_codon_altered` | SNV in start codon ATG at pos 2 → `Met1Thr`, reported with Change Type `Start lost` |
+| 19 | `start_codon_altered` | SNV in start codon ATG at pos 2 → `Met1?` (HGVS for a lost initiator), reported with Change Type `Start lost` |
 | 20 | `stop_lost` | SNV at the stop codon `TAA` (pos 298) → `Change Type = Stop lost` |
 
 ### Complex alleles
@@ -179,7 +179,7 @@ expected TSV rows.
 | # | Name | What it validates |
 |---|------|-------------------|
 | 21 | `intron_variant` | SNV in the geneC intron (pos 950), away from the splice sites → `intron_variant` against geneC, not `intergenic` |
-| 22 | `multiallelic_split` | Multiallelic VCF `pos 28 REF=G ALT=A,T` with `--split-multiallelic`: each ALT now produces an independent annotation row (regression test for the fix in commit 9ea2aed) |
+| 22 | `multiallelic_split` | Multiallelic VCF `pos 28 REF=G ALT=A,T`, split by default with no flag (since 1.1.6): each ALT produces an independent annotation row (regression test for the fix in commit 9ea2aed) |
 | 23 | `delins_subst_plus_del` | `REF=GCT ALT=GA`: a substitution + 1 bp deletion compound allele yields a frameshift INDEL row |
 
 ### Multi-contig and iVar TSV input

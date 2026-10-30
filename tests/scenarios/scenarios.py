@@ -855,12 +855,12 @@ scenario_stop_gained = Scenario(
 )
 
 
-# 19. Start codon alterado: ATG -> ACG (Met1Thr)
+# 19. Start codon alterado: ATG -> ACG (Met1?, como pide HGVS)
 # NOTA: get_mnv reporta como "Non-synonymous" estandar; no tiene categoria
 # especifica "Start lost" para SNVs en el codon inicial. La AA si es correcta.
 scenario_start_lost = Scenario(
     name="19_start_codon_altered",
-    description="SNV en el codon iniciador ATG: pos 2 T>C -> ACG (Met1Thr) -> change_type='Start lost'",
+    description="SNV en el codon iniciador ATG: pos 2 T>C -> ACG (Met1?) -> change_type='Start lost'",
     variants=[VcfRecord(pos=2, ref="T", alt="C")],
     reads=[
         ReadGroup(
@@ -878,7 +878,7 @@ scenario_start_lost = Scenario(
             variant_type="SNP",
             reference_codon="ATG",
             snp_codon="ACG",
-            aa_changes="Met1Thr",
+            aa_changes="Met1?",
             change_type="Start lost",
             snp_reads="20",
             total_reads="20",
@@ -954,13 +954,17 @@ scenario_intron_variant = Scenario(
 )
 
 
-# 22. Multiallelic SNV con --split-multiallelic
+# 22. Multiallelic SNV, dividido sin pedirlo
+# Desde la 1.1.6 la division es lo que hace get_mnv por defecto, asi que este
+# escenario corre SIN --split-multiallelic: si la opcion volviera a ser
+# necesaria, el registro haria fallar la ejecucion. El escenario del .vcf y el
+# .vcf.gz de mas abajo sigue pasando la opcion, que debe seguir aceptandose.
 # Con el fix de merge_snp_into_groups, get_mnv emite UNA fila por cada alt
 # alternativo en la misma posicion. Las 2 SNV (G>A y G>T en pos 28) producen
 # 2 filas independientes con AA y soporte BAM cada una.
 scenario_multiallelic = Scenario(
     name="22_multiallelic_split",
-    description="Multiallelic SNV pos 28 G>A,T con --split-multiallelic: 2 filas SNV independientes (G>A Ala10Thr + G>T Ala10Ser)",
+    description="Multiallelic SNV pos 28 G>A,T sin opciones: 2 filas SNV independientes (G>A Ala10Thr + G>T Ala10Ser)",
     # El genotipo lleva los dos alelos: 1/2. Con el 1/1 por defecto la muestra
     # solo llevaria el primero y el segundo no se anotaria, que es lo correcto
     # para ese genotipo pero no lo que este escenario quiere medir.
@@ -1006,7 +1010,6 @@ scenario_multiallelic = Scenario(
         ),
     ],
     expected_row_count=2,
-    extra_cli_args=["--split-multiallelic"],
 )
 
 

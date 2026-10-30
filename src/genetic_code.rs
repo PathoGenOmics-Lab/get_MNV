@@ -119,6 +119,64 @@ impl GeneticCode {
         translate_standard(codon)
     }
 
+    /// Whether `codon` (3 uppercase bytes) is one of this table's initiation
+    /// codons, as NCBI lists them.
+    ///
+    /// The ribosome reads an initiation codon as methionine when it starts the
+    /// protein, whatever it would code for inside it. Bacteria start a large
+    /// share of their genes on GTG or TTG, which translate to Val and Leu
+    /// anywhere else.
+    ///
+    /// # Examples
+    /// ```
+    /// use get_mnv::genetic_code::GeneticCode;
+    /// let bacterial = GeneticCode::new(11).unwrap();
+    /// assert!(bacterial.is_start(b"GTG"));
+    /// assert!(!bacterial.is_start(b"GCG"));
+    /// assert!(!GeneticCode::new(6).unwrap().is_start(b"GTG"));
+    /// ```
+    pub fn is_start(self, codon: &[u8; 3]) -> bool {
+        let starts: &[&[u8; 3]] = match self.table {
+            1 => &[b"TTG", b"CTG", b"ATG"],
+            2 => &[b"ATT", b"ATC", b"ATA", b"ATG", b"GTG"],
+            3 => &[b"ATA", b"ATG", b"GTG"],
+            4 => &[
+                b"TTA", b"TTG", b"CTG", b"ATT", b"ATC", b"ATA", b"ATG", b"GTG",
+            ],
+            5 => &[b"TTG", b"ATT", b"ATC", b"ATA", b"ATG", b"GTG"],
+            6 => &[b"ATG"],
+            11 => &[b"TTG", b"CTG", b"ATT", b"ATC", b"ATA", b"ATG", b"GTG"],
+            12 => &[b"CTG", b"ATG"],
+            25 => &[b"TTG", b"ATG", b"GTG"],
+            _ => &[b"ATG"],
+        };
+        starts.contains(&codon)
+    }
+
+    /// The residue a codon gives as the first of a protein: methionine for an
+    /// initiation codon, its ordinary translation otherwise.
+    pub fn translate_initiator(self, codon: &[u8; 3]) -> char {
+        if self.is_start(codon) {
+            'M'
+        } else {
+            self.translate(codon)
+        }
+    }
+
+    /// [`Self::translate_seq`] for the codon at 1-based `protein_position`:
+    /// position 1 is read as an initiator, everything else as usual.
+    pub fn translate_seq_at(self, seq: &[u8], protein_position: usize) -> String {
+        if protein_position != 1 || seq.len() < 3 {
+            return self.translate_seq(seq);
+        }
+        let codon: [u8; 3] = [
+            seq[0].to_ascii_uppercase(),
+            seq[1].to_ascii_uppercase(),
+            seq[2].to_ascii_uppercase(),
+        ];
+        self.translate_initiator(&codon).to_string()
+    }
+
     /// Translate a DNA sequence (first 3 bases) to a single-character amino
     /// acid string.  Returns `"X"` if the sequence is shorter than 3 bases.
     pub fn translate_seq(self, seq: &[u8]) -> String {
@@ -243,6 +301,87 @@ mod tests {
             "FFLLSSSSYY**CCGWLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG",
         ),
     ];
+
+    /// NCBI's initiation codons, as the `sncbieaa` line of its `gc.prt` file
+    /// gives them for each table: `M` marks a codon that can start a protein.
+    /// Copied from the file rather than retyped, for the reason given above.
+    const NCBI_STARTS: &[(u8, &str)] = &[
+        (
+            1,
+            "---M------**--*----M---------------M----------------------------",
+        ),
+        (
+            2,
+            "----------**--------------------MMMM----------**---M------------",
+        ),
+        (
+            3,
+            "----------**----------------------MM---------------M------------",
+        ),
+        (
+            4,
+            "--MM------**-------M------------MMMM---------------M------------",
+        ),
+        (
+            5,
+            "---M------**--------------------MMMM---------------M------------",
+        ),
+        (
+            6,
+            "--------------*--------------------M----------------------------",
+        ),
+        (
+            11,
+            "---M------**--*----M------------MMMM---------------M------------",
+        ),
+        (
+            12,
+            "----------**--*----M---------------M----------------------------",
+        ),
+        (
+            25,
+            "---M------**-----------------------M---------------M------------",
+        ),
+    ];
+
+    #[test]
+    fn every_initiation_codon_of_every_supported_table_agrees_with_ncbi() {
+        let mut checked: Vec<u8> = Vec::new();
+        for &(table, published) in NCBI_STARTS {
+            let code = GeneticCode::new(table).expect("a supported table");
+            assert_eq!(published.len(), 64, "table {table} needs 64 entries");
+            for (index, mark) in published.chars().enumerate() {
+                let codon = ncbi_codon(index);
+                assert_eq!(
+                    code.is_start(&codon),
+                    mark == 'M',
+                    "table {table}, codon {}: NCBI marks it {mark}",
+                    std::str::from_utf8(&codon).unwrap(),
+                );
+            }
+            checked.push(table);
+        }
+        checked.sort_unstable();
+        let mut offered = SUPPORTED_TABLES.to_vec();
+        offered.sort_unstable();
+        assert_eq!(
+            checked, offered,
+            "a supported table has no published starts to check"
+        );
+    }
+
+    #[test]
+    fn an_initiation_codon_starts_the_protein_as_methionine() {
+        let bacterial = GeneticCode::new(11).unwrap();
+        assert_eq!(bacterial.translate_initiator(b"GTG"), 'M');
+        assert_eq!(bacterial.translate_initiator(b"TTG"), 'M');
+        // Anywhere else it is the ordinary residue.
+        assert_eq!(bacterial.translate(b"GTG"), 'V');
+        assert_eq!(bacterial.translate_seq_at(b"GTG", 2), "V");
+        assert_eq!(bacterial.translate_seq_at(b"gtg", 1), "M");
+        // Not an initiation codon: read as it is, even at position 1.
+        assert_eq!(bacterial.translate_seq_at(b"GCG", 1), "A");
+    }
 
     /// The codon at a position in NCBI's ordering.
     fn ncbi_codon(index: usize) -> [u8; 3] {

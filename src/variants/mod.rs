@@ -1,22 +1,27 @@
 //! Variant data types (SNP, MNV, Indel), codon processing, and amino acid
 //! change classification.
 
+pub mod catalogue;
 mod codon;
 pub mod consequence;
 pub mod declared_phase;
 mod event;
 pub mod hgvs;
+pub mod id83;
 pub mod linkage;
 #[cfg(test)]
 mod property_tests;
+pub mod runs;
+pub mod sbs;
 pub mod splice;
 mod types;
 
 // Re-export all public types and functions
 pub use codon::{
     build_intergenic_variant, build_intron_variant, build_non_coding_variant, build_splice_variant,
-    get_mnv_variants_for_gene, get_mnv_variants_for_gene_with_config, local_haplotype_components,
-    pair_key, phased_haplotype_variant, process_codon, FrameshiftPairKey, FrameshiftPhasing,
+    genomic_for_cds, get_mnv_variants_for_gene, get_mnv_variants_for_gene_with_config, intron_span,
+    last_cds_position, local_haplotype_components, noncodon_hgvs_c, pair_key,
+    phased_haplotype_variant, process_codon, CodingNumbering, FrameshiftPairKey, FrameshiftPhasing,
     IndelAnnotationConfig, PairLinkage,
 };
 pub use event::{

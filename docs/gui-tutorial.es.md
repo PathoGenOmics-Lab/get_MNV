@@ -5,17 +5,19 @@ con get_MNV, pantalla a pantalla: cargar los archivos, qué cambia cada
 parámetro, cómo leer el resumen y cómo mirar las lecturas que hay detrás de una
 llamada.
 
-Si aún no has instalado la app, mira [GUI de escritorio](gui.es.md#instalacion).
+Si aún no has instalado la app, mira [GUI de escritorio](gui.es.md#instalación).
 El mismo recorrido en línea de comandos está en
 [Tutorial de línea de comandos](getting-started.es.md).
 
-!!! note "De dónde salen estas capturas"
-    Están tomadas del demo de navegador que vive en `frontend/demo/`, que
-    renderiza los componentes reales de la app contra datos de fixture en vez de
-    llamar al backend de Rust. Los números, las lecturas y la tabla son la salida
-    auténtica de `get_mnv` sobre los archivos de `example/`; lo único que se
-    sustituye es la fontanería entre el formulario y el motor, para poder
-    capturar las pantallas sin compilar un bundle de escritorio.
+> [!NOTE]
+> **De dónde salen estas capturas**
+>
+> Están tomadas del demo de navegador que vive en `frontend/demo/`, que
+> renderiza los componentes reales de la app contra datos de fixture en vez de
+> llamar al backend de Rust. Los números, las lecturas y la tabla son la salida
+> auténtica de `get_mnv` sobre los archivos de `example/`; lo único que se
+> sustituye es la fontanería entre el formulario y el motor, para poder
+> capturar las pantallas sin compilar un bundle de escritorio.
 
 ## Qué necesitas
 
@@ -31,8 +33,8 @@ del repositorio:
 
 ## 1. Carga las entradas
 
-![La pestaña Analysis con las cuatro entradas rellenas](assets/gui-02-inputs.png#only-light)
-![La pestaña Analysis con las cuatro entradas rellenas](assets/gui-02-inputs-dark.png#only-dark)
+![La pestaña Analysis con las cuatro entradas rellenas](assets/gui-02-inputs.png#gh-light-mode-only)
+![La pestaña Analysis con las cuatro entradas rellenas](assets/gui-02-inputs-dark.png#gh-dark-mode-only)
 
 Suelta cada archivo en su zona, o haz clic para buscarlo. Tres son obligatorios y
 llevan un asterisco rojo; el contador marca **3/3 required + BAM** en cuanto
@@ -55,31 +57,33 @@ están puestos, y el botón de ejecutar se activa.
 
 ## 2. Ajusta los parámetros
 
-![La barra lateral de parámetros, con los mínimos de lecturas bajados a cero](assets/gui-03-parameters.png#only-light)
-![La barra lateral de parámetros, con los mínimos de lecturas bajados a cero](assets/gui-03-parameters-dark.png#only-dark)
+![La barra lateral de parámetros, con los mínimos de lecturas bajados a cero](assets/gui-03-parameters.png#gh-light-mode-only)
+![La barra lateral de parámetros, con los mínimos de lecturas bajados a cero](assets/gui-03-parameters-dark.png#gh-dark-mode-only)
 
 La barra lateral agrupa todos los ajustes que expone la app, y los cuatro chips
 de preset de arriba los cambian en bloque. En cuanto tocas uno, el chip pasa a
 **Custom**, que es lo que muestra la captura.
 
-!!! warning "Por qué esta captura pone 0 y no el 2 de por defecto"
-    El formulario viene con **Min SNP reads** y **Min MNV reads** en `2`, y esos
-    umbrales solo actúan cuando hay un BAM cargado. `G35894.demo.bam` es un
-    archivo de demostración diminuto que cubre un único locus, así que con el
-    valor de por defecto todas las demás filas se quedan sin soporte y la salida
-    baja de 941 filas a 1. Por eso aquí están los dos en `0`. Con un alineamiento
-    real, déjalos como están. El [tutorial de línea de comandos](getting-started.es.md#5-filtra-por-ese-soporte)
-    explica cómo se combinan los dos umbrales, que no es evidente.
+> [!WARNING]
+> **Por qué esta captura pone 0 y no el 2 de por defecto**
+>
+> El formulario viene con **Min SNP reads** y **Min MNV reads** en `2`, y esos
+> umbrales solo actúan cuando hay un BAM cargado. `G35894.demo.bam` es un
+> archivo de demostración diminuto que cubre un único locus, así que con el
+> valor de por defecto todas las demás filas se quedan sin soporte y la salida
+> baja de 941 filas a 1. Por eso aquí están los dos en `0`. Con un alineamiento
+> real, déjalos como están. El [tutorial de línea de comandos](getting-started.es.md#5-filtra-por-ese-soporte)
+> explica cómo se combinan los dos umbrales, que no es evidente.
 
 Cinco de los valores por defecto del formulario son a propósito más estrictos que
 los de la CLI; están listados en
-[GUI de escritorio](gui.es.md#en-que-se-aparta-el-formulario-de-la-cli). Todo lo
+[GUI de escritorio](gui.es.md#en-qué-se-aparta-el-formulario-de-la-cli). Todo lo
 que el formulario no muestra cae en el valor por defecto de la CLI.
 
 ## 3. Ejecuta
 
-![La ejecución en marcha, mostrando la fase actual](assets/gui-04-running.png#only-light)
-![La ejecución en marcha, mostrando la fase actual](assets/gui-04-running-dark.png#only-dark)
+![La ejecución en marcha, mostrando la fase actual](assets/gui-04-running.png#gh-light-mode-only)
+![La ejecución en marcha, mostrando la fase actual](assets/gui-04-running-dark.png#gh-dark-mode-only)
 
 El botón va informando de la fase en la que está. Una ejecución sobre este
 conjunto de datos tarda bastante menos de un segundo; la barra de progreso
@@ -88,8 +92,8 @@ correr en un mismo lote.
 
 ## 4. Lee el resumen
 
-![La pestaña Results: recuentos, desglose de variantes, tiempos y cifras por contig](assets/gui-05-results.png#only-light)
-![La pestaña Results: recuentos, desglose de variantes, tiempos y cifras por contig](assets/gui-05-results-dark.png#only-dark)
+![La pestaña Results: recuentos, desglose de variantes, tiempos y cifras por contig](assets/gui-05-results.png#gh-light-mode-only)
+![La pestaña Results: recuentos, desglose de variantes, tiempos y cifras por contig](assets/gui-05-results-dark.png#gh-dark-mode-only)
 
 La fila de arriba es la forma de la ejecución: **941 variantes** producidas a
 partir de **950 registros del VCF** sobre **635 genes mapeados** en **1 contig**.
@@ -120,8 +124,8 @@ archivos.
 Busca `Rv2036` en la lista de loci y ábrelo. Es el codón que recorre
 [Tutorial de línea de comandos](getting-started.es.md).
 
-![El visor de tracks genómicos: regla, cobertura, referencia, tracks de codón y el pileup de lecturas](assets/gui-06-reads.png#only-light)
-![El visor de tracks genómicos: regla, cobertura, referencia, tracks de codón y el pileup de lecturas](assets/gui-06-reads-dark.png#only-dark)
+![El visor de tracks genómicos: regla, cobertura, referencia, tracks de codón y el pileup de lecturas](assets/gui-06-reads.png#gh-light-mode-only)
+![El visor de tracks genómicos: regla, cobertura, referencia, tracks de codón y el pileup de lecturas](assets/gui-06-reads-dark.png#gh-dark-mode-only)
 
 Los tracks se alinean columna a columna sobre las mismas coordenadas:
 
@@ -140,18 +144,20 @@ distintas: `GCT` sola es Val93Ala, `GTC` sola es Val93Val, un cambio silencioso.
 Juntas dan `GCC`, que es Ala. Esa es una llamada que no se puede acertar base a
 base.
 
-!!! tip "Por qué los recuentos de SNP salen a cero"
-    La fila muestra `SNP Reads 0, 0` al lado de `MNV Reads 24`. `SNP Reads`
-    cuenta las lecturas que llevan una sustitución **sin** el haplotipo completo.
-    Aquí todas llevan las dos, así que ninguna se cuenta como soporte suelto y
-    las 24 se van a `MNV Reads`. Las dos columnas reparten la evidencia en vez de
-    contarla dos veces. Mira
-    [Formatos de salida](output-formats.es.md#salida-tsv-por-defecto).
+> [!TIP]
+> **Por qué los recuentos de SNP salen a cero**
+>
+> La fila muestra `SNP Reads 0, 0` al lado de `MNV Reads 24`. `SNP Reads`
+> cuenta las lecturas que llevan una sustitución **sin** el haplotipo completo.
+> Aquí todas llevan las dos, así que ninguna se cuenta como soporte suelto y
+> las 24 se van a `MNV Reads`. Las dos columnas reparten la evidencia en vez de
+> contarla dos veces. Mira
+> [Formatos de salida](output-formats.es.md#salida-tsv-por-defecto).
 
 ## 6. Filtra y exporta
 
-![La tabla de variantes con filtros por columna](assets/gui-07-table.png#only-light)
-![La tabla de variantes con filtros por columna](assets/gui-07-table-dark.png#only-dark)
+![La tabla de variantes con filtros por columna](assets/gui-07-table.png#gh-light-mode-only)
+![La tabla de variantes con filtros por columna](assets/gui-07-table-dark.png#gh-dark-mode-only)
 
 La tabla contiene todas las filas del TSV. Busca en todas las columnas a la vez,
 o filtra de una en una: los desplegables toman un valor y las cajas de texto

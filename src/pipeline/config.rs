@@ -8,15 +8,23 @@ use log::info;
 use std::collections::HashMap;
 use std::path::Path;
 
+/// The stack each worker thread gets, the size the main thread has. noodles
+/// decodes a CRAM block compressed with order-1 rANS with its tables on the
+/// stack, which in a release build takes more than the 2 MiB rayon gives a
+/// thread by default: a CRAM of 60,000 reads aborted with a stack overflow.
+const WORKER_STACK_SIZE: usize = 8 * 1024 * 1024;
+
 pub(crate) fn configure_threads(threads: Option<usize>) -> AppResult<()> {
+    let mut pool = rayon::ThreadPoolBuilder::new().stack_size(WORKER_STACK_SIZE);
     if let Some(threads) = threads {
         if threads == 0 {
             return Err(AppError::config("--threads must be >= 1"));
         }
-        let _ = rayon::ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build_global();
+        pool = pool.num_threads(threads);
     }
+    // Only the first run of a process can build the pool; the desktop app
+    // runs again in the same one, and keeps the pool it has.
+    let _ = pool.build_global();
     Ok(())
 }
 
@@ -55,11 +63,16 @@ pub(crate) fn validate_contig_inputs(
     references: &ReferenceMap,
     snp_by_contig: &HashMap<String, Vec<VcfPosition>>,
     annotation_format: AnnotationFormat,
+    tsv_rows_without_contig: usize,
 ) -> AppResult<()> {
-    if matches!(annotation_format, AnnotationFormat::Tsv) && contigs.len() > 1 {
-        return Err(AppError::validation(
-            "TSV annotation does not include contig names; for multi-contig VCF use --gff or restrict with --chrom",
-        ));
+    if matches!(annotation_format, AnnotationFormat::Tsv)
+        && contigs.len() > 1
+        && tsv_rows_without_contig > 0
+    {
+        return Err(AppError::validation(format!(
+            "TSV annotation has {tsv_rows_without_contig} row(s) without a contig, which cannot be placed in a multi-contig VCF; \
+             name each row's contig in a seventh column, use --gff, or restrict with --chrom"
+        )));
     }
 
     let missing_in_vcf = contigs
@@ -92,26 +105,27 @@ pub(crate) fn validate_contig_inputs(
     Ok(())
 }
 
-/// Validate the BAM file up front: it exists, is openable as a coordinate-sorted
-/// indexed BAM, and its header is readable. Run this before any output file is
-/// created so a missing/un-indexed BAM fails fast with an actionable message
-/// instead of erroring lazily inside a worker thread after partial output.
-pub(crate) fn validate_bam(bam_path: &str) -> AppResult<()> {
+/// Validate the BAM or CRAM file up front: it exists, opens as a
+/// coordinate-sorted indexed file, and its header is readable. Run this before
+/// any output file is created so a missing/un-indexed file fails fast with an
+/// actionable message instead of erroring lazily inside a worker thread after
+/// partial output.
+pub(crate) fn validate_bam(bam_path: &str, fasta_path: &str) -> AppResult<()> {
+    let kind = if io::is_cram_path(bam_path) {
+        "CRAM"
+    } else {
+        "BAM"
+    };
     if !std::path::Path::new(bam_path).exists() {
         return Err(AppError::validation(format!(
-            "BAM file not found: '{bam_path}'"
+            "{kind} file not found: '{bam_path}'"
         )));
     }
-    let mut reader = noodles::bam::io::indexed_reader::Builder::default()
-        .build_from_path(bam_path)
-        .map_err(|e| {
-            AppError::validation(format!(
-                "Cannot open BAM '{bam_path}'. It must be coordinate-sorted and indexed \
-                 (run `samtools index {bam_path}`). Underlying error: {e}"
-            ))
-        })?;
-    reader.read_header().map_err(|e| {
-        AppError::validation(format!("Cannot read BAM header from '{bam_path}': {e}"))
+    io::AlignmentReader::open(bam_path, fasta_path).map_err(|e| {
+        AppError::validation(format!(
+            "Cannot open {kind} '{bam_path}'. It must be coordinate-sorted and indexed \
+             (run `samtools index {bam_path}`). Underlying error: {e}"
+        ))
     })?;
     Ok(())
 }
@@ -370,9 +384,13 @@ mod tests {
             [("chr1".into(), vec![]), ("chr2".into(), vec![])]
                 .into_iter()
                 .collect();
-        let result = validate_contig_inputs(&contigs, &refs, &snps, AnnotationFormat::Tsv);
+        let result = validate_contig_inputs(&contigs, &refs, &snps, AnnotationFormat::Tsv, 2);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("TSV annotation"));
+        assert!(result.unwrap_err().to_string().contains("without a contig"));
+
+        // Every row naming its contig is what makes the same run valid.
+        validate_contig_inputs(&contigs, &refs, &snps, AnnotationFormat::Tsv, 0)
+            .expect("a TSV that names every row's contig places each gene");
     }
 
     #[test]
@@ -460,6 +478,8 @@ mod tests {
             run_manifest: None,
             report: None,
             report_from: Vec::new(),
+            matrix: None,
+            catalogue: None,
             convert: false,
             both: false,
             translation_table: 11,

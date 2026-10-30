@@ -137,7 +137,7 @@ impl AnalysisConfig {
             count_mates_separately: self.count_mates_separately.unwrap_or(false),
             dry_run: self.dry_run.unwrap_or(false),
             strict: self.strict.unwrap_or(false),
-            split_multiallelic: self.split_multiallelic.unwrap_or(false),
+            split_multiallelic: self.split_multiallelic.unwrap_or(true),
             emit_filtered: self.emit_filtered.unwrap_or(false),
             vcf_gz: self.vcf_gz.unwrap_or(false),
             index_vcf_gz: self.index_vcf_gz.unwrap_or(self.vcf_gz.unwrap_or(false)),
@@ -169,6 +169,8 @@ impl AnalysisConfig {
             // engine for the standalone HTML report.
             report: None,
             report_from: Vec::new(),
+            matrix: None,
+            catalogue: None,
         }
     }
 }
@@ -1122,12 +1124,11 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
         zero_based_end_exclusive,
     )?;
 
-    let mut bam_reader = bam::io::indexed_reader::Builder::default()
-        .build_from_path(&request.bam_path)
-        .map_err(|e| format!("Cannot open BAM: {}", e))?;
-    let header = bam_reader
-        .read_header()
-        .map_err(|e| format!("Cannot read BAM header: {}", e))?;
+    // BAM or CRAM, decoded against the run's FASTA when it is a CRAM; either
+    // way the records arrive as `bam::Record`, so the layout code below is one.
+    let (mut bam_reader, header) =
+        get_mnv::io::AlignmentReader::open(&request.bam_path, &request.fasta_path)
+            .map_err(|e| format!("Cannot open alignments: {}", e))?;
 
     let region_str = format!(
         "{}:{}-{}",
@@ -1147,7 +1148,7 @@ pub fn get_bam_view(request: BamViewRequest) -> Result<BamViewResponse, String> 
     let mut record = bam::Record::default();
     while query
         .read_record(&mut record)
-        .map_err(|e| format!("BAM read error: {}", e))?
+        .map_err(|e| format!("Alignment read error: {}", e))?
         != 0
     {
         let flags = record.flags();
@@ -2148,11 +2149,6 @@ mod default_parity_tests {
         (
             "normalizeAlleles",
             "the form trims shared REF/ALT context by default",
-        ),
-        (
-            "splitMultiallelic",
-            "the form splits multiallelic records rather than \
-                               failing the run in front of the user",
         ),
     ];
 

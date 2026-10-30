@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [1.1.6] - 2026-10-29
 
 ### Added
 
@@ -17,7 +17,211 @@ All notable changes to this project are documented in this file.
   and reachable only from the desktop app. Anything driving the tool from a
   workflow manager had to work around their absence.
 
+- **The TSV gene annotation can name each gene's contig.** An optional seventh
+  column, after phase and biotype, says which contig a row belongs to, and the
+  row is then applied only to variants there. Without it the format had no way
+  to tell contigs apart, so a multi-contig VCF with `--genes` was refused
+  outright. It now runs when every row names its contig; a row without one
+  still fails such a run, with a message pointing at the column, instead of
+  being laid over every contig at the same coordinates.
+
+- **BCF is read as input.** `--vcf` takes a `.bcf` as well as a `.vcf` or
+  `.vcf.gz`. The tool could write BCF with `--bcf` but stopped on reading one,
+  asking for a conversion with `bcftools view` first. A BCF is now decoded to VCF
+  text as it is read, on a background thread so a large file is never held in
+  memory, and annotates exactly as the VCF it encodes: the example run gives the
+  same TSV byte for byte from either. A BCF cut short fails with an
+  `invalid BCF record` error instead of reading as a VCF with fewer records.
+
+- **CRAM is read as well as BAM.** `--bam` takes a coordinate-sorted CRAM with
+  its `.crai` index, decoded against the run's `--fasta`; the desktop app's read
+  viewer opens one too. Every read-support path works on BAM records, so a CRAM
+  record is handed over in that shape rather than read by a second copy of the
+  counting code, and the scenario suite now runs every scenario with the BAM and
+  with a CRAM made from it, in small containers of several slices and once more
+  with every read unnamed, and requires the TSVs to match byte for byte. A query
+  decodes only the containers that overlap it, each once, and keeps the reads of
+  the contig it asked for, where noodles' own query decoded every container of
+  the contig, once per slice, and kept reads of any contig at those positions.
+  A CRAM decoded against the wrong reference stops with a checksum error instead
+  of counting the wrong bases. Read errors now say `Alignment read error` rather
+  than `BAM read error`, since the file may be either.
+
+- **HGVS `c.` for indels.** The `HGVS c.` column and `HGVSC` INFO key carried
+  substitutions only and left every indel at `-`. A coding indel is now written
+  as `c.31del`, `c.30_31insGCT` or `c.28_30delinsTCGCTA`, numbered the way the
+  substitutions already were and with inserted bases on the coding strand, so a
+  minus-strand gene gets `c.30del` for `g.671del`. An insertion right after an
+  internal exon's last base sits at the exon junction, as the protein change
+  reads it. An indel reaching into an intron or a UTR stays at `-` rather than
+  get an offset form the tool does not build.
+
+- **Symbolic deletions and duplications are sized from `END` or `SVLEN`.** A
+  `<DEL>` was known to remove bases but not how many, so its row and every
+  codon after it in the feature were reported as unknown. A `<DEL>` with `END`
+  (or `SVLEN`) is now written out from the reference as the deletion it
+  describes, and a `<DUP>` as a tandem copy inserted after the segment, and
+  then annotated like any indel: frameshift or in frame, protein change,
+  `HGVS c.`, and the frame shift downstream. Events over 10,000 bases, past the
+  contig, or of another kind such as `<INV>` stay symbolic.
+
+- **Mutational spectra: SBS96, DBS78 and ID83.** Every substitution now carries
+  its COSMIC SBS96 class (`A[C>T]G`) in a new `SBS96 Context` column and `SBS96`
+  INFO key, read from the reference around it and written from the pyrimidine
+  strand, and every pure indel its ID83 class (`1:Del:C:2`) in an `ID83 Class`
+  column and `ID83` key, labelled as SigProfiler labels them. The report draws
+  the three spectra, doublets included, follows the filters, counts each event
+  once per sample however many rows mention it, and exports the spectrum shown
+  in the `MutationType` matrix SigProfiler and MutationalPatterns read. On the
+  example run all 951 SBS96 classes match an independent count from the FASTA.
+
+- **`--matrix` writes the cohort as a variant-by-sample table.** The report's
+  matrix could only be looked at. `--matrix cohort.tsv` writes one row per
+  variant and one column per sample, holding the allele frequency the reads
+  gave, `called` for a call without a measured frequency, or `NA` where the
+  sample has no call, never 0, since the TSVs cannot tell reference from no
+  coverage. It is built from the same TSVs as the report, so it works in a
+  normal run, with `--sample all` and with `--report-from`, and `--report-from`
+  now accepts `--matrix` without `--report`.
+
+- **A doublet across a codon boundary is one event.** Each codon row only sees
+  its own codon, so two adjacent substitutions on either side of a boundary
+  came out as two unrelated SNVs with no doublet class, even when the caller
+  wrote them as one record. A pass over every row of a contig now finds each
+  run of adjacent substituted bases: the rows it touches share its descriptor
+  in a new `Adjacent Substitutions` column (`g.103_104delinsAT`) and `ADJSUB`
+  INFO key, a run of exactly two gets its DBS78 class on every row, in genes or
+  out of them, and a run of three or more is no longer called a doublet. Their
+  bases are marked `DBS` or `MBS` in `SBS96 Context` instead of being counted as
+  single-base substitutions.
+
+- **`--catalogue` flags known variants, and says when only an MNV makes the
+  match.** A tab-separated table of genes and variants, written as protein
+  changes (`p.Ser450Leu`), coding or genomic substitutions (`c.-15C>T`,
+  `g.761155C>T`), other HGVS, or `LoF` for any loss of function in the gene,
+  each with a label, flags the calls that match it in a new `Catalogue` column
+  and `CAT` INFO key, and in the report. Coding substitutions are placed in the
+  genome from the gene model, so promoter entries match intergenic calls, and an
+  entry whose reference base this FASTA does not have is reported rather than
+  matched. A protein entry is compared with both readings of a codon, and a row
+  matching through only one says `codon reading only` (a catalogued change no
+  single base makes, which base-by-base annotation misses) or
+  `per-SNV reading only` (one such annotation would report that the codon does
+  not make).
+
+- **The VCF carries an `ANN` field, in snpEff's format.** `bcftools
+  +split-vep`, SnpSift and most VCF tooling read it without knowing get_MNV's
+  own keys. Each entry is about its own record's ALT: the record of one base of
+  a codon describes that base alone, as its `AA` already did, and the codon's
+  record the combined change, marked `INFO_COMPOUND_ANNOTATION`. On the 802
+  bases of the bundled example that snpEff 4.1 also annotated, the consequence,
+  impact, `HGVS.c` and `HGVS.p` are snpEff's, apart from its splice region at
+  the end of single-exon genes and one first codon that is not a start codon.
+  An `ANN` already in the input follows
+  get_MNV's entry under `--keep-original-info`, for the same allele only.
+
+### Changed
+
+- **The minimum Rust is declared: 1.89.** `rust-version` in `Cargo.toml` says
+  what noodles already required, so cargo names it up front, and a CI job builds
+  and tests on exactly that compiler, so a change that needs a newer one is
+  caught before a release. The README says so beside the build instructions.
+- **HGVS descriptors follow the standard more closely.** A lost initiator is
+  written `Met1?` instead of naming the residue now at position 1 (`Met1Thr`),
+  since where translation then starts cannot be predicted. Indels in `HGVS g.`
+  and `HGVS c.` are placed at their 3'-most equivalent position and an
+  insertion that copies the bases before it is a `dup` (`c.295_297dup` rather
+  than `c.30_31insGCT`), so `c.` now agrees with the protein change, which was
+  already shifted. Intronic positions of spliced transcripts are numbered from
+  the nearer exon (`c.100+5G>A`, `c.101-2_101-1del`), which gives intronic and
+  splice-site rows a `c.` descriptor for the first time. The consequence
+  columns still read each change where the input placed it, as VEP does.
+
+- **Multiallelic records are split without being asked.** A VCF record with
+  several ALT alleles stopped the run unless `--split-multiallelic` was passed,
+  while the desktop app split them by default, so the same input failed on the
+  command line and ran in the app. Splitting is now the default in both, giving
+  one annotated row per ALT, the same output `bcftools norm -m -` produces. The
+  flag is still accepted, so existing commands keep working.
+
+- **The documentation site opens on a page of its own.** Its home was the
+  README. It now shows, step by step, what the tool does on a real codon of the
+  bundled sample, where reading one base at a time gives Arg and Glu and the
+  codon gives Gln; it has a codon playground that reads each change on its own
+  and all together; and it leads to installing, a first run on the example data
+  and the three outputs. The site opens dark, as the lab's other sites do, with
+  the search box and the main pages in the top bar.
+- **The documentation site is plain HTML, built without MkDocs.** Material for
+  MkDocs reaches its end of life on 5 May 2027. The markdown in `docs/` stays the
+  source and GitHub renders it; `tools/build_docs.py`, standard library only,
+  writes the bilingual site from it, with the sidebar, theme switch, search in
+  the page's own language and a language switch to the twin page. The pages are
+  committed at the addresses the old site used, and every heading keeps the
+  anchor the old site gave it beside GitHub's (`#que-mide-d` as well as
+  `#qué-mide-d`), so every existing link still works, and the site opens from a
+  clone with no server. CI checks that the pages match their markdown, that no
+  page is left over from a markdown file that is gone and, with
+  `tools/check_site.py`, that every link, image and anchor in them resolves
+  inside the published folder, which is what `mkdocs build --strict` used to
+  catch. The pages moved from Material's syntax
+  to GitHub's (alerts instead of admonitions, theme-specific images by the
+  `#gh-light-mode-only` fragment), so they also read properly on GitHub, and
+  three Spanish anchors that pointed nowhere were fixed on the way.
+
 ### Fixed
+
+- **A missing count inside `AD` or `AO` no longer gives an ALT another ALT's
+  reads.** Missing values were dropped before the ALT's count was looked up, so
+  with `AD=.,5,3` the first ALT took the second one's 3 reads and was reported
+  at 3/8. Each count now keeps its place: an ALT whose own count or REF's is
+  missing has no frequency, and another ALT's missing count adds nothing, which
+  is what `bcftools merge` writes for an allele the sample was not called with.
+- **A `.vcf.gz` or BCF without its end-of-file block stops the run.** A file cut
+  between two BGZF blocks, by a copy or a download that did not finish, decoded
+  cleanly up to the cut, so the run annotated part of the input and succeeded.
+  It now stops with a message saying the file was most likely cut short.
+- **A `*` allele is skipped instead of stopping the run.** A `*` stands for a
+  deletion that starts upstream and is annotated at its own record; GATK writes
+  one beside a real ALT whenever one sample's deletion overlaps another
+  sample's SNV. With multiallelic records split by default, such a record
+  stopped a `--sample all` run at the first sample that carried it. The skipped
+  alleles are counted in the log.
+- **A plain `.vcf` reads like the same `.vcf.gz`.** The reader for plain text
+  stopped on a trailing blank line and found no samples under a lowercase
+  `#chrom` header, so `--sample all` failed on a file the `.vcf.gz` reader
+  took. Both readers now ask one function what the header line is.
+- **Index files dropped on the desktop app are left out.** `x.snp.bam.bai`,
+  `x.vcf.gz.tbi` or `x.bcf.csi` matched the name hints for variant files and
+  became samples of their own, which failed when the run started.
+- **DBS classes use COSMIC's names for the CG and TA references.** A doublet
+  and its reverse complement are one class, and for the four palindromic
+  reference doublets the tie was broken on the smaller alternate. COSMIC breaks
+  it that way for AT and GC but the other way for CG and TA, so six classes
+  were named differently from SigProfiler's (`CG>AA` for COSMIC's `CG>TT`, for
+  instance). Classes are now matched against COSMIC's literal list of 78.
+- **A gene that starts on GTG or TTG starts with methionine.** The first codon
+  was translated like any other, so in a bacterial gene starting on GTG it was
+  valine: destroying that start codon was reported as `Val1Ala` missense at
+  `MODERATE`, and turning it into ATG as a `Val1Met` missense, when the first
+  loses the protein's start and the second keeps it. The first codon is now
+  read as an initiator, from NCBI's initiation codons for each table (checked
+  codon by codon against NCBI's own file), on the substitution and indel paths
+  alike. A large share of bacterial genes, *M. tuberculosis* included, start on
+  GTG, so their start-codon calls change.
+- **A frameshift that destroys the start codon says so.** It was reported as a
+  plain `frameshift_variant`, while a substitution at the same initiator was
+  `start_lost`. It is now `frameshift_variant&start_lost`.
+- **The example's RNA genes are declared as RNA.** `example/anot_genes.txt`
+  had no biotype column, so its 70 RNA genes (45 tRNA, 3 rRNA, 16 small RNAs,
+  4 antisense RNAs, tmRNA and RNase P RNA) were translated as proteins: the
+  example reported `Pro115Leu` in the 23S rRNA and `Asp26Gly` in the mcr11
+  sRNA. Their rows now carry a phase and a biotype, and those two variants are
+  `non_coding_transcript_exon_variant` with no amino-acid change.
+- **Under `--keep-original-info` each base of a codon keeps its own INFO.**
+  Every record of a codon carried the INFO of its first base, so the second
+  base's record repeated the first base's depth, and anything else its caller
+  wrote, under its own position. The record of one base now carries that base's
+  own input record's fields; the codon's record still carries the first's.
 
 - **`ATA` is Methionine in the mitochondrial tables.** Tables 2, 3 and 5
   (Vertebrate, Yeast and Invertebrate Mitochondrial) translated `ATA` as

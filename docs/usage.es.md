@@ -13,9 +13,8 @@ get_mnv \
   (--gff <ANNOTATION_GFF> | --genes <ANNOTATION_TSV>)
 ```
 
-Usa `--vcf` para entrada `.vcf` sin comprimir o `.vcf.gz` comprimida con BGZF, y
-`--tsv` para el archivo `variants.tsv` que genera `ivar variants`. La entrada BCF
-no se admite directamente; conviértela antes a VCF con `bcftools view`.
+Usa `--vcf` para entrada `.vcf` sin comprimir, `.vcf.gz` comprimida con BGZF o
+`.bcf`, y `--tsv` para el archivo `variants.tsv` que genera `ivar variants`.
 
 ## Entrada VCF
 
@@ -124,9 +123,9 @@ transcrito con splicing.
 - El parseo de TSV de iVar conserva las filas SNV e indel que pasan los filtros.
   La notación de indels tipo `+SEQ` o `-SEQ` se convierte a alelos `REF/ALT`
   anclados al estilo VCF usando el FASTA de referencia.
-- Si usas `--genes`, el TSV de anotación no tiene columna de contig. Para datos
-  con varios contigs, mejor `--gff`.
+- Si usas `--genes` con datos de varios contigs, nombra el contig de cada gen en
+  la séptima columna del TSV de anotación, o usa `--gff`.
 - El comportamiento con indels y frameshift tiene sus propios ajustes, y dos de
   sus valores por defecto se apartan a propósito del comportamiento original de
   la herramienta. El razonamiento está en
-  [Alcance y compatibilidad](indel-mnv-semantics.es.md#parametros-de-ajuste).
+  [Alcance y compatibilidad](indel-mnv-semantics.es.md#parámetros-de-ajuste).

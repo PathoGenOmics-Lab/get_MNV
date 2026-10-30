@@ -253,9 +253,16 @@ pub(super) fn phased_variant_from_group(
     };
 
     let event_components = component_labels_from_group(group);
-    let (change_type, aa_changes, aa_changes_local, ref_codon, alt_codon) =
-        protein_effect_for_indel(gene, reference, &compound, genetic_code);
+    let super::indel_effect::IndelEffect {
+        change_type,
+        aa_changes,
+        aa_changes_local,
+        ref_codon,
+        alt_codon,
+        initiator_lost,
+    } = protein_effect_for_indel(gene, reference, &compound, genetic_code);
     let nmd = super::nmd::indel_nmd_prediction(gene, reference, &compound, genetic_code);
+    let hgvs_c = super::indel_hgvs_c(gene, &compound, reference);
 
     Some(VariantInfo {
         chrom: chrom.to_string(),
@@ -292,6 +299,9 @@ pub(super) fn phased_variant_from_group(
         event_components,
         annotations: crate::variants::VariantAnnotations {
             nmd,
+            hgvs_c,
+            initiator_lost,
+            combines_records: group.len() > 1,
             ..Default::default()
         },
     })

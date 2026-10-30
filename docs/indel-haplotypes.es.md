@@ -165,14 +165,27 @@ fila `complex_indel` de al lado es donde está la consecuencia real.
   coordenada es la *primera* base del transcrito, así que la inserción cae en el
   5' UTR. La misma regla, por la razón contraria.
 - **Sin ensamblaje de novo.** get_MNV combina alelos que la entrada ya declara.
-- **Los alelos simbólicos** (`<DEL>`, `<DUP>`, `<INV>`) no tienen secuencia que
-  una lectura pueda reproducir, así que la evidencia de lecturas no puede decir
-  nada de ellos. get_MNV tampoco lee `SVTYPE`, `END` ni `SVLEN`, así que cuántas
-  bases codificantes añade o quita un alelo así le resulta desconocido: la fila se
-  reporta como `coding_sequence_variant` (`MODIFIER`) con efecto de aminoácido
-  desconocido, en vez de darse por hecho que corre la pauta, y los codones que
-  quedan por debajo en la misma feature se reportan también como desconocidos, por
-  la misma razón. Resuelve el alelo a REF/ALT explícitos antes de ejecutar get_MNV
+- **Las deleciones y duplicaciones simbólicas se escriben a partir de la
+  referencia.** Desde la 1.1.6, un `<DEL>` (o un subtipo `<DEL:...>`) con `END`,
+  o con `SVLEN` cuando falta `END`, pasa a ser la deleción explícita de POS+1 a
+  END, y un `<DUP>` o `<DUP:TANDEM>` pasa a ser una copia en tándem de ese
+  segmento insertada justo después de END. A partir de ahí se anota como
+  cualquier indel: con o sin corrimiento de pauta, su cambio proteico,
+  `HGVS c.` y el corrimiento que transmite aguas abajo. Los eventos de más de
+  10.000 bases, o que pasan del final del contig, siguen siendo simbólicos. El
+  soporte de lecturas de un evento escrito se cuenta con las lecturas cuyo
+  alineamiento lleva esa deleción o inserción exacta, que los alineadores de
+  lecturas largas escriben y los de lecturas cortas casi nunca para eventos de
+  este tamaño, así que con lecturas cortas espera `Event Reads` cerca de 0 y
+  ajusta los filtros de lecturas teniéndolo en cuenta.
+- **Los demás alelos simbólicos** (`<INV>`, `<INS>` sin secuencia, un `<DEL>`
+  sin extensión) no tienen secuencia que una lectura pueda reproducir, así que
+  la evidencia de lecturas no puede decir nada de ellos, y cuántas bases
+  codificantes añaden o quitan es desconocido: la fila se reporta como
+  `coding_sequence_variant` (`MODIFIER`) con efecto de aminoácido desconocido,
+  en vez de darse por hecho que corre la pauta, y los codones que quedan por
+  debajo en la misma feature se reportan también como desconocidos, por la
+  misma razón. Resuelve el alelo a REF/ALT explícitos antes de ejecutar get_MNV
   si necesitas que se clasifique.
 
 ## Cómo se comprueba esto

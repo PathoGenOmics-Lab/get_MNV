@@ -40,13 +40,11 @@ REPO = Path(__file__).resolve().parents[2]
 DOCS = REPO / "docs"
 EXAMPLE = REPO / "example"
 
-# Flags of other tools that legitimately appear in the pages: the docs show
-# cargo, npm, samtools, bcftools and sha256sum commands beside get_MNV's own.
-# The lines that introduce a table of TSV column names, in both languages.
 # The headings that open the JSON reference, in both languages. Everything
 # tabulated under them names a key of a payload the tool writes.
 JSON_SECTION_HEADINGS = ("## JSON Files", "## Archivos JSON")
 
+# The lines that introduce a table of TSV column names, in both languages.
 COLUMN_TABLE_MARKERS = (
     "Main columns",
     "Extra columns when",
@@ -61,13 +59,12 @@ COLUMN_TABLE_MARKERS = (
 # get blamed for naming something the tool does not have.
 FLAG_PATTERN = r"(?<![\w-])(--[a-z0-9][a-z0-9-]*)"
 
-FOREIGN_FLAGS = {
-    "--release", "--bin", "--path", "--locked", "--all-targets", "--nocapture",
-    "--force", "--workspace", "--prefix", "--strict", "--site-dir", "--version",
-    "--help", "--warmup", "--iters", "--no-deps", "--open", "--frozen",
-    "--depth", "--branch", "--recursive", "--set-upstream-to", "--global",
-    "--ignore-missing",
-}
+# Flags of other tools that the pages name beside get_MNV's own: cargo's in
+# the build and benchmark commands, sha256sum's in the checksum one. Only those
+# the pages use, and none that get_MNV has too: `--strict`, kept here from
+# `mkdocs build --strict`, let the pages go on naming get_MNV's `--strict`
+# whatever the tool called it.
+FOREIGN_FLAGS = {"--bin", "--ignore-missing", "--path", "--release"}
 
 
 def newest_source_mtime() -> float:
@@ -242,32 +239,6 @@ def tables_introduced_by(text: str, needles: tuple[str, ...]) -> list[str]:
     return out
 
 
-def info_tables(text: str) -> list[str]:
-    """The tables that list get_MNV's own VCF INFO keys.
-
-    Found by the line that introduces them rather than by a heading, because
-    they sit inside the VCF output section beside prose. Scoping matters: the
-    same pages tabulate the input VCF's fixed columns and iVar's, and `REF`,
-    `POS` and `PASS` there belong to the input, not to this tool.
-    """
-    lines = text.split("\n")
-    out = []
-    for index, line in enumerate(lines):
-        if "INFO" not in line or line.lstrip().startswith("|"):
-            continue
-        start = next(
-            (k for k in range(index + 1, min(index + 4, len(lines))) if lines[k].startswith("|")),
-            None,
-        )
-        if start is None:
-            continue
-        end = start
-        while end < len(lines) and lines[end].startswith("|"):
-            end += 1
-        out.append("\n".join(lines[start:end]))
-    return out
-
-
 def json_section(text: str) -> str:
     """The part of a page that documents the JSON payloads, or nothing."""
     for heading in JSON_SECTION_HEADINGS:
@@ -303,7 +274,7 @@ def documented_names(columns: set[str], info: set[str]) -> tuple[set, set, set, 
         # INFO column. A capitalised word anywhere else is a VCF field name, an
         # iVar column, or ordinary prose: `REF`, `POS` and `PASS` all appear in
         # the input-format tables and belong to the input, not to this tool.
-        for table in info_tables(text):
+        for table in tables_introduced_by(text, ("INFO",)):
             for row in table.split("\n"):
                 first_cell = row.split("|")[1] if row.count("|") >= 2 else ""
                 for token in re.findall(r"`([A-Z][A-Z0-9]{1,9})`", first_cell):
@@ -317,41 +288,37 @@ def documented_names(columns: set[str], info: set[str]) -> tuple[set, set, set, 
                 continue
             for token in re.findall(r"`([a-z][a-z0-9_]{2,})`", row.split("|")[1]):
                 json_keys.setdefault(token, set()).add(page.name)
+    # The home page is written in HTML, from tools/site/, and it is the page most
+    # readers copy a command from: its flags, the TSV columns its output card
+    # lists and the INFO keys of its VCF card are held to the same standard.
+    for page in sorted((REPO / "tools" / "site").glob("home.*.html")):
+        text = page.read_text()
+        name = f"tools/site/{page.name}"
+        for flag in re.findall(FLAG_PATTERN, text):
+            flags.setdefault(flag, set()).add(name)
+        for table in re.findall(r'<dl class="kv">(.*?)</dl>', text, re.S):
+            for column in re.findall(r"<dt>([^<]+)</dt>", table):
+                cols.setdefault(column.strip(), set()).add(name)
+        for block in re.findall(r"<pre><code>(.*?)</code></pre>", text, re.S):
+            if "ANN=" in block:
+                for token in re.findall(r"\b([A-Z][A-Z0-9]{1,9})=", block):
+                    keys.setdefault(token, set()).add(name)
     return flags, cols, keys, json_keys
 
 
 def nav_pages() -> set[str]:
-    """The pages the nav actually links to.
+    """The pages the site's sidebar actually links to.
 
-    Reads the `nav:` tree rather than scanning the file for `.md`, because the
-    file mentions pages outside the nav: a comment naming `linkage.md` was
-    enough to make a scan of the whole file report every page as reachable,
-    which is a check that cannot fail. Loaded with a loader that tolerates
-    mkdocs' `!!python/name:` tags, which `safe_load` refuses.
+    Read from the list tools/build_docs.py builds the sidebar from, rather than
+    by scanning a file for `.md`: a comment naming a page is not a link to it,
+    and a scan that counts it makes a check that cannot fail.
     """
-    import yaml
+    import importlib.util
 
-    class Loader(yaml.SafeLoader):
-        pass
-
-    Loader.add_multi_constructor("tag:yaml.org,2002:python/name:", lambda *_: None)
-    Loader.add_multi_constructor("!", lambda *_: None)
-
-    config = yaml.load((REPO / "mkdocs.yml").read_text(), Loader=Loader)
-    pages: set[str] = set()
-
-    def walk(node) -> None:
-        if isinstance(node, str):
-            pages.add(node)
-        elif isinstance(node, list):
-            for child in node:
-                walk(child)
-        elif isinstance(node, dict):
-            for child in node.values():
-                walk(child)
-
-    walk(config.get("nav") or [])
-    return {page for page in pages if page.endswith(".md")}
+    spec = importlib.util.spec_from_file_location("build_docs", REPO / "tools" / "build_docs.py")
+    build_docs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build_docs)
+    return {source for _, source, _ in build_docs.PAGES if source.endswith(".md")}
 
 
 def wordmark_problems() -> list[str]:
@@ -484,7 +451,7 @@ def page_structure_problems() -> list[str]:
 
     A page that nothing links to is a page nobody reads, and a page with no twin
     is a reader in the other language hitting a wall. Both are invisible to a
-    build: mkdocs is happy to ship an orphan.
+    build: the generator is happy to ship an orphan.
     """
     problems: list[str] = []
     nav = nav_pages()
@@ -495,7 +462,7 @@ def page_structure_problems() -> list[str]:
                 problems.append(f"  Spanish page with no English original: {page.name}")
             continue
         if page.name not in nav:
-            problems.append(f"  page missing from the nav in mkdocs.yml: {page.name}")
+            problems.append(f"  page missing from the sidebar (PAGES in tools/build_docs.py): {page.name}")
         spanish = DOCS / page.name.replace(".md", ".es.md")
         if not spanish.exists():
             problems.append(f"  page with no Spanish translation: {page.name}")

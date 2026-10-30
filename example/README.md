@@ -8,7 +8,7 @@ GUI read viewer.
 | File | What it is |
 |---|---|
 | `MTB_ancestor.fas` (`.fai`) | Reference, single contig `MTB_anc` (4,411,532 bp) |
-| `anot_genes.txt` | Gene table: `name`, `start`, `end`, `strand` (tab-separated) |
+| `anot_genes.txt` | Gene table: `name`, `start`, `end`, `strand` (tab-separated); its 70 RNA genes add `phase` and `biotype` |
 | `G35894.var.snp.vcf` | VarScan-style VCF calls for sample G35894 |
 | `G35894.var.snp.MNV.tsv` | Pre-computed get_MNV output for that VCF (no BAM) |
 | `G35894.demo.bam` (`.bai`) | Tiny synthetic alignment for the read viewer (see below) |

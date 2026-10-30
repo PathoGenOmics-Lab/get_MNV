@@ -16,7 +16,7 @@ folder of the repository ships everything you need:
 | File | Role |
 |---|---|
 | `MTB_ancestor.fas` | Reference (single contig `MTB_anc`) |
-| `anot_genes.txt` | Gene table (`name`, `start`, `end`, `strand`) |
+| `anot_genes.txt` | Gene table (`name`, `start`, `end`, `strand`, and for its RNA genes `phase` and `biotype`) |
 | `G35894.var.snp.vcf` | VarScan-style variant calls |
 | `G35894.demo.bam` | Tiny aligned-read subset for read support |
 
@@ -48,21 +48,25 @@ whole configuration, then the lines that matter:
 
 It writes `G35894.var.snp.MNV.tsv` in the current directory.
 
-!!! tip "Read the summary line, every time"
-    `950` records became `941` variants because a codon carrying two
-    substitutions is reported once. `SNP/MNV=10` is the codon-level work: ten
-    codons where separate VCF records combine. `MNV=0` means no single record
-    already carried more than one substituted base.
+> [!TIP]
+> **Read the summary line, every time**
+>
+> `950` records became `941` variants because a codon carrying two
+> substitutions is reported once. `SNP/MNV=10` is the codon-level work: ten
+> codons where separate VCF records combine. `MNV=0` means no single record
+> already carried more than one substituted base.
+>
+> `intergenic=134` is your sanity check on the annotation. get_MNV cannot tell
+> a variant outside a gene from a variant whose gene it failed to find, so a
+> mismatched annotation does not fail: it succeeds, reports almost everything
+> as intergenic, and prints `Processing complete`. If that count is most of
+> your variants, your gene coordinates do not line up with your reference.
 
-    `intergenic=134` is your sanity check on the annotation. get_MNV cannot tell
-    a variant outside a gene from a variant whose gene it failed to find, so a
-    mismatched annotation does not fail: it succeeds, reports almost everything
-    as intergenic, and prints `Processing complete`. If that count is most of
-    your variants, your gene coordinates do not line up with your reference.
-
-!!! note "Genetic code"
-    get_MNV defaults to NCBI translation table 11 (bacterial), which is correct
-    for *M. tuberculosis*. Use `--translation-table` for other organisms.
+> [!NOTE]
+> **Genetic code**
+>
+> get_MNV defaults to NCBI translation table 11 (bacterial), which is correct
+> for *M. tuberculosis*. Use `--translation-table` for other organisms.
 
 Use `--dry-run` to get the same summary with nothing written, which is the cheap
 way to check inputs before a long run.
@@ -122,18 +126,22 @@ The `Rv2036` row gains its evidence columns:
 the evidence instead of double-counting it. No read carries one substitution
 alone, so nothing lands in the solo counts.
 
-!!! note "Why `Haplotype LD` is empty on a perfect haplotype"
-    `D'` measures whether two variants co-occur more than their own frequencies
-    predict. Here both are on all 24 molecules, so neither varies and there is
-    nothing left to correlate: the honest answer is `-`, not `1`. That is a
-    different question from `MNV Phasing Support`, which asks how many of the
-    reads that could answer carried the whole haplotype, and answers `1.0000`.
-    [Linkage](linkage.md) works through the cases where they diverge.
+> [!NOTE]
+> **Why `Haplotype LD` is empty on a perfect haplotype**
+>
+> `D'` measures whether two variants co-occur more than their own frequencies
+> predict. Here both are on all 24 molecules, so neither varies and there is
+> nothing left to correlate: the honest answer is `-`, not `1`. That is a
+> different question from `MNV Phasing Support`, which asks how many of the
+> reads that could answer carried the whole haplotype, and answers `1.0000`.
+> [Linkage](linkage.md) works through the cases where they diverge.
 
-!!! tip "BAM requirements"
-    The BAM must be coordinate-sorted and indexed (`.bai`), and aligned to the
-    same reference. The bundled `G35894.demo.bam` covers only the `Rv2036`
-    locus, which is why every other row reports no read support.
+> [!TIP]
+> **BAM requirements**
+>
+> The BAM must be coordinate-sorted and indexed (`.bai`), and aligned to the
+> same reference. The bundled `G35894.demo.bam` covers only the `Rv2036`
+> locus, which is why every other row reports no read support.
 
 ## 5. Filter on that support
 
@@ -166,10 +174,8 @@ get_mnv \
   --report sample.html
 ```
 
-<div style="text-align: center;" markdown>
-![The interactive HTML report get_MNV writes: summary counts, consequence breakdown, search and a variant matrix](assets/cli-01-report.png#only-light){ width="840" }
-![The interactive HTML report get_MNV writes: summary counts, consequence breakdown, search and a variant matrix](assets/cli-01-report-dark.png#only-dark){ width="840" }
-</div>
+![The interactive HTML report get_MNV writes: summary counts, consequence breakdown, search and a variant matrix](assets/cli-01-report.png#gh-light-mode-only)
+![The interactive HTML report get_MNV writes: summary counts, consequence breakdown, search and a variant matrix](assets/cli-01-report-dark.png#gh-dark-mode-only)
 
 *The report opens in any browser with no server and travels as one attachment.
 It records the exact command that produced it along the top.*

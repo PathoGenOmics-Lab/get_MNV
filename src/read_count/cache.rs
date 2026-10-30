@@ -228,7 +228,7 @@ fn normalize_positions(positions: &[usize]) -> AppResult<Vec<usize>> {
 }
 
 pub fn build_region_observation_cache(
-    bam_reader: &mut bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>,
+    bam_reader: &mut crate::io::AlignmentReader,
     header: &Header,
     chrom: &str,
     region_start: usize,
@@ -265,7 +265,7 @@ pub fn build_region_observation_cache(
     let region = build_region(chrom, region_start, region_end)?;
     let mut query = bam_reader.query(header, &region).map_err(|e| {
         AppError::validation(format!(
-            "BAM query failed for {chrom}:{region_start}-{region_end}: {e}"
+            "Alignment query failed for {chrom}:{region_start}-{region_end}: {e}"
         ))
     })?;
 
@@ -273,7 +273,7 @@ pub fn build_region_observation_cache(
     let mut record = bam::Record::default();
     while query
         .read_record(&mut record)
-        .map_err(|e| AppError::validation(format!("BAM read error: {e}")))?
+        .map_err(|e| AppError::validation(format!("Alignment read error: {e}")))?
         != 0
     {
         record_index += 1;

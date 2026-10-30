@@ -223,9 +223,10 @@ pub struct VariantAnnotations {
     /// transcript.
     #[serde(default)]
     pub nmd: Option<NmdPrediction>,
-    /// HGVS coding (`c.`) descriptor for a coding substitution (SNV or MNV),
-    /// e.g. `c.30A>G` or `c.[28G>A;30T>C]`. `None` for indels and non-coding
-    /// variants; the genomic (`g.`) descriptor is derived at output time.
+    /// HGVS coding (`c.`) descriptor for a coding substitution (SNV or MNV) or
+    /// indel, e.g. `c.30A>G`, `c.[28G>A;30T>C]` or `c.31del`. `None` for
+    /// non-coding variants and indels reaching outside the CDS; the genomic
+    /// (`g.`) descriptor is derived at output time.
     #[serde(default)]
     pub hgvs_c: Option<String>,
     /// Splice consequence near an internal exon-exon junction (multi-exon
@@ -257,6 +258,91 @@ pub struct VariantAnnotations {
     /// correlate. See [`crate::variants::linkage`].
     #[serde(default)]
     pub linkage: Option<crate::variants::linkage::CodonLinkage>,
+    /// COSMIC SBS96 class of each substitution component, in Event Components
+    /// order (`A[C>T]G`, or `-` where the context cannot be read). Empty for a
+    /// row with no substitution. See [`crate::variants::sbs`].
+    #[serde(default)]
+    pub sbs96: Vec<String>,
+    /// HGVS genomic descriptor of every run of two or more adjacent substituted
+    /// bases this row's substitutions belong to (`g.103_104delinsAT`), shared by
+    /// every row the run touches, which is how two codon rows of one event are
+    /// tied together. See [`crate::variants::runs`].
+    #[serde(default)]
+    pub adjacent_substitutions: Vec<String>,
+    /// The indel removes the protein's initiator. An in-frame one is already a
+    /// start loss; a frameshift keeps its label and gets `start_lost` beside it.
+    #[serde(default)]
+    pub initiator_lost: bool,
+    /// HGVS genomic descriptor with indels placed against the reference, set per
+    /// contig where the sequence is at hand. `None` falls back to the descriptor
+    /// read off the row's own alleles.
+    #[serde(default)]
+    pub hgvs_g: Option<String>,
+    /// The `--catalogue` entries this row matches, each as `label (gene
+    /// variant)`, with a note when a codon row matches through one of its two
+    /// readings only. See [`crate::variants::catalogue`].
+    #[serde(default)]
+    pub catalogue: Vec<String>,
+    /// COSMIC ID83 class of a pure insertion or deletion (`1:Del:C:2`). `None`
+    /// for substitutions, deletion-insertions and symbolic alleles. See
+    /// [`crate::variants::id83`].
+    #[serde(default)]
+    pub id83: Option<String>,
+    /// What each substituted base of a codon does on its own, in `positions`
+    /// order: what the VCF record for that base alone describes in `ANN`. Empty
+    /// for a row that is not a codon.
+    #[serde(default)]
+    pub single_bases: Vec<SingleBaseEffect>,
+    /// For a row of several substituted bases, the `--catalogue` entries each
+    /// base matches on its own, in `positions` order: what the VCF record of
+    /// that base alone says. The row's own `catalogue` stays the codon's.
+    #[serde(default)]
+    pub catalogue_bases: Vec<Vec<String>>,
+    /// The row's one allele joins several input records: a local haplotype
+    /// read off the reads. Its effect comes from combining them.
+    #[serde(default)]
+    pub combines_records: bool,
+}
+
+/// One substituted base of a codon read on its own, the codon's other
+/// substitutions left out, as the record for that base alone presents it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SingleBaseEffect {
+    /// Its change type in an intact reading frame. The frame the codon is read
+    /// in is the codon's, not the base's: see [`SingleBaseEffect::in_context`].
+    pub change_type: ChangeType,
+    /// HGVS coding descriptor of this base alone.
+    pub hgvs_c: Option<String>,
+    /// Splice consequence of this base alone.
+    pub splice: Option<SpliceConsequence>,
+    /// This base's own INFO from the input, when `--keep-original-info` kept
+    /// it. The row's `original_info` is its first base's, which is not this
+    /// base's record unless this base is the first.
+    #[serde(default)]
+    pub original_info: Option<String>,
+}
+
+impl SingleBaseEffect {
+    /// The change type under the codon's own label: what an upstream frameshift
+    /// or an overlapping indel says about the codon holds for each of its bases.
+    pub fn in_context(&self, codon: ChangeType) -> ChangeType {
+        match codon {
+            ChangeType::IndelOverlap | ChangeType::FrameshiftDownstreamOfStop => codon,
+            ChangeType::FrameshiftSynonymous
+            | ChangeType::FrameshiftNonSynonymous
+            | ChangeType::FrameshiftStopGained
+            | ChangeType::FrameshiftStopLost
+            | ChangeType::FrameshiftUnknown
+            | ChangeType::FrameshiftIndel => self.change_type.with_frameshift(),
+            ChangeType::Synonymous
+            | ChangeType::NonSynonymous
+            | ChangeType::StartLost
+            | ChangeType::StopGained
+            | ChangeType::StopLost
+            | ChangeType::Unknown
+            | ChangeType::InFrameIndel => self.change_type,
+        }
+    }
 }
 
 /// The input caller's phase claim for one row, and whether the reads refute it.
@@ -590,6 +676,14 @@ pub struct Intron {
 }
 
 impl Gene {
+    /// Whether this feature begins at the protein's first codon, so that the
+    /// codon at protein position 1 is the initiator. A feature further into the
+    /// protein, or one that starts mid-codon (a 5'-partial CDS with phase 1 or
+    /// 2), has no initiator: its first complete codon is an ordinary residue.
+    pub fn starts_protein(&self) -> bool {
+        self.phase == 0 && (!self.cds_segments.is_empty() || self.protein_offset == 0)
+    }
+
     /// Whether a real intron separates two consecutive CDS segments given in
     /// transcript order.
     ///
@@ -701,6 +795,10 @@ pub struct CodonInfo {
     /// `protein_offset + local_aa_pos`.
     #[serde(default)]
     pub protein_offset: usize,
+    /// The feature begins at the protein's first codon (see
+    /// [`Gene::starts_protein`]), so its codon 1 is read as the initiator.
+    #[serde(default)]
+    pub starts_protein: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

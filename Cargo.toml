@@ -4,8 +4,11 @@ resolver = "2"
 
 [package]
 name = "get_mnv"
-version = "1.1.5"
+version = "1.1.6"
 edition = "2021"
+# The oldest compiler this builds with, because noodles, which reads every input
+# format, requires it. The `msrv` CI job builds and tests on exactly this one.
+rust-version = "1.89"
 license = "AGPL-3.0-only"
 description = "Codon-level Multi-Nucleotide Variant detection and indel annotation from VCF or iVar TSV"
 repository = "https://github.com/PathoGenOmics-Lab/get_MNV"
@@ -53,7 +56,7 @@ clap = { version = "4.5.30", features = ["derive"] }
 env_logger = "0.11.6"
 log = "0.4.26"
 linear-map = "1.2.0"
-noodles = { version = "0.116", features = ["bam", "bcf", "bgzf", "vcf", "csi", "tabix", "sam", "core"] }
+noodles = { version = "0.116", features = ["bam", "bcf", "bgzf", "cram", "fasta", "vcf", "csi", "tabix", "sam", "core"] }
 serde = { version = "1.0.218", features = ["derive"] }
 serde_json = "1.0.140"
 csv = "1.3.1"

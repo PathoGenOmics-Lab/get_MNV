@@ -9,9 +9,11 @@ interactivo de resultados.
 Descarga la última versión para tu plataforma desde la
 [página de Releases](https://github.com/PathoGenOmics-Lab/get_MNV/releases/latest).
 
-!!! note "Usuarios de macOS"
-    La app no está firmada con un certificado de Apple Developer. En el primer inicio,
-    haz clic derecho en la app → **Abrir** → haz clic en **Abrir** en el cuadro de diálogo.
+> [!NOTE]
+> **Usuarios de macOS**
+>
+> La app no está firmada con un certificado de Apple Developer. En el primer inicio,
+> haz clic derecho en la app → **Abrir** → haz clic en **Abrir** en el cuadro de diálogo.
 
 ## Flujo de trabajo
 
@@ -72,10 +74,8 @@ sexta divergencia rompe el build.
 
 ## Visor de pistas genómicas
 
-<div style="text-align: center;" markdown>
-![Visor de pistas genómicas de get_MNV: pistas de codones y pileup de lecturas de un MNV](assets/gui-06-reads.png#only-light){ width="840" }
-![Visor de pistas genómicas de get_MNV: pistas de codones y pileup de lecturas de un MNV](assets/gui-06-reads-dark.png#only-dark){ width="840" }
-</div>
+![Visor de pistas genómicas de get_MNV: pistas de codones y pileup de lecturas de un MNV](assets/gui-06-reads.png#gh-light-mode-only)
+![Visor de pistas genómicas de get_MNV: pistas de codones y pileup de lecturas de un MNV](assets/gui-06-reads-dark.png#gh-dark-mode-only)
 
 *El visor de pistas para el MNV de `Rv2036` (`GTT → GCC`, Val93Ala) en el ejemplo incluido: pistas de codones y el pileup de lecturas, con las bases ALT resaltadas en las 24 lecturas que dan soporte.*
 
@@ -92,15 +92,19 @@ Al seleccionar una fila de variante se abre una vista de estilo IGV que alinea, 
 Esto facilita confirmar visualmente que las lecturas portan el cambio de codón combinado,
 y no solo los SNV individuales.
 
-!!! tip "Pruébalo con el ejemplo"
-    Sigue el [tutorial de línea de comandos](getting-started.es.md) y carga el
-    `example/G35894.demo.bam` incluido. Al abrir la fila de `Rv2036` se muestran las 24
-    lecturas que portan ambas bases ALT del codón `GTT → GCC` (Val93Ala).
+> [!TIP]
+> **Pruébalo con el ejemplo**
+>
+> Sigue el [tutorial de línea de comandos](getting-started.es.md) y carga el
+> `example/G35894.demo.bam` incluido. Al abrir la fila de `Rv2036` se muestran las 24
+> lecturas que portan ambas bases ALT del codón `GTT → GCC` (Val93Ala).
 
-!!! note "Requisitos del visor de lecturas"
-    El pileup necesita un BAM ordenado por coordenada e indexado (`.bai`) y un FASTA
-    indexado (`.fai`); get_MNV crea el índice del FASTA automáticamente cuando es necesario.
-    Las filas sin datos de lecturas siguen mostrando las pistas de codones y aminoácidos.
+> [!NOTE]
+> **Requisitos del visor de lecturas**
+>
+> El pileup necesita un BAM ordenado por coordenada e indexado (`.bai`) y un FASTA
+> indexado (`.fai`); get_MNV crea el índice del FASTA automáticamente cuando es necesario.
+> Las filas sin datos de lecturas siguen mostrando las pistas de codones y aminoácidos.
 
 ## Compilar desde el código fuente
 

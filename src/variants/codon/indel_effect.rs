@@ -5,7 +5,7 @@ use crate::variants::{ChangeType, Gene, Strand};
 
 use super::allele_apply::apply_allele_to_feature;
 use super::gene_path::effective_bounds;
-use super::protein::{describe_protein_change, translate_cds};
+use super::protein::{describe_protein_change, translate_cds, translate_from_start};
 use super::transcript_model::{coding_sequence_for_gene, first_touched_transcript_offset};
 
 /// The genomic bases this variant's components actually touch.
@@ -27,39 +27,47 @@ fn component_touched_bounds(variant: &VcfPosition) -> Option<(usize, usize)> {
     Some((lo, hi))
 }
 
+/// What an indel does to the protein.
+pub(super) struct IndelEffect {
+    pub change_type: ChangeType,
+    pub aa_changes: Vec<String>,
+    pub aa_changes_local: Vec<String>,
+    pub ref_codon: Option<String>,
+    pub alt_codon: Option<String>,
+    /// The indel removes the protein's initiator. Said separately because a
+    /// frameshift that does so keeps its frameshift label.
+    pub initiator_lost: bool,
+}
+
 pub(super) fn protein_effect_for_indel(
     gene: &Gene,
     reference: &crate::io::Reference<'_>,
     variant: &VcfPosition,
     genetic_code: crate::genetic_code::GeneticCode,
-) -> (
-    ChangeType,
-    Vec<String>,
-    Vec<String>,
-    Option<String>,
-    Option<String>,
-) {
+) -> IndelEffect {
     // Base classification (frameshift vs in-frame, symbolic handling). When the
     // alternate CDS can be reconstructed we may refine this to Stop gained/lost.
     let base_change_type = indel_change_type_for_variant(gene, reference, variant);
 
     let Some(ref_cds) = coding_sequence_for_gene(gene, reference) else {
-        return (
-            base_change_type,
-            vec!["Unknown".to_string()],
-            vec!["Unknown".to_string()],
-            None,
-            None,
-        );
+        return IndelEffect {
+            change_type: base_change_type,
+            aa_changes: vec!["Unknown".to_string()],
+            aa_changes_local: vec!["Unknown".to_string()],
+            ref_codon: None,
+            alt_codon: None,
+            initiator_lost: false,
+        };
     };
     let Some(alt_cds) = apply_allele_to_feature(gene, reference, variant) else {
-        return (
-            base_change_type,
-            vec!["Unknown".to_string()],
-            vec!["Unknown".to_string()],
-            None,
-            None,
-        );
+        return IndelEffect {
+            change_type: base_change_type,
+            aa_changes: vec!["Unknown".to_string()],
+            aa_changes_local: vec!["Unknown".to_string()],
+            ref_codon: None,
+            alt_codon: None,
+            initiator_lost: false,
+        };
     };
 
     // Whether the frame shifts is a property of the whole feature, so it is
@@ -69,8 +77,21 @@ pub(super) fn protein_effect_for_indel(
     let frameshift = coding_delta_for_variant(gene, reference, variant)
         .map(|delta| delta % 3 != 0)
         .unwrap_or((alt_cds.len() as isize - ref_cds.len() as isize) % 3 != 0);
-    let ref_protein = translate_cds(&ref_cds, genetic_code);
-    let alt_protein = translate_cds(&alt_cds, genetic_code);
+    // A feature that begins at the protein's first codon is read from its
+    // initiator, so a GTG start is Met and removing it is seen as such. A CDS row
+    // further into the protein, or one that starts mid-codon, has no initiator.
+    let starts_protein = gene.starts_protein();
+    let translate = |seq: &str| {
+        if starts_protein {
+            translate_from_start(seq, genetic_code)
+        } else {
+            translate_cds(seq, genetic_code)
+        }
+    };
+    let ref_protein = translate(&ref_cds);
+    let alt_protein = translate(&alt_cds);
+    let initiator_lost = starts_protein
+        && crate::variants::consequence::initiator_lost_between(&ref_protein, &alt_protein);
     // What the ribosome actually makes, which stops at the first stop codon.
     // Everything past it is translated by nobody, so two alternates that differ
     // only there produce the same protein.
@@ -98,7 +119,11 @@ pub(super) fn protein_effect_for_indel(
         change_type = ChangeType::Synonymous;
     }
 
-    let (protein_change, local_change) = if protein_change_is_past_the_stop {
+    let (protein_change, local_change) = if initiator_lost {
+        // HGVS: with the initiator gone, where translation starts, if it does,
+        // cannot be predicted, so no residues are named.
+        ("Met1?".to_string(), "Met1?".to_string())
+    } else if protein_change_is_past_the_stop {
         ("Synonymous".to_string(), "Synonymous".to_string())
     } else if touches_phase_skipped_bases(gene, variant) {
         ("Unknown".to_string(), "Unknown".to_string())
@@ -115,13 +140,14 @@ pub(super) fn protein_effect_for_indel(
     });
 
     if let Some((ref_codon, alt_codon)) = transcript_codon {
-        return (
+        return IndelEffect {
             change_type,
-            vec![protein_change],
-            vec![local_change],
-            Some(ref_codon),
+            aa_changes: vec![protein_change],
+            aa_changes_local: vec![local_change],
+            ref_codon: Some(ref_codon),
             alt_codon,
-        );
+            initiator_lost,
+        };
     }
 
     // Legacy path (no transcript CDS model): map the first affected genomic base
@@ -154,13 +180,14 @@ pub(super) fn protein_effect_for_indel(
         (None, None)
     };
 
-    (
+    IndelEffect {
         change_type,
-        vec![protein_change],
-        vec![local_change],
+        aa_changes: vec![protein_change],
+        aa_changes_local: vec![local_change],
         ref_codon,
         alt_codon,
-    )
+        initiator_lost,
+    }
 }
 
 /// Whether the variant reaches into the bases the declared phase skips.

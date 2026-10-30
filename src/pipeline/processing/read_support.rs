@@ -7,7 +7,6 @@ use crate::error::{AppError, AppResult};
 use crate::io::VcfPosition;
 use crate::read_count::{self, ReadCountSummary};
 use crate::variants::{self, Gene, VariantInfo, VariantType};
-use noodles::bam;
 use std::collections::HashMap;
 
 /// Maximum genomic distance between an indel and a SNV for read-based phasing to
@@ -282,7 +281,7 @@ pub(super) fn count_exact_indel_variant_reads(
 /// claimed `Event Reads = 0` at `Event Depth = 0` for an allele every read
 /// carried. `context` only labels errors and the warning.
 pub(super) fn count_indel_reads_into(
-    bam: &mut bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>,
+    bam: &mut crate::io::AlignmentReader,
     bam_header: &noodles::sam::Header,
     args: &Args,
     contig: &str,

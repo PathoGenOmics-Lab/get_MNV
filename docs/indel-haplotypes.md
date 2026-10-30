@@ -160,14 +160,26 @@ row beside it is where the real consequence is.
   same coordinate is the transcript's *first* base, so the insertion lands in
   the 5' UTR. Same rule, opposite reason.
 - **No de novo assembly.** get_MNV combines alleles the input already declares.
-- **Symbolic alleles** (`<DEL>`, `<DUP>`, `<INV>`) have no sequence for a read
-  to reproduce, so read evidence cannot speak about them at all. get_MNV does not
-  read `SVTYPE`, `END` or `SVLEN` either, so how many coding bases such an allele
-  adds or removes is unknown to it: the row is reported as
-  `coding_sequence_variant` (`MODIFIER`) with an unknown amino-acid effect rather
-  than being assumed to shift the frame, and codons downstream of it in the same
-  feature are reported as unknown for the same reason. Resolve the allele to
-  explicit REF/ALT sequence before running get_MNV if you need it classified.
+- **Symbolic deletions and duplications are written out from the reference.**
+  Since 1.1.6 a `<DEL>` (or a `<DEL:...>` subtype) with `END`, or with `SVLEN`
+  when `END` is missing, becomes the explicit deletion of POS+1 to END, and a
+  `<DUP>` or `<DUP:TANDEM>` becomes a tandem copy of that segment inserted
+  right after END. From there it is annotated like any indel: frameshift or in
+  frame, its protein change, `HGVS c.`, and the frame shift it passes
+  downstream. Events longer than 10,000 bases, or that run past the contig,
+  stay symbolic. Read support for a written-out event is counted from reads
+  whose alignment carries that exact deletion or insertion, which long-read
+  aligners write and short-read aligners rarely do for events this size, so
+  expect `Event Reads` near 0 from short reads and set read filters with that
+  in mind.
+- **Other symbolic alleles** (`<INV>`, `<INS>` without sequence, a `<DEL>` with
+  no extent) have no sequence for a read to reproduce, so read evidence cannot
+  speak about them at all, and how many coding bases they add or remove is
+  unknown: the row is reported as `coding_sequence_variant` (`MODIFIER`) with
+  an unknown amino-acid effect rather than being assumed to shift the frame,
+  and codons downstream of it in the same feature are reported as unknown for
+  the same reason. Resolve the allele to explicit REF/ALT sequence before
+  running get_MNV if you need it classified.
 
 ## How this is checked
 

@@ -30,7 +30,7 @@ pub enum VariantInputFormat {
     )
 )]
 pub struct Args {
-    /// Variant input file containing SNVs/MNVs and indels in plain or BGZF-compressed VCF format
+    /// Variant input file containing SNVs/MNVs and indels: plain VCF, BGZF-compressed VCF, or BCF
     #[arg(
         short = 'v',
         long = "vcf",
@@ -47,7 +47,7 @@ pub struct Args {
     #[arg(long = "input-format", value_enum, default_value_t = VariantInputFormat::Auto, hide = true)]
     pub input_format: VariantInputFormat,
 
-    /// BAM file with aligned reads (optional)
+    /// BAM or CRAM file with aligned reads (optional). A CRAM is decoded against --fasta
     #[arg(short = 'b', long = "bam")]
     pub bam_file: Option<String>,
 
@@ -176,8 +176,10 @@ pub struct Args {
     #[arg(long)]
     pub strict: bool,
 
-    /// Split multiallelic VCF records into independent ALT alleles instead of failing
-    #[arg(long = "split-multiallelic")]
+    /// Split multiallelic VCF records into independent ALT alleles. On by
+    /// default since 1.1.6, when a multiallelic record stopped failing the run;
+    /// the flag is still accepted so existing commands keep working.
+    #[arg(long = "split-multiallelic", default_value_t = true)]
     pub split_multiallelic: bool,
 
     /// In VCF output, emit records that fail read/frequency/strand/strand-bias thresholds with FILTER tags instead of skipping them
@@ -226,14 +228,27 @@ pub struct Args {
 
     /// Build the HTML report from existing get_MNV TSV files instead of running
     /// the pipeline, for cohorts processed one sample per run. Each file becomes
-    /// one sample, labelled by its file name. Requires --report for the output.
-    #[arg(
-        long = "report-from",
-        value_name = "TSV",
-        num_args = 1..,
-        requires = "report"
-    )]
+    /// one sample, labelled by its file name. Requires --report, --matrix or both
+    /// for the output.
+    #[arg(long = "report-from", value_name = "TSV", num_args = 1..)]
     pub report_from: Vec<String>,
+
+    /// Write a variant-by-sample matrix as TSV: one row per variant, one column
+    /// per sample, holding the allele frequency the reads gave, `called` for a
+    /// call with no measured frequency, or `NA` where the sample has no call.
+    /// Built from the same TSVs as --report, so it works in a normal run, with
+    /// --sample all, and with --report-from.
+    #[arg(long = "matrix", value_name = "TSV_FILE")]
+    pub matrix: Option<String>,
+
+    /// Tab-separated catalogue of known variants to flag, with a header naming
+    /// `gene`, `variant` and optionally `label` columns. A variant is a protein
+    /// change (`p.Ser450Leu`), a coding or genomic substitution (`c.-15C>T`,
+    /// `g.761155C>T`), any other HGVS descriptor, or `LoF` for any frameshift,
+    /// premature stop or start loss in the gene. Matches go to the Catalogue
+    /// column, with a note when a codon matches through one of its readings only.
+    #[arg(long = "catalogue", value_name = "TSV_FILE")]
+    pub catalogue: Option<String>,
 
     /// NCBI translation table number for codon-to-amino-acid mapping
     /// (default: 11 = Bacterial/Archaeal/Plant Plastid).
@@ -368,6 +383,20 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(args.translation_table, 11);
+    }
+
+    #[test]
+    fn test_split_multiallelic_is_the_default_and_the_flag_still_parses() {
+        let base = [
+            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--genes", "g.txt",
+        ];
+        let args = Args::try_parse_from(base).unwrap();
+        assert!(args.split_multiallelic);
+
+        let mut with_flag = base.to_vec();
+        with_flag.push("--split-multiallelic");
+        let args = Args::try_parse_from(with_flag).unwrap();
+        assert!(args.split_multiallelic);
     }
 
     #[test]

@@ -29,6 +29,11 @@ El valor por defecto es `11` (bacteriano), correcto para organismos como
 admitidas son 2, 3, 4, 5, 6, 12 y 25. Consulta la
 [Referencia de la CLI](cli-reference.es.md).
 
+La tabla también decide qué codones pueden empezar una proteína. En la tabla 11
+empiezan una GTG, TTG, CTG, ATT, ATC y ATA además de ATG, tal como los lista el
+NCBI, y el primer codón de un gen se lee como metionina cuando es uno de ellos,
+así que un gen que empieza por GTG se anota desde `Met1`, no desde `Val1`.
+
 ## ¿Por qué dos de mis SNP se convirtieron en un MNV?
 
 Cuando dos o más SNV caen en el mismo codón, el efecto sobre el aminoácido
@@ -51,15 +56,17 @@ lecturas muestran realmente para cada SNV, haplotipo MNV y evento indel.
 
 ## ¿Puedo usar un archivo BCF como entrada?
 
-No directamente: conviértelo primero a VCF, por ejemplo con
-`bcftools view input.bcf -O v -o input.vcf`. get_MNV sí puede *escribir* salida
-BCF mediante `--bcf`. Consulta [Solución de problemas](troubleshooting.es.md).
+Sí, desde la 1.1.6: pásalo a `--vcf` como cualquier VCF. Se decodifica a texto
+VCF a medida que se lee, así que se anota exactamente igual que el VCF que
+codifica. Las versiones anteriores necesitan convertirlo antes con
+`bcftools view input.bcf -O v -o input.vcf`.
 
 ## Mi VCF tiene registros multialélicos: ¿qué ocurre?
 
-Por defecto get_MNV se detiene para que decidas cómo manejarlos. Pasa
-`--split-multiallelic` para dividir cada registro en alelos ALT independientes, o
-divídelos previamente con `bcftools norm -m -`.
+get_MNV divide cada registro en alelos ALT independientes, con una fila anotada
+por ALT, que es la misma salida que da `bcftools norm -m -`. Antes de la 1.1.6 la
+ejecución se detenía salvo que se pasara `--split-multiallelic`; la opción se
+sigue aceptando y no cambia nada.
 
 ## ¿Se admiten indels?
 
@@ -88,9 +95,9 @@ Developer. En el primer arranque, haz clic derecho en la app → **Abrir** → h
 clic en **Abrir** en el cuadro de diálogo. Consulta la guía de la
 [GUI de escritorio](gui.es.md).
 
-
-!!! question "Tu pregunta no está aquí"
-
-    Pregúntala en [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a). Las preguntas sobre por qué una variante salió
-    anotada de una forma concreta son bienvenidas ahí, y se responden mucho
-    mejor con el registro y el comando que la produjeron.
+> [!NOTE]
+> **Tu pregunta no está aquí**
+>
+> Pregúntala en [Q&A](https://github.com/PathoGenOmics-Lab/get_MNV/discussions/categories/q-a). Las preguntas sobre por qué una variante salió
+> anotada de una forma concreta son bienvenidas ahí, y se responden mucho
+> mejor con el registro y el comando que la produjeron.

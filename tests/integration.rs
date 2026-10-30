@@ -68,6 +68,8 @@ fn base_args() -> Args {
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         output_dir: None,
@@ -1306,14 +1308,261 @@ fn test_e2e_keep_original_info_in_vcf() {
 
     let vcf_path = tmp.join("test_info.MNV.vcf");
     let content = fs::read_to_string(&vcf_path).expect("read VCF");
-
-    // The example VCF has ANN= from SnpEff — should be preserved
-    let data_lines: Vec<&str> = content.lines().filter(|l| !l.starts_with('#')).collect();
-    let has_ann = data_lines.iter().any(|l| l.contains("ANN="));
-    assert!(
-        has_ann,
-        "original ANN= INFO field should be preserved with --keep-original-info"
+    assert_eq!(
+        content
+            .lines()
+            .filter(|l| l.starts_with("##INFO=<ID=ANN,"))
+            .count(),
+        1,
+        "the input's ANN header gives way to get_MNV's, which is snpEff's own"
     );
+
+    let records: Vec<Vec<&str>> = content
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .map(|l| l.split('\t').collect())
+        .collect();
+    let info_of = |pos: &str, alt: &str| -> &str {
+        records
+            .iter()
+            .find(|r| r[1] == pos && r[4] == alt)
+            .unwrap_or_else(|| panic!("record {pos} {alt}"))[7]
+    };
+    let ann_of = |info: &str| -> Vec<String> {
+        info.split(';')
+            .find_map(|f| f.strip_prefix("ANN="))
+            .expect("every record has ANN")
+            .split(',')
+            .map(str::to_string)
+            .collect()
+    };
+    for record in &records {
+        for entry in ann_of(record[7]) {
+            assert_eq!(
+                entry.split('|').next(),
+                Some(record[4]),
+                "an ANN entry is about its record's ALT: {}",
+                record.join("\t")
+            );
+        }
+    }
+
+    // The example's input was annotated by snpEff, with the lab's own
+    // categories as custom entries. On the record of the codon's second base,
+    // get_MNV's entry comes first and that base's own input entries follow; its
+    // other INFO is its own record's too (ADP=25), not the first base's (22).
+    let second_base = info_of("104942", "G");
+    let entries = ann_of(second_base);
+    assert!(
+        entries[0].starts_with("G|missense_variant|MODERATE|Rv0095c_Rv0095c|"),
+        "{entries:?}"
+    );
+    assert!(
+        entries[1].contains("|Transcript_gene100|Coding|1/1|c.274G>C|p.Gly92Arg|"),
+        "{entries:?}"
+    );
+    assert!(
+        entries
+            .iter()
+            .any(|e| e.contains("|Non_essential_in_vitro|")),
+        "{entries:?}"
+    );
+    assert!(second_base.contains(";ADP=25;"), "{second_base}");
+    // The codon's record is an allele no input record had.
+    let codon = ann_of(info_of("104941", "TG"));
+    assert_eq!(codon.len(), 1, "{codon:?}");
+    assert!(codon[0].ends_with("|INFO_COMPOUND_ANNOTATION"), "{codon:?}");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+/// On a spliced transcript each base of a codon is annotated on its own in
+/// `ANN`: its own change and its own place against the junction.
+#[test]
+fn test_e2e_ann_reads_each_base_of_a_spliced_codon_on_its_own() {
+    let tmp = temp_dir("e2e_ann_spliced");
+    // Exon 1 = 1..46, intron 47..146, exon 2 = 147..190. Codon 15 is 43-45, GCT
+    // (Ala); the exon's last three bases, 44-46, are its splice region.
+    let exon1 = format!("ATG{}G", "GCT".repeat(14));
+    let intron = format!("GT{}AG", "T".repeat(96));
+    let exon2 = format!("CT{}TAA", "GCT".repeat(13));
+    fs::write(
+        tmp.join("ref.fasta"),
+        format!(">c1\n{exon1}{intron}{exon2}\n"),
+    )
+    .unwrap();
+    fs::write(
+        tmp.join("genes.gff3"),
+        "##gff-version 3\n\
+c1\tsyn\tgene\t1\t190\t.\t+\t.\tID=gene-g1;Name=g1\n\
+c1\tsyn\tmRNA\t1\t190\t.\t+\t.\tID=m1;Parent=gene-g1;Name=g1\n\
+c1\tsyn\tCDS\t1\t46\t.\t+\t0\tID=cds-g1a;Parent=m1;Name=g1\n\
+c1\tsyn\tCDS\t147\t190\t.\t+\t2\tID=cds-g1b;Parent=m1;Name=g1\n",
+    )
+    .unwrap();
+    // GCT > ACC: 43 alone makes Thr, 45 alone keeps Ala, in the splice region.
+    fs::write(
+        tmp.join("in.vcf"),
+        "##fileformat=VCFv4.2\n##contig=<ID=c1,length=190>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+c1\t43\t.\tG\tA\t100\tPASS\tDP=30\n\
+c1\t45\t.\tT\tC\t100\tPASS\tDP=30\n",
+    )
+    .unwrap();
+    let mut args = base_args();
+    args.vcf_file = Some(tmp.join("in.vcf").to_string_lossy().into());
+    args.fasta_file = tmp.join("ref.fasta").to_string_lossy().into();
+    args.genes_file_tsv = None;
+    args.gff_file = Some(tmp.join("genes.gff3").to_string_lossy().into());
+    args.gff_features_raw = Some("CDS".to_string());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("spliced".to_string());
+    args.convert = true;
+    pipeline::run(&args).expect("pipeline should succeed");
+
+    let body = fs::read_to_string(tmp.join("spliced.MNV.vcf")).unwrap();
+    let ann = |pos: &str, alt: &str| -> Vec<String> {
+        let line = body
+            .lines()
+            .filter(|l| !l.starts_with('#'))
+            .find(|l| {
+                let cols: Vec<&str> = l.split('\t').collect();
+                cols[1] == pos && cols[4] == alt
+            })
+            .unwrap_or_else(|| panic!("record {pos} {alt} in\n{body}"));
+        line.split('\t')
+            .nth(7)
+            .and_then(|info| info.split(';').find_map(|f| f.strip_prefix("ANN=")))
+            .expect("ANN")
+            .split('|')
+            .map(str::to_string)
+            .collect()
+    };
+    let first = ann("43", "A");
+    assert_eq!(
+        first[1..3],
+        ["missense_variant".to_string(), "MODERATE".to_string()]
+    );
+    assert_eq!(
+        first[9..11],
+        ["c.43G>A".to_string(), "p.Ala15Thr".to_string()]
+    );
+    let last = ann("45", "C");
+    assert_eq!(
+        last[1..3],
+        [
+            "synonymous_variant&splice_region_variant".to_string(),
+            "LOW".to_string()
+        ]
+    );
+    assert_eq!(
+        last[9..11],
+        ["c.45T>C".to_string(), "p.Ala15Ala".to_string()]
+    );
+    let codon = ann("43", "ACC");
+    assert_eq!(codon[1], "missense_variant&splice_region_variant");
+    assert_eq!(
+        codon[9..11],
+        ["c.[43G>A%3B45T>C]".to_string(), "p.Ala15Thr".to_string()]
+    );
+    assert_eq!(codon[15], "INFO_COMPOUND_ANNOTATION");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+/// The example's input VCF was annotated by snpEff 4.1, which makes it an
+/// oracle for `ANN`: on every base of the example, get_MNV says what snpEff
+/// said about the same base of the same gene.
+#[test]
+fn test_e2e_ann_matches_snpeff_on_every_base_of_the_example() {
+    let tmp = temp_dir("e2e_ann_snpeff");
+    let mut args = base_args();
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("ann".to_string());
+    args.convert = true;
+    pipeline::run(&args).expect("pipeline should succeed");
+
+    let ann = |info: &str| -> String {
+        info.split(';')
+            .find_map(|f| f.strip_prefix("ANN="))
+            .unwrap_or("")
+            .to_string()
+    };
+    let input = fs::read_to_string(example_dir().join("G35894.var.snp.vcf")).unwrap();
+    let mut snpeff: HashMap<(String, String, String), Vec<String>> = HashMap::new();
+    for cols in input
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .map(|l| l.split('\t').collect::<Vec<_>>())
+    {
+        for entry in ann(cols[7]).split(',') {
+            let fields: Vec<String> = entry.split('|').map(str::to_string).collect();
+            if fields.len() == 16 && fields[0] == cols[4] && fields[5] == "transcript" {
+                let key = (cols[1].to_string(), cols[4].to_string(), fields[3].clone());
+                snpeff.entry(key).or_insert(fields);
+            }
+        }
+    }
+
+    let output = fs::read_to_string(tmp.join("ann.MNV.vcf")).unwrap();
+    let mut compared = 0;
+    let mut rna = 0;
+    for cols in output
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .map(|l| l.split('\t').collect::<Vec<_>>())
+    {
+        if cols[3].len() != 1 || cols[4].len() != 1 {
+            continue;
+        }
+        let entry = ann(cols[7]);
+        let ours: Vec<&str> = entry.split('|').collect();
+        assert_eq!(ours.len(), 16, "{entry}");
+        let key = (
+            cols[1].to_string(),
+            cols[4].to_string(),
+            ours[3].to_string(),
+        );
+        let Some(theirs) = snpeff.get(&key) else {
+            continue;
+        };
+        // RNA genes, which the example's gene table declares non-coding: no
+        // protein to change, and the same term, which snpEff 4.1 writes under
+        // its name from before Sequence Ontology renamed it. get_MNV writes no
+        // `n.` descriptor, so HGVS.c is not compared.
+        if theirs[1] == "non_coding_exon_variant" {
+            assert_eq!(
+                [ours[1], ours[2], ours[7], ours[10]],
+                [
+                    "non_coding_transcript_exon_variant",
+                    "MODIFIER",
+                    "Noncoding",
+                    ""
+                ],
+                "{}",
+                cols.join("\t")
+            );
+            rna += 1;
+            continue;
+        }
+        // A first codon that is not a start codon, made into one: get_MNV reads
+        // an initiation codon at position 1 as Met, snpEff 4.1 by the table.
+        if theirs[13].starts_with("1/") && !theirs[10].starts_with("p.Met1") {
+            continue;
+        }
+        compared += 1;
+        // snpEff 4.1 also calls the last bases of a single-exon gene a splice
+        // region. A bacterial gene is not spliced.
+        let term = theirs[1].trim_end_matches("&splice_region_variant");
+        assert_eq!(
+            [ours[1], ours[2], ours[9], ours[10]],
+            [term, &theirs[2], &theirs[9], &theirs[10]],
+            "{}",
+            cols.join("\t")
+        );
+    }
+    assert!(compared > 790, "only {compared} bases compared");
+    assert_eq!(rna, 2, "the sample's two variants in RNA genes");
 
     fs::remove_dir_all(&tmp).ok();
 }
@@ -1336,9 +1585,140 @@ fn test_e2e_split_multiallelic_flag() {
     fs::remove_dir_all(&tmp).ok();
 }
 
+#[test]
+fn test_e2e_report_from_writes_a_matrix_without_a_report() {
+    let tmp = temp_dir("e2e_matrix");
+    // Two per-sample runs of the example, as a per-sample pipeline would leave them.
+    let mut tsvs = Vec::new();
+    for prefix in ["TB-001", "TB-002"] {
+        let mut args = base_args();
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(prefix.to_string());
+        pipeline::run(&args).expect("per-sample run");
+        tsvs.push(
+            tmp.join(format!("{prefix}.MNV.tsv"))
+                .to_string_lossy()
+                .into_owned(),
+        );
+    }
+
+    let mut args = base_args();
+    args.vcf_file = None;
+    args.report_from = tsvs.clone();
+    args.matrix = Some(tmp.join("cohort.tsv").to_string_lossy().into());
+    pipeline::run(&args).expect("--matrix alone is a valid output for --report-from");
+
+    let rows = read_tsv_rows(&tmp.join("cohort.tsv"));
+    assert!(rows.len() > 900, "{} variants", rows.len());
+    assert!(rows.iter().all(|row| row["Samples Called"] == "2"));
+    assert!(rows
+        .iter()
+        .all(|row| row["TB-001"] == "called" && row["TB-002"] == "called"));
+
+    // With neither output named there is nothing to write.
+    args.matrix = None;
+    let err = pipeline::run(&args).expect_err("no output named");
+    assert!(
+        err.to_string().contains("--report, --matrix or both"),
+        "{err}"
+    );
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+// ---------------------------------------------------------------------------
+// TSV annotation that names each gene's contig
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_tsv_annotation_contig_column_places_each_gene_on_its_contig() {
+    let tmp = temp_dir("e2e_tsv_contig");
+    let ref_path = tmp.join("ref.fasta");
+    let genes_path = tmp.join("genes.txt");
+    let vcf_path = tmp.join("in.vcf");
+    // Same coordinates on both contigs, so a gene laid on the wrong contig
+    // would still overlap the variant there: only the contig column tells them
+    // apart.
+    fs::write(&ref_path, ">chr1\nATGAAATTTCCC\n>chr2\nATGAAATTTCCC\n").unwrap();
+    fs::write(
+        &genes_path,
+        "geneA\t1\t12\t+\t0\tprotein_coding\tchr1\ngeneB\t1\t12\t+\t0\tprotein_coding\tchr2\n",
+    )
+    .unwrap();
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n##contig=<ID=chr1>\n##contig=<ID=chr2>\n\
+         #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+         chr1\t4\t.\tA\tC\t50\tPASS\tDP=10\n\
+         chr2\t7\t.\tT\tG\t50\tPASS\tDP=10\n",
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(vcf_path.to_string_lossy().into());
+    args.fasta_file = ref_path.to_string_lossy().into();
+    args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+    args.threads = Some(1);
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("contigs".to_string());
+
+    let summary = pipeline::run(&args).expect("a TSV that names every contig runs multi-contig");
+    assert_eq!(summary.global.contig_count, 2);
+
+    let rows = read_tsv_rows(&tmp.join("contigs.MNV.tsv"));
+    let genes_on = |chrom: &str| -> Vec<String> {
+        rows.iter()
+            .filter(|row| row["Chromosome"] == chrom)
+            .map(|row| row["Gene"].clone())
+            .collect()
+    };
+    assert_eq!(genes_on("chr1"), vec!["geneA".to_string()]);
+    assert_eq!(genes_on("chr2"), vec!["geneB".to_string()]);
+
+    // The same file without the column is refused rather than guessed at.
+    fs::write(&genes_path, "geneA\t1\t12\t+\ngeneB\t1\t12\t+\n").unwrap();
+    let err = pipeline::run(&args).expect_err("rows without a contig cannot be placed");
+    assert!(err.to_string().contains("without a contig"), "{err}");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
 // ---------------------------------------------------------------------------
 // T3: --sample all with multi-sample VCF
 // ---------------------------------------------------------------------------
+
+/// A seventh column that names no contig of the reference is not a contig
+/// column: a table carrying a locus tag or a description there was annotated
+/// before the column existed, and now lost every gene without a word.
+#[test]
+fn test_e2e_a_seventh_column_naming_no_reference_contig_stops_the_run() {
+    let tmp = temp_dir("e2e_tsv_contig_unknown");
+    let genes = fs::read_to_string(example_dir().join("anot_genes.txt")).unwrap();
+    let with_tags: String = genes
+        .lines()
+        .take(50)
+        .map(|line| {
+            let fields: Vec<&str> = line.split('\t').collect();
+            let phase = fields.get(4).copied().unwrap_or("0");
+            let biotype = fields.get(5).copied().unwrap_or("protein_coding");
+            format!(
+                "{}\t{}\t{}\t{}\t{phase}\t{biotype}\tNC_000962.3\n",
+                fields[0], fields[1], fields[2], fields[3]
+            )
+        })
+        .collect();
+    fs::write(tmp.join("genes7.txt"), with_tags).unwrap();
+    let mut args = base_args();
+    args.genes_file_tsv = Some(tmp.join("genes7.txt").to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    let err = pipeline::run(&args).expect_err("no gene could be placed");
+    assert!(
+        err.to_string()
+            .contains("seventh column names contigs (NC_000962.3)"),
+        "{err}"
+    );
+    fs::remove_dir_all(&tmp).ok();
+}
 
 #[test]
 fn test_e2e_sample_all_multisample_vcf() {
@@ -1408,6 +1788,8 @@ chr1\t300\t.\tG\tA\t.\tPASS\t.\tGT:DP\t1/1:25\t1/1:30
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -1495,6 +1877,8 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT:DP\t1/1:20\t0/0:15
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -1573,6 +1957,8 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT\t1/1
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -1655,6 +2041,8 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         output_dir: Some(tmp.to_string_lossy().into()),
@@ -1709,14 +2097,54 @@ fn test_e2e_bcf_without_convert_errors() {
 }
 
 #[test]
-fn test_e2e_bcf_input_errors_with_conversion_hint() {
-    let mut args = base_args();
-    args.vcf_file = Some("input.bcf".to_string());
+fn test_e2e_bcf_input_annotates_exactly_as_its_vcf() {
+    use noodles::vcf::variant::io::Write as _;
 
-    let err = pipeline::run(&args).expect_err("BCF input should fail");
-    let message = err.to_string();
-    assert!(message.contains("BCF input is not supported"));
-    assert!(message.contains("bcftools view"));
+    let tmp = temp_dir("e2e_bcf_input");
+    // The example VCF declares no contig, which BCF needs for its dictionary.
+    let original = fs::read_to_string(example_dir().join("G35894.var.snp.vcf")).unwrap();
+    let (first, rest) = original.split_once('\n').unwrap();
+    let text = format!("{first}\n##contig=<ID=MTB_anc>\n{rest}");
+    let vcf_path = tmp.join("sample.vcf");
+    let bcf_path = tmp.join("sample.bcf");
+    fs::write(&vcf_path, &text).unwrap();
+
+    let mut reader = noodles::vcf::io::Reader::new(std::io::Cursor::new(text.as_bytes()));
+    let header = reader.read_header().unwrap();
+    let mut writer = noodles::bcf::io::Writer::new(fs::File::create(&bcf_path).unwrap());
+    writer.write_header(&header).unwrap();
+    for record in reader.records() {
+        writer
+            .write_variant_record(&header, &record.unwrap())
+            .unwrap();
+    }
+    writer.try_finish().unwrap();
+
+    let mut outputs = Vec::new();
+    for (input, prefix) in [(&vcf_path, "from_vcf"), (&bcf_path, "from_bcf")] {
+        let mut args = base_args();
+        args.vcf_file = Some(input.to_string_lossy().into());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(prefix.to_string());
+        pipeline::run(&args).expect("variant file annotates");
+        outputs.push(fs::read_to_string(tmp.join(format!("{prefix}.MNV.tsv"))).unwrap());
+    }
+    assert!(outputs[0].lines().count() > 900);
+    assert_eq!(
+        outputs[0], outputs[1],
+        "BCF and VCF of the same records must annotate alike"
+    );
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
+fn test_e2e_missing_bcf_names_the_file() {
+    let mut args = base_args();
+    args.vcf_file = Some("does_not_exist.bcf".to_string());
+
+    let err = pipeline::run(&args).expect_err("a missing BCF cannot be read");
+    assert!(err.to_string().contains("does_not_exist.bcf"), "{err}");
 }
 
 #[test]
@@ -1760,12 +2188,13 @@ fn test_fast_parser_matches_htslib() {
     let vcf_file = ex.join("G35894.var.snp.vcf").to_string_lossy().to_string();
 
     // Fast text parser
-    let fast_result = vcf_fast::load_vcf_text(&vcf_file, None, false, false, false)
+    let fast_result = vcf_fast::load_vcf_text(&vcf_file, None, false, false, false, None)
         .expect("fast parser should succeed");
 
     // htslib parser
-    let htslib_result = vcf::load_vcf_positions_by_contig(&vcf_file, None, false, false, false)
-        .expect("htslib parser should succeed");
+    let htslib_result =
+        vcf::load_vcf_positions_by_contig(&vcf_file, None, false, false, false, None)
+            .expect("htslib parser should succeed");
 
     // Same contigs
     assert_eq!(
@@ -1848,10 +2277,11 @@ fn test_fast_parser_keep_info_matches_htslib() {
     let ex = example_dir();
     let vcf_file = ex.join("G35894.var.snp.vcf").to_string_lossy().to_string();
 
-    let fast_result = vcf_fast::load_vcf_text(&vcf_file, None, false, false, true)
+    let fast_result = vcf_fast::load_vcf_text(&vcf_file, None, false, false, true, None)
         .expect("fast parser should succeed");
-    let htslib_result = vcf::load_vcf_positions_by_contig(&vcf_file, None, false, false, true)
-        .expect("htslib parser should succeed");
+    let htslib_result =
+        vcf::load_vcf_positions_by_contig(&vcf_file, None, false, false, true, None)
+            .expect("htslib parser should succeed");
 
     for contig in fast_result.keys() {
         let fast_positions = &fast_result[contig];
@@ -1925,6 +2355,8 @@ fn test_invalid_translation_table_fails() {
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         translation_table: 99, // invalid
@@ -1989,6 +2421,8 @@ fn test_translation_table_1_standard() {
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         translation_table: 1, // Standard
@@ -2068,6 +2502,8 @@ fn test_empty_vcf_no_records() {
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         translation_table: 11,
@@ -2152,6 +2588,8 @@ fn test_truncated_vcf_record() {
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         translation_table: 11,
@@ -2237,6 +2675,8 @@ fn test_vcf_no_header() {
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         translation_table: 11,
@@ -2318,6 +2758,8 @@ fn test_error_json_written_on_failure() {
         run_manifest: None,
         report: None,
         report_from: Vec::new(),
+        matrix: None,
+        catalogue: None,
         convert: false,
         both: false,
         translation_table: 11,
@@ -3313,9 +3755,11 @@ chr_test\t803\t.\tG\tGGGG\t100\tPASS\tDP=30\n",
             Some("HIGH"),
             "{name}"
         );
+        // ATG -> CCG loses the initiator, which HGVS writes Met1? rather than
+        // naming the residue now at position 1.
         assert_eq!(
             codon.get("AA Changes").map(String::as_str),
-            Some("Met1Pro"),
+            Some("Met1?"),
             "{name}"
         );
     }
@@ -4110,8 +4554,9 @@ fn test_e2e_a_variant_keeps_the_metrics_its_own_record_declared() {
 /// A symbolic allele does not get to claim a frameshift nobody measured.
 ///
 /// `<INV>`, `<DEL>` and `<DUP>` are what Manta, Delly and Sniffles emit. They
-/// name a structural event without spelling out its sequence, and get_MNV does
-/// not read SVTYPE, END or SVLEN, so its coding-length delta is unknown here.
+/// name a structural event without spelling out its sequence. A deletion or
+/// duplication is now written out from the reference (see the test after this
+/// one), but an inversion is left symbolic, so its coding effect stays unknown.
 /// Asserting a frameshift turned that absence into a claim: an inversion, which
 /// preserves length exactly, came out `frameshift_variant` at HIGH, and it
 /// relabelled every downstream codon of the feature, so a plain missense
@@ -4207,6 +4652,283 @@ fn test_e2e_a_symbolic_allele_does_not_assert_a_frameshift() {
         alone[0].get("SO Term").map(String::as_str),
         Some("missense_variant")
     );
+}
+
+/// A symbolic deletion or duplication is written out from the reference and
+/// annotated as the indel it is.
+///
+/// Before, get_MNV knew `<DEL>` removed bases but not how many, so the row and
+/// every codon downstream of it in the feature were reported as unknown. With
+/// END or SVLEN the reference spells the event out, and the frame it leaves is
+/// a fact rather than a guess.
+#[test]
+fn test_e2e_symbolic_deletions_and_duplications_are_spelled_out() {
+    let tmp = temp_dir("e2e_symbolic_spelled");
+    let bases: String = (0..500)
+        .map(|i| ['A', 'C', 'G', 'T'][(i * 7 + 3) % 4])
+        .collect();
+    fs::write(tmp.join("ref.fas"), format!(">chr1\n{bases}\n")).unwrap();
+    fs::write(
+        tmp.join("genes.gff3"),
+        "##gff-version 3\nchr1\tsyn\tCDS\t101\t400\t.\t+\t0\tID=c1;Name=geneP\n",
+    )
+    .unwrap();
+    let at = |pos: usize| bases.as_bytes()[pos - 1] as char;
+    let header = "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=500>\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
+
+    let run = |name: &str, record: String| {
+        fs::write(tmp.join(format!("{name}.vcf")), format!("{header}{record}")).unwrap();
+        let mut args = base_args();
+        args.vcf_file = Some(tmp.join(format!("{name}.vcf")).to_string_lossy().into());
+        args.fasta_file = tmp.join("ref.fas").to_string_lossy().into();
+        args.genes_file_tsv = None;
+        args.gff_file = Some(tmp.join("genes.gff3").to_string_lossy().into());
+        args.gff_features_raw = Some("CDS".to_string());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+        pipeline::run(&args).unwrap_or_else(|e| panic!("{name} should annotate: {e}"));
+        read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")))
+    };
+    let field = |row: &HashMap<String, String>, key: &str| row[key].clone();
+
+    // END=152 removes 151-152: two bases, CDS 51-52, a frameshift.
+    let rows = run(
+        "del_end",
+        format!(
+            "chr1\t150\t.\t{}\t<DEL>\t100\tPASS\tSVTYPE=DEL;END=152\n",
+            at(150)
+        ),
+    );
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(
+        field(&rows[0], "Reference Bases"),
+        bases[149..152].to_string()
+    );
+    assert_eq!(field(&rows[0], "Base Changes"), at(150).to_string());
+    assert_eq!(field(&rows[0], "SO Term"), "frameshift_variant");
+    assert_eq!(field(&rows[0], "HGVS c."), "c.51_52del");
+
+    // SVLEN=-3 with no END: an in-frame deletion of 151-153.
+    let rows = run(
+        "del_svlen",
+        format!(
+            "chr1\t150\t.\t{}\t<DEL>\t100\tPASS\tSVTYPE=DEL;SVLEN=-3\n",
+            at(150)
+        ),
+    );
+    assert_eq!(field(&rows[0], "SO Term"), "inframe_deletion");
+    assert_eq!(field(&rows[0], "HGVS c."), "c.51_53del");
+
+    // A tandem duplication of 151-153 is a copy inserted after 153.
+    let rows = run(
+        "dup",
+        format!(
+            "chr1\t150\t.\t{}\t<DUP>\t100\tPASS\tSVTYPE=DUP;END=153\n",
+            at(150)
+        ),
+    );
+    assert_eq!(field(&rows[0], "SO Term"), "inframe_insertion");
+    // A tandem copy is a duplication in HGVS, of the bases it copies.
+    assert_eq!(field(&rows[0], "HGVS c."), "c.51_53dup");
+    assert_eq!(field(&rows[0], "HGVS g."), "g.151_153dup");
+
+    // Past the contig's end, or without an extent, the record stays symbolic.
+    for (name, info) in [
+        ("past_contig", "SVTYPE=DEL;END=600"),
+        ("no_extent", "SVTYPE=DEL"),
+    ] {
+        let rows = run(
+            name,
+            format!("chr1\t150\t.\t{}\t<DEL>\t100\tPASS\t{info}\n", at(150)),
+        );
+        assert_eq!(field(&rows[0], "Base Changes"), "<DEL>", "{name}");
+        assert_eq!(
+            field(&rows[0], "SO Term"),
+            "coding_sequence_variant",
+            "{name}"
+        );
+    }
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+/// Two adjacent substitutions on either side of a codon boundary are one event.
+///
+/// Each codon row only sees its own codon, so the pair came out as two unrelated
+/// SNVs with no doublet class, and the single-base spectrum counted both bases.
+/// They now share the run's descriptor and its DBS78 class, whether the caller
+/// wrote them as two records or as one MNP.
+#[test]
+fn test_e2e_a_doublet_across_a_codon_boundary_is_one_event() {
+    let tmp = temp_dir("e2e_boundary_doublet");
+    // CDS 101-400: ATG then GCT repeats, so codon 1 ends at 103 and codon 2
+    // starts at 104, both G.
+    let flank = "ACGTTGCA".repeat(13);
+    let cds = format!("ATG{}TAA", "GCT".repeat(98));
+    let bases = format!("{}{cds}{}", &flank[..100], &flank[..100]);
+    fs::write(tmp.join("ref.fas"), format!(">chr1\n{bases}\n")).unwrap();
+    fs::write(
+        tmp.join("genes.gff3"),
+        "##gff-version 3\nchr1\tsyn\tCDS\t101\t400\t.\t+\t0\tID=c1;Name=geneB\n",
+    )
+    .unwrap();
+    let header = "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=500>\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
+    let inputs = [
+        (
+            "two_records",
+            "chr1\t103\t.\tG\tA\t50\tPASS\tDP=30\nchr1\t104\t.\tG\tT\t50\tPASS\tDP=30\n",
+        ),
+        ("one_mnp", "chr1\t103\t.\tGG\tAT\t50\tPASS\tDP=30\n"),
+    ];
+    for (name, records) in inputs {
+        fs::write(
+            tmp.join(format!("{name}.vcf")),
+            format!("{header}{records}"),
+        )
+        .unwrap();
+        let mut args = base_args();
+        args.vcf_file = Some(tmp.join(format!("{name}.vcf")).to_string_lossy().into());
+        args.fasta_file = tmp.join("ref.fas").to_string_lossy().into();
+        args.genes_file_tsv = None;
+        args.gff_file = Some(tmp.join("genes.gff3").to_string_lossy().into());
+        args.gff_features_raw = Some("CDS".to_string());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+        pipeline::run(&args).unwrap_or_else(|e| panic!("{name}: {e}"));
+
+        let rows = read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")));
+        assert_eq!(rows.len(), 2, "{name}: one row per codon");
+        for row in &rows {
+            assert_eq!(row["Adjacent Substitutions"], "g.103_104delinsAT", "{name}");
+            assert_eq!(row["DBS Class"], "CC>AT", "{name}");
+            assert_eq!(
+                row["SBS96 Context"], "DBS",
+                "{name}: a doublet base is not a single-base substitution"
+            );
+        }
+    }
+    fs::remove_dir_all(&tmp).ok();
+}
+
+/// A catalogue of known variants is matched at every level it can be written
+/// at, and a codon row says which of its readings made the match.
+#[test]
+fn test_e2e_catalogue_matches_protein_coding_upstream_and_loss_of_function() {
+    let tmp = temp_dir("e2e_catalogue");
+    let flank = "ACGTTGCA".repeat(20);
+    // geneA: CDS 101-400. geneB: CDS 451-546. Both plus strand.
+    let gene_a = format!("ATG{}TAA", "GCT".repeat(98));
+    let gene_b = format!("ATG{}TAA", "GCT".repeat(30));
+    let bases = format!(
+        "{}{gene_a}{}{gene_b}{}",
+        &flank[..100],
+        &flank[..50],
+        &flank[..54]
+    );
+    let at = |pos: usize| bases.as_bytes()[pos - 1] as char;
+    let other = |base: char| match base {
+        'A' => 'C',
+        'C' => 'G',
+        'G' => 'T',
+        _ => 'A',
+    };
+    fs::write(tmp.join("ref.fas"), format!(">chr1\n{bases}\n")).unwrap();
+    fs::write(
+        tmp.join("genes.gff3"),
+        "##gff-version 3\n\
+         chr1\tsyn\tCDS\t101\t400\t.\t+\t0\tID=a;Name=geneA\n\
+         chr1\tsyn\tCDS\t451\t546\t.\t+\t0\tID=b;Name=geneB\n",
+    )
+    .unwrap();
+    // Codon 5 (113-115, GCT): G>C alone is Pro, C>A alone is Asp, both are His.
+    // Codon 10's third base (130) T>C is synonymous. Genomic 86 is c.-15.
+    // geneB loses a base at 461: a frameshift.
+    let records = [
+        format!(
+            "chr1\t86\t.\t{}\t{}\t50\tPASS\tDP=30",
+            at(86),
+            other(at(86))
+        ),
+        "chr1\t113\t.\tG\tC\t50\tPASS\tDP=30".to_string(),
+        "chr1\t114\t.\tC\tA\t50\tPASS\tDP=30".to_string(),
+        "chr1\t130\t.\tT\tC\t50\tPASS\tDP=30".to_string(),
+        format!(
+            "chr1\t460\t.\t{}{}\t{}\t50\tPASS\tDP=30",
+            at(460),
+            at(461),
+            at(460)
+        ),
+    ];
+    fs::write(
+        tmp.join("calls.vcf"),
+        format!(
+            "##fileformat=VCFv4.2\n##contig=<ID=chr1,length={}>\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n{}\n",
+            bases.len(),
+            records.join("\n")
+        ),
+    )
+    .unwrap();
+    // The last entry names a reference base the FASTA does not have there.
+    let wrong = other(other(at(81)));
+    let wrong = if wrong == at(81) { other(wrong) } else { wrong };
+    fs::write(
+        tmp.join("catalogue.tsv"),
+        format!(
+            "gene\tvariant\tlabel\n\
+             geneA\tp.Ala5His\tcodon\n\
+             geneA\tp.A5P\tbase\n\
+             geneA\tc.30T>C\tsilent\n\
+             geneA\tc.-15{}>{}\tpromoter\n\
+             geneB\tLoF\tloss\n\
+             geneA\tc.-20{wrong}>T\telsewhere\n",
+            at(86),
+            other(at(86))
+        ),
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(tmp.join("calls.vcf").to_string_lossy().into());
+    args.fasta_file = tmp.join("ref.fas").to_string_lossy().into();
+    args.genes_file_tsv = None;
+    args.gff_file = Some(tmp.join("genes.gff3").to_string_lossy().into());
+    args.gff_features_raw = Some("CDS".to_string());
+    args.catalogue = Some(tmp.join("catalogue.tsv").to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("cat".to_string());
+    pipeline::run(&args).expect("catalogue run");
+
+    let rows = read_tsv_rows(&tmp.join("cat.MNV.tsv"));
+    let at_position = |positions: &str| -> String {
+        rows.iter()
+            .find(|row| row["Positions"] == positions)
+            .unwrap_or_else(|| panic!("no row at {positions}: {rows:?}"))["Catalogue"]
+            .clone()
+    };
+    let codon = at_position("113, 114");
+    assert!(
+        codon.contains("codon (geneA p.Ala5His, codon reading only)"),
+        "{codon}"
+    );
+    assert!(
+        codon.contains("base (geneA p.A5P, per-SNV reading only)"),
+        "{codon}"
+    );
+    assert_eq!(at_position("130"), "silent (geneA c.30T>C)");
+    assert_eq!(
+        at_position("86"),
+        format!("promoter (geneA c.-15{}>{})", at(86), other(at(86)))
+    );
+    assert_eq!(at_position("460"), "loss (geneB LoF)");
+    // That deletion removes the C of a GCT with no other C beside it.
+    let deletion = rows.iter().find(|row| row["Positions"] == "460").unwrap();
+    assert_eq!(deletion["ID83 Class"], "1:Del:C:0");
+    assert!(
+        rows.iter()
+            .all(|row| !row["Catalogue"].contains("elsewhere")),
+        "an entry against another reference matches nothing"
+    );
+    fs::remove_dir_all(&tmp).ok();
 }
 
 /// An insertion inside the terminal stop codon truncates nothing, so it gets no

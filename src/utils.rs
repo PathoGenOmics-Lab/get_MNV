@@ -166,25 +166,32 @@ fn is_clean_dinucleotide(dinuc: &str) -> bool {
             .all(|b| matches!(b, b'A' | b'C' | b'G' | b'T'))
 }
 
-/// The ten reference doublets that COSMIC's DBS78 catalogue uses as the
-/// canonical orientation; every other doublet is represented by its
-/// reverse complement.
-fn is_canonical_dbs_reference(dinuc: &str) -> bool {
-    matches!(
-        dinuc,
-        "AC" | "AT" | "CC" | "CG" | "CT" | "GC" | "TA" | "TC" | "TG" | "TT"
-    )
-}
+/// COSMIC's 78 doublet-base-substitution classes, in COSMIC's order.
+///
+/// Written out because the orientation COSMIC picks for the four palindromic
+/// references follows no single rule: `AT` and `GC` keep the smaller of an
+/// alternate and its reverse complement (`AT>CA`, not `AT>TG`), `CG` and `TA`
+/// the larger (`CG>TT`, not `CG>AA`). A rule that broke every tie the same way
+/// named six classes differently from SigProfiler, so a doublet spectrum
+/// exported for it did not line up.
+pub const DBS78_CLASSES: [&str; 78] = [
+    "AC>CA", "AC>CG", "AC>CT", "AC>GA", "AC>GG", "AC>GT", "AC>TA", "AC>TG", "AC>TT", "AT>CA",
+    "AT>CC", "AT>CG", "AT>GA", "AT>GC", "AT>TA", "CC>AA", "CC>AG", "CC>AT", "CC>GA", "CC>GG",
+    "CC>GT", "CC>TA", "CC>TG", "CC>TT", "CG>AT", "CG>GC", "CG>GT", "CG>TA", "CG>TC", "CG>TT",
+    "CT>AA", "CT>AC", "CT>AG", "CT>GA", "CT>GC", "CT>GG", "CT>TA", "CT>TC", "CT>TG", "GC>AA",
+    "GC>AG", "GC>AT", "GC>CA", "GC>CG", "GC>TA", "TA>AT", "TA>CG", "TA>CT", "TA>GC", "TA>GG",
+    "TA>GT", "TC>AA", "TC>AG", "TC>AT", "TC>CA", "TC>CG", "TC>CT", "TC>GA", "TC>GG", "TC>GT",
+    "TG>AA", "TG>AC", "TG>AT", "TG>CA", "TG>CC", "TG>CT", "TG>GA", "TG>GC", "TG>GT", "TT>AA",
+    "TT>AC", "TT>AG", "TT>CA", "TT>CC", "TT>CG", "TT>GA", "TT>GC", "TT>GG",
+];
 
 /// Canonical doublet-base-substitution (DBS) class for a pair of adjacent
-/// single-base substitutions, e.g. `CC>TT`, following the COSMIC DBS78
-/// reverse-complement collapsing convention.
+/// single-base substitutions, e.g. `CC>TT`: the one of the doublet and its
+/// reverse complement that is among COSMIC's 78 classes.
 ///
 /// Both arguments are same-strand (reference genome) 2-base doublets. Returns
 /// `None` unless both are clean `ACGT` doublets and *both* positions are
-/// substituted (a single changed base is an SBS, not a DBS). Reverse-complement
-/// equivalent doublets collapse to one class; for the palindromic references
-/// (`AT`, `CG`, `GC`, `TA`) the tie is broken on the smaller alternate doublet.
+/// substituted (a single changed base is an SBS, not a DBS).
 pub fn dbs_class(ref_dinuc: &str, alt_dinuc: &str) -> Option<String> {
     let refd = ref_dinuc.to_ascii_uppercase();
     let altd = alt_dinuc.to_ascii_uppercase();
@@ -197,20 +204,15 @@ pub fn dbs_class(ref_dinuc: &str, alt_dinuc: &str) -> Option<String> {
     if rb[0] == ab[0] || rb[1] == ab[1] {
         return None;
     }
-    let rc_ref = reverse_complement(&refd);
-    let rc_alt = reverse_complement(&altd);
-    let (canon_ref, canon_alt) = if is_canonical_dbs_reference(&refd) {
-        // Palindromic reference (equal to its own reverse complement): both
-        // orientations share the reference, so pick the smaller alternate.
-        if rc_ref == refd && rc_alt < altd {
-            (rc_ref, rc_alt)
-        } else {
-            (refd, altd)
-        }
-    } else {
-        (rc_ref, rc_alt)
-    };
-    Some(format!("{canon_ref}>{canon_alt}"))
+    let forward = format!("{refd}>{altd}");
+    let reverse = format!(
+        "{}>{}",
+        reverse_complement(&refd),
+        reverse_complement(&altd)
+    );
+    [forward, reverse]
+        .into_iter()
+        .find(|class| DBS78_CLASSES.contains(&class.as_str()))
 }
 
 pub fn reverse_complement(seq: &str) -> String {
@@ -308,6 +310,29 @@ mod tests {
         // and both collapse to the smaller alternate.
         assert_eq!(dbs_class("AT", "CA").as_deref(), Some("AT>CA"));
         assert_eq!(dbs_class("AT", "TG").as_deref(), Some("AT>CA"));
+        // CG and TA keep the other orientation, as COSMIC names them.
+        assert_eq!(dbs_class("CG", "AA").as_deref(), Some("CG>TT"));
+        assert_eq!(dbs_class("CG", "TT").as_deref(), Some("CG>TT"));
+        assert_eq!(dbs_class("TA", "AC").as_deref(), Some("TA>GT"));
+    }
+
+    #[test]
+    fn every_doublet_lands_in_exactly_one_of_cosmics_78_classes() {
+        let bases = ["A", "C", "G", "T"];
+        let mut seen = std::collections::HashSet::new();
+        for r0 in bases {
+            for r1 in bases {
+                for a0 in bases.iter().filter(|&&b| b != r0) {
+                    for a1 in bases.iter().filter(|&&b| b != r1) {
+                        let class = dbs_class(&format!("{r0}{r1}"), &format!("{a0}{a1}"))
+                            .expect("every doublet has a class");
+                        assert!(DBS78_CLASSES.contains(&class.as_str()), "{class}");
+                        seen.insert(class);
+                    }
+                }
+            }
+        }
+        assert_eq!(seen.len(), 78, "every class is reached");
     }
 
     #[test]

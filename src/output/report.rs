@@ -17,6 +17,7 @@ use std::path::Path;
 
 const TEMPLATE: &str = include_str!("report_template.html");
 const DATA_PLACEHOLDER: &str = "__GET_MNV_REPORT_DATA__";
+const DBS78_PLACEHOLDER: &str = "__DBS78__";
 
 /// String interner backing the report's dictionary encoding.
 #[derive(Default)]
@@ -71,6 +72,10 @@ struct Row {
     reads: Option<u64>,
     phasing: Option<f64>,
     phasing_reads: Option<u64>,
+    sbs96: Option<String>,
+    adjacent: Option<String>,
+    catalogue: Option<String>,
+    id83: Option<String>,
 }
 
 #[derive(Default)]
@@ -242,6 +247,11 @@ impl ReportBuilder {
         self.rows.len()
     }
 
+    /// How many samples the added TSVs covered.
+    pub fn sample_count(&self) -> usize {
+        self.samples.values.len()
+    }
+
     pub fn is_empty(&self) -> bool {
         self.rows.is_empty()
     }
@@ -364,6 +374,10 @@ impl ReportBuilder {
                 reads,
                 phasing: first_number::<f64>(&get(&record, "MNV Phasing Support")),
                 phasing_reads: first_number::<u64>(&get(&record, "MNV Phasing Reads")),
+                sbs96: optional(&get(&record, "SBS96 Context")),
+                adjacent: optional(&get(&record, "Adjacent Substitutions")),
+                catalogue: optional(&get(&record, "Catalogue")),
+                id83: optional(&get(&record, "ID83 Class")),
             };
             self.rows.push(row);
         }
@@ -371,11 +385,123 @@ impl ReportBuilder {
         Ok(())
     }
 
+    /// Write the variant-by-sample matrix to `path` and return how many variants
+    /// it holds.
+    ///
+    /// One row per variant, keyed by contig, gene, positions, REF and ALT, so a
+    /// codon MNV and a lone SNV at one of its bases stay separate variants, as
+    /// they are in the TSVs. One column per sample, in the order the samples were
+    /// added. A cell holds the allele frequency the reads gave, `called` for a
+    /// call with no measured frequency (a run without a BAM), and `NA` where the
+    /// sample has no call: the TSVs cannot tell a reference base from a position
+    /// nobody covered, so an empty cell is never written as 0.
+    pub fn write_matrix(&self, path: &str) -> AppResult<usize> {
+        type Key = (usize, usize, String, String, String);
+        let mut order: Vec<Key> = Vec::new();
+        let mut first_row: HashMap<Key, &Row> = HashMap::new();
+        let mut cells: HashMap<Key, HashMap<usize, Option<f64>>> = HashMap::new();
+        for row in &self.rows {
+            let key = (
+                row.chrom,
+                row.gene,
+                row.positions.clone(),
+                row.ref_bases.clone(),
+                row.alt_bases.clone(),
+            );
+            if !first_row.contains_key(&key) {
+                first_row.insert(key.clone(), row);
+                order.push(key.clone());
+            }
+            let slot = cells
+                .entry(key)
+                .or_default()
+                .entry(row.sample)
+                .or_insert(None);
+            // Two rows for one variant in one sample (two overlapping genes
+            // would differ in the key, so this is a repeated TSV) keep the
+            // measured value. A frequency over no reads was never measured: a
+            // BAM that does not reach the variant writes 0.0000 in the TSV, and
+            // the matrix would have read that as absent.
+            let measured = row.freq.filter(|_| row.depth != Some(0));
+            if slot.is_none() {
+                *slot = measured;
+            }
+        }
+        let first_position = |positions: &str| -> usize {
+            positions
+                .split(',')
+                .next()
+                .and_then(|value| value.trim().parse().ok())
+                .unwrap_or(usize::MAX)
+        };
+        order.sort_by(|a, b| {
+            self.chroms.values[a.0]
+                .cmp(&self.chroms.values[b.0])
+                .then(first_position(&a.2).cmp(&first_position(&b.2)))
+                .then(self.genes.values[a.1].cmp(&self.genes.values[b.1]))
+                .then(a.3.cmp(&b.3))
+                .then(a.4.cmp(&b.4))
+        });
+
+        let mut out = String::new();
+        out.push_str(
+            "Chromosome\tGene\tPositions\tReference Bases\tBase Changes\tAA Changes\t\
+             Variant Type\tSO Term\tImpact\tSamples Called",
+        );
+        for sample in &self.samples.values {
+            out.push('\t');
+            out.push_str(sample);
+        }
+        out.push('\n');
+        for key in &order {
+            let row = first_row[key];
+            let called = &cells[key];
+            let fields = [
+                self.chroms.values[row.chrom].as_str(),
+                self.genes.values[row.gene].as_str(),
+                row.positions.as_str(),
+                row.ref_bases.as_str(),
+                row.alt_bases.as_str(),
+                row.aa_change.as_str(),
+                self.types.values[row.variant_type].as_str(),
+                self.so_terms.values[row.so_term].as_str(),
+                self.impacts.values[row.impact].as_str(),
+            ];
+            out.push_str(&fields.join("\t"));
+            out.push('\t');
+            out.push_str(&called.len().to_string());
+            for sample in 0..self.samples.values.len() {
+                out.push('\t');
+                match called.get(&sample) {
+                    Some(Some(freq)) if freq.is_finite() => out.push_str(&format!("{freq:.4}")),
+                    Some(_) => out.push_str("called"),
+                    None => out.push_str("NA"),
+                }
+            }
+            out.push('\n');
+        }
+        std::fs::write(path, out)
+            .map_err(|e| AppError::validation(format!("Cannot write matrix file '{path}': {e}")))?;
+        Ok(order.len())
+    }
+
     /// Render the report to `path`. `command` is the sanitized command line shown
     /// in the header; `generated` is a human-readable timestamp.
     pub fn write(&self, path: &str, command: &str, generated: &str) -> AppResult<()> {
         let json = self.to_json(command, generated);
-        let html = TEMPLATE.replace(DATA_PLACEHOLDER, &json);
+        // The doublet classes come from the one list the annotation uses, so the
+        // report and the DBS Class column cannot name a class differently.
+        let mut dbs78 = String::from("[");
+        for (index, class) in crate::utils::DBS78_CLASSES.iter().enumerate() {
+            if index > 0 {
+                dbs78.push(',');
+            }
+            push_json_str(&mut dbs78, class);
+        }
+        dbs78.push(']');
+        let html = TEMPLATE
+            .replace(DBS78_PLACEHOLDER, &dbs78)
+            .replace(DATA_PLACEHOLDER, &json);
         let mut file = std::fs::File::create(path).map_err(|e| {
             AppError::validation(format!("Cannot create report file '{path}': {e}"))
         })?;
@@ -481,6 +607,14 @@ fn push_row(out: &mut String, row: &Row) {
     push_opt_freq(out, row.phasing);
     out.push(',');
     push_opt_num(out, row.phasing_reads);
+    out.push(',');
+    push_opt_str(out, row.sbs96.as_deref());
+    out.push(',');
+    push_opt_str(out, row.adjacent.as_deref());
+    out.push(',');
+    push_opt_str(out, row.catalogue.as_deref());
+    out.push(',');
+    push_opt_str(out, row.id83.as_deref());
     out.push(']');
 }
 
@@ -692,6 +826,57 @@ mod tests {
     }
 
     #[test]
+    fn matrix_has_a_column_per_sample_and_never_writes_a_missing_call_as_zero() {
+        let dir = std::env::temp_dir().join(format!("get_mnv_matrix_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let header = "Chromosome\tGene\tPositions\tReference Bases\tBase Changes\tAA Changes\t\
+                      Variant Type\tSO Term\tImpact\tSNP Frequencies\tTotal Reads\n";
+        let with_bam = dir.join("S1.MNV.tsv");
+        // 120 is called, but the BAM does not reach it: no reads, no frequency.
+        std::fs::write(
+            &with_bam,
+            format!(
+                "{header}chr1\tgeneA\t90\tA\tG\tLys30Arg\tSNP\tmissense_variant\tMODERATE\t0.9000\t20\n\
+                 chr1\tgeneA\t28\tG\tT\tAla10Ser\tSNP\tmissense_variant\tMODERATE\t0.4500\t20\n\
+                 chr1\tgeneA\t120\tC\tT\tPro40Leu\tSNP\tmissense_variant\tMODERATE\t0.0000\t0\n"
+            ),
+        )
+        .expect("write S1");
+        // A run without a BAM has no frequency to give.
+        let without_bam = dir.join("S2.MNV.tsv");
+        std::fs::write(
+            &without_bam,
+            "Chromosome\tGene\tPositions\tReference Bases\tBase Changes\tAA Changes\t\
+             Variant Type\tSO Term\tImpact\n\
+             chr1\tgeneA\t28\tG\tT\tAla10Ser\tSNP\tmissense_variant\tMODERATE\n",
+        )
+        .expect("write S2");
+
+        let mut builder = ReportBuilder::new();
+        builder
+            .add_tsv(with_bam.to_str().unwrap(), Some("S1"))
+            .unwrap();
+        builder
+            .add_tsv(without_bam.to_str().unwrap(), Some("S2"))
+            .unwrap();
+        let out = dir.join("matrix.tsv");
+        assert_eq!(builder.write_matrix(out.to_str().unwrap()).unwrap(), 3);
+
+        let text = std::fs::read_to_string(&out).unwrap();
+        let lines: Vec<Vec<&str>> = text.lines().map(|l| l.split('\t').collect()).collect();
+        assert_eq!(lines[0][9..], ["Samples Called", "S1", "S2"]);
+        // Sorted by position, not by the order the first TSV listed them.
+        assert_eq!(lines[1][2], "28");
+        assert_eq!(lines[1][9..], ["2", "0.4500", "called"]);
+        assert_eq!(lines[2][2], "90");
+        assert_eq!(lines[2][9..], ["1", "0.9000", "NA"]);
+        assert_eq!(lines[3][2], "120");
+        assert_eq!(lines[3][9..], ["1", "called", "NA"]);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn builder_reads_a_tsv_and_emits_embeddable_json() {
         let dir = std::env::temp_dir().join("get_mnv_report_test");
         std::fs::create_dir_all(&dir).expect("temp dir");
@@ -701,10 +886,11 @@ mod tests {
             "Chromosome\tGene\tPositions\tReference Bases\tBase Changes\tAA Changes\t\
              Variant Type\tChange Type\tSO Term\tImpact\tGrantham\tMNV Consequence Shift\t\
              DBS Class\tNMD Prediction\tHGVS g.\tHGVS c.\tReference Codon\tMNV Codon\t\
-             Event Class\tEvent Components\n\
+             Event Class\tEvent Components\tSBS96 Context\n\
              chr1\tgeneA\t28, 30\tG, T\tT, A\tAla10Ser\tSNP/MNV\tNon-synonymous\t\
              missense_variant\tMODERATE\t99 (moderately conservative)\tMNV-gained\t\
-             CC>TT\t-\tg.[28G>T;30T>A]\tc.[28G>T;30T>A]\tGCT\tTCA\tmnv\tSNV:28:G>T\n",
+             CC>TT\t-\tg.[28G>T;30T>A]\tc.[28G>T;30T>A]\tGCT\tTCA\tmnv\t\
+             SNV:28:G>T | SNV:30:T>A\tA[C>A]G, C[T>A]G\n",
         )
         .expect("write tsv");
 
@@ -723,7 +909,10 @@ mod tests {
         );
         // The payload must parse as JSON and must not close the script element.
         assert!(!json.contains("</script>"));
-        let _: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        // The SBS96 classes ride at the end of the row, where the template's
+        // column map (`sbs:26`) looks for them.
+        assert_eq!(parsed["rows"][0][26], "A[C>A]G, C[T>A]G");
 
         let _ = std::fs::remove_file(&path);
     }

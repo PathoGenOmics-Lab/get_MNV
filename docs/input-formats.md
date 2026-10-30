@@ -15,12 +15,13 @@ Pass variant calls with:
 
 The supported variant-call inputs are:
 
-- VCF (`.vcf` or `.vcf.gz`)
+- VCF (`.vcf` or `.vcf.gz`) and BCF (`.bcf`)
 - iVar variants TSV (`.tsv`)
 
-Use `--vcf` for plain `.vcf` or BGZF-compressed `.vcf.gz` files and `--tsv`
-for iVar `variants.tsv` files. BCF input is not accepted directly; convert it
-first, for example with `bcftools view input.bcf > input.vcf`.
+Use `--vcf` for plain `.vcf`, BGZF-compressed `.vcf.gz` or `.bcf` files and
+`--tsv` for iVar `variants.tsv` files. A BCF is decoded to VCF text as it is
+read, so it annotates exactly as the VCF it encodes; it is recognised by its
+`.bcf` extension.
 Older commands that pass an iVar TSV through `--vcf` are still auto-detected
 when the header has the standard iVar columns.
 
@@ -32,8 +33,7 @@ Requirements:
 
 - VCF contig names must match the FASTA and GFF/GTF contig names.
 - REF alleles must match the FASTA sequence.
-- Multiallelic records should be pre-split, or run with
-  `--split-multiallelic`.
+- Multiallelic records are split into one row per ALT allele.
 
 get_MNV can read original depth/frequency metrics from common INFO or FORMAT
 fields, including `DP`, `AF`, `FREQ`, `AD`, `AO`, and `RO`.
@@ -190,20 +190,35 @@ protein-coding, which is what a bacterial `gene` row is. Note that the default
 `--gff-features` list is `gene,pseudogene`, so pseudogenes are selected by
 default and are not translated.
 
-Limitations of TSV annotation:
+Optional seventh column with the contig:
 
-- It has no contig column.
-- For multi-contig data, use GFF/GTF or restrict the run with `--chrom`.
+```text
+GeneName	GeneStart	GeneEnd	Strand	Phase	Biotype	Contig
+```
 
-## 4. BAM Reads (Optional)
+```text
+Rv0007_Rv0007	9914	10828	+	0	protein_coding	NC_000962.3
+geneD	1	300	+	0	protein_coding	plasmid1
+```
 
-Pass BAM reads with:
+A row that names a contig is only applied to variants on that contig. A row
+without one, as in the shorter formats, is applied to whichever contig is being
+annotated, which is all a single-contig file needs. A VCF with more than one
+contig therefore needs every row to name its contig; otherwise the run stops
+rather than lay one contig's genes over another's variants. Using it means
+writing the phase and biotype columns too: `.` is accepted for an unknown
+phase.
+
+## 4. BAM or CRAM Reads (Optional)
+
+Pass aligned reads with:
 
 ```bash
 --bam reads.bam
+--bam reads.cram
 ```
 
-When a BAM is provided, get_MNV calculates:
+When reads are provided, get_MNV calculates:
 
 - SNP read support
 - MNV haplotype read support
@@ -213,10 +228,57 @@ When a BAM is provided, get_MNV calculates:
 
 Requirements:
 
-- BAM must be sorted.
-- BAM must be indexed (`.bai`).
-- BAM contig names must match the variant file and FASTA.
+- The file must be coordinate-sorted.
+- It must be indexed: `.bai` (or `.csi`) for a BAM, `.crai` for a CRAM.
+  `samtools index` writes either.
+- Contig names must match the variant file and FASTA.
+- A CRAM stores reads as differences from a reference, so it is decoded
+  against the `--fasta` of the run. That has to be the reference the CRAM was
+  written against; a different one fails with a checksum error rather than
+  giving wrong bases. A `.fai` next to the FASTA lets the sequence be read on
+  demand; without one it is loaded whole.
+
+A CRAM gives the same counts as the BAM it was made from: the test suite runs
+every scenario both ways and compares the outputs byte for byte.
 - Duplicate, secondary, supplementary and QC-fail reads are ignored, matching what `samtools mpileup` excludes by default.
+
+## 5. Catalogue of Known Variants (Optional)
+
+`--catalogue known.tsv` flags calls that match a table of variants you already
+know something about: drug-resistance mutations, lineage markers, known
+pathogenic changes. It is tab-separated, with a header naming a `gene` and a
+`variant` column and, optionally, a `label`; other columns are ignored and
+lines starting with `#` are comments.
+
+```text
+gene	variant	label
+rpoB	p.Ser450Leu	RIF: Assoc w R
+fabG1	c.-15C>T	INH: Assoc w R
+katG	LoF	INH: Assoc w R
+```
+
+A variant can be written as:
+
+| Form | Example | Matches |
+|---|---|---|
+| Protein | `p.Ser450Leu`, `p.S450L`, `p.Gln10Ter`, `p.Ala11fs` | rows of the gene with that protein change. A frameshift matches by its first residue and position, whatever follows `fs`. |
+| Coding substitution | `c.1349C>T`, `c.-15C>T`, `c.*3G>A` | the substituted base, placed in the genome from the gene model (`c.-N` upstream of the first coding base, `c.*N` past the last), on any row that carries it, intergenic ones included |
+| Genomic substitution | `g.761155C>T` | the substituted base at that position |
+| Other HGVS | `c.516_518dup`, `g.1673425del` | rows whose `HGVS c.` or `HGVS g.` is written exactly so |
+| `LoF` | `LoF` | any frameshift, premature stop or start loss in the gene |
+
+The gene is matched by name, or by any `_`-separated part of a combined name, so
+`rpoB` matches a gene named `rpoB_Rv0667`. A substitution whose reference base
+is not the one the FASTA has at that position was written against another
+reference; it matches nothing, and the run says how many there were.
+
+A protein entry is compared with both readings of a codon row: the residue the
+whole codon gives and the one each substitution would give alone. When only one
+reading matches, the row says so, `codon reading only` for a catalogued change
+that no single base makes, which base-by-base annotation misses, and
+`per-SNV reading only` for one such annotation would report that the codon does
+not make. Matches go to the `Catalogue` column (see
+[Output formats](output-formats.md)).
 
 ## Contig Names
 

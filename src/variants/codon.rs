@@ -24,6 +24,7 @@ pub use config::{
 pub use gene_path::process_codon;
 pub use phased::{local_haplotype_components, phased_haplotype_variant};
 
+use crate::variants::hgvs::CodingPosition;
 use crate::variants::types::*;
 use std::collections::BTreeMap;
 
@@ -44,6 +45,360 @@ use transcript_path::{
     apply_frameshift_labeling, frameshift_ptc_protein_pos, merge_transcript_snp_into_groups,
     process_transcript_codon, transcript_oriented_base, TranscriptSnp,
 };
+
+/// The 1-based CDS position of a genomic base, measured the way the substitution
+/// paths measure it for `c.`: along the spliced transcript when the gene has a
+/// CDS model, otherwise from the phase-adjusted feature start (or end, on the
+/// minus strand) plus the feature's protein offset.
+fn cds_position(gene: &Gene, position: usize) -> Option<usize> {
+    if has_transcript_cds_model(gene) {
+        return transcript_offsets_for_position(gene, position)
+            .first()
+            .map(|offset| offset + 1);
+    }
+    let (start, end) = effective_bounds(gene);
+    if position < start || position > end {
+        return None;
+    }
+    let local = match gene.strand {
+        Strand::Plus => position - start,
+        Strand::Minus => end - position,
+    };
+    Some(gene.protein_offset * 3 + local + 1)
+}
+
+/// The HGVS coding position of a genomic base: its CDS position, or, in an
+/// intron of a spliced transcript, the nearer exon's boundary base and the
+/// distance from it (`c.100+2`, `c.101-5`). `None` outside the transcript's
+/// coding exons and introns.
+fn coding_coordinate(gene: &Gene, position: usize) -> Option<CodingPosition> {
+    if let Some(n) = cds_position(gene, position) {
+        return Some(CodingPosition::Cds(n));
+    }
+    if !has_transcript_cds_model(gene) {
+        return None;
+    }
+    // Segments are in transcript order, so each pair brackets one intron with
+    // the upstream exon first.
+    for pair in gene.cds_segments.windows(2) {
+        let (up, down) = (&pair[0], &pair[1]);
+        if !gene.intron_separates(up, down) {
+            continue;
+        }
+        let (up_last, down_first, d_up, d_down) = match gene.strand {
+            Strand::Plus if position > up.end && position < down.start => {
+                (up.end, down.start, position - up.end, down.start - position)
+            }
+            Strand::Minus if position < up.start && position > down.end => {
+                (up.start, down.end, up.start - position, position - down.end)
+            }
+            _ => continue,
+        };
+        // HGVS splits an intron down the middle; the middle base of an odd one
+        // belongs to the first half.
+        return Some(if d_up <= d_down {
+            CodingPosition::Intron {
+                anchor: cds_position(gene, up_last)?,
+                offset: d_up as isize,
+            }
+        } else {
+            CodingPosition::Intron {
+                anchor: cds_position(gene, down_first)?,
+                offset: -(d_down as isize),
+            }
+        });
+    }
+    None
+}
+
+/// The coding sequence numbered as `c.` numbers it, for moving an indel 3'-most
+/// along it: the spliced transcript, or a feature that starts the protein. A CDS
+/// row further into the protein is numbered from the protein's start, which its
+/// own sequence does not begin at.
+fn numbered_coding_sequence(gene: &Gene, reference: &crate::io::Reference<'_>) -> Option<String> {
+    if has_transcript_cds_model(gene) || gene.protein_offset == 0 {
+        transcript_model::coding_sequence_for_gene(gene, reference)
+    } else {
+        None
+    }
+}
+
+/// HGVS `c.` for an indel in this gene, or `None` when it reaches a UTR or the
+/// flank.
+pub(super) fn indel_hgvs_c(
+    gene: &Gene,
+    indel: &crate::io::VcfPosition,
+    reference: &crate::io::Reference<'_>,
+) -> Option<String> {
+    let insertion = crate::variants::hgvs::is_pure_insertion(&indel.ref_allele, &indel.alt_allele);
+    let bases = numbered_coding_sequence(gene, reference);
+    let cds = bases
+        .as_deref()
+        .map(|bases| crate::variants::hgvs::CodingSequence {
+            bases,
+            exon_ends: exon_ends(gene),
+        });
+    crate::variants::hgvs::coding_indel(
+        indel.record_start,
+        &indel.ref_allele,
+        &indel.alt_allele,
+        gene.strand,
+        |position| {
+            // An insertion after the last base of an internal exon lands at the
+            // exon-exon junction of the spliced CDS, which is how the protein
+            // annotation reads it too. The base after the anchor is intronic, so
+            // its flank is the neighbouring exon's base, one CDS position away.
+            if insertion {
+                if let Some(anchor) = position.checked_sub(1) {
+                    if gene.insertion_at_internal_junction(anchor) {
+                        let at = cds_position(gene, anchor)?;
+                        return match gene.strand {
+                            Strand::Plus => Some(CodingPosition::Cds(at + 1)),
+                            Strand::Minus => at.checked_sub(1).map(CodingPosition::Cds),
+                        };
+                    }
+                }
+            }
+            coding_coordinate(gene, position)
+        },
+        cds.as_ref(),
+    )
+}
+
+/// The `c.` number of the last base of every exon an intron follows, in
+/// transcript order. A join with no intron (ribosomal slippage) is one reading
+/// frame, and the 3' rule may cross it.
+fn exon_ends(gene: &Gene) -> Vec<usize> {
+    if !has_transcript_cds_model(gene) {
+        return Vec::new();
+    }
+    gene.cds_segments
+        .windows(2)
+        .filter(|pair| gene.intron_separates(&pair[0], &pair[1]))
+        .filter_map(|pair| {
+            let last = match gene.strand {
+                Strand::Plus => pair[0].end,
+                Strand::Minus => pair[0].start,
+            };
+            cds_position(gene, last)
+        })
+        .collect()
+}
+
+/// The genomic bases this gene object codes, in genomic order: its CDS
+/// segments, or its phase-adjusted feature interval.
+fn coding_genomic_positions(gene: &Gene) -> Vec<usize> {
+    if has_transcript_cds_model(gene) {
+        let mut positions: Vec<usize> = gene
+            .cds_segments
+            .iter()
+            .flat_map(|segment| segment.start..=segment.end)
+            .collect();
+        positions.sort_unstable();
+        positions.dedup();
+        positions
+    } else {
+        let (start, end) = effective_bounds(gene);
+        (start..=end).collect()
+    }
+}
+
+/// A gene object's `c.` numbering, for a caller that asks it many times: plain
+/// arithmetic for a single feature, which is every gene of a bacterial genome,
+/// and a table for a spliced transcript.
+pub enum CodingNumbering {
+    /// `first` is the `c.` number of the feature's first base in transcript
+    /// order, which sits at `start` on the plus strand and at `end` on the minus.
+    Linear {
+        start: usize,
+        end: usize,
+        first: usize,
+        strand: Strand,
+    },
+    Spliced(std::collections::BTreeMap<usize, usize>),
+}
+
+impl CodingNumbering {
+    pub fn of(gene: &Gene) -> Self {
+        if has_transcript_cds_model(gene) {
+            return Self::Spliced(
+                coding_genomic_positions(gene)
+                    .into_iter()
+                    .filter_map(|position| Some((cds_position(gene, position)?, position)))
+                    .collect(),
+            );
+        }
+        let (start, end) = effective_bounds(gene);
+        Self::Linear {
+            start,
+            end,
+            first: gene.protein_offset * 3 + 1,
+            strand: gene.strand,
+        }
+    }
+
+    /// The genomic position of coding base `c.n`, if this object holds it.
+    pub fn genomic(&self, n: usize) -> Option<usize> {
+        match self {
+            Self::Linear {
+                start,
+                end,
+                first,
+                strand,
+            } => {
+                let span = end.checked_sub(*start)?;
+                let local = n.checked_sub(*first).filter(|&l| l <= span)?;
+                Some(match strand {
+                    Strand::Plus => start + local,
+                    Strand::Minus => end - local,
+                })
+            }
+            Self::Spliced(table) => table.get(&n).copied(),
+        }
+    }
+
+    /// The highest coding base this object holds, as `c.` number and genomic
+    /// position.
+    pub fn last(&self) -> Option<(usize, usize)> {
+        match self {
+            Self::Linear {
+                start,
+                end,
+                first,
+                strand,
+            } => Some((
+                first + end.checked_sub(*start)?,
+                match strand {
+                    Strand::Plus => *end,
+                    Strand::Minus => *start,
+                },
+            )),
+            Self::Spliced(table) => table.last_key_value().map(|(&n, &p)| (n, p)),
+        }
+    }
+}
+
+/// The genomic position of coding base `c.n` of this gene object, or `None`
+/// when it does not hold that base (a CDS row further into the protein, say).
+pub fn genomic_for_cds(gene: &Gene, n: usize) -> Option<usize> {
+    coding_genomic_positions(gene)
+        .into_iter()
+        .find(|&position| cds_position(gene, position) == Some(n))
+}
+
+/// The highest coding position this gene object holds: the protein's last
+/// coding base when the object ends the protein.
+pub fn last_cds_position(gene: &Gene) -> Option<usize> {
+    coding_genomic_positions(gene)
+        .into_iter()
+        .filter_map(|position| cds_position(gene, position))
+        .max()
+}
+
+/// The intron of `gene` that holds `position`, as its first and last genomic
+/// base, or `None` when the position is in no intron of it.
+pub fn intron_span(gene: &Gene, position: usize) -> Option<(usize, usize)> {
+    if !has_transcript_cds_model(gene) {
+        return None;
+    }
+    gene.cds_segments.windows(2).find_map(|pair| {
+        let (up, down) = (&pair[0], &pair[1]);
+        if !gene.intron_separates(up, down) {
+            return None;
+        }
+        let (lo, hi) = match gene.strand {
+            Strand::Plus => (up.end + 1, down.start - 1),
+            Strand::Minus => (down.end + 1, up.start - 1),
+        };
+        (lo..=hi).contains(&position).then_some((lo, hi))
+    })
+}
+
+/// HGVS `c.` for a row with no codon of its own inside `gene`: a change in an
+/// intron or at a splice site, numbered from the nearer exon. A deletion or
+/// insertion wholly inside one intron is placed 3'-most along the transcript
+/// within it, and an insertion repeating the bases before it is a `dup`, as in
+/// the coding sequence.
+pub fn noncodon_hgvs_c(gene: &Gene, variant: &VariantInfo, sequence: &str) -> Option<String> {
+    use crate::variants::hgvs;
+    let map = |position: usize| coding_coordinate(gene, position);
+    // A row of several substituted bases describes them all, as its `g.` does:
+    // spelled as one allele over their span, it decomposes into every one.
+    if variant.positions.len() > 1 {
+        let (&first, &last) = (
+            variant.positions.iter().min()?,
+            variant.positions.iter().max()?,
+        );
+        let mut ref_span = sequence
+            .get(first - 1..last)?
+            .to_ascii_uppercase()
+            .into_bytes();
+        let mut alt_span = ref_span.clone();
+        for ((&position, r), a) in variant
+            .positions
+            .iter()
+            .zip(&variant.ref_bases)
+            .zip(&variant.base_changes)
+        {
+            let (&[r], &[a]) = (r.as_bytes(), a.as_bytes()) else {
+                return None;
+            };
+            ref_span[position - first] = r.to_ascii_uppercase();
+            alt_span[position - first] = a.to_ascii_uppercase();
+        }
+        let (ref_span, alt_span) = (
+            String::from_utf8(ref_span).ok()?,
+            String::from_utf8(alt_span).ok()?,
+        );
+        return hgvs::coding_noncodon(first, &ref_span, &alt_span, gene.strand, map);
+    }
+    let (pos, ref_allele, alt_allele) = (
+        *variant.positions.first()?,
+        variant.ref_bases.first()?,
+        variant.base_changes.first()?,
+    );
+    let (start, ref_core, alt_core) = hgvs::indel_core(pos, ref_allele, alt_allele);
+    let span = if alt_core.is_empty() && !ref_core.is_empty() {
+        let end = start + ref_core.len() - 1;
+        intron_span(gene, start).filter(|&(lo, hi)| start >= lo && end <= hi)
+    } else if ref_core.is_empty() && !alt_core.is_empty() {
+        // Both bases the insertion falls between are intronic.
+        intron_span(gene, start).filter(|&(lo, hi)| start > lo && start <= hi)
+    } else {
+        None
+    };
+    let Some((lo, hi)) = span else {
+        return hgvs::coding_noncodon(pos, ref_allele, alt_allele, gene.strand, map);
+    };
+    let (pos, ref_allele, alt_allele) =
+        hgvs::shift_within(sequence, pos, ref_allele, alt_allele, gene.strand, lo, hi);
+    if ref_allele.len() == 1 && alt_allele.len() > 1 {
+        // The bases inserted after `pos`, and the copy they would duplicate:
+        // the ones before them along the transcript.
+        let inserted = &alt_allele[1..];
+        let length = inserted.len();
+        let copy = match gene.strand {
+            Strand::Plus => (pos + 1).checked_sub(length).map(|first| (first, pos)),
+            Strand::Minus => Some((pos + 1, pos + length)),
+        };
+        if let Some((first, last)) =
+            copy.filter(|&(first, last)| first >= 1 && last <= sequence.len())
+        {
+            if sequence[first - 1..last].eq_ignore_ascii_case(inserted) {
+                let (a, b) = (map(first)?, map(last)?);
+                if a == b {
+                    return Some(format!("c.{a}dup"));
+                }
+                let (low, high) = match gene.strand {
+                    Strand::Plus => (a, b),
+                    Strand::Minus => (b, a),
+                };
+                return Some(format!("c.{low}_{high}dup"));
+            }
+        }
+    }
+    hgvs::coding_noncodon(pos, &ref_allele, &alt_allele, gene.strand, map)
+}
 
 /// Whether the whole of this indel lies upstream of the codon in transcript
 /// order, on a gene annotated in genomic coordinates.
@@ -250,8 +605,14 @@ fn get_mnv_variants_for_transcript(
     }
 
     for indel in indels {
-        let (change_type, aa_changes, aa_changes_local, ref_codon, alt_codon) =
-            protein_effect_for_indel(gene, reference, &indel, genetic_code);
+        let indel_effect::IndelEffect {
+            change_type,
+            aa_changes,
+            aa_changes_local,
+            ref_codon,
+            alt_codon,
+            initiator_lost,
+        } = protein_effect_for_indel(gene, reference, &indel, genetic_code);
         let (event_class, event_components) = variant_event_metadata(&indel);
         let nmd = nmd::indel_nmd_prediction(gene, reference, &indel, genetic_code);
 
@@ -291,6 +652,8 @@ fn get_mnv_variants_for_transcript(
             annotations: crate::variants::VariantAnnotations {
                 nmd,
                 splice: splice_consequence_for_indel(gene, &indel),
+                hgvs_c: indel_hgvs_c(gene, &indel, reference),
+                initiator_lost,
                 ..Default::default()
             },
         });
@@ -507,6 +870,7 @@ pub fn get_mnv_variants_for_gene_with_config(
                 codon_start,
                 codon_end,
                 protein_offset: gene.protein_offset,
+                starts_protein: gene.starts_protein(),
             };
 
             let mut var_info = process_codon(codon_info, gene.strand, chrom, genetic_code);
@@ -529,8 +893,14 @@ pub fn get_mnv_variants_for_gene_with_config(
     }
 
     for indel in indels {
-        let (change_type, aa_changes, aa_changes_local, ref_codon, alt_codon) =
-            protein_effect_for_indel(gene, reference, &indel, genetic_code);
+        let indel_effect::IndelEffect {
+            change_type,
+            aa_changes,
+            aa_changes_local,
+            ref_codon,
+            alt_codon,
+            initiator_lost,
+        } = protein_effect_for_indel(gene, reference, &indel, genetic_code);
         let (event_class, event_components) = variant_event_metadata(&indel);
 
         variants.push(VariantInfo {
@@ -568,6 +938,8 @@ pub fn get_mnv_variants_for_gene_with_config(
             event_components,
             annotations: crate::variants::VariantAnnotations {
                 splice: splice_consequence_for_indel(gene, &indel),
+                hgvs_c: indel_hgvs_c(gene, &indel, reference),
+                initiator_lost,
                 ..Default::default()
             },
         });

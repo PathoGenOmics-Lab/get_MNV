@@ -15,13 +15,13 @@ Pasa las llamadas de variantes con:
 
 Las entradas de llamadas de variantes admitidas son:
 
-- VCF (`.vcf` o `.vcf.gz`)
+- VCF (`.vcf` o `.vcf.gz`) y BCF (`.bcf`)
 - TSV de variantes de iVar (`.tsv`)
 
-Usa `--vcf` para archivos `.vcf` simples o `.vcf.gz` comprimidos con BGZF, y
-`--tsv` para archivos `variants.tsv` de iVar. La entrada BCF no se acepta
-directamente; conviértela antes, por ejemplo con
-`bcftools view input.bcf > input.vcf`.
+Usa `--vcf` para archivos `.vcf` simples, `.vcf.gz` comprimidos con BGZF o
+`.bcf`, y `--tsv` para archivos `variants.tsv` de iVar. Un BCF se decodifica a
+texto VCF a medida que se lee, así que se anota exactamente igual que el VCF que
+codifica; se reconoce por su extensión `.bcf`.
 Los comandos antiguos que pasan un TSV de iVar mediante `--vcf` se siguen
 detectando de forma automática cuando la cabecera tiene las columnas estándar de
 iVar.
@@ -36,8 +36,7 @@ Requisitos:
 - Los nombres de contig del VCF deben coincidir con los del FASTA y los del
   GFF/GTF.
 - Los alelos REF deben coincidir con la secuencia del FASTA.
-- Los registros multialélicos deben dividirse previamente, o bien hay que
-  ejecutar con `--split-multiallelic`.
+- Los registros multialélicos se dividen en una fila por alelo ALT.
 
 get_MNV puede leer las métricas originales de profundidad y frecuencia desde
 campos INFO o FORMAT habituales, como `DP`, `AF`, `FREQ`, `AD`, `AO` y `RO`.
@@ -196,20 +195,35 @@ se asume codificante, que es lo que es una fila `gene` bacteriana. Ten en cuenta
 que la lista por defecto de `--gff-features` es `gene,pseudogene`, así que los
 pseudogenes entran por defecto y no se traducen.
 
-Limitaciones de la anotación TSV:
+Séptima columna opcional con el contig:
 
-- No tiene columna de contig.
-- Para datos multi-contig, usa GFF/GTF o limita la ejecución con `--chrom`.
+```text
+GeneName	GeneStart	GeneEnd	Strand	Phase	Biotype	Contig
+```
 
-## 4. Lecturas BAM (opcional)
+```text
+Rv0007_Rv0007	9914	10828	+	0	protein_coding	NC_000962.3
+geneD	1	300	+	0	protein_coding	plasmid1
+```
 
-Pasa las lecturas BAM con:
+Una fila que nombra un contig solo se aplica a las variantes de ese contig. Una
+fila sin él, como en los formatos más cortos, se aplica al contig que se esté
+anotando, que es todo lo que necesita un archivo de un solo contig. Por eso un
+VCF con más de un contig necesita que todas las filas nombren su contig; si no,
+la ejecución se detiene en vez de poner los genes de un contig sobre las
+variantes de otro. Para usarla hay que escribir también las columnas de fase y
+biotipo: `.` vale como fase desconocida.
+
+## 4. Lecturas BAM o CRAM (opcional)
+
+Pasa las lecturas alineadas con:
 
 ```bash
 --bam reads.bam
+--bam reads.cram
 ```
 
-Cuando se proporciona un BAM, get_MNV calcula:
+Cuando se proporcionan lecturas, get_MNV calcula:
 
 - El soporte de lecturas de los SNP
 - El soporte de lecturas del haplotipo MNV
@@ -219,11 +233,60 @@ Cuando se proporciona un BAM, get_MNV calcula:
 
 Requisitos:
 
-- El BAM debe estar ordenado.
-- El BAM debe estar indexado (`.bai`).
-- Los nombres de contig del BAM deben coincidir con los del archivo de variantes
-  y los del FASTA.
+- El archivo debe estar ordenado por coordenadas.
+- Debe estar indexado: `.bai` (o `.csi`) para un BAM, `.crai` para un CRAM.
+  `samtools index` escribe cualquiera de los dos.
+- Los nombres de contig deben coincidir con los del archivo de variantes y los
+  del FASTA.
+- Un CRAM guarda las lecturas como diferencias con una referencia, así que se
+  decodifica con el `--fasta` de la ejecución. Tiene que ser la referencia con
+  la que se escribió el CRAM; una distinta falla con un error de suma de
+  comprobación en vez de dar bases equivocadas. Un `.fai` junto al FASTA permite
+  leer la secuencia bajo demanda; sin él se carga entera.
+
+Un CRAM da los mismos recuentos que el BAM del que sale: la batería de pruebas
+ejecuta cada escenario de las dos maneras y compara las salidas byte a byte.
 - Las lecturas duplicadas, secundarias, suplementarias y marcadas como QC-fail se ignoran, igual que las descarta `samtools mpileup` por defecto.
+
+## 5. Catálogo de variantes conocidas (opcional)
+
+`--catalogue conocidas.tsv` marca las llamadas que coinciden con una tabla de
+variantes de las que ya sabes algo: mutaciones de resistencia, marcadores de
+linaje, cambios patogénicos conocidos. Va separada por tabuladores, con una
+cabecera que nombra una columna `gene` y otra `variant` y, de forma opcional,
+`label`; las demás columnas se ignoran y las líneas que empiezan por `#` son
+comentarios.
+
+```text
+gene	variant	label
+rpoB	p.Ser450Leu	RIF: Assoc w R
+fabG1	c.-15C>T	INH: Assoc w R
+katG	LoF	INH: Assoc w R
+```
+
+Una variante se puede escribir como:
+
+| Forma | Ejemplo | Coincide con |
+|---|---|---|
+| Proteína | `p.Ser450Leu`, `p.S450L`, `p.Gln10Ter`, `p.Ala11fs` | las filas del gen con ese cambio proteico. Un corrimiento de marco coincide por su primer residuo y su posición, siga lo que siga a `fs`. |
+| Sustitución codificante | `c.1349C>T`, `c.-15C>T`, `c.*3G>A` | la base sustituida, colocada en el genoma con el modelo del gen (`c.-N` antes de la primera base codificante, `c.*N` después de la última), en cualquier fila que la lleve, también las intergénicas |
+| Sustitución genómica | `g.761155C>T` | la base sustituida en esa posición |
+| Otro HGVS | `c.516_518dup`, `g.1673425del` | las filas cuyo `HGVS c.` o `HGVS g.` se escribe exactamente así |
+| `LoF` | `LoF` | cualquier corrimiento de marco, parada prematura o pérdida del inicio en el gen |
+
+El gen se compara por nombre, o por cualquier parte separada por `_` de un
+nombre compuesto, así que `rpoB` coincide con un gen llamado `rpoB_Rv0667`. Una
+sustitución cuya base de referencia no es la que tiene el FASTA en esa posición
+se escribió contra otra referencia; no coincide con nada, y la ejecución dice
+cuántas hubo.
+
+Una entrada proteica se compara con las dos lecturas de una fila de codón: el
+residuo que da el codón entero y el que daría cada sustitución sola. Cuando solo
+coincide una de ellas, la fila lo dice: `codon reading only` para un cambio del
+catálogo que ninguna base sola produce, y que la anotación base a base no ve, y
+`per-SNV reading only` para uno que esa anotación daría y que el codón no
+produce. Las coincidencias van a la columna `Catalogue` (consulta
+[Formatos de salida](output-formats.es.md)).
 
 ## Nombres de contig
 

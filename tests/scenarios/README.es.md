@@ -173,7 +173,7 @@ las filas TSV esperadas.
 | # | Name | What it validates |
 |---|------|-------------------|
 | 18 | `stop_gained_via_mnv` | MNV de tres SNVs en el codón 50 `GCT`→`TAA` → `Ala50Ter`, `Change Type = Stop gained` |
-| 19 | `start_codon_altered` | SNV en el codón de inicio ATG en la pos 2 → `Met1Thr`, reportado con Change Type `Start lost` |
+| 19 | `start_codon_altered` | SNV en el codón de inicio ATG en la pos 2 → `Met1?` (HGVS para un iniciador perdido), reportado con Change Type `Start lost` |
 | 20 | `stop_lost` | SNV en el codón de stop `TAA` (pos 298) → `Change Type = Stop lost` |
 
 ### Complex alleles
@@ -181,7 +181,7 @@ las filas TSV esperadas.
 | # | Name | What it validates |
 |---|------|-------------------|
 | 21 | `intron_variant` | SNV en el intrón de geneC (pos 950), lejos de los sitios de splice → `intron_variant` contra geneC, no `intergenic` |
-| 22 | `multiallelic_split` | VCF multialélico `pos 28 REF=G ALT=A,T` con `--split-multiallelic`: cada ALT produce ahora una fila de anotación independiente (prueba de regresión para la corrección del commit 9ea2aed) |
+| 22 | `multiallelic_split` | VCF multialélico `pos 28 REF=G ALT=A,T`, dividido por defecto sin opciones (desde la 1.1.6): cada ALT produce una fila de anotación independiente (prueba de regresión para la corrección del commit 9ea2aed) |
 | 23 | `delins_subst_plus_del` | `REF=GCT ALT=GA`: un alelo compuesto de sustitución + deleción de 1 bp produce una fila INDEL con frameshift |
 
 ### Multi-contig and iVar TSV input

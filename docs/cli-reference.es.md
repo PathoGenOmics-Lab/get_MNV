@@ -1,6 +1,6 @@
 # Referencia de la CLI
 
-Referencia completa de las opciones de línea de comandos de `get_mnv` (versión 1.1.5). Ejecuta
+Referencia completa de las opciones de línea de comandos de `get_mnv` (versión 1.1.6). Ejecuta
 `get_mnv --help` para ver la misma lista en tu terminal.
 
 ## Sinopsis
@@ -18,9 +18,9 @@ TSV ya existentes y no necesita ninguna de las tres.
 
 | Opción | Descripción |
 |---|---|
-| `-v, --vcf <FILE>` | Entrada de variantes en VCF plano o comprimido con BGZF (SNV/MNV e indels). |
+| `-v, --vcf <FILE>` | Entrada de variantes en VCF plano, VCF comprimido con BGZF o BCF (SNV/MNV e indels). |
 | `--tsv <FILE>` | Entrada `variants.tsv` de iVar. |
-| `-b, --bam <FILE>` | Lecturas alineadas opcionales para soporte de lecturas. Debe estar ordenado por coordenadas e indexado. |
+| `-b, --bam <FILE>` | Lecturas alineadas opcionales para soporte de lecturas, en BAM o CRAM. Debe estar ordenado por coordenadas e indexado; un CRAM se decodifica con `--fasta`. |
 | `-f, --fasta <FILE>` | FASTA de referencia (requerido). |
 | `--sample <NAME>` | Muestra que se anota en un VCF multimuestra (por defecto: primera muestra; `all` para todas). Sus métricas FORMAT pasan a ser la profundidad y la frecuencia originales, y su genotipo decide qué alelos ALT lleva. |
 | `--chrom <NAME>` | Restringe el procesamiento a un solo contig (por defecto: todos los contigs de la entrada). |
@@ -51,40 +51,42 @@ Estas solo aplican cuando se proporciona `--bam`.
 | `--min-mnv-strand <N>` | `0` | Lecturas mínimas que soportan el MNV en cada hebra. |
 | `--min-strand-bias-p <F>` | `0.0` | Valor p mínimo del test exacto de Fisher aceptado para las métricas de sesgo de hebra. **Solo afecta a la salida VCF**: el escritor de TSV no tiene umbral de sesgo, así que esto nunca quita una fila del TSV. |
 
-!!! note "Cómo se combinan los umbrales de SNP y MNV"
-    Los filtros de frecuencia y recuento de lecturas usan el soporte recalculado
-    a partir de `--bam`, no los `OFREQ`/`ODP` originales de la entrada.
-
-    Una fila a nivel de codón (`SNP/MNV`) se conserva cuando **cualquiera** de
-    los dos lados supera su listón: sus SNV individuales pasan los umbrales de
-    SNP, **o** su haplotipo pasa los de MNV. Eso conserva un haplotipo bien
-    soportado cuyos SNV individuales son débiles, y funciona también en el otro
-    sentido: con los umbrales de SNP en su valor por defecto de `0`, el lado SNP
-    pasa siempre, así que subir `--mnv` a solas no quita nada. Sube los dos, o
-    ninguno. La ejecución avisa cuando has pedido un umbral MNV que no puede
-    llegar a una fila a nivel de codón.
-
-    Qué umbrales gobiernan cada fila:
-
-    | Fila | La juzgan |
-    |---|---|
-    | `SNP` | los umbrales de SNP |
-    | `MNV`, `SNP/MNV` | cualquiera de los dos lados, como arriba |
-    | `INDEL` | los umbrales de **MNV**, medidos contra el soporte de evento del propio indel (`Event Reads`, `Event Forward Reads`, `Event Reverse Reads`, `Event Depth`), no contra ninguna columna SNP |
-
-    Una fila del TSV se conserva o se descarta entera, y una fila a nivel de
-    codón supera el lado SNP solo cuando lo superan **todas** sus sustituciones.
-    Un registro del VCF es un alelo, y se filtra por su cuenta. Así que una
-    ejecución con `--both` bajo un umbral que una sustitución cumple y otra no
-    escribe ese alelo en el VCF sin que ninguna fila del TSV lo lleve: falló la
-    fila, no el alelo. Ninguna de las dos salidas está mal; son unidades
-    distintas.
-
-    Así que un indel se filtra con `--mnv`, `--min-mnv-frequency` y
-    `--min-mnv-strand`; `--snp` no lo toca nunca. Eso vale también fuera de los
-    genes: un indel intergénico se cuenta y se juzga por su propio soporte como
-    cualquier otro. Solo queda exenta una fila que no llegó a ningún contador,
-    porque no se puede aplicar un umbral a una medición que nadie tomó.
+> [!NOTE]
+> **Cómo se combinan los umbrales de SNP y MNV**
+>
+> Los filtros de frecuencia y recuento de lecturas usan el soporte recalculado
+> a partir de `--bam`, no los `OFREQ`/`ODP` originales de la entrada.
+>
+> Una fila a nivel de codón (`SNP/MNV`) se conserva cuando **cualquiera** de
+> los dos lados supera su listón: sus SNV individuales pasan los umbrales de
+> SNP, **o** su haplotipo pasa los de MNV. Eso conserva un haplotipo bien
+> soportado cuyos SNV individuales son débiles, y funciona también en el otro
+> sentido: con los umbrales de SNP en su valor por defecto de `0`, el lado SNP
+> pasa siempre, así que subir `--mnv` a solas no quita nada. Sube los dos, o
+> ninguno. La ejecución avisa cuando has pedido un umbral MNV que no puede
+> llegar a una fila a nivel de codón.
+>
+> Qué umbrales gobiernan cada fila:
+>
+> | Fila | La juzgan |
+> |---|---|
+> | `SNP` | los umbrales de SNP |
+> | `MNV`, `SNP/MNV` | cualquiera de los dos lados, como arriba |
+> | `INDEL` | los umbrales de **MNV**, medidos contra el soporte de evento del propio indel (`Event Reads`, `Event Forward Reads`, `Event Reverse Reads`, `Event Depth`), no contra ninguna columna SNP |
+>
+> Una fila del TSV se conserva o se descarta entera, y una fila a nivel de
+> codón supera el lado SNP solo cuando lo superan **todas** sus sustituciones.
+> Un registro del VCF es un alelo, y se filtra por su cuenta. Así que una
+> ejecución con `--both` bajo un umbral que una sustitución cumple y otra no
+> escribe ese alelo en el VCF sin que ninguna fila del TSV lo lleve: falló la
+> fila, no el alelo. Ninguna de las dos salidas está mal; son unidades
+> distintas.
+>
+> Así que un indel se filtra con `--mnv`, `--min-mnv-frequency` y
+> `--min-mnv-strand`; `--snp` no lo toca nunca. Eso vale también fuera de los
+> genes: un indel intergénico se cuenta y se juzga por su propio soporte como
+> cualquier otro. Solo queda exenta una fila que no llegó a ningún contador,
+> porque no se puede aplicar un umbral a una medición que nadie tomó.
 
 ## Ajuste de indels
 
@@ -96,7 +98,7 @@ Estas solo aplican cuando se proporciona `--bam`.
 | `--count-mates-separately` | apagado | Cuenta los dos mates de un fragmento como dos observaciones en vez de una molécula. |
 | `--phased-indel-min-freq <F>` | `0.0` | Frecuencia mínima derivada del BAM para emitir una fila de haplotipo indel/complejo en fase. |
 | `--normalize-alleles` | off | Recorta el prefijo/sufijo compartido de REF/ALT antes del procesamiento. |
-| `--split-multiallelic` | off | Divide los registros VCF multialélicos en alelos ALT independientes en lugar de fallar. |
+| `--split-multiallelic` | activada | Divide los registros VCF multialélicos en alelos ALT independientes. Activada por defecto desde la 1.1.6; se sigue aceptando para que los comandos existentes no fallen. |
 
 ## Salida
 
@@ -113,28 +115,30 @@ Estas solo aplican cuando se proporciona `--bam`.
 | `--keep-original-info` | Conserva los campos INFO originales del VCF en la salida (requiere `--convert`/`--both`). |
 | `--emit-filtered` | Emite los registros que no superan los umbrales con etiquetas `FILTER` en lugar de omitirlos. |
 
-!!! info "`--index-vcf-gz` y `--bcf` llaman a programas externos"
-
-    Todo lo demás que escribe get_MNV lo escribe get_MNV. Estos dos no:
-    `--index-vcf-gz` ejecuta `tabix` y `--bcf` ejecuta `bcftools`, ambos
-    tomados del `PATH`. Vienen con samtools/htslib y con bcftools, y ninguno es
-    dependencia de compilación, así que una máquina puede tener get_MNV y no
-    tenerlos.
-
-    Que falte un programa no es una ejecución fallida. get_MNV avisa, se salta
-    ese paso y termina: el TSV y el VCF se escriben igualmente y la ejecución
-    sale con `0`. Nada reclama después el fichero que no se escribió, así que el
-    resumen JSON no reporta ningún BCF y `--run-manifest` no anota ninguna suma
-    de comprobación para él. Mira los avisos, o mira si está el fichero, cuando
-    un paso posterior lo necesite.
-
+> [!NOTE]
+> **`--index-vcf-gz` y `--bcf` llaman a programas externos**
+>
+> Todo lo demás que escribe get_MNV lo escribe get_MNV. Estos dos no:
+> `--index-vcf-gz` ejecuta `tabix` y `--bcf` ejecuta `bcftools`, ambos
+> tomados del `PATH`. Vienen con samtools/htslib y con bcftools, y ninguno es
+> dependencia de compilación, así que una máquina puede tener get_MNV y no
+> tenerlos.
+>
+> Que falte un programa no es una ejecución fallida. get_MNV avisa, se salta
+> ese paso y termina: el TSV y el VCF se escriben igualmente y la ejecución
+> sale con `0`. Nada reclama después el fichero que no se escribió, así que el
+> resumen JSON no reporta ningún BCF y `--run-manifest` no anota ninguna suma
+> de comprobación para él. Mira los avisos, o mira si está el fichero, cuando
+> un paso posterior lo necesite.
 
 ## Informe HTML interactivo
 
 | Opción | Descripción |
 |---|---|
 | `--report <HTML_FILE>` | Escribe un informe HTML interactivo y autocontenido de las variantes llamadas. Necesita la salida TSV, que es la de por defecto. `--convert` escribe el VCF *en lugar* del TSV, y los dos flags son mutuamente excluyentes, así que usa `--both` en vez de `--convert` cuando quieras un informe junto a la salida VCF. Con `--sample all` el informe cubre todas las muestras. |
-| `--report-from <TSV>...` | Construye el informe a partir de TSV de get_MNV ya existentes, sin ejecutar el pipeline, para cohortes procesadas muestra a muestra. Cada fichero es una muestra, etiquetada con su nombre de archivo. Requiere `--report` para la ruta de salida. |
+| `--report-from <TSV>...` | Construye el informe a partir de TSV de get_MNV ya existentes, sin ejecutar el pipeline, para cohortes procesadas muestra a muestra. Cada fichero es una muestra, etiquetada con su nombre de archivo. Requiere `--report`, `--matrix` o ambos para la salida. |
+| `--matrix <TSV_FILE>` | Escribe una matriz de variantes por muestra en TSV: una fila por variante y una columna por muestra, con la frecuencia alélica que dieron las lecturas, `called` para una llamada sin frecuencia medida, o `NA` donde la muestra no tiene llamada. Funciona en una ejecución normal, con `--sample all` y con `--report-from`; necesita la salida TSV, igual que `--report`. |
+| `--catalogue <TSV_FILE>` | Marca las llamadas que coinciden con un catálogo de variantes conocidas: una tabla separada por tabuladores con columnas `gene`, `variant` y `label` opcional, con la variante escrita como `p.`, `c.`, `g.` o `LoF`. Las coincidencias van a la columna `Catalogue` y a la clave INFO `CAT`. Consulta [Formatos de entrada](input-formats.es.md#5-catálogo-de-variantes-conocidas-opcional). |
 
 Consulta [Formatos de salida](output-formats.es.md#informe-html-interactivo) para saber qué contiene el informe.
 

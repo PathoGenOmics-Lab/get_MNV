@@ -716,6 +716,117 @@ def _check_bgzipped_input_agrees(
     return ["  el .vcf y el .vcf.gz del mismo contenido anotan distinto:\n" + detalle]
 
 
+def _write_cram(bam: Path, fasta: Path, cram: Path) -> str | None:
+    """Converts `bam` to an indexed CRAM of many small containers.
+
+    Four reads to a slice and two slices to a container put a scenario's reads
+    in many containers, most of them holding more than one slice, so a query
+    has to pick the containers that overlap it and read each of them once.
+    Returns what went wrong, or None.
+    """
+    proc = subprocess.run(
+        [SAMTOOLS, "view", "-C", "-T", str(fasta),
+         "--output-fmt-option", "seqs_per_slice=4",
+         "--output-fmt-option", "slices_per_container=2",
+         "-o", str(cram), str(bam)],
+        capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        return f"  no se pudo convertir el BAM a CRAM: {proc.stderr.strip()}"
+    proc = subprocess.run([SAMTOOLS, "index", str(cram)], capture_output=True, text=True)
+    if proc.returncode != 0:
+        return f"  no se pudo indexar el CRAM: {proc.stderr.strip()}"
+    return None
+
+
+def _write_unnamed_bam(bam: Path, unnamed: Path) -> str | None:
+    """The same reads with every name replaced by `*`, indexed."""
+    proc = subprocess.run([SAMTOOLS, "view", "-h", str(bam)], capture_output=True, text=True)
+    if proc.returncode != 0:
+        return f"  no se pudo leer el BAM: {proc.stderr.strip()}"
+    lines = [
+        line if line.startswith("@") else "*" + line[line.index("\t"):]
+        for line in proc.stdout.splitlines()
+    ]
+    proc = subprocess.run(
+        [SAMTOOLS, "view", "-b", "-o", str(unnamed), "-"],
+        input="\n".join(lines) + "\n", capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        return f"  no se pudo escribir el BAM sin nombres: {proc.stderr.strip()}"
+    proc = subprocess.run([SAMTOOLS, "index", str(unnamed)], capture_output=True, text=True)
+    if proc.returncode != 0:
+        return f"  no se pudo indexar el BAM sin nombres: {proc.stderr.strip()}"
+    return None
+
+
+def _first_difference(bam_body: str, cram_body: str) -> str:
+    return next(
+        (
+            f"      BAM:  {a}\n      CRAM: {b}"
+            for a, b in zip(bam_body.split("\n"), cram_body.split("\n"))
+            if a != b
+        ),
+        "      distinto numero de lineas",
+    )
+
+
+def _check_cram_agrees(
+    scenario, work, variant_input, fasta, gff, bam, extra_args, input_flag, bam_out
+) -> list[str]:
+    """The same reads, as BAM and as CRAM, have to annotate identically.
+
+    get_MNV hands a CRAM record to the read counters in the shape of a BAM
+    record, so every count, frequency and phasing call has to come out the same
+    whichever container the reads arrived in. The comparison is byte for byte
+    over the whole TSV, so it covers every column without naming them. It runs
+    twice: with the reads' names, and with every name `*`, which a CRAM
+    decodes as a name the BAM encoder refuses.
+    """
+    if not scenario.reads:
+        return []
+    unnamed = work / "reads_unnamed.bam"
+    problem = _write_unnamed_bam(bam, unnamed)
+    if problem:
+        return [problem]
+
+    errors = []
+    for label, reads, reads_out in [("", bam, bam_out), ("_unnamed", unnamed, None)]:
+        if reads_out is None:
+            # A copy of the input under another name for every run, so each
+            # writes its own outputs instead of overwriting the ones compared.
+            unnamed_input = work / ("variants_unnamed" + "".join(variant_input.suffixes))
+            shutil.copyfile(variant_input, unnamed_input)
+            reads_out = run_get_mnv(
+                work, unnamed_input, fasta, gff, reads,
+                gff_features=scenario.gff_features,
+                extra_args=extra_args or None,
+                input_flag=input_flag,
+            )
+        cram = work / f"reads{label}.cram"
+        problem = _write_cram(reads, fasta, cram)
+        if problem:
+            errors.append(problem)
+            continue
+        cram_input = work / (f"variants_cram{label}" + "".join(variant_input.suffixes))
+        shutil.copyfile(variant_input, cram_input)
+        cram_out = run_get_mnv(
+            work, cram_input, fasta, gff, cram,
+            gff_features=scenario.gff_features,
+            extra_args=extra_args or None,
+            input_flag=input_flag,
+        )
+        bam_body = reads_out.read_text()
+        cram_body = cram_out.read_text()
+        if bam_body != cram_body:
+            names = "sin nombres de lectura " if label else ""
+            errors.append(
+                f"  el BAM y el CRAM de las mismas lecturas {names}anotan distinto:\n"
+                + _first_difference(bam_body, cram_body)
+            )
+    return errors
+
+
 def run_scenario(scenario: Scenario, base_work: Path) -> tuple[bool, list[str], Path]:
     work = base_work / scenario.name
     if work.exists():
@@ -756,6 +867,8 @@ def run_scenario(scenario: Scenario, base_work: Path) -> tuple[bool, list[str], 
     errors = compare(scenario.expected, rows)
     errors.extend(_check_bgzipped_input_agrees(scenario, work, variant_input, fasta, gff, bam,
                                                extra_args, input_flag, out))
+    errors.extend(_check_cram_agrees(scenario, work, variant_input, fasta, gff, bam,
+                                     extra_args, input_flag, out))
     vcf_path = out.parent / (out.name[: -len(".tsv")] + ".vcf")
     if "--convert" not in extra_args:
         if not vcf_path.exists():

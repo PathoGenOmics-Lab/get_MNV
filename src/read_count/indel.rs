@@ -13,7 +13,7 @@ use super::observation::{
 use super::{IndelReadCountRequest, ReadCountSummary};
 
 pub fn count_indel_reads(
-    bam_reader: &mut bam::io::IndexedReader<noodles::bgzf::io::Reader<std::fs::File>>,
+    bam_reader: &mut crate::io::AlignmentReader,
     header: &Header,
     request: IndelReadCountRequest<'_>,
 ) -> AppResult<ReadCountSummary> {
@@ -40,7 +40,7 @@ pub fn count_indel_reads(
     let region = build_region(chrom, position, end)?;
     let mut query = bam_reader.query(header, &region).map_err(|e| {
         AppError::validation(format!(
-            "BAM query failed for {chrom}:{position}-{end}: {e}"
+            "Alignment query failed for {chrom}:{position}-{end}: {e}"
         ))
     })?;
 
@@ -63,7 +63,7 @@ pub fn count_indel_reads(
     let mut record = bam::Record::default();
     while query
         .read_record(&mut record)
-        .map_err(|e| AppError::validation(format!("BAM read error: {e}")))?
+        .map_err(|e| AppError::validation(format!("Alignment read error: {e}")))?
         != 0
     {
         record_index += 1;
