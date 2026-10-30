@@ -622,6 +622,62 @@ fn test_inframe_insertion_creating_stop_is_stop_gained() {
     assert_eq!(variants[0].change_type, ChangeType::StopGained);
 }
 
+fn indel_at(record_start: usize, ref_allele: &str, alt_allele: &str) -> crate::io::VcfPosition {
+    crate::io::VcfPosition {
+        record_start,
+        ref_allele: ref_allele.to_string(),
+        alt_allele: alt_allele.to_string(),
+        original_dp: None,
+        original_freq: None,
+        original_info: None,
+        declared_phase: None,
+    }
+}
+
+/// Copying the terminal stop codon (ATG AAA TTT TAA to ATG AAA TTT TAA TAA)
+/// adds a stop no ribosome reaches: the protein made is Met-Lys-Phe either way.
+/// Counting the stops of the whole translation called it a stop gained.
+#[test]
+fn an_insertion_copying_the_terminal_stop_codon_changes_nothing() {
+    let gene = single_exon_gene("cds", 1, 12, Strand::Plus);
+    let reference = crate::io::Reference {
+        sequence: "ATGAAATTTTAA",
+    };
+    let variants = crate::variants::get_mnv_variants_for_gene(
+        &gene,
+        &[indel_at(9, "T", "TTAA")],
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+
+    assert_eq!(variants.len(), 1);
+    assert_eq!(variants[0].change_type, ChangeType::Synonymous);
+    assert_eq!(variants[0].aa_changes, vec!["Synonymous".to_string()]);
+}
+
+/// An in-frame insertion repeating the codon before it is a duplication in
+/// the protein and coding descriptors alike.
+#[test]
+fn an_inframe_duplication_is_written_dup_in_aa_changes_and_hgvs_c() {
+    let gene = single_exon_gene("cds", 1, 15, Strand::Plus);
+    let reference = crate::io::Reference {
+        sequence: "ATGAAATTTATGTAA",
+    };
+    let variants = crate::variants::get_mnv_variants_for_gene(
+        &gene,
+        &[indel_at(9, "T", "TTTT")],
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+
+    assert_eq!(variants.len(), 1);
+    assert_eq!(variants[0].change_type, ChangeType::InFrameIndel);
+    assert_eq!(variants[0].aa_changes, vec!["Phe3dup".to_string()]);
+    assert_eq!(variants[0].annotations.hgvs_c.as_deref(), Some("c.7_9dup"));
+}
+
 // H1: a low-frequency upstream frameshift indel must not relabel a
 // high-frequency downstream SNV as frameshifted once the frequency gate is
 // raised above the indel frequency.

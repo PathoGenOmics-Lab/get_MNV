@@ -41,6 +41,13 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- **A copy of the stop codon is not a stop gained.** An in-frame insertion
+  that repeats the terminal stop codon, alone or with the codon before it
+  (`TAA` to `TAATAA`), adds a stop no ribosome reaches and leaves the protein
+  as it was. The stops were counted over the whole translation, so it came out
+  `stop_gained` at HIGH impact and matched a catalogue's `LoF` entry for the
+  gene, and in a spliced gene the copy, read a codon upstream of where it
+  stands, got an NMD prediction. It is now synonymous, with no NMD call.
 - **A `g.` catalogue entry matches wherever its change is.** A genomic
   descriptor other than a single substitution (`g.2289247del`) was compared only
   with the rows of the entry's gene, and a deletion upstream of a gene sits on

@@ -112,9 +112,12 @@ pub(super) fn protein_effect_for_indel(
     // stop there is the case: it was reported as a residue inserted one past the
     // protein's last one, at MODERATE impact, on a row whose own reference and
     // alternate codons were both a stop, while the substitution producing that
-    // very same stop codon was correctly called synonymous.
-    let protein_change_is_past_the_stop =
-        !frameshift && protein_unchanged && change_type == base_change_type;
+    // very same stop codon was correctly called synonymous. A stop past the
+    // first one counts for nothing either: an insertion that copies the terminal
+    // stop codon (`TAA` to `TAATAA`) adds a stop no ribosome reaches, and
+    // counting the stops of the whole translation called it a stop gained at
+    // HIGH impact, which a catalogue's `LoF` entry then matched.
+    let protein_change_is_past_the_stop = !frameshift && protein_unchanged;
     if protein_change_is_past_the_stop {
         change_type = ChangeType::Synonymous;
     }
