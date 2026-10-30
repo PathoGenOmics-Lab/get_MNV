@@ -98,6 +98,22 @@ All notable changes to this project are documented in this file.
   is the same as an indel behind the start. Of the genomic variants WHO links
   to groups 1 and 2, 35 more match their own `LoF` or `p.Met1?` entry, 28 of
   which were flagged for none of their drugs.
+- **A deletion written across a gene's start reads as it does written inside
+  the gene.** A deletion in a repeat can be written at several places, and the
+  gene's edge clipped one that began before it. Left-aligned, as `bcftools norm`
+  and `--left-align` write it, deleting the second ATG of `ATGATG` begins on the
+  base before the gene and kept only two coding bases: a frameshift that lost
+  the start and shifted every codon behind it, where the same deletion written
+  inside the gene was `Met2del`, so turning `--left-align` on changed the call.
+  A deletion from the bases before the start codon into the gene is now read at
+  its 3'-most place along the transcript within the first exon, as HGVS places
+  it, so it gets the codons, `c.` and protein change of that place; the row
+  keeps the record as written. One that still reaches before the start codon
+  there loses the start, now with the same frame however it was written: 81
+  of WHO's genomic variants for groups 1 and 2 are written elsewhere, and they
+  keep their `Met1?` and their catalogue entries, but 58 change between
+  `start_lost` and `frameshift_variant&start_lost` (katG `2155586`, written two
+  bases short of that place, is now a frameshift, as it was left-aligned).
 
 ## [1.1.6] - 2026-10-29
 

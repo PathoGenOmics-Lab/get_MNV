@@ -129,6 +129,18 @@ Las deleciones de VCF están ancladas, pero su efecto biológico es el tramo de
 referencia eliminado. Una deleción anclada justo antes de un CDS/gen afecta a ese
 feature siempre que las bases eliminadas lo solapen.
 
+Una deleción que va desde las bases de antes del codón de inicio hasta dentro
+del gen se lee en su posición más 3' a lo largo del transcrito, dentro del primer
+exón, que es donde la coloca HGVS. Una deleción en una repetición puede
+escribirse en varios sitios, y alineada a la izquierda, como la escriben
+`--left-align` y `bcftools norm`, borrar el segundo ATG de `ATGATG` empieza en la
+base de antes del gen; leída donde está escrita, solo conservaría dos bases
+codificantes y saldría como corrimiento de marco. Colocada en su posición más 3'
+queda dentro del gen y se lee `Met2del`, con los mismos codones y el mismo `c.`
+que la misma deleción escrita ahí. La que en esa posición sigue llegando a la
+base de antes del codón de inicio pierde el inicio. La fila conserva el registro
+tal como está escrito.
+
 Cuando una fila MNV solapa un indel, get_MNV conserva la fila MNV como contexto
 posicional y marca su efecto en el aminoácido como `Unknown` con
 `Change Type = Indel overlap`. Si el BAM respalda el evento combinado completo,

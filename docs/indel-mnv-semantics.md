@@ -119,6 +119,16 @@ VCF deletions are anchored, but their biological effect is the deleted reference
 span. A deletion anchored just before a CDS/gene still affects that feature if
 the deleted bases overlap it.
 
+A deletion that runs from the bases before the start codon into the gene is read
+at its 3'-most place along the transcript, within the first exon, as HGVS places
+it. A deletion in a repeat can be written at several places, and left-aligned,
+as `--left-align` and `bcftools norm` write it, deleting the second ATG of
+`ATGATG` begins on the base before the gene; read where it is written, it would
+keep only two coding bases and come out a frameshift. Placed 3'-most it lies
+inside the gene and reads `Met2del`, with the same codons and `c.` as the same
+deletion written there. One that still reaches the base before the start codon
+in that place loses the start. The row keeps the record as written.
+
 When an MNV row overlaps an indel, get_MNV keeps the MNV row as positional
 context and marks its amino-acid effect as `Unknown` with
 `Change Type = Indel overlap`. If the BAM supports the full combined event,
