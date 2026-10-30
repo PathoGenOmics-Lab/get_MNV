@@ -4,7 +4,7 @@
 use super::{PhasedIndelInputs, RegionCacheKey, WorkerState};
 use crate::cli::Args;
 use crate::error::{AppError, AppResult};
-use crate::io::VcfPosition;
+use crate::io::{VariantIndex, VcfPosition};
 use crate::read_count::{self, ReadCountSummary};
 use crate::variants::{self, Gene, VariantInfo, VariantType};
 use std::collections::HashMap;
@@ -166,12 +166,21 @@ pub(super) fn compute_frameshift_phasing(
 /// Carry the input caller's own phase claim onto the multi-position rows, and
 /// note where the reads flatly refute it. Run after read counting so both
 /// sides of that comparison are available.
-pub(super) fn annotate_declared_phase(variants: &mut [VariantInfo], snp_list: &[VcfPosition]) {
+pub(super) fn annotate_declared_phase(variants: &mut [VariantInfo], snp_index: &VariantIndex) {
     for variant in variants.iter_mut() {
+        // Only a record acting on one of the row's own bases can carry the
+        // claim for it, so the search starts from those bases rather than from
+        // the gene the row came from.
+        let (Some(&first), Some(&last)) = (
+            variant.positions.iter().min(),
+            variant.positions.iter().max(),
+        ) else {
+            continue;
+        };
         let Some(mut call) = variants::declared_phase::declared_phase_for_row(
             &variant.positions,
             &variant.base_changes,
-            snp_list,
+            snp_index.near(first, last),
         ) else {
             continue;
         };
@@ -341,10 +350,17 @@ pub(super) fn count_indel_reads_into(
     // left-aligned the same way as the BAM (common in homopolymers/tandem
     // repeats), so the exact-anchor match yields zero support.
     if summary.mnv_total_reads > 0 && summary.mnv_count == 0 {
+        // Once the run has left-aligned the allele, asking for that again is
+        // no help: the reads put the gap somewhere else, or do not carry it.
+        let hint = if args.left_align {
+            "The allele is left-aligned, so the reads either place the gap elsewhere \
+             (an aligner that does not left-align) or do not carry this indel."
+        } else {
+            "If it lies in a homopolymer/repeat, rerun with --left-align (or left-align \
+             the input with `bcftools norm -f ref.fa`) so the allele matches the read alignment."
+        };
         log::warn!(
-            "Indel at {}:{} {}>{} has {} spanning read(s) but 0 with exact CIGAR support. \
-             If it lies in a homopolymer/repeat, left-align the input first \
-             (e.g. `bcftools norm -f ref.fa`) so the allele matches the read alignment.",
+            "Indel at {}:{} {}>{} has {} spanning read(s) but 0 with exact CIGAR support. {hint}",
             contig,
             position,
             ref_allele,

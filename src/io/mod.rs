@@ -5,9 +5,12 @@ pub mod alignment;
 pub mod annotation;
 pub mod fasta;
 pub mod ivar;
+pub(crate) mod left_align;
 pub mod validation;
+pub(crate) mod variant_index;
 pub mod vcf;
 pub mod vcf_fast;
+pub(crate) mod vcf_text;
 
 // Re-export public types and functions for backward compatibility.
 pub use alignment::{is_cram_path, AlignmentQuery, AlignmentReader};
@@ -20,9 +23,10 @@ pub use fasta::{
     validate_vcf_reference_alleles, Reference, ReferenceMap,
 };
 pub use validation::get_base_name;
+pub(crate) use variant_index::VariantIndex;
 pub use vcf::{
     extract_original_info_headers, list_vcf_samples, load_vcf, load_vcf_positions_by_contig,
-    parse_declared_phase, DeclaredPhase, VcfPosition,
+    parse_declared_phase, AlleleNormalization, DeclaredPhase, VcfPosition,
 };
 
 #[cfg(test)]

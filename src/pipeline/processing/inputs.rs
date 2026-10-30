@@ -10,12 +10,24 @@ use crate::pipeline::config::{
     sanitized_command_line, selected_contigs, validate_contig_inputs,
     validate_strict_original_metrics,
 };
+use crate::pipeline::shared::SharedInputs;
+use std::sync::Arc;
 
-pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppResult<ParsedInputs> {
+/// Read and check everything one run needs. A cohort passes the inputs its
+/// samples share, so each is read once; a single run passes `None` and reads
+/// them itself.
+pub(crate) fn parse_inputs(
+    args: &Args,
+    sample_override: Option<&str>,
+    shared: Option<&SharedInputs>,
+) -> AppResult<ParsedInputs> {
     let variant_file = args.variant_file();
     let base_name = io::get_base_name(variant_file).map_err(reclassify_generic_as_validation)?;
-    let references = io::load_references(&args.fasta_file, args.chrom.as_deref())
-        .map_err(reclassify_generic_as_validation)?;
+    let references = match shared {
+        Some(shared) => shared.references(args),
+        None => io::load_references(&args.fasta_file, args.chrom.as_deref()).map(Arc::new),
+    }
+    .map_err(reclassify_generic_as_validation)?;
     let input_format = resolve_variant_input_format(args)?;
     if input_format == VariantInputFormat::Tsv && sample_override.is_some() {
         return Err(AppError::config(
@@ -24,16 +36,21 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
     }
 
     let snp_by_contig = match input_format {
-        VariantInputFormat::Tsv => io::ivar::load_ivar_tsv(variant_file, &references)
-            .map_err(reclassify_generic_as_validation)?,
-        VariantInputFormat::Vcf | VariantInputFormat::Auto => io::load_vcf(
-            variant_file,
-            sample_override,
-            args.split_multiallelic,
-            args.normalize_alleles,
-            args.keep_original_info,
-            Some(&references),
-        )
+        VariantInputFormat::Tsv => {
+            io::ivar::load_ivar_tsv(variant_file, &references, args.left_align)
+                .map_err(reclassify_generic_as_validation)?
+        }
+        VariantInputFormat::Vcf | VariantInputFormat::Auto => match shared {
+            Some(shared) => shared.variants(args, sample_override, &references),
+            None => io::load_vcf(
+                variant_file,
+                sample_override,
+                args.split_multiallelic,
+                args.allele_normalization(),
+                args.keep_original_info,
+                Some(&references),
+            ),
+        }
         .map_err(reclassify_generic_as_validation)?,
     };
     let annotation_format = io::detect_annotation_format(args.genes_file())
@@ -42,7 +59,11 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
     validate_strict_original_metrics(&contigs, &snp_by_contig, args.strict)?;
     let tsv_rows_without_contig = if annotation_format == AnnotationFormat::Tsv && contigs.len() > 1
     {
-        io::tsv_rows_without_contig(args.genes_file()).map_err(reclassify_generic_as_validation)?
+        match shared {
+            Some(shared) => shared.tsv_rows_without_contig(args),
+            None => io::tsv_rows_without_contig(args.genes_file()),
+        }
+        .map_err(reclassify_generic_as_validation)?
     } else {
         0
     };
@@ -59,8 +80,11 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
     // dropped. A column that names no contig of the reference at all is not a
     // contig column, and the run says so rather than annotate nothing.
     if annotation_format == AnnotationFormat::Tsv {
-        let named =
-            io::tsv_named_contigs(args.genes_file()).map_err(reclassify_generic_as_validation)?;
+        let named = match shared {
+            Some(shared) => shared.tsv_named_contigs(args),
+            None => io::tsv_named_contigs(args.genes_file()).map(Arc::new),
+        }
+        .map_err(reclassify_generic_as_validation)?;
         if !named.is_empty() && !named.iter().any(|contig| references.contains_key(contig)) {
             let mut known: Vec<&String> = references.keys().collect();
             known.sort();
@@ -80,8 +104,11 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
     // (e.g. `gene`) keeps the legacy behaviour and the existing phase warning.
     let gff_features = if args.gff_features_raw.is_none()
         && annotation_format == AnnotationFormat::Gff
-        && io::annotation::gff_has_cds_features(args.genes_file())
-            .map_err(reclassify_generic_as_validation)?
+        && match shared {
+            Some(shared) => shared.gff_has_cds_features(args),
+            None => io::annotation::gff_has_cds_features(args.genes_file()),
+        }
+        .map_err(reclassify_generic_as_validation)?
     {
         log::info!(
             "GFF contains CDS features and --gff-features was not set; analysing 'CDS' \
@@ -94,8 +121,11 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
 
     let preloaded_gff = if annotation_format == AnnotationFormat::Gff {
         Some(
-            io::preload_gff_genes(args.genes_file(), &gff_features)
-                .map_err(reclassify_generic_as_validation)?,
+            match shared {
+                Some(shared) => shared.gff_genes(args, &gff_features),
+                None => io::preload_gff_genes(args.genes_file(), &gff_features).map(Arc::new),
+            }
+            .map_err(reclassify_generic_as_validation)?,
         )
     } else {
         None
@@ -109,21 +139,25 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
     }
     let original_info_headers =
         if args.keep_original_info && input_format == VariantInputFormat::Vcf {
-            if io::vcf_fast::use_fast_parser(variant_file) {
-                io::vcf_fast::extract_text_info_headers(variant_file)
-                    .map_err(reclassify_generic_as_validation)?
-            } else {
-                io::extract_original_info_headers(variant_file)
-                    .map_err(reclassify_generic_as_validation)?
+            match shared {
+                Some(shared) => shared.original_info_headers(args),
+                None if io::vcf_fast::use_fast_parser(variant_file) => {
+                    io::vcf_fast::extract_text_info_headers(variant_file).map(Arc::new)
+                }
+                None => io::extract_original_info_headers(variant_file).map(Arc::new),
             }
+            .map_err(reclassify_generic_as_validation)?
         } else {
-            Vec::new()
+            Arc::new(Vec::new())
         };
 
     let catalogue = args
         .catalogue
         .as_deref()
-        .map(crate::variants::catalogue::Catalogue::load)
+        .map(|path| match shared {
+            Some(shared) => shared.catalogue(path),
+            None => crate::variants::catalogue::Catalogue::load(path).map(Arc::new),
+        })
         .transpose()?;
 
     Ok(ParsedInputs {

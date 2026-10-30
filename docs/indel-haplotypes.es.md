@@ -156,10 +156,12 @@ fila `complex_indel` de al lado es donde está la consecuencia real.
   trabaja a nivel de molécula, así que un haplotipo con sus variantes repartidas
   entre mates se encuentra; el alelo no lo puede reproducir ningún mate por
   separado, así que la fila no se puede respaldar y el umbral la descarta.
-- **El alineamiento a la izquierda es trabajo de la entrada.** get_MNV empareja
-  el alelo tal cual se le da. En un homopolímero o una repetición en tándem, un
-  indel de entrada colocado distinto que el alineamiento del BAM da soporte
-  exacto cero; un aviso lo dice, y `bcftools norm -f ref.fa` lo arregla.
+- **Un indel se empareja donde está escrito.** En un homopolímero o una
+  repetición en tándem, un indel de entrada colocado distinto que el
+  alineamiento del BAM da soporte exacto cero, y un aviso lo dice.
+  `--left-align` lo lleva a la posición equivalente más a la izquierda, donde
+  los alineadores ponen el hueco, antes de contar nada (mira
+  [Alineamiento a la izquierda](indel-mnv-semantics.es.md#alineamiento-a-la-izquierda)).
 - **Una inserción anclada en la última base de una feature queda fuera de ella**,
   porque la secuencia insertada cae más allá. En un gen de hebra menos esa misma
   coordenada es la *primera* base del transcrito, así que la inserción cae en el

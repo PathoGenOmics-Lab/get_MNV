@@ -98,6 +98,7 @@ Estas solo aplican cuando se proporciona `--bam`.
 | `--count-mates-separately` | apagado | Cuenta los dos mates de un fragmento como dos observaciones en vez de una molécula. |
 | `--phased-indel-min-freq <F>` | `0.0` | Frecuencia mínima derivada del BAM para emitir una fila de haplotipo indel/complejo en fase. |
 | `--normalize-alleles` | off | Recorta el prefijo/sufijo compartido de REF/ALT antes del procesamiento. |
+| `--left-align` | off | Alinea a la izquierda los indels sobre la referencia antes del procesamiento, como hace `bcftools norm -f`: un indel en un homopolímero o una repetición pasa a su posición equivalente más a la izquierda, donde los alineadores ponen el hueco, para que se pueda contar su soporte de lecturas. Incluye el recorte de `--normalize-alleles`; los registros complejos se recortan pero no se mueven. Vale para la entrada VCF y para la TSV de iVar. Mira [Alineamiento a la izquierda](indel-mnv-semantics.es.md#alineamiento-a-la-izquierda). |
 | `--split-multiallelic` | activada | Divide los registros VCF multialélicos en alelos ALT independientes. Activada por defecto desde la 1.1.6; se sigue aceptando para que los comandos existentes no fallen. |
 
 ## Salida

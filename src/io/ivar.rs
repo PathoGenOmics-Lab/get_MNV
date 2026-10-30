@@ -272,9 +272,15 @@ pub fn looks_like_ivar_tsv(path: &str) -> AppResult<bool> {
 }
 
 /// Parse an iVar variants TSV file into VCF-like positions grouped by contig.
+///
+/// With `left_align` each indel is moved to its leftmost equivalent position,
+/// as the VCF readers do under `--left-align`. iVar reads its indels off the
+/// alignment, so they are usually there already; trimming has nothing to do,
+/// since every allele is built from a single anchor base.
 pub fn load_ivar_tsv(
     path: &str,
     references: &ReferenceMap,
+    left_align: bool,
 ) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
     log::info!("Loading iVar TSV: {path}");
     let reader = open_reader(path)?;
@@ -285,6 +291,7 @@ pub fn load_ivar_tsv(
     let mut kept = 0usize;
     let mut skipped_failed = 0usize;
     let mut skipped_reference = 0usize;
+    let mut left_aligned = 0usize;
 
     for line_result in reader.lines() {
         let line = line_result.map_err(|e| format!("Error reading iVar TSV line: {e}"))?;
@@ -339,6 +346,16 @@ pub fn load_ivar_tsv(
         };
         validate_vcf_allele(&vcf_ref, record_idx, chrom, vcf_pos, "REF")?;
         validate_vcf_allele(&vcf_alt, record_idx, chrom, vcf_pos, "ALT")?;
+        let (vcf_pos, vcf_ref, vcf_alt) = if left_align {
+            let normalization = crate::io::AlleleNormalization::LeftAlign;
+            let sequence = references.get(chrom).map(String::as_str);
+            let (pos, ref_allele, alt_allele, moved) =
+                normalization.apply(vcf_pos, vcf_ref, vcf_alt, sequence);
+            left_aligned += usize::from(moved);
+            (pos, ref_allele, alt_allele)
+        } else {
+            (vcf_pos, vcf_ref, vcf_alt)
+        };
 
         let (original_dp, original_freq) = parse_original_metrics(cols, &fields);
         positions_by_contig
@@ -374,6 +391,7 @@ pub fn load_ivar_tsv(
         skipped_failed,
         skipped_reference
     );
+    crate::io::vcf::log_left_aligned(left_aligned);
 
     Ok(positions_by_contig)
 }
@@ -415,7 +433,7 @@ chr1\t4\tT\tA\t5\t5\t0.5\t10\tFALSE\n\
 chr1\t5\tA\tA\t5\t5\t0.5\t10\tTRUE\n",
         );
         let references = ReferenceMap::from([("chr1".to_string(), "ACGTACGT".to_string())]);
-        let parsed = load_ivar_tsv(&path, &references).unwrap();
+        let parsed = load_ivar_tsv(&path, &references, false).unwrap();
         let chr1 = parsed.get("chr1").unwrap();
         assert_eq!(chr1.len(), 2);
         assert_eq!(chr1[0].record_start, 2);
@@ -439,12 +457,33 @@ chr1\t5\tA\tA\t5\t5\t0.5\t10\tTRUE\n",
 chr1\t3\tG\t-TA\t5\t5\t0.5\t10\tTRUE\n",
         );
         let references = ReferenceMap::from([("chr1".to_string(), "ACGTACGT".to_string())]);
-        let parsed = load_ivar_tsv(&path, &references).unwrap();
+        let parsed = load_ivar_tsv(&path, &references, false).unwrap();
         let chr1 = parsed.get("chr1").unwrap();
         assert_eq!(chr1.len(), 1);
         assert_eq!(chr1[0].record_start, 3);
         assert_eq!(chr1[0].ref_allele, "GTA");
         assert_eq!(chr1[0].alt_allele, "G");
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_load_ivar_tsv_left_aligns_when_asked() {
+        // AAAA at 2-5: the deletion of the A at 5, anchored at 4, belongs after
+        // the G at 1; the insertion of a C after the C at 7 belongs after 5.
+        let path = write_temp_ivar(
+            "REGION\tPOS\tREF\tALT\tREF_DP\tALT_DP\tALT_FREQ\tTOTAL_DP\tPASS\n\
+chr1\t4\tA\t-A\t5\t5\t0.5\t10\tTRUE\n\
+chr1\t7\tC\t+C\t5\t5\t0.5\t10\tTRUE\n",
+        );
+        let references = ReferenceMap::from([("chr1".to_string(), "GAAAACCT".to_string())]);
+        let spelled = |left_align| {
+            load_ivar_tsv(&path, &references, left_align).unwrap()["chr1"]
+                .iter()
+                .map(|v| format!("{} {}>{}", v.record_start, v.ref_allele, v.alt_allele))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(spelled(false), vec!["4 AA>A", "7 C>CC"]);
+        assert_eq!(spelled(true), vec!["1 GA>G", "5 A>AC"]);
         let _ = std::fs::remove_file(path);
     }
 }
