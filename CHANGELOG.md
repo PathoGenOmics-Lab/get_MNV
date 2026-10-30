@@ -2,6 +2,40 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- **The WHO catalogue of *M. tuberculosis* resistance mutations, ready for
+  `--catalogue`.** `example/who_catalogue_2023.tsv` holds the 1,379 entries of
+  groups 1 and 2 of the 2023 catalogue (second edition), labelled with the drug
+  and grade (`RIF: Assoc w R`), and `tools/who_catalogue_to_tsv.py` builds it,
+  or any other choice of groups, from WHO's own files with Python's standard
+  library alone. Most entries are already written as get_MNV writes the same
+  change; a duplication becomes the insertion get_MNV names, a lost stop the
+  residue that replaces it, and an indel outside a coding sequence the `g.`
+  get_MNV gives it, placed from WHO's genomic coordinates on the run's FASTA.
+  The four whole-gene deletions, which no VCF of changes inside genes
+  describes, are listed as not converted. Of the 26,231 genomic variants WHO
+  links to those groups, 26,199 come out flagged for their drug, among them
+  the 22 rpoB variants that need two changes in one codon, which only the
+  codon reading finds. `tests/who_catalogue/run.py` checks the converter on
+  real rows of the catalogue in CI.
+- **`--catalogue` reads `n.`.** A gene that is not translated, such as an rRNA,
+  is numbered from its first base, as the WHO catalogue writes rrs and rrl
+  changes (`n.1401A>G`). Such an entry was read as a protein change and
+  matched nothing.
+
+### Fixed
+
+- **A `g.` catalogue entry matches wherever its change is.** A genomic
+  descriptor other than a single substitution (`g.2289247del`) was compared only
+  with the rows of the entry's gene, and a deletion upstream of a gene sits on
+  an intergenic row, so the pncA promoter deletion WHO grades as resistance to
+  pyrazinamide could not be flagged, although the documentation's own example
+  was such an entry. It is now compared with every row of the contig the gene
+  is on.
+
 ## [1.1.6] - 2026-10-29
 
 ### Added

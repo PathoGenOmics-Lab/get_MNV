@@ -1,0 +1,1387 @@
+# WHO catalogue of mutations in Mycobacterium tuberculosis complex and their
+# association with drug resistance, second edition (2023), for get_MNV --catalogue.
+# Contains information from the WHO mutation catalogue (https://github.com/GTB-tbsequencing/mutation-catalogue-2023),
+# which is made available under the ODC Attribution License (https://opendatacommons.org/licenses/by/1-0/).
+# Converted by tools/who_catalogue_to_tsv.py from WHO-UCN-TB-2023.6-eng_catalogue_master_file.txt
+# (sha256 ff7600c1fbd4150422f696cdc9c94b2b324a139d10ca1518461f1a98c105e9cf); groups 1, 2.
+# Entries with no get_MNV form of their own placed on MTB_ancestor.fas from WHO-UCN-TB-2023.7-eng_genomic_coordinates.txt.
+gene	variant	label	drug	grade	who_variant
+eis	c.-14C>T	AMK: Assoc w R - Interim	Amikacin	2) Assoc w R - Interim	eis_c.-14C>T
+rrs	n.1401A>G	AMK: Assoc w R	Amikacin	1) Assoc w R	rrs_n.1401A>G
+rrs	n.1402C>T	AMK: Assoc w R - Interim	Amikacin	2) Assoc w R - Interim	rrs_n.1402C>T
+rrs	n.1484G>T	AMK: Assoc w R	Amikacin	1) Assoc w R	rrs_n.1484G>T
+atpE	p.Ala63Pro	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	atpE_p.Ala63Pro
+atpE	p.Asp28Ala	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	atpE_p.Asp28Ala
+atpE	p.Asp28Gly	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	atpE_p.Asp28Gly
+atpE	p.Asp28Val	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	atpE_p.Asp28Val
+atpE	p.Glu61Asp	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	atpE_p.Glu61Asp
+atpE	p.Ile66Met	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	atpE_p.Ile66Met
+pepQ	LoF	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	pepQ_LoF
+pepQ	p.Asp232fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	pepQ_p.Asp232fs
+pepQ	p.Asp51fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	pepQ_p.Asp51fs
+pepQ	p.Gln5*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	pepQ_p.Gln5*
+pepQ	p.His100fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	pepQ_p.His100fs
+pepQ	p.Leu317fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	pepQ_p.Leu317fs
+pepQ	p.Thr341fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	pepQ_p.Thr341fs
+pepQ	p.Val273fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	pepQ_p.Val273fs
+Rv0678	LoF	BDQ: Assoc w R	Bedaquiline	1) Assoc w R	Rv0678_LoF
+Rv0678	p.Ala110fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Ala110fs
+Rv0678	p.Ala144fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Ala144fs
+Rv0678	p.Ala36Val	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Ala36Val
+Rv0678	p.Ala62fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Ala62fs
+Rv0678	p.Arg109fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Arg109fs
+Rv0678	p.Arg123fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Arg123fs
+Rv0678	p.Arg132fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Arg132fs
+Rv0678	p.Arg132*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Arg132*
+Rv0678	p.Arg134*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Arg134*
+Rv0678	p.Arg156fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Arg156fs
+Rv0678	p.Arg156*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Arg156*
+Rv0678	p.Arg30fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Arg30fs
+Rv0678	p.Arg38*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Arg38*
+Rv0678	p.Arg72fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Arg72fs
+Rv0678	p.Arg89fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Arg89fs
+Rv0678	p.Asn148fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Asn148fs
+Rv0678	p.Asn70Asp	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Asn70Asp
+Rv0678	p.Asn70fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Asn70fs
+Rv0678	p.Asn98fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Asn98fs
+Rv0678	p.Asp116fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Asp116fs
+Rv0678	p.Asp141fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Asp141fs
+Rv0678	p.Asp165fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Asp165fs
+Rv0678	p.Asp47fs	BDQ: Assoc w R	Bedaquiline	1) Assoc w R	Rv0678_p.Asp47fs
+Rv0678	p.Asp8fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Asp8fs
+Rv0678	p.Cys46Arg	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Cys46Arg
+Rv0678	p.Cys46fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Cys46fs
+Rv0678	p.Gln115*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Gln115*
+Rv0678	p.Gln159fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Gln159fs
+Rv0678	p.Gln22*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Gln22*
+Rv0678	p.Gln51fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Gln51fs
+Rv0678	p.Gln76*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Gln76*
+Rv0678	p.Glu113*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Glu113*
+Rv0678	p.Glu138*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Glu138*
+Rv0678	p.Glu147*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Glu147*
+Rv0678	p.Glu49fs	BDQ: Assoc w R	Bedaquiline	1) Assoc w R	Rv0678_p.Glu49fs
+Rv0678	p.Glu55fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Glu55fs
+Rv0678	p.Gly11fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Gly11fs
+Rv0678	p.Gly121Arg	BDQ: Assoc w R	Bedaquiline	1) Assoc w R	Rv0678_p.Gly121Arg
+Rv0678	p.Gly41fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Gly41fs
+Rv0678	p.Ile16fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Ile16fs
+Rv0678	p.Ile67fs	BDQ: Assoc w R	Bedaquiline	1) Assoc w R	Rv0678_p.Ile67fs
+Rv0678	p.Ile67Ser	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Ile67Ser
+Rv0678	p.Ile80fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Ile80fs
+Rv0678	p.Leu117Arg	BDQ: Assoc w R	Bedaquiline	1) Assoc w R	Rv0678_p.Leu117Arg
+Rv0678	p.Leu117fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Leu117fs
+Rv0678	p.Leu125fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Leu125fs
+Rv0678	p.Leu142fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Leu142fs
+Rv0678	p.Leu143fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Leu143fs
+Rv0678	p.Leu32fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Leu32fs
+Rv0678	p.Leu32Ser	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Leu32Ser
+Rv0678	p.Leu43fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Leu43fs
+Rv0678	p.Leu44fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Leu44fs
+Rv0678	p.Leu56fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Leu56fs
+Rv0678	p.Leu83fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Leu83fs
+Rv0678	p.Met1?	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Met1?
+Rv0678	p.Met10fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Met10fs
+Rv0678	p.Met111fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Met111fs
+Rv0678	p.Met146fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Met146fs
+Rv0678	p.Met146Thr	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Met146Thr
+Rv0678	p.Pro129fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Pro129fs
+Rv0678	p.Pro48fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Pro48fs
+Rv0678	p.Ser53*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Ser53*
+Rv0678	p.Ser68fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Ser68fs
+Rv0678	p.Thr69fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Thr69fs
+Rv0678	p.Trp42fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Trp42fs
+Rv0678	p.Trp42*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Trp42*
+Rv0678	p.Tyr145fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Tyr145fs
+Rv0678	p.Tyr145*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Tyr145*
+Rv0678	p.Tyr157fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Tyr157fs
+Rv0678	p.Tyr157*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Tyr157*
+Rv0678	p.Tyr92fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Tyr92fs
+Rv0678	p.Tyr92*	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Tyr92*
+Rv0678	p.Val7fs	BDQ: Assoc w R - Interim	Bedaquiline	2) Assoc w R - Interim	Rv0678_p.Val7fs
+rrs	n.1401A>G	CAP: Assoc w R	Capreomycin	1) Assoc w R	rrs_n.1401A>G
+rrs	n.1402C>T	CAP: Assoc w R	Capreomycin	1) Assoc w R	rrs_n.1402C>T
+rrs	n.1484G>T	CAP: Assoc w R	Capreomycin	1) Assoc w R	rrs_n.1484G>T
+tlyA	LoF	CAP: Assoc w R	Capreomycin	1) Assoc w R	tlyA_LoF
+tlyA	p.Ala105fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ala105fs
+tlyA	p.Ala106fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ala106fs
+tlyA	p.Ala110fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ala110fs
+tlyA	p.Ala111fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ala111fs
+tlyA	p.Ala205fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ala205fs
+tlyA	p.Ala215fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ala215fs
+tlyA	p.Ala43fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ala43fs
+tlyA	p.Ala76fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ala76fs
+tlyA	p.Arg133fs	CAP: Assoc w R	Capreomycin	1) Assoc w R	tlyA_p.Arg133fs
+tlyA	p.Arg18*	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Arg18*
+tlyA	p.Arg213fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Arg213fs
+tlyA	p.Arg3*	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Arg3*
+tlyA	p.Arg60fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Arg60fs
+tlyA	p.Arg6fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Arg6fs
+tlyA	p.Asn236Lys	CAP: Assoc w R	Capreomycin	1) Assoc w R	tlyA_p.Asn236Lys
+tlyA	p.Cys86fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Cys86fs
+tlyA	p.Gln117*	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Gln117*
+tlyA	p.Gln184fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Gln184fs
+tlyA	p.Gln184*	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Gln184*
+tlyA	p.Gln191fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Gln191fs
+tlyA	p.Gln21*	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Gln21*
+tlyA	p.Gln22*	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Gln22*
+tlyA	p.Glu25*	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Glu25*
+tlyA	p.Gly138fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Gly138fs
+tlyA	p.Gly232Asp	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Gly232Asp
+tlyA	p.Gly36fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Gly36fs
+tlyA	p.Gly66fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Gly66fs
+tlyA	p.Gly66*	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Gly66*
+tlyA	p.His199fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.His199fs
+tlyA	p.His68fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.His68fs
+tlyA	p.Ile144fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ile144fs
+tlyA	p.Ile27fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ile27fs
+tlyA	p.Ile34fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ile34fs
+tlyA	p.Leu131fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Leu131fs
+tlyA	p.Leu139fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Leu139fs
+tlyA	p.Leu209fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Leu209fs
+tlyA	p.Leu74fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Leu74fs
+tlyA	p.Lys189fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Lys189fs
+tlyA	p.Lys226fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Lys226fs
+tlyA	p.Lys31fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Lys31fs
+tlyA	p.Met1?	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Met1?
+tlyA	p.Phe77fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Phe77fs
+tlyA	p.Pro126fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Pro126fs
+tlyA	p.Pro233fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Pro233fs
+tlyA	p.Ser156*	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ser156*
+tlyA	p.Ser159*	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ser159*
+tlyA	p.Ser172fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ser172fs
+tlyA	p.Ser207fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ser207fs
+tlyA	p.Ser228fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ser228fs
+tlyA	p.Ser234fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ser234fs
+tlyA	p.Ser252fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ser252fs
+tlyA	p.Ser92fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Ser92fs
+tlyA	p.Thr134fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Thr134fs
+tlyA	p.Thr162fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Thr162fs
+tlyA	p.Thr245fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Thr245fs
+tlyA	p.Thr50fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Thr50fs
+tlyA	p.Trp220fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Trp220fs
+tlyA	p.Trp62fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Trp62fs
+tlyA	p.Tyr239fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Tyr239fs
+tlyA	p.Val130fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Val130fs
+tlyA	p.Val181fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Val181fs
+tlyA	p.Val197fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Val197fs
+tlyA	p.Val198fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Val198fs
+tlyA	p.Val223fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Val223fs
+tlyA	p.Val46fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Val46fs
+tlyA	p.Val54fs	CAP: Assoc w R - Interim	Capreomycin	2) Assoc w R - Interim	tlyA_p.Val54fs
+pepQ	LoF	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	pepQ_LoF
+pepQ	p.Asp232fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	pepQ_p.Asp232fs
+pepQ	p.Asp51fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	pepQ_p.Asp51fs
+pepQ	p.His100fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	pepQ_p.His100fs
+pepQ	p.Leu317fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	pepQ_p.Leu317fs
+pepQ	p.Val273fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	pepQ_p.Val273fs
+Rv0678	LoF	CFZ: Assoc w R	Clofazimine	1) Assoc w R	Rv0678_LoF
+Rv0678	p.Ala110fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Ala110fs
+Rv0678	p.Ala144fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Ala144fs
+Rv0678	p.Ala36Val	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Ala36Val
+Rv0678	p.Ala62fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Ala62fs
+Rv0678	p.Arg109fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Arg109fs
+Rv0678	p.Arg132fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Arg132fs
+Rv0678	p.Arg156fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Arg156fs
+Rv0678	p.Arg156*	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Arg156*
+Rv0678	p.Arg30fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Arg30fs
+Rv0678	p.Arg38*	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Arg38*
+Rv0678	p.Arg72fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Arg72fs
+Rv0678	p.Asn70Asp	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Asn70Asp
+Rv0678	p.Asn70fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Asn70fs
+Rv0678	p.Asn98fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Asn98fs
+Rv0678	p.Asp116fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Asp116fs
+Rv0678	p.Asp141fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Asp141fs
+Rv0678	p.Asp165fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Asp165fs
+Rv0678	p.Asp47fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Asp47fs
+Rv0678	p.Asp8fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Asp8fs
+Rv0678	p.Cys46Arg	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Cys46Arg
+Rv0678	p.Cys46fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Cys46fs
+Rv0678	p.Gln115*	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Gln115*
+Rv0678	p.Gln22*	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Gln22*
+Rv0678	p.Gln76*	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Gln76*
+Rv0678	p.Glu113*	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Glu113*
+Rv0678	p.Glu138*	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Glu138*
+Rv0678	p.Glu49fs	CFZ: Assoc w R	Clofazimine	1) Assoc w R	Rv0678_p.Glu49fs
+Rv0678	p.Gly11fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Gly11fs
+Rv0678	p.Gly121Arg	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Gly121Arg
+Rv0678	p.Gly41fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Gly41fs
+Rv0678	p.Ile16fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Ile16fs
+Rv0678	p.Ile67fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Ile67fs
+Rv0678	p.Ile67Ser	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Ile67Ser
+Rv0678	p.Ile80fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Ile80fs
+Rv0678	p.Leu117Arg	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Leu117Arg
+Rv0678	p.Leu125fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Leu125fs
+Rv0678	p.Leu142fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Leu142fs
+Rv0678	p.Leu32fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Leu32fs
+Rv0678	p.Leu32Ser	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Leu32Ser
+Rv0678	p.Leu44fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Leu44fs
+Rv0678	p.Leu56fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Leu56fs
+Rv0678	p.Met1?	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Met1?
+Rv0678	p.Met10fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Met10fs
+Rv0678	p.Met111fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Met111fs
+Rv0678	p.Met146Thr	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Met146Thr
+Rv0678	p.Pro129fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Pro129fs
+Rv0678	p.Pro48fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Pro48fs
+Rv0678	p.Ser68fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Ser68fs
+Rv0678	p.Tyr145*	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Tyr145*
+Rv0678	p.Tyr157fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Tyr157fs
+Rv0678	p.Tyr92fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Tyr92fs
+Rv0678	p.Val7fs	CFZ: Assoc w R - Interim	Clofazimine	2) Assoc w R - Interim	Rv0678_p.Val7fs
+ddn	LoF	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	ddn_LoF
+ddn	p.Ala111fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	ddn_p.Ala111fs
+ddn	p.Arg31fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	ddn_p.Arg31fs
+ddn	p.Asp108fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	ddn_p.Asp108fs
+ddn	p.Gly38fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	ddn_p.Gly38fs
+ddn	p.Leu49Pro	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	ddn_p.Leu49Pro
+ddn	p.Leu64fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	ddn_p.Leu64fs
+ddn	p.Leu90fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	ddn_p.Leu90fs
+ddn	p.Lys104fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	ddn_p.Lys104fs
+ddn	p.Met28fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	ddn_p.Met28fs
+ddn	p.Pro5fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	ddn_p.Pro5fs
+ddn	p.Trp139*	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	ddn_p.Trp139*
+ddn	p.Trp20*	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	ddn_p.Trp20*
+ddn	p.Trp88*	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	ddn_p.Trp88*
+fbiA	LoF	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	fbiA_LoF
+fbiA	p.Val329fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	fbiA_p.Val329fs
+fbiB	LoF	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	fbiB_LoF
+fbiB	p.Val17fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	fbiB_p.Val17fs
+fbiC	LoF	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	fbiC_LoF
+fbiC	p.Ala487fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	fbiC_p.Ala487fs
+fbiC	p.Ala639fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	fbiC_p.Ala639fs
+fbiC	p.Ala855fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	fbiC_p.Ala855fs
+fbiC	p.Ala856fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	fbiC_p.Ala856fs
+fbiC	p.Pro362fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	fbiC_p.Pro362fs
+fbiC	p.Ser443fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	fbiC_p.Ser443fs
+fgd1	LoF	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	fgd1_LoF
+fgd1	p.Asn112fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	fgd1_p.Asn112fs
+Rv2983	LoF	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	Rv2983_LoF
+Rv2983	p.Thr191fs	DLM: Assoc w R - Interim	Delamanid	2) Assoc w R - Interim	Rv2983_p.Thr191fs
+embB	p.Asp328Tyr	EMB: Assoc w R	Ethambutol	1) Assoc w R	embB_p.Asp328Tyr
+embB	p.Asp354Ala	EMB: Assoc w R	Ethambutol	1) Assoc w R	embB_p.Asp354Ala
+embB	p.Gln497Arg	EMB: Assoc w R	Ethambutol	1) Assoc w R	embB_p.Gln497Arg
+embB	p.Gln497Lys	EMB: Assoc w R	Ethambutol	1) Assoc w R	embB_p.Gln497Lys
+embB	p.Gly406Ala	EMB: Assoc w R	Ethambutol	1) Assoc w R	embB_p.Gly406Ala
+embB	p.Gly406Asp	EMB: Assoc w R	Ethambutol	1) Assoc w R	embB_p.Gly406Asp
+embB	p.Gly406Cys	EMB: Assoc w R	Ethambutol	1) Assoc w R	embB_p.Gly406Cys
+embB	p.Gly406Ser	EMB: Assoc w R	Ethambutol	1) Assoc w R	embB_p.Gly406Ser
+embB	p.Met306Ile	EMB: Assoc w R	Ethambutol	1) Assoc w R	embB_p.Met306Ile
+embB	p.Met306Leu	EMB: Assoc w R	Ethambutol	1) Assoc w R	embB_p.Met306Leu
+embB	p.Met306Val	EMB: Assoc w R	Ethambutol	1) Assoc w R	embB_p.Met306Val
+embB	p.Tyr319Cys	EMB: Assoc w R	Ethambutol	1) Assoc w R	embB_p.Tyr319Cys
+embB	p.Tyr319Ser	EMB: Assoc w R	Ethambutol	1) Assoc w R	embB_p.Tyr319Ser
+ethA	c.-7T>C	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_c.-7T>C
+ethA	LoF	ETO: Assoc w R	Ethionamide	1) Assoc w R	ethA_LoF
+ethA	p.Ala128fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ala128fs
+ethA	p.Ala185fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ala185fs
+ethA	p.Ala187fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ala187fs
+ethA	p.Ala20fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ala20fs
+ethA	p.Ala237fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ala237fs
+ethA	p.Ala247fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ala247fs
+ethA	p.Ala248fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ala248fs
+ethA	p.Ala341Val	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ala341Val
+ethA	p.Ala352fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ala352fs
+ethA	p.Ala354fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ala354fs
+ethA	p.Ala395fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ala395fs
+ethA	p.Ala90fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ala90fs
+ethA	p.Arg207fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Arg207fs
+ethA	p.Arg207Gly	ETO: Assoc w R	Ethionamide	1) Assoc w R	ethA_p.Arg207Gly
+ethA	p.Arg258fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Arg258fs
+ethA	p.Arg259fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Arg259fs
+ethA	p.Arg279*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Arg279*
+ethA	p.Arg292*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Arg292*
+ethA	p.Arg421fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Arg421fs
+ethA	p.Arg421*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Arg421*
+ethA	p.Arg452fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Arg452fs
+ethA	p.Arg463fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Arg463fs
+ethA	p.Arg466fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Arg466fs
+ethA	p.Arg470fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Arg470fs
+ethA	p.Arg479fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Arg479fs
+ethA	p.Arg54fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Arg54fs
+ethA	p.Arg65*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Arg65*
+ethA	p.Asn114fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asn114fs
+ethA	p.Asn226fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asn226fs
+ethA	p.Asn242fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asn242fs
+ethA	p.Asn287fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asn287fs
+ethA	p.Asn298fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asn298fs
+ethA	p.Asn345fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asn345fs
+ethA	p.Asn379Asp	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asn379Asp
+ethA	p.Asn379fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asn379fs
+ethA	p.Asn388fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asn388fs
+ethA	p.Asn458fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asn458fs
+ethA	p.Asp170fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asp170fs
+ethA	p.Asp196fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asp196fs
+ethA	p.Asp219fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asp219fs
+ethA	p.Asp290fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asp290fs
+ethA	p.Asp315fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asp315fs
+ethA	p.Asp362fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asp362fs
+ethA	p.Asp396fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asp396fs
+ethA	p.Asp410fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asp410fs
+ethA	p.Asp415fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asp415fs
+ethA	p.Asp464fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asp464fs
+ethA	p.Asp46fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asp46fs
+ethA	p.Asp77fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asp77fs
+ethA	p.Asp95fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Asp95fs
+ethA	p.Cys131fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Cys131fs
+ethA	p.Cys131*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Cys131*
+ethA	p.Cys253fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Cys253fs
+ethA	p.Cys253*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Cys253*
+ethA	p.Cys27fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Cys27fs
+ethA	p.Cys294fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Cys294fs
+ethA	p.Cys294*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Cys294*
+ethA	p.Cys403Tyr	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Cys403Tyr
+ethA	p.Gln121fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln121fs
+ethA	p.Gln121*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln121*
+ethA	p.Gln165fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln165fs
+ethA	p.Gln165*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln165*
+ethA	p.Gln206*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln206*
+ethA	p.Gln215*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln215*
+ethA	p.Gln246fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln246fs
+ethA	p.Gln246*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln246*
+ethA	p.Gln24*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln24*
+ethA	p.Gln254*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln254*
+ethA	p.Gln269fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln269fs
+ethA	p.Gln269*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln269*
+ethA	p.Gln271fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln271fs
+ethA	p.Gln271*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln271*
+ethA	p.Gln291*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln291*
+ethA	p.Gln347*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln347*
+ethA	p.Gln359*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln359*
+ethA	p.Gln360*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln360*
+ethA	p.Gln449*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln449*
+ethA	p.Gln73fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln73fs
+ethA	p.Gln73*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gln73*
+ethA	p.Glu132*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu132*
+ethA	p.Glu155*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu155*
+ethA	p.Glu169fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu169fs
+ethA	p.Glu223fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu223fs
+ethA	p.Glu274fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu274fs
+ethA	p.Glu311fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu311fs
+ethA	p.Glu318fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu318fs
+ethA	p.Glu332*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu332*
+ethA	p.Glu36fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu36fs
+ethA	p.Glu39fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu39fs
+ethA	p.Glu3fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu3fs
+ethA	p.Glu400fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu400fs
+ethA	p.Glu427*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu427*
+ethA	p.Glu428fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu428fs
+ethA	p.Glu445fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu445fs
+ethA	p.Glu476*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu476*
+ethA	p.Glu83fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Glu83fs
+ethA	p.Gly11fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gly11fs
+ethA	p.Gly275fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gly275fs
+ethA	p.Gly283fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gly283fs
+ethA	p.Gly299fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gly299fs
+ethA	p.Gly350fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gly350fs
+ethA	p.Gly371fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gly371fs
+ethA	p.Gly385fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gly385fs
+ethA	p.Gly423fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gly423fs
+ethA	p.Gly42fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gly42fs
+ethA	p.Gly437fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gly437fs
+ethA	p.Gly43fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gly43fs
+ethA	p.Gly477fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gly477fs
+ethA	p.Gly93fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Gly93fs
+ethA	p.His101fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.His101fs
+ethA	p.His119fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.His119fs
+ethA	p.His163fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.His163fs
+ethA	p.His22fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.His22fs
+ethA	p.His281fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.His281fs
+ethA	p.His285fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.His285fs
+ethA	p.His4fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.His4fs
+ethA	p.His97fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.His97fs
+ethA	p.Ile161fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ile161fs
+ethA	p.Ile178fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ile178fs
+ethA	p.Ile181fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ile181fs
+ethA	p.Ile221fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ile221fs
+ethA	p.Ile325fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ile325fs
+ethA	p.Ile337fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ile337fs
+ethA	p.Ile339fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ile339fs
+ethA	p.Ile81fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ile81fs
+ethA	p.Ile94fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ile94fs
+ethA	p.Ile9fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ile9fs
+ethA	p.Leu126fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu126fs
+ethA	p.Leu129fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu129fs
+ethA	p.Leu190fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu190fs
+ethA	p.Leu194fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu194fs
+ethA	p.Leu225fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu225fs
+ethA	p.Leu265fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu265fs
+ethA	p.Leu293*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu293*
+ethA	p.Leu295fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu295fs
+ethA	p.Leu327fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu327fs
+ethA	p.Leu344fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu344fs
+ethA	p.Leu35Arg	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu35Arg
+ethA	p.Leu393fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu393fs
+ethA	p.Leu405fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu405fs
+ethA	p.Leu406fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu406fs
+ethA	p.Leu440fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu440fs
+ethA	p.Leu478fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu478fs
+ethA	p.Leu47fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu47fs
+ethA	p.Leu82fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Leu82fs
+ethA	p.Lys103fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Lys103fs
+ethA	p.Lys103*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Lys103*
+ethA	p.Lys200fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Lys200fs
+ethA	p.Lys224fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Lys224fs
+ethA	p.Lys241fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Lys241fs
+ethA	p.Lys241*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Lys241*
+ethA	p.Lys280fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Lys280fs
+ethA	p.Lys309fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Lys309fs
+ethA	p.Lys30fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Lys30fs
+ethA	p.Lys370fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Lys370fs
+ethA	p.Lys37fs	ETO: Assoc w R	Ethionamide	1) Assoc w R	ethA_p.Lys37fs
+ethA	p.Lys394*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Lys394*
+ethA	p.Lys448fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Lys448fs
+ethA	p.Lys482fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Lys482fs
+ethA	p.Lys86*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Lys86*
+ethA	p.Met1?	ETO: Assoc w R	Ethionamide	1) Assoc w R	ethA_p.Met1?
+ethA	p.Met233fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Met233fs
+ethA	p.Met260fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Met260fs
+ethA	p.Met372fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Met372fs
+ethA	p.Met432fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Met432fs
+ethA	p.Met59fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Met59fs
+ethA	p.Phe100fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Phe100fs
+ethA	p.Phe151fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Phe151fs
+ethA	p.Phe282fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Phe282fs
+ethA	p.Phe349fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Phe349fs
+ethA	p.Phe414fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Phe414fs
+ethA	p.Phe431fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Phe431fs
+ethA	p.Phe434fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Phe434fs
+ethA	p.Phe64fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Phe64fs
+ethA	p.Pro160fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Pro160fs
+ethA	p.Pro209fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Pro209fs
+ethA	p.Pro230fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Pro230fs
+ethA	p.Pro257fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Pro257fs
+ethA	p.Pro284fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Pro284fs
+ethA	p.Pro28fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Pro28fs
+ethA	p.Pro422fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Pro422fs
+ethA	p.Pro436fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Pro436fs
+ethA	p.Pro68fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Pro68fs
+ethA	p.Ser106fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser106fs
+ethA	p.Ser122fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser122fs
+ethA	p.Ser138fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser138fs
+ethA	p.Ser148fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser148fs
+ethA	p.Ser18fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser18fs
+ethA	p.Ser197*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser197*
+ethA	p.Ser208fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser208fs
+ethA	p.Ser208*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser208*
+ethA	p.Ser214fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser214fs
+ethA	p.Ser251fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser251fs
+ethA	p.Ser266fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser266fs
+ethA	p.Ser31fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser31fs
+ethA	p.Ser375fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser375fs
+ethA	p.Ser390fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser390fs
+ethA	p.Ser390Phe	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser390Phe
+ethA	p.Ser399*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser399*
+ethA	p.Ser424fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser424fs
+ethA	p.Ser442fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser442fs
+ethA	p.Ser451fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser451fs
+ethA	p.Ser57Tyr	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Ser57Tyr
+ethA	p.Thr125fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr125fs
+ethA	p.Thr130fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr130fs
+ethA	p.Thr186fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr186fs
+ethA	p.Thr210fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr210fs
+ethA	p.Thr232fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr232fs
+ethA	p.Thr236fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr236fs
+ethA	p.Thr314fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr314fs
+ethA	p.Thr316fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr316fs
+ethA	p.Thr353fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr353fs
+ethA	p.Thr355fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr355fs
+ethA	p.Thr364fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr364fs
+ethA	p.Thr387fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr387fs
+ethA	p.Thr416fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr416fs
+ethA	p.Thr44fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr44fs
+ethA	p.Thr61fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr61fs
+ethA	p.Thr88fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr88fs
+ethA	p.Thr88Ile	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Thr88Ile
+ethA	p.Trp109*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp109*
+ethA	p.Trp116*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp116*
+ethA	p.Trp167fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp167fs
+ethA	p.Trp167*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp167*
+ethA	p.Trp21fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp21fs
+ethA	p.Trp21*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp21*
+ethA	p.Trp228fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp228fs
+ethA	p.Trp228*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp228*
+ethA	p.Trp240*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp240*
+ethA	p.Trp256fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp256fs
+ethA	p.Trp256*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp256*
+ethA	p.Trp289fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp289fs
+ethA	p.Trp289*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp289*
+ethA	p.Trp391*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp391*
+ethA	p.Trp455*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp455*
+ethA	p.Trp45fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp45fs
+ethA	p.Trp45*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp45*
+ethA	p.Trp69fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp69fs
+ethA	p.Trp69*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Trp69*
+ethA	p.Tyr140*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr140*
+ethA	p.Tyr143*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr143*
+ethA	p.Tyr147fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr147fs
+ethA	p.Tyr147*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr147*
+ethA	p.Tyr211fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr211fs
+ethA	p.Tyr211*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr211*
+ethA	p.Tyr235fs	ETO: Assoc w R	Ethionamide	1) Assoc w R	ethA_p.Tyr235fs
+ethA	p.Tyr250*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr250*
+ethA	p.Tyr276fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr276fs
+ethA	p.Tyr276*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr276*
+ethA	p.Tyr32fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr32fs
+ethA	p.Tyr32*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr32*
+ethA	p.Tyr369fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr369fs
+ethA	p.Tyr369*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr369*
+ethA	p.Tyr382*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr382*
+ethA	p.Tyr386fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr386fs
+ethA	p.Tyr386*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr386*
+ethA	p.Tyr408*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr408*
+ethA	p.Tyr438*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr438*
+ethA	p.Tyr461*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr461*
+ethA	p.Tyr60fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr60fs
+ethA	p.Tyr60*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr60*
+ethA	p.Tyr84*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr84*
+ethA	p.Tyr92*	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Tyr92*
+ethA	p.Val104fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Val104fs
+ethA	p.Val118fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Val118fs
+ethA	p.Val158fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Val158fs
+ethA	p.Val179fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Val179fs
+ethA	p.Val191fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Val191fs
+ethA	p.Val202Gly	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Val202Gly
+ethA	p.Val238fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Val238fs
+ethA	p.Val249fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Val249fs
+ethA	p.Val296fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Val296fs
+ethA	p.Val313fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Val313fs
+ethA	p.Val384fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Val384fs
+ethA	p.Val489fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Val489fs
+ethA	p.Val85fs	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	ethA_p.Val85fs
+inhA	c.-154G>A	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	inhA_c.-154G>A
+inhA	c.-770T>A	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	inhA_c.-770T>A
+inhA	c.-770T>C	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	inhA_c.-770T>C
+inhA	c.-770T>G	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	inhA_c.-770T>G
+inhA	c.-777C>T	ETO: Assoc w R	Ethionamide	1) Assoc w R	inhA_c.-777C>T
+inhA	c.-778A>G	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	inhA_c.-778A>G
+inhA	c.-779G>T	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	inhA_c.-779G>T
+inhA	p.Ser94Ala	ETO: Assoc w R - Interim	Ethionamide	2) Assoc w R - Interim	inhA_p.Ser94Ala
+inhA	c.-154G>A	INH: Assoc w R	Isoniazid	1) Assoc w R	inhA_c.-154G>A
+inhA	c.-770T>A	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	inhA_c.-770T>A
+inhA	c.-770T>C	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	inhA_c.-770T>C
+inhA	c.-770T>G	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	inhA_c.-770T>G
+inhA	c.-777C>T	INH: Assoc w R	Isoniazid	1) Assoc w R	inhA_c.-777C>T
+inhA	c.-778A>G	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	inhA_c.-778A>G
+inhA	c.-779G>T	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	inhA_c.-779G>T
+inhA	p.Ser94Ala	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	inhA_p.Ser94Ala
+katG	LoF	INH: Assoc w R	Isoniazid	1) Assoc w R	katG_LoF
+katG	p.Ala16fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ala16fs
+katG	p.Ala202fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ala202fs
+katG	p.Ala478fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ala478fs
+katG	p.Ala551fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ala551fs
+katG	p.Ala559fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ala559fs
+katG	p.Ala585fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ala585fs
+katG	p.Arg496fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Arg496fs
+katG	p.Asn18fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Asn18fs
+katG	p.Asn236fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Asn236fs
+katG	p.Asn35fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Asn35fs
+katG	p.Asn51fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Asn51fs
+katG	p.Asn535fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Asn535fs
+katG	p.Asp163fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Asp163fs
+katG	p.Asp240fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Asp240fs
+katG	p.Asp329fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Asp329fs
+katG	p.Asp381fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Asp381fs
+katG	p.Asp513fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Asp513fs
+katG	p.Asp56fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Asp56fs
+katG	p.Asp656fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Asp656fs
+katG	p.Asp695fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Asp695fs
+katG	p.Asp729fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Asp729fs
+katG	p.Cys171*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Cys171*
+katG	p.Cys20fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Cys20fs
+katG	p.Gln352*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Gln352*
+katG	p.Gln525fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Gln525fs
+katG	p.Gln578fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Gln578fs
+katG	p.Gln88*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Gln88*
+katG	p.Glu10fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Glu10fs
+katG	p.Glu208fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Glu208fs
+katG	p.Glu342fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Glu342fs
+katG	p.Glu3fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Glu3fs
+katG	p.Glu582fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Glu582fs
+katG	p.Glu588*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Glu588*
+katG	p.Glu607*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Glu607*
+katG	p.Glu623fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Glu623fs
+katG	p.Glu648fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Glu648fs
+katG	p.Glu651fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Glu651fs
+katG	p.Glu669fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Glu669fs
+katG	p.Gly124fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Gly124fs
+katG	p.Gly212fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Gly212fs
+katG	p.Gly268fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Gly268fs
+katG	p.Gly279fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Gly279fs
+katG	p.Gly34fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Gly34fs
+katG	p.Gly358fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Gly358fs
+katG	p.Gly369fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Gly369fs
+katG	p.Gly601fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Gly601fs
+katG	p.His25fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.His25fs
+katG	p.His400fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.His400fs
+katG	p.His561fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.His561fs
+katG	p.Ile335fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ile335fs
+katG	p.Ile393fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ile393fs
+katG	p.Ile455fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ile455fs
+katG	p.Ile536fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ile536fs
+katG	p.Ile563fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ile563fs
+katG	p.Ile8fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ile8fs
+katG	p.Leu173fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Leu173fs
+katG	p.Leu382fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Leu382fs
+katG	p.Leu696fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Leu696fs
+katG	p.Lys157fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Lys157fs
+katG	p.Lys179fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Lys179fs
+katG	p.Lys200fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Lys200fs
+katG	p.Lys433fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Lys433fs
+katG	p.Lys459fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Lys459fs
+katG	p.Lys46fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Lys46fs
+katG	p.Lys557fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Lys557fs
+katG	p.Lys590fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Lys590fs
+katG	p.Met1?	INH: Assoc w R	Isoniazid	1) Assoc w R	katG_p.Met1?
+katG	p.Met26fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Met26fs
+katG	p.Met624fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Met624fs
+katG	p.Phe272fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Phe272fs
+katG	p.Pro325fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Pro325fs
+katG	p.Pro422fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Pro422fs
+katG	p.Pro429fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Pro429fs
+katG	p.Pro569fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Pro569fs
+katG	p.Pro622fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Pro622fs
+katG	p.Pro642fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Pro642fs
+katG	p.Pro6fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Pro6fs
+katG	p.Pro7fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Pro7fs
+katG	p.Ser175*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ser175*
+katG	p.Ser302fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ser302fs
+katG	p.Ser315Arg	INH: Assoc w R	Isoniazid	1) Assoc w R	katG_p.Ser315Arg
+katG	p.Ser315Asn	INH: Assoc w R	Isoniazid	1) Assoc w R	katG_p.Ser315Asn
+katG	p.Ser315Ile	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ser315Ile
+katG	p.Ser315Thr	INH: Assoc w R	Isoniazid	1) Assoc w R	katG_p.Ser315Thr
+katG	p.Ser539fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ser539fs
+katG	p.Ser650fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ser650fs
+katG	p.Ser652fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ser652fs
+katG	p.Ser671*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Ser671*
+katG	p.Thr203fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Thr203fs
+katG	p.Thr394fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Thr394fs
+katG	p.Trp107*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp107*
+katG	p.Trp149*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp149*
+katG	p.Trp161*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp161*
+katG	p.Trp198fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp198fs
+katG	p.Trp198*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp198*
+katG	p.Trp204*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp204*
+katG	p.Trp300*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp300*
+katG	p.Trp321*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp321*
+katG	p.Trp328Leu	INH: Assoc w R	Isoniazid	1) Assoc w R	katG_p.Trp328Leu
+katG	p.Trp351fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp351fs
+katG	p.Trp351*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp351*
+katG	p.Trp397*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp397*
+katG	p.Trp39fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp39fs
+katG	p.Trp39*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp39*
+katG	p.Trp412*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp412*
+katG	p.Trp438*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp438*
+katG	p.Trp477*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp477*
+katG	p.Trp505fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp505fs
+katG	p.Trp505*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp505*
+katG	p.Trp668fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp668fs
+katG	p.Trp668*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp668*
+katG	p.Trp689fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp689fs
+katG	p.Trp689*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp689*
+katG	p.Trp728*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp728*
+katG	p.Trp90*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Trp90*
+katG	p.Tyr113*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Tyr113*
+katG	p.Tyr155*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Tyr155*
+katG	p.Tyr197fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Tyr197fs
+katG	p.Tyr28*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Tyr28*
+katG	p.Tyr339fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Tyr339fs
+katG	p.Tyr413*	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Tyr413*
+katG	p.Tyr95fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Tyr95fs
+katG	p.Val166fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Val166fs
+katG	p.Val22fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Val22fs
+katG	p.Val30fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Val30fs
+katG	p.Val319fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Val319fs
+katG	p.Val386fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Val386fs
+katG	p.Val431fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Val431fs
+katG	p.Val445fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Val445fs
+katG	p.Val517fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Val517fs
+katG	p.Val538fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Val538fs
+katG	p.Val586fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Val586fs
+katG	p.Val83fs	INH: Assoc w R - Interim	Isoniazid	2) Assoc w R - Interim	katG_p.Val83fs
+eis	c.-10G>A	KAN: Assoc w R	Kanamycin	1) Assoc w R	eis_c.-10G>A
+eis	c.-12C>T	KAN: Assoc w R	Kanamycin	1) Assoc w R	eis_c.-12C>T
+eis	c.-14C>T	KAN: Assoc w R	Kanamycin	1) Assoc w R	eis_c.-14C>T
+eis	c.-37G>T	KAN: Assoc w R	Kanamycin	1) Assoc w R	eis_c.-37G>T
+eis	g.2715340del	KAN: Assoc w R - Interim, WHO c.-8delC	Kanamycin	2) Assoc w R - Interim	eis_c.-8delC
+rrs	n.1401A>G	KAN: Assoc w R	Kanamycin	1) Assoc w R	rrs_n.1401A>G
+rrs	n.1402C>T	KAN: Assoc w R - Interim	Kanamycin	2) Assoc w R - Interim	rrs_n.1402C>T
+rrs	n.1484G>T	KAN: Assoc w R	Kanamycin	1) Assoc w R	rrs_n.1484G>T
+gyrA	p.Ala90Val	LFX: Assoc w R	Levofloxacin	1) Assoc w R	gyrA_p.Ala90Val
+gyrA	p.Asp89Asn	LFX: Assoc w R	Levofloxacin	1) Assoc w R	gyrA_p.Asp89Asn
+gyrA	p.Asp94Ala	LFX: Assoc w R	Levofloxacin	1) Assoc w R	gyrA_p.Asp94Ala
+gyrA	p.Asp94Asn	LFX: Assoc w R	Levofloxacin	1) Assoc w R	gyrA_p.Asp94Asn
+gyrA	p.Asp94Gly	LFX: Assoc w R	Levofloxacin	1) Assoc w R	gyrA_p.Asp94Gly
+gyrA	p.Asp94His	LFX: Assoc w R	Levofloxacin	1) Assoc w R	gyrA_p.Asp94His
+gyrA	p.Asp94Tyr	LFX: Assoc w R	Levofloxacin	1) Assoc w R	gyrA_p.Asp94Tyr
+gyrA	p.Gly88Ala	LFX: Assoc w R - Interim	Levofloxacin	2) Assoc w R - Interim	gyrA_p.Gly88Ala
+gyrA	p.Gly88Cys	LFX: Assoc w R	Levofloxacin	1) Assoc w R	gyrA_p.Gly88Cys
+gyrA	p.Ser91Pro	LFX: Assoc w R	Levofloxacin	1) Assoc w R	gyrA_p.Ser91Pro
+gyrB	p.Ala504Val	LFX: Assoc w R - Interim	Levofloxacin	2) Assoc w R - Interim	gyrB_p.Ala504Val
+gyrB	p.Asn499Asp	LFX: Assoc w R	Levofloxacin	1) Assoc w R	gyrB_p.Asn499Asp
+gyrB	p.Asn499Thr	LFX: Assoc w R	Levofloxacin	1) Assoc w R	gyrB_p.Asn499Thr
+gyrB	p.Asp461Asn	LFX: Assoc w R	Levofloxacin	1) Assoc w R	gyrB_p.Asp461Asn
+gyrB	p.Asp461His	LFX: Assoc w R - Interim	Levofloxacin	2) Assoc w R - Interim	gyrB_p.Asp461His
+gyrB	p.Glu501Asp	LFX: Assoc w R - Interim	Levofloxacin	2) Assoc w R - Interim	gyrB_p.Glu501Asp
+gyrB	p.Glu501Val	LFX: Assoc w R - Interim	Levofloxacin	2) Assoc w R - Interim	gyrB_p.Glu501Val
+gyrB	p.Ser447Phe	LFX: Assoc w R - Interim	Levofloxacin	2) Assoc w R - Interim	gyrB_p.Ser447Phe
+rplC	p.Cys154Arg	LZD: Assoc w R	Linezolid	1) Assoc w R	rplC_p.Cys154Arg
+rrl	g.1475926_1475927insT	LZD: Assoc w R - Interim, WHO n.2269_2270insT	Linezolid	2) Assoc w R - Interim	rrl_n.2269_2270insT
+rrl	n.2270G>C	LZD: Assoc w R - Interim	Linezolid	2) Assoc w R - Interim	rrl_n.2270G>C
+rrl	n.2270G>T	LZD: Assoc w R - Interim	Linezolid	2) Assoc w R - Interim	rrl_n.2270G>T
+rrl	n.2299G>T	LZD: Assoc w R - Interim	Linezolid	2) Assoc w R - Interim	rrl_n.2299G>T
+rrl	n.2689A>T	LZD: Assoc w R - Interim	Linezolid	2) Assoc w R - Interim	rrl_n.2689A>T
+rrl	n.2746G>A	LZD: Assoc w R - Interim	Linezolid	2) Assoc w R - Interim	rrl_n.2746G>A
+rrl	n.2814G>T	LZD: Assoc w R - Interim	Linezolid	2) Assoc w R - Interim	rrl_n.2814G>T
+gyrA	p.Ala90Val	MFX: Assoc w R	Moxifloxacin	1) Assoc w R	gyrA_p.Ala90Val
+gyrA	p.Asp89Asn	MFX: Assoc w R	Moxifloxacin	1) Assoc w R	gyrA_p.Asp89Asn
+gyrA	p.Asp94Ala	MFX: Assoc w R	Moxifloxacin	1) Assoc w R	gyrA_p.Asp94Ala
+gyrA	p.Asp94Asn	MFX: Assoc w R	Moxifloxacin	1) Assoc w R	gyrA_p.Asp94Asn
+gyrA	p.Asp94Gly	MFX: Assoc w R	Moxifloxacin	1) Assoc w R	gyrA_p.Asp94Gly
+gyrA	p.Asp94His	MFX: Assoc w R	Moxifloxacin	1) Assoc w R	gyrA_p.Asp94His
+gyrA	p.Asp94Tyr	MFX: Assoc w R	Moxifloxacin	1) Assoc w R	gyrA_p.Asp94Tyr
+gyrA	p.Gly88Ala	MFX: Assoc w R - Interim	Moxifloxacin	2) Assoc w R - Interim	gyrA_p.Gly88Ala
+gyrA	p.Gly88Cys	MFX: Assoc w R	Moxifloxacin	1) Assoc w R	gyrA_p.Gly88Cys
+gyrA	p.Ser91Pro	MFX: Assoc w R	Moxifloxacin	1) Assoc w R	gyrA_p.Ser91Pro
+gyrB	p.Ala504Val	MFX: Assoc w R - Interim	Moxifloxacin	2) Assoc w R - Interim	gyrB_p.Ala504Val
+gyrB	p.Asn499Asp	MFX: Assoc w R - Interim	Moxifloxacin	2) Assoc w R - Interim	gyrB_p.Asn499Asp
+gyrB	p.Asn499Thr	MFX: Assoc w R - Interim	Moxifloxacin	2) Assoc w R - Interim	gyrB_p.Asn499Thr
+gyrB	p.Asp461Asn	MFX: Assoc w R - Interim	Moxifloxacin	2) Assoc w R - Interim	gyrB_p.Asp461Asn
+gyrB	p.Asp461His	MFX: Assoc w R - Interim	Moxifloxacin	2) Assoc w R - Interim	gyrB_p.Asp461His
+gyrB	p.Glu501Asp	MFX: Assoc w R	Moxifloxacin	1) Assoc w R	gyrB_p.Glu501Asp
+gyrB	p.Glu501Val	MFX: Assoc w R - Interim	Moxifloxacin	2) Assoc w R - Interim	gyrB_p.Glu501Val
+gyrB	p.Ser447Phe	MFX: Assoc w R - Interim	Moxifloxacin	2) Assoc w R - Interim	gyrB_p.Ser447Phe
+pncA	c.-11A>C	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_c.-11A>C
+pncA	c.-11A>G	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_c.-11A>G
+pncA	c.-11A>T	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_c.-11A>T
+pncA	c.-12T>C	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_c.-12T>C
+pncA	g.2289247del	PZA: Assoc w R, WHO c.-5delG	Pyrazinamide	1) Assoc w R	pncA_c.-5delG
+pncA	c.-7T>C	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_c.-7T>C
+pncA	LoF	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_LoF
+pncA	p.Ala102fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala102fs
+pncA	p.Ala102Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ala102Pro
+pncA	p.Ala102Thr	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala102Thr
+pncA	p.Ala134Val	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ala134Val
+pncA	p.Ala143fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala143fs
+pncA	p.Ala143Gly	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala143Gly
+pncA	p.Ala146Glu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala146Glu
+pncA	p.Ala146Thr	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ala146Thr
+pncA	p.Ala146Val	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ala146Val
+pncA	p.Ala152fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ala152fs
+pncA	p.Ala161fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala161fs
+pncA	p.Ala165fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala165fs
+pncA	p.Ala171Glu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala171Glu
+pncA	p.Ala171Pro	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala171Pro
+pncA	p.Ala178_Ser179del	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala178_Ser179del
+pncA	p.Ala178fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala178fs
+pncA	p.Ala20fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala20fs
+pncA	p.Ala26fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala26fs
+pncA	p.Ala28fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala28fs
+pncA	p.Ala36fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala36fs
+pncA	p.Ala39fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala39fs
+pncA	p.Ala3fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala3fs
+pncA	p.Ala3Glu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala3Glu
+pncA	p.Ala46Glu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala46Glu
+pncA	p.Ala46Val	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala46Val
+pncA	p.Ala79fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala79fs
+pncA	p.Ala98fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ala98fs
+pncA	p.Arg121Pro	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Arg121Pro
+pncA	p.Arg140fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Arg140fs
+pncA	p.Arg140Pro	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Arg140Pro
+pncA	p.Arg154fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Arg154fs
+pncA	p.Arg154Gly	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Arg154Gly
+pncA	p.Arg154Met	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Arg154Met
+pncA	p.Arg29fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Arg29fs
+pncA	p.Asn112fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asn112fs
+pncA	p.Asn149fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asn149fs
+pncA	p.Asp126_Val130del	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp126_Val130del
+pncA	p.Asp126fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp126fs
+pncA	p.Asp129_Val131del	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp129_Val131del
+pncA	p.Asp129Asn	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp129Asn
+pncA	p.Asp129fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp129fs
+pncA	p.Asp12Ala	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp12Ala
+pncA	p.Asp12Asn	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp12Asn
+pncA	p.Asp12fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp12fs
+pncA	p.Asp12Glu	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp12Glu
+pncA	p.Asp12Gly	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp12Gly
+pncA	p.Asp136fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp136fs
+pncA	p.Asp136Gly	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp136Gly
+pncA	p.Asp136Val	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp136Val
+pncA	p.Asp158fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp158fs
+pncA	p.Asp166fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp166fs
+pncA	p.Asp40fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp40fs
+pncA	p.Asp49Ala	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp49Ala
+pncA	p.Asp49Asn	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp49Asn
+pncA	p.Asp49fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp49fs
+pncA	p.Asp49Glu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp49Glu
+pncA	p.Asp49Gly	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp49Gly
+pncA	p.Asp56fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp56fs
+pncA	p.Asp63_Ser67delinsGlu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp63_Ser67delinsGlu
+pncA	p.Asp63Ala	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp63Ala
+pncA	p.Asp63fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp63fs
+pncA	p.Asp63Gly	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp63Gly
+pncA	p.Asp80fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp80fs
+pncA	p.Asp86fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp86fs
+pncA	p.Asp8Ala	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp8Ala
+pncA	p.Asp8Asn	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp8Asn
+pncA	p.Asp8fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp8fs
+pncA	p.Asp8Glu	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp8Glu
+pncA	p.Asp8Gly	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Asp8Gly
+pncA	p.Asp8His	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp8His
+pncA	p.Asp8Tyr	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Asp8Tyr
+pncA	p.Cys138Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Cys138Arg
+pncA	p.Cys14Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Cys14Arg
+pncA	p.Cys14*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Cys14*
+pncA	p.Cys14Trp	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Cys14Trp
+pncA	p.Cys72Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Cys72Arg
+pncA	p.Cys72Tyr	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Cys72Tyr
+pncA	p.Gln10Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gln10Arg
+pncA	p.Gln10His	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gln10His
+pncA	p.Gln10Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gln10Pro
+pncA	p.Gln10*	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gln10*
+pncA	p.Gln122fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gln122fs
+pncA	p.Gln122*	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gln122*
+pncA	p.Gln141Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gln141Pro
+pncA	p.Gln141*	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gln141*
+pncA	p.Glu107*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Glu107*
+pncA	p.Glu111*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Glu111*
+pncA	p.Glu127_Asp129del	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Glu127_Asp129del
+pncA	p.Glu144fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Glu144fs
+pncA	p.Glu144*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Glu144*
+pncA	p.Glu15fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Glu15fs
+pncA	p.Glu15*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Glu15*
+pncA	p.Glu173fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Glu173fs
+pncA	p.Glu173*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Glu173*
+pncA	p.Glu174*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Glu174*
+pncA	p.Glu181fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Glu181fs
+pncA	p.Glu181*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Glu181*
+pncA	p.Glu37fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Glu37fs
+pncA	p.Glu91*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Glu91*
+pncA	p.Gly101*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly101*
+pncA	p.Gly105Asp	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gly105Asp
+pncA	p.Gly105Val	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly105Val
+pncA	p.Gly108Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gly108Arg
+pncA	p.Gly108Glu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly108Glu
+pncA	p.Gly132Ala	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gly132Ala
+pncA	p.Gly132Asp	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly132Asp
+pncA	p.Gly132Cys	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly132Cys
+pncA	p.Gly132fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly132fs
+pncA	p.Gly132Ser	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gly132Ser
+pncA	p.Gly150fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly150fs
+pncA	p.Gly162Asp	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly162Asp
+pncA	p.Gly17Asp	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly17Asp
+pncA	p.Gly17fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly17fs
+pncA	p.Gly23fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly23fs
+pncA	p.Gly24Asp	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gly24Asp
+pncA	p.Gly24fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly24fs
+pncA	p.Gly55fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly55fs
+pncA	p.Gly78Asp	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly78Asp
+pncA	p.Gly78fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly78fs
+pncA	p.Gly78Ser	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly78Ser
+pncA	p.Gly78Val	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly78Val
+pncA	p.Gly97Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gly97Arg
+pncA	p.Gly97Asp	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gly97Asp
+pncA	p.Gly97Cys	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gly97Cys
+pncA	p.Gly97fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly97fs
+pncA	p.Gly97Ser	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Gly97Ser
+pncA	p.Gly97Val	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Gly97Val
+pncA	p.His137Pro	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.His137Pro
+pncA	p.His42fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.His42fs
+pncA	p.His43fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.His43fs
+pncA	p.His43Pro	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.His43Pro
+pncA	p.His51Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.His51Arg
+pncA	p.His51Asp	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.His51Asp
+pncA	p.His51fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.His51fs
+pncA	p.His51Gln	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.His51Gln
+pncA	p.His51Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.His51Pro
+pncA	p.His51Tyr	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.His51Tyr
+pncA	p.His57Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.His57Arg
+pncA	p.His57Asp	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.His57Asp
+pncA	p.His57fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.His57fs
+pncA	p.His57Gln	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.His57Gln
+pncA	p.His57Leu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.His57Leu
+pncA	p.His57Tyr	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.His57Tyr
+pncA	p.His71Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.His71Arg
+pncA	p.His71Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.His71Pro
+pncA	p.His71Tyr	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.His71Tyr
+pncA	p.His82Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.His82Arg
+pncA	p.Ile133fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ile133fs
+pncA	p.Ile133Thr	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ile133Thr
+pncA	p.Ile31Ser	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ile31Ser
+pncA	p.Ile31Thr	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ile31Thr
+pncA	p.Ile5Ser	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ile5Ser
+pncA	p.Ile6fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ile6fs
+pncA	p.Ile6Thr	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ile6Thr
+pncA	p.Ile90Asn	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ile90Asn
+pncA	p.Ile90Ser	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ile90Ser
+pncA	p.Ile90Thr	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ile90Thr
+pncA	p.Leu116Arg	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Leu116Arg
+pncA	p.Leu116Pro	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Leu116Pro
+pncA	p.Leu117fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Leu117fs
+pncA	p.Leu120Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Leu120Arg
+pncA	p.Leu120Gln	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Leu120Gln
+pncA	p.Leu120Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Leu120Pro
+pncA	p.Leu151fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Leu151fs
+pncA	p.Leu151Ser	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Leu151Ser
+pncA	p.Leu156fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Leu156fs
+pncA	p.Leu159Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Leu159Arg
+pncA	p.Leu159fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Leu159fs
+pncA	p.Leu159Pro	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Leu159Pro
+pncA	p.Leu159Val	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Leu159Val
+pncA	p.Leu172fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Leu172fs
+pncA	p.Leu172Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Leu172Pro
+pncA	p.Leu182Ser	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Leu182Ser
+pncA	p.Leu182Trp	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Leu182Trp
+pncA	p.Leu19Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Leu19Pro
+pncA	p.Leu27Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Leu27Pro
+pncA	p.Leu35Pro	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Leu35Pro
+pncA	p.Leu4fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Leu4fs
+pncA	p.Leu4Ser	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Leu4Ser
+pncA	p.Leu4Trp	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Leu4Trp
+pncA	p.Leu85Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Leu85Arg
+pncA	p.Leu85fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Leu85fs
+pncA	p.Leu85Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Leu85Pro
+pncA	p.Lys48fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Lys48fs
+pncA	p.Lys48Glu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Lys48Glu
+pncA	p.Lys48Thr	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Lys48Thr
+pncA	p.Lys96Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Lys96Arg
+pncA	p.Lys96Asn	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Lys96Asn
+pncA	p.Lys96fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Lys96fs
+pncA	p.Lys96Gln	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Lys96Gln
+pncA	p.Lys96Glu	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Lys96Glu
+pncA	p.Lys96Thr	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Lys96Thr
+pncA	p.Met1?	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Met1?
+pncA	p.Met175Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Met175Arg
+pncA	p.Met175fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Met175fs
+pncA	p.Met175Ile	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Met175Ile
+pncA	p.Met175Thr	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Met175Thr
+pncA	p.Met175Val	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Met175Val
+pncA	p.Phe106fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Phe106fs
+pncA	p.Phe106Leu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Phe106Leu
+pncA	p.Phe106Ser	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Phe106Ser
+pncA	p.Phe13fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Phe13fs
+pncA	p.Phe13Ile	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Phe13Ile
+pncA	p.Phe13Leu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Phe13Leu
+pncA	p.Phe13Ser	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Phe13Ser
+pncA	p.Phe58Cys	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Phe58Cys
+pncA	p.Phe58Leu	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Phe58Leu
+pncA	p.Phe58Ser	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Phe58Ser
+pncA	p.Phe81fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Phe81fs
+pncA	p.Phe94Cys	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Phe94Cys
+pncA	p.Phe94fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Phe94fs
+pncA	p.Phe94Leu	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Phe94Leu
+pncA	p.Phe94Ser	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Phe94Ser
+pncA	p.Pro115fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Pro115fs
+pncA	p.Pro54Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Pro54Arg
+pncA	p.Pro54Gln	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Pro54Gln
+pncA	p.Pro54Leu	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Pro54Leu
+pncA	p.Pro54Ser	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Pro54Ser
+pncA	p.Pro54Thr	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Pro54Thr
+pncA	p.Pro62Arg	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Pro62Arg
+pncA	p.Pro62Leu	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Pro62Leu
+pncA	p.Pro62Ser	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Pro62Ser
+pncA	p.Pro62Thr	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Pro62Thr
+pncA	p.Pro69Leu	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Pro69Leu
+pncA	p.Pro83fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Pro83fs
+pncA	p.Ser104_Gly108delinsArg	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ser104_Gly108delinsArg
+pncA	p.Ser104Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ser104Arg
+pncA	p.Ser104Gly	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ser104Gly
+pncA	p.Ser104Ile	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ser104Ile
+pncA	p.Ser164fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ser164fs
+pncA	p.Ser164Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ser164Pro
+pncA	p.Ser164*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ser164*
+pncA	p.Ser18fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ser18fs
+pncA	p.Ser18*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ser18*
+pncA	p.Ser32fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ser32fs
+pncA	p.Ser59Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ser59Pro
+pncA	p.Ser65fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ser65fs
+pncA	p.Ser66Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ser66Pro
+pncA	p.Ser66*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ser66*
+pncA	p.Ser67Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ser67Pro
+pncA	p.Ser67*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ser67*
+pncA	p.Ser74fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ser74fs
+pncA	p.Ser84fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Ser84fs
+pncA	p.Ter187Arg	PZA: Assoc w R - Interim, WHO p.Ter187Argext*?	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ter187Argext*?
+pncA	p.Ter187Trp	PZA: Assoc w R - Interim, WHO p.Ter187Trpext*?	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Ter187Trpext*?
+pncA	p.Thr100Pro	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Thr100Pro
+pncA	p.Thr114fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Thr114fs
+pncA	p.Thr114Pro	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Thr114Pro
+pncA	p.Thr135Asn	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Thr135Asn
+pncA	p.Thr135Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Thr135Pro
+pncA	p.Thr142Ala	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Thr142Ala
+pncA	p.Thr142Lys	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Thr142Lys
+pncA	p.Thr142Met	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Thr142Met
+pncA	p.Thr142Pro	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Thr142Pro
+pncA	p.Thr153fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Thr153fs
+pncA	p.Thr160Lys	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Thr160Lys
+pncA	p.Thr160Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Thr160Pro
+pncA	p.Thr168Pro	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Thr168Pro
+pncA	p.Thr177fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Thr177fs
+pncA	p.Thr177Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Thr177Pro
+pncA	p.Thr22fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Thr22fs
+pncA	p.Thr47Ala	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Thr47Ala
+pncA	p.Thr47Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Thr47Pro
+pncA	p.Thr61fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Thr61fs
+pncA	p.Thr61Pro	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Thr61Pro
+pncA	p.Thr76fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Thr76fs
+pncA	p.Thr76Ile	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Thr76Ile
+pncA	p.Thr76Pro	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Thr76Pro
+pncA	p.Thr87fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Thr87fs
+pncA	p.Trp119Arg	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Trp119Arg
+pncA	p.Trp119Cys	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Trp119Cys
+pncA	p.Trp119fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Trp119fs
+pncA	p.Trp119Gly	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Trp119Gly
+pncA	p.Trp119Leu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Trp119Leu
+pncA	p.Trp119*	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Trp119*
+pncA	p.Trp68Arg	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Trp68Arg
+pncA	p.Trp68Cys	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Trp68Cys
+pncA	p.Trp68Gly	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Trp68Gly
+pncA	p.Trp68Leu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Trp68Leu
+pncA	p.Trp68*	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Trp68*
+pncA	p.Tyr103Asp	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Tyr103Asp
+pncA	p.Tyr103Cys	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Tyr103Cys
+pncA	p.Tyr103fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Tyr103fs
+pncA	p.Tyr103His	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Tyr103His
+pncA	p.Tyr103*	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Tyr103*
+pncA	p.Tyr34Asp	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Tyr34Asp
+pncA	p.Tyr34Ser	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Tyr34Ser
+pncA	p.Tyr34*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Tyr34*
+pncA	p.Tyr41*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Tyr41*
+pncA	p.Tyr64Asp	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Tyr64Asp
+pncA	p.Tyr64fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Tyr64fs
+pncA	p.Tyr64*	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Tyr64*
+pncA	p.Tyr95Asp	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Tyr95Asp
+pncA	p.Tyr95fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Tyr95fs
+pncA	p.Tyr95*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Tyr95*
+pncA	p.Tyr99fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Tyr99fs
+pncA	p.Tyr99*	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Tyr99*
+pncA	p.Val125fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val125fs
+pncA	p.Val125Gly	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val125Gly
+pncA	p.Val125Phe	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val125Phe
+pncA	p.Val128fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val128fs
+pncA	p.Val128Gly	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val128Gly
+pncA	p.Val130fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val130fs
+pncA	p.Val130Gly	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val130Gly
+pncA	p.Val130Met	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val130Met
+pncA	p.Val131fs	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val131fs
+pncA	p.Val131Gly	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val131Gly
+pncA	p.Val131Phe	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val131Phe
+pncA	p.Val139Ala	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val139Ala
+pncA	p.Val139Gly	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val139Gly
+pncA	p.Val139Leu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val139Leu
+pncA	p.Val139Met	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val139Met
+pncA	p.Val155Ala	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val155Ala
+pncA	p.Val155fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val155fs
+pncA	p.Val155Gly	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val155Gly
+pncA	p.Val155Met	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val155Met
+pncA	p.Val157fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val157fs
+pncA	p.Val163Ala	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val163Ala
+pncA	p.Val163fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val163fs
+pncA	p.Val180Ala	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val180Ala
+pncA	p.Val180Gly	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val180Gly
+pncA	p.Val180Phe	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val180Phe
+pncA	p.Val21fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val21fs
+pncA	p.Val21Gly	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val21Gly
+pncA	p.Val44Gly	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val44Gly
+pncA	p.Val45fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val45fs
+pncA	p.Val7Ala	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val7Ala
+pncA	p.Val7fs	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val7fs
+pncA	p.Val7Gly	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val7Gly
+pncA	p.Val7Leu	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val7Leu
+pncA	p.Val7Phe	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val7Phe
+pncA	p.Val93Ala	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val93Ala
+pncA	p.Val93Leu	PZA: Assoc w R - Interim	Pyrazinamide	2) Assoc w R - Interim	pncA_p.Val93Leu
+pncA	p.Val9Gly	PZA: Assoc w R	Pyrazinamide	1) Assoc w R	pncA_p.Val9Gly
+rpoB	p.Ala451Gly	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ala451Gly
+rpoB	p.Ala451Val	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ala451Val
+rpoB	p.Arg448Gln	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Arg448Gln
+rpoB	p.Arg448Leu	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Arg448Leu
+rpoB	p.Arg448Lys	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Arg448Lys
+rpoB	p.Asn437_Asn438del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asn437_Asn438del
+rpoB	p.Asn437Asp	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asn437Asp
+rpoB	p.Asn437His	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asn437His
+rpoB	p.Asn437Ile	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asn437Ile
+rpoB	p.Asn437Ser	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asn437Ser
+rpoB	p.Asn437Tyr	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asn437Tyr
+rpoB	p.Asn438del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asn438del
+rpoB	p.Asn438His	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asn438His
+rpoB	p.Asp435_Gln436del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asp435_Gln436del
+rpoB	p.Asp435_Gln436delinsGlu	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asp435_Gln436delinsGlu
+rpoB	p.Asp435Ala	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asp435Ala
+rpoB	p.Asp435Asn	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asp435Asn
+rpoB	p.Asp435del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asp435del
+rpoB	p.Asp435Glu	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asp435Glu
+rpoB	p.Asp435Gly	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asp435Gly
+rpoB	p.Asp435His	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asp435His
+rpoB	p.Asp435Leu	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Asp435Leu
+rpoB	p.Asp435Phe	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Asp435Phe
+rpoB	p.Asp435Tyr	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Asp435Tyr
+rpoB	p.Asp435Val	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Asp435Val
+rpoB	p.Gln429His	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln429His
+rpoB	p.Gln429Leu	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln429Leu
+rpoB	p.Gln429Pro	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln429Pro
+rpoB	p.Gln432_Asp435delinsHis	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Gln432_Asp435delinsHis
+rpoB	p.Gln432_Met434del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln432_Met434del
+rpoB	p.Gln432_Met434delinsLeu	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln432_Met434delinsLeu
+rpoB	p.Gln432_Phe433del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln432_Phe433del
+rpoB	p.Gln432Asn	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln432Asn
+rpoB	p.Gln432del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln432del
+rpoB	p.Gln432Glu	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln432Glu
+rpoB	p.Gln432His	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln432His
+rpoB	p.Gln432Leu	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Gln432Leu
+rpoB	p.Gln432Lys	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Gln432Lys
+rpoB	p.Gln432Pro	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Gln432Pro
+rpoB	p.Gln436_Asn437del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln436_Asn437del
+rpoB	p.Gln436Arg	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln436Arg
+rpoB	p.Gln436Asn	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln436Asn
+rpoB	p.Gln436del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln436del
+rpoB	p.Gln436Pro	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gln436Pro
+rpoB	p.Gly426_Thr427del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gly426_Thr427del
+rpoB	p.Gly426Ser	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gly426Ser
+rpoB	p.Gly442Glu	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Gly442Glu
+rpoB	p.His445_Lys446del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.His445_Lys446del
+rpoB	p.His445_Lys446delinsGln	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.His445_Lys446delinsGln
+rpoB	p.His445Arg	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.His445Arg
+rpoB	p.His445Asn	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.His445Asn
+rpoB	p.His445Asp	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.His445Asp
+rpoB	p.His445Cys	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.His445Cys
+rpoB	p.His445Gln	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.His445Gln
+rpoB	p.His445Gly	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.His445Gly
+rpoB	p.His445Leu	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.His445Leu
+rpoB	p.His445Phe	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.His445Phe
+rpoB	p.His445Pro	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.His445Pro
+rpoB	p.His445Ser	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.His445Ser
+rpoB	p.His445Thr	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.His445Thr
+rpoB	p.His445Tyr	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.His445Tyr
+rpoB	p.Ile491Phe	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Ile491Phe
+rpoB	p.Leu430_Gln432del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Leu430_Gln432del
+rpoB	p.Leu430_Ser431insArg	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Leu430_Ser431insArg
+rpoB	p.Leu430Arg	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Leu430Arg
+rpoB	p.Leu430Pro	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Leu430Pro
+rpoB	p.Leu443_Lys446delinsProGln	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Leu443_Lys446delinsProGln
+rpoB	p.Leu443Phe	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Leu443Phe
+rpoB	p.Leu443Ser	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Leu443Ser
+rpoB	p.Leu443Trp	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Leu443Trp
+rpoB	p.Leu449Met	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Leu449Met
+rpoB	p.Leu452Met	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Leu452Met
+rpoB	p.Leu452Pro	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Leu452Pro
+rpoB	p.Leu452Val	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Leu452Val
+rpoB	p.Lys446Arg	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Lys446Arg
+rpoB	p.Lys446Gln	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Lys446Gln
+rpoB	p.Lys446Glu	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Lys446Glu
+rpoB	p.Lys446Thr	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Lys446Thr
+rpoB	p.Met434_Asn437delinsIle	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Met434_Asn437delinsIle
+rpoB	p.Met434_Asp435del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Met434_Asp435del
+rpoB	p.Met434_Asp435insVal	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Met434_Asp435insVal
+rpoB	p.Met434Arg	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Met434Arg
+rpoB	p.Met434Ile	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Met434Ile
+rpoB	p.Met434Leu	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Met434Leu
+rpoB	p.Met434Thr	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Met434Thr
+rpoB	p.Met434Val	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Met434Val
+rpoB	p.Phe425_Gly426del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Phe425_Gly426del
+rpoB	p.Phe433_Asp435del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Phe433_Asp435del
+rpoB	p.Phe433_Gln436del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Phe433_Gln436del
+rpoB	p.Phe433_Met434insPhe	RIF: Assoc w R, WHO p.Phe433dup	Rifampicin	1) Assoc w R	rpoB_p.Phe433dup
+rpoB	p.Pro439Ala	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Pro439Ala
+rpoB	p.Pro439Leu	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Pro439Leu
+rpoB	p.Pro439Ser	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Pro439Ser
+rpoB	p.Ser428Arg	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser428Arg
+rpoB	p.Ser428Gly	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser428Gly
+rpoB	p.Ser428Ile	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser428Ile
+rpoB	p.Ser428Thr	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser428Thr
+rpoB	p.Ser431_Gln432insArg	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser431_Gln432insArg
+rpoB	p.Ser431_Gln432insHis	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser431_Gln432insHis
+rpoB	p.Ser431_Met434del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser431_Met434del
+rpoB	p.Ser431Arg	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser431Arg
+rpoB	p.Ser431Asn	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser431Asn
+rpoB	p.Ser431Gly	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser431Gly
+rpoB	p.Ser431Thr	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser431Thr
+rpoB	p.Ser441Ala	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser441Ala
+rpoB	p.Ser441Gln	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Ser441Gln
+rpoB	p.Ser441Leu	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Ser441Leu
+rpoB	p.Ser441Lys	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser441Lys
+rpoB	p.Ser441Met	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser441Met
+rpoB	p.Ser441Trp	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser441Trp
+rpoB	p.Ser441Val	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser441Val
+rpoB	p.Ser450_Leu452del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser450_Leu452del
+rpoB	p.Ser450Ala	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser450Ala
+rpoB	p.Ser450Cys	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser450Cys
+rpoB	p.Ser450Gln	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser450Gln
+rpoB	p.Ser450Gly	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser450Gly
+rpoB	p.Ser450Leu	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Ser450Leu
+rpoB	p.Ser450Met	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser450Met
+rpoB	p.Ser450Phe	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Ser450Phe
+rpoB	p.Ser450Trp	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Ser450Trp
+rpoB	p.Ser450Tyr	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Ser450Tyr
+rpoB	p.Ser450Val	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Ser450Val
+rpoB	p.Thr427_Gln429del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr427_Gln429del
+rpoB	p.Thr427_Gln429delinsLys	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr427_Gln429delinsLys
+rpoB	p.Thr427_Ser428del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr427_Ser428del
+rpoB	p.Thr427Ala	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr427Ala
+rpoB	p.Thr427Asn	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr427Asn
+rpoB	p.Thr427Gly	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr427Gly
+rpoB	p.Thr427Ile	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr427Ile
+rpoB	p.Thr427Pro	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr427Pro
+rpoB	p.Thr427Ser	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr427Ser
+rpoB	p.Thr444_His445insThr	RIF: Assoc w R, WHO p.Thr444dup	Rifampicin	1) Assoc w R	rpoB_p.Thr444dup
+rpoB	p.Thr444Ile	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr444Ile
+rpoB	p.Thr444Pro	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr444Pro
+rpoB	p.Thr444Ser	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr444Ser
+rpoB	p.Val170Phe	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Val170Phe
+gid	LoF	STM: Assoc w R	Streptomycin	1) Assoc w R	gid_LoF
+gid	p.Ala119fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ala119fs
+gid	p.Ala133fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ala133fs
+gid	p.Ala134fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ala134fs
+gid	p.Ala134Glu	STM: Assoc w R	Streptomycin	1) Assoc w R	gid_p.Ala134Glu
+gid	p.Ala138fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ala138fs
+gid	p.Ala140fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ala140fs
+gid	p.Ala167fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ala167fs
+gid	p.Ala183fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ala183fs
+gid	p.Ala193fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ala193fs
+gid	p.Ala19fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ala19fs
+gid	p.Ala200fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ala200fs
+gid	p.Ala200Glu	STM: Assoc w R	Streptomycin	1) Assoc w R	gid_p.Ala200Glu
+gid	p.Ala205fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ala205fs
+gid	p.Ala82fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ala82fs
+gid	p.Arg102fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg102fs
+gid	p.Arg102*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg102*
+gid	p.Arg116fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg116fs
+gid	p.Arg118fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg118fs
+gid	p.Arg158fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg158fs
+gid	p.Arg158*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg158*
+gid	p.Arg15fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg15fs
+gid	p.Arg176fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg176fs
+gid	p.Arg206fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg206fs
+gid	p.Arg206*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg206*
+gid	p.Arg213*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg213*
+gid	p.Arg21fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg21fs
+gid	p.Arg33fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg33fs
+gid	p.Arg39fs	STM: Assoc w R	Streptomycin	1) Assoc w R	gid_p.Arg39fs
+gid	p.Arg43fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg43fs
+gid	p.Arg64fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg64fs
+gid	p.Arg83fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg83fs
+gid	p.Arg97fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Arg97fs
+gid	p.Asn194fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Asn194fs
+gid	p.Asp107fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Asp107fs
+gid	p.Asp185fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Asp185fs
+gid	p.Asp46fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Asp46fs
+gid	p.Asp63fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Asp63fs
+gid	p.Asp67fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Asp67fs
+gid	p.Asp67His	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Asp67His
+gid	p.Cys191fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Cys191fs
+gid	p.Cys52*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Cys52*
+gid	p.Gln125fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gln125fs
+gid	p.Gln125*	STM: Assoc w R	Streptomycin	1) Assoc w R	gid_p.Gln125*
+gid	p.Gln127*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gln127*
+gid	p.Gln210fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gln210fs
+gid	p.Gln87fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gln87fs
+gid	p.Gln87*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gln87*
+gid	p.Glu103*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Glu103*
+gid	p.Glu120fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Glu120fs
+gid	p.Glu121fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Glu121fs
+gid	p.Glu121*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Glu121*
+gid	p.Glu165*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Glu165*
+gid	p.Glu170*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Glu170*
+gid	p.Glu173*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Glu173*
+gid	p.Glu32fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Glu32fs
+gid	p.Glu40*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Glu40*
+gid	p.Glu60fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Glu60fs
+gid	p.Glu60*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Glu60*
+gid	p.Glu92fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Glu92fs
+gid	p.Glu92*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Glu92*
+gid	p.Glu99*	STM: Assoc w R	Streptomycin	1) Assoc w R	gid_p.Glu99*
+gid	p.Gly109fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly109fs
+gid	p.Gly117fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly117fs
+gid	p.Gly129fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly129fs
+gid	p.Gly13*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly13*
+gid	p.Gly164fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly164fs
+gid	p.Gly17fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly17fs
+gid	p.Gly182fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly182fs
+gid	p.Gly192fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly192fs
+gid	p.Gly28*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly28*
+gid	p.Gly30fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly30fs
+gid	p.Gly37fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly37fs
+gid	p.Gly37*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly37*
+gid	p.Gly69fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly69fs
+gid	p.Gly71fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly71fs
+gid	p.Gly71*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly71*
+gid	p.Gly73Ala	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly73Ala
+gid	p.Gly73Glu	STM: Assoc w R	Streptomycin	1) Assoc w R	gid_p.Gly73Glu
+gid	p.Gly76fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Gly76fs
+gid	p.His168fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.His168fs
+gid	p.His174fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.His174fs
+gid	p.His48fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.His48fs
+gid	p.His48Gln	STM: Assoc w R	Streptomycin	1) Assoc w R	gid_p.His48Gln
+gid	p.Ile114fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ile114fs
+gid	p.Ile11fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ile11fs
+gid	p.Ile179fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ile179fs
+gid	p.Ile81fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ile81fs
+gid	p.Leu108fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu108fs
+gid	p.Leu152fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu152fs
+gid	p.Leu16fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu16fs
+gid	p.Leu26fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu26fs
+gid	p.Leu26*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu26*
+gid	p.Leu35fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu35fs
+gid	p.Leu50fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu50fs
+gid	p.Leu59fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu59fs
+gid	p.Leu74fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu74fs
+gid	p.Leu74*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu74*
+gid	p.Leu79fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu79fs
+gid	p.Leu79*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu79*
+gid	p.Leu86fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu86fs
+gid	p.Leu90fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu90fs
+gid	p.Leu91fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu91fs
+gid	p.Leu95fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Leu95fs
+gid	p.Lys144*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Lys144*
+gid	p.Lys147fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Lys147fs
+gid	p.Lys163*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Lys163*
+gid	p.Met1?	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Met1?
+gid	p.Met104fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Met104fs
+gid	p.Met159fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Met159fs
+gid	p.Met178fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Met178fs
+gid	p.Phe100fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Phe100fs
+gid	p.Pro14fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Pro14fs
+gid	p.Pro151fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Pro151fs
+gid	p.Pro29fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Pro29fs
+gid	p.Pro38fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Pro38fs
+gid	p.Pro84fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Pro84fs
+gid	p.Pro84Leu	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Pro84Leu
+gid	p.Pro93fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Pro93fs
+gid	p.Ser122fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ser122fs
+gid	p.Ser136fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ser136fs
+gid	p.Ser136*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ser136*
+gid	p.Ser149fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ser149fs
+gid	p.Ser181*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ser181*
+gid	p.Ser220fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Ser220fs
+gid	p.Ser70Asn	STM: Assoc w R	Streptomycin	1) Assoc w R	gid_p.Ser70Asn
+gid	p.Thr106fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Thr106fs
+gid	p.Thr201fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Thr201fs
+gid	p.Thr98fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Thr98fs
+gid	p.Trp123*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Trp123*
+gid	p.Trp148fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Trp148fs
+gid	p.Trp148*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Trp148*
+gid	p.Trp45*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Trp45*
+gid	p.Tyr195*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Tyr195*
+gid	p.Tyr22*	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Tyr22*
+gid	p.Val105fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val105fs
+gid	p.Val105Glu	STM: Assoc w R	Streptomycin	1) Assoc w R	gid_p.Val105Glu
+gid	p.Val110fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val110fs
+gid	p.Val115fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val115fs
+gid	p.Val124fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val124fs
+gid	p.Val135fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val135fs
+gid	p.Val184fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val184fs
+gid	p.Val188fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val188fs
+gid	p.Val189fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val189fs
+gid	p.Val202fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val202fs
+gid	p.Val36fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val36fs
+gid	p.Val41fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val41fs
+gid	p.Val54fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val54fs
+gid	p.Val65fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val65fs
+gid	p.Val66fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val66fs
+gid	p.Val77fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val77fs
+gid	p.Val88fs	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	gid_p.Val88fs
+rpsL	p.Lys43Arg	STM: Assoc w R	Streptomycin	1) Assoc w R	rpsL_p.Lys43Arg
+rpsL	p.Lys88Arg	STM: Assoc w R	Streptomycin	1) Assoc w R	rpsL_p.Lys88Arg
+rpsL	p.Lys88Gln	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	rpsL_p.Lys88Gln
+rpsL	p.Lys88Met	STM: Assoc w R	Streptomycin	1) Assoc w R	rpsL_p.Lys88Met
+rrs	n.514A>C	STM: Assoc w R	Streptomycin	1) Assoc w R	rrs_n.514A>C
+rrs	n.517C>T	STM: Assoc w R	Streptomycin	1) Assoc w R	rrs_n.517C>T
+rrs	n.878G>A	STM: Assoc w R - Interim	Streptomycin	2) Assoc w R - Interim	rrs_n.878G>A

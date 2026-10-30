@@ -101,6 +101,50 @@ partir de las salidas existentes en vez de volver a ejecutar el pipeline:
 get_mnv --report-from run1.MNV.tsv run2.MNV.tsv --report cohort.html
 ```
 
+## Marcar mutaciones de resistencia conocidas en *M. tuberculosis*
+
+`example/who_catalogue_2023.tsv` es el catálogo de la OMS de mutaciones de
+resistencia de *M. tuberculosis* (2023), sus grupos 1 y 2, en la forma que lee
+`--catalogue`. Sobre la referencia y la tabla de genes del ejemplo:
+
+```bash
+get_mnv \
+  --vcf variants.vcf \
+  --fasta example/MTB_ancestor.fas \
+  --genes example/anot_genes.txt \
+  --catalogue example/who_catalogue_2023.tsv
+```
+
+Una llamada que coincide lleva la entrada en su columna `Catalogue`. Un codón
+con dos sustituciones se compara como el codón que forma, algo que la anotación
+base a base no ve: rpoB `p.Ser450Phe` necesita dos cambios en el codón 450, y
+su fila dice
+
+```text
+RIF: Assoc w R (rpoB p.Ser450Leu, per-SNV reading only); RIF: Assoc w R (rpoB p.Ser450Phe, codon reading only)
+```
+
+es decir, el codón es Ser450Phe, y un anotador que lee una base cada vez habría
+dado Ser450Leu. Para `p.Ser441Gln` habría dado Ser441Pro y una parada
+prematura. Para conservar otros grupos, o para colocar la tabla sobre otra
+referencia, constrúyela a partir de los archivos de la OMS:
+
+```bash
+base="https://raw.githubusercontent.com/GTB-tbsequencing/mutation-catalogue-2023/main/Final%20Result%20Files"
+curl -LO "$base/WHO-UCN-TB-2023.6-eng_catalogue_master_file.txt"
+curl -LO "$base/WHO-UCN-TB-2023.7-eng_genomic_coordinates.txt"
+python3 tools/who_catalogue_to_tsv.py WHO-UCN-TB-2023.6-eng_catalogue_master_file.txt \
+  --grades 1,2,5 \
+  --coordinates WHO-UCN-TB-2023.7-eng_genomic_coordinates.txt \
+  --fasta example/MTB_ancestor.fas \
+  --unconverted who_unconverted.tsv \
+  -o who_catalogue.tsv
+```
+
+Qué reescribe el conversor, qué no puede convertir y qué necesita una tabla de
+genes o una referencia propias está en
+[Formatos de entrada](input-formats.es.md#el-catálogo-de-la-oms-de-mutaciones-de-resistencia-de-m-tuberculosis).
+
 ## Analizar features CDS de un GFF
 
 ```bash

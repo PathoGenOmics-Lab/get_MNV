@@ -134,6 +134,26 @@
 <p>El informe es un único archivo HTML autocontenido, así que se abre sin servidor y viaja como un solo adjunto. Necesita la salida TSV, que es la de por defecto. <code>--convert</code> escribe el VCF <em>en lugar</em> del TSV, así que usa <code>--both</code> cuando quieras informe y VCF a la vez.</p>
 <p>Para una cohorte ya procesada con una muestra por ejecución, genera el informe a partir de las salidas existentes en vez de volver a ejecutar el pipeline:</p>
 <div class="code" data-lang="bash"><pre><code>get_mnv --report-from run1.MNV.tsv run2.MNV.tsv --report cohort.html</code></pre></div>
+<h2 id="marcar-mutaciones-de-resistencia-conocidas-en-m-tuberculosis">Marcar mutaciones de resistencia conocidas en <em>M. tuberculosis</em><a class="anchor" href="#marcar-mutaciones-de-resistencia-conocidas-en-m-tuberculosis" aria-hidden="true" tabindex="-1">#</a></h2>
+<p><code>example/who_catalogue_2023.tsv</code> es el catálogo de la OMS de mutaciones de resistencia de <em>M. tuberculosis</em> (2023), sus grupos 1 y 2, en la forma que lee <code>--catalogue</code>. Sobre la referencia y la tabla de genes del ejemplo:</p>
+<div class="code" data-lang="bash"><pre><code>get_mnv \
+  --vcf variants.vcf \
+  --fasta example/MTB_ancestor.fas \
+  --genes example/anot_genes.txt \
+  --catalogue example/who_catalogue_2023.tsv</code></pre></div>
+<p>Una llamada que coincide lleva la entrada en su columna <code>Catalogue</code>. Un codón con dos sustituciones se compara como el codón que forma, algo que la anotación base a base no ve: rpoB <code>p.Ser450Phe</code> necesita dos cambios en el codón 450, y su fila dice</p>
+<div class="code" data-lang="text"><pre><code>RIF: Assoc w R (rpoB p.Ser450Leu, per-SNV reading only); RIF: Assoc w R (rpoB p.Ser450Phe, codon reading only)</code></pre></div>
+<p>es decir, el codón es Ser450Phe, y un anotador que lee una base cada vez habría dado Ser450Leu. Para <code>p.Ser441Gln</code> habría dado Ser441Pro y una parada prematura. Para conservar otros grupos, o para colocar la tabla sobre otra referencia, constrúyela a partir de los archivos de la OMS:</p>
+<div class="code" data-lang="bash"><pre><code>base=&quot;https://raw.githubusercontent.com/GTB-tbsequencing/mutation-catalogue-2023/main/Final%20Result%20Files&quot;
+curl -LO &quot;$base/WHO-UCN-TB-2023.6-eng_catalogue_master_file.txt&quot;
+curl -LO &quot;$base/WHO-UCN-TB-2023.7-eng_genomic_coordinates.txt&quot;
+python3 tools/who_catalogue_to_tsv.py WHO-UCN-TB-2023.6-eng_catalogue_master_file.txt \
+  --grades 1,2,5 \
+  --coordinates WHO-UCN-TB-2023.7-eng_genomic_coordinates.txt \
+  --fasta example/MTB_ancestor.fas \
+  --unconverted who_unconverted.tsv \
+  -o who_catalogue.tsv</code></pre></div>
+<p>Qué reescribe el conversor, qué no puede convertir y qué necesita una tabla de genes o una referencia propias está en <a href="../input-formats/index.html#el-catálogo-de-la-oms-de-mutaciones-de-resistencia-de-m-tuberculosis">Formatos de entrada</a>.</p>
 <h2 id="analizar-features-cds-de-un-gff">Analizar features CDS de un GFF<a class="anchor" href="#analizar-features-cds-de-un-gff" aria-hidden="true" tabindex="-1">#</a></h2>
 <div class="code" data-lang="bash"><pre><code>get_mnv \
   --vcf variants.vcf \
@@ -146,7 +166,7 @@
 <p class="edit"><a href="https://github.com/PathoGenOmics-Lab/get_MNV/blob/main/docs/usage.es.md"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Editar esta página en GitHub</a></p>
 <nav class="pager" aria-label="Previous and next page"><a class="prev" href="../getting-started/index.html"><span>Anterior</span>Tutorial de línea de comandos</a><a class="next" href="../gui/index.html"><span>Siguiente</span>GUI de escritorio</a></nav>
 </main>
-<aside class="toc" aria-label="En esta página"><p>En esta página</p><ul><li class="toc-2"><a href="#comando-básico">Comando básico</a></li><li class="toc-2"><a href="#entrada-vcf">Entrada VCF</a></li><li class="toc-2"><a href="#entrada-tsv-de-ivar">Entrada TSV de iVar</a></li><li class="toc-2"><a href="#añadir-soporte-de-lecturas-del-bam">Añadir soporte de lecturas del BAM</a></li><li class="toc-2"><a href="#filtrar-por-el-soporte-recontado">Filtrar por el soporte recontado</a></li><li class="toc-2"><a href="#escribir-tsv-y-vcf-a-la-vez">Escribir TSV y VCF a la vez</a></li><li class="toc-2"><a href="#generar-el-informe-interactivo">Generar el informe interactivo</a></li><li class="toc-2"><a href="#analizar-features-cds-de-un-gff">Analizar features CDS de un GFF</a></li><li class="toc-2"><a href="#notas">Notas</a></li></ul></aside>
+<aside class="toc" aria-label="En esta página"><p>En esta página</p><ul><li class="toc-2"><a href="#comando-básico">Comando básico</a></li><li class="toc-2"><a href="#entrada-vcf">Entrada VCF</a></li><li class="toc-2"><a href="#entrada-tsv-de-ivar">Entrada TSV de iVar</a></li><li class="toc-2"><a href="#añadir-soporte-de-lecturas-del-bam">Añadir soporte de lecturas del BAM</a></li><li class="toc-2"><a href="#filtrar-por-el-soporte-recontado">Filtrar por el soporte recontado</a></li><li class="toc-2"><a href="#escribir-tsv-y-vcf-a-la-vez">Escribir TSV y VCF a la vez</a></li><li class="toc-2"><a href="#generar-el-informe-interactivo">Generar el informe interactivo</a></li><li class="toc-2"><a href="#marcar-mutaciones-de-resistencia-conocidas-en-m-tuberculosis">Marcar mutaciones de resistencia conocidas en M. tuberculosis</a></li><li class="toc-2"><a href="#analizar-features-cds-de-un-gff">Analizar features CDS de un GFF</a></li><li class="toc-2"><a href="#notas">Notas</a></li></ul></aside>
 </div>
 <footer class="foot">
   <div class="foot-in">
