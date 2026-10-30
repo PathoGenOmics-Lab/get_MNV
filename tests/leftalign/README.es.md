@@ -43,7 +43,9 @@ como `.vcf` plano y otra como `.vcf.gz`, porque los dos los leen lectores
 distintos. Cada registro lleva un identificador en INFO, que get_MNV conserva
 con `--keep-original-info`, así que su VCF de salida se empareja con la entrada
 registro a registro. Un registro pasa cuando get_MNV escribe el POS, REF y ALT
-que escribe bcftools.
+que escribe bcftools. Los registros pasan además por `--sample all` como una
+cohorte de dos muestras, en los dos contenedores, porque una cohorte se lee de
+memoria por un camino propio.
 
 La ejecución cuenta además cuántos registros escribiría get_MNV de otra forma
 sin `--left-align`, y falla si no hay ninguno, porque una comparación que nada

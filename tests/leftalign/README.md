@@ -40,7 +40,9 @@ once as a plain `.vcf` and once as a `.vcf.gz`, since the two are read by
 different readers. Each record carries an identifier in INFO, which get_MNV
 keeps under `--keep-original-info`, so its output VCF is matched to the input
 record by record. A record passes when get_MNV writes the POS, REF and ALT that
-bcftools writes.
+bcftools writes. The records also go through `--sample all` as a cohort of two
+samples, in both containers, since a cohort is read from memory by a path of
+its own.
 
 The run also counts how many records get_MNV would write differently without
 `--left-align`, and fails if there are none, since a comparison nothing could

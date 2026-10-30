@@ -56,6 +56,10 @@ LONG_UNITS = 150
 # far either moves.
 SPACING = 60
 TAG = "LAID"
+# `--sample all` reads a cohort through a path of its own, the file held in
+# memory and each sample's column picked out of it, so the records go through
+# that path too, as a cohort of two samples that both carry every one.
+COHORT = ("S1", "S2")
 
 
 @dataclass
@@ -203,16 +207,33 @@ def make_records(seq: str, rng: random.Random) -> list[Record]:
     return sorted(records, key=lambda r: r.pos)
 
 
-def write_vcf(path: Path, contig: str, length: int, records: list[Record]) -> None:
+def write_vcf(path: Path, contig: str, length: int, records: list[Record],
+              samples: tuple[str, ...] = ()) -> None:
     lines = [
         "##fileformat=VCFv4.2",
         f"##contig=<ID={contig},length={length}>",
         f'##INFO=<ID={TAG},Number=1,Type=String,Description="Record identifier">',
-        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO",
     ]
+    columns = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO"
+    genotypes = ""
+    if samples:
+        lines.append('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">')
+        columns += "\tFORMAT\t" + "\t".join(samples)
+        genotypes = "\tGT" + "\t1" * len(samples)
+    lines.append(columns)
     for r in records:
-        lines.append(f"{contig}\t{r.pos}\t{r.ident}\t{r.ref}\t{r.alt}\t.\tPASS\t{TAG}={r.ident}")
+        lines.append(
+            f"{contig}\t{r.pos}\t{r.ident}\t{r.ref}\t{r.alt}\t.\tPASS\t{TAG}={r.ident}{genotypes}"
+        )
     path.write_text("\n".join(lines) + "\n")
+
+
+def compressed(vcf: Path) -> Path:
+    """The same file as `.vcf.gz`, which the other reader takes."""
+    out = vcf.with_name(vcf.stem + "_gz.vcf.gz")
+    subprocess.run([BCFTOOLS, "view", "-Oz", "-o", str(out), str(vcf)],
+                   check=True, capture_output=True)
+    return out
 
 
 def bcftools_norm(vcf: Path) -> dict[str, tuple[int, str, str]]:
@@ -229,19 +250,24 @@ def bcftools_norm(vcf: Path) -> dict[str, tuple[int, str, str]]:
     return out
 
 
-def get_mnv(work: Path, vcf: Path, flags: list[str]) -> dict[str, set[tuple[int, str, str]]]:
+def get_mnv(work: Path, vcf: Path, flags: list[str],
+            sample: str | None = None) -> dict[str, set[tuple[int, str, str]]]:
     """What get_MNV wrote for each record, read back out of its VCF: a record
-    keeps its INFO, and with it the identifier, under --keep-original-info."""
-    proc = subprocess.run(
-        [GET_MNV, "--vcf", str(vcf), "--fasta", str(FASTA), "--genes", str(GENES),
-         "--convert", "--keep-original-info", "--output-dir", str(work), *flags],
-        capture_output=True, text=True,
-    )
-    if proc.returncode != 0:
-        raise SystemExit(f"get_mnv failed on {vcf.name}:\n{proc.stderr[-3000:]}")
+    keeps its INFO, and with it the identifier, under --keep-original-info.
+    With `sample`, the run is a `--sample all` cohort and that is the sample
+    whose output is read."""
+    if sample is None or sample == COHORT[0]:
+        proc = subprocess.run(
+            [GET_MNV, "--vcf", str(vcf), "--fasta", str(FASTA), "--genes", str(GENES),
+             "--convert", "--keep-original-info", "--output-dir", str(work), *flags],
+            capture_output=True, text=True,
+        )
+        if proc.returncode != 0:
+            raise SystemExit(f"get_mnv failed on {vcf.name}:\n{proc.stderr[-3000:]}")
     stem = vcf.name.split(".")[0]
+    name = f"{stem}.MNV.vcf" if sample is None else f"{stem}.sample_{sample}.MNV.vcf"
     out: dict[str, set[tuple[int, str, str]]] = {}
-    for line in (work / f"{stem}.MNV.vcf").read_text().splitlines():
+    for line in (work / name).read_text().splitlines():
         if line.startswith("#"):
             continue
         fields = line.split("\t")
@@ -286,15 +312,19 @@ def main() -> int:
     work.mkdir(parents=True)
     plain = work / "indels.vcf"
     write_vcf(plain, contig, len(seq), records)
-    bgzipped = work / "indels_gz.vcf.gz"
-    subprocess.run([BCFTOOLS, "view", "-Oz", "-o", str(bgzipped), str(plain)],
-                   check=True, capture_output=True)
+    cohort = work / "cohort.vcf"
+    write_vcf(cohort, contig, len(seq), records, COHORT)
 
     oracle = bcftools_norm(plain)
     problems = []
-    for vcf in (plain, bgzipped):
+    for vcf in (plain, compressed(plain)):
         for problem in compare(records, oracle, get_mnv(work, vcf, ["--left-align"])):
             problems.append(f"[{vcf.name}] {problem}")
+    for vcf in (cohort, compressed(cohort)):
+        for sample in COHORT:
+            got = get_mnv(work, vcf, ["--left-align", "--sample", "all"], sample)
+            for problem in compare(records, oracle, got):
+                problems.append(f"[{vcf.name} {sample}] {problem}")
     unaligned = len(compare(records, oracle, get_mnv(work, plain, [])))
 
     moved = [r for r in records if oracle.get(r.ident, (r.pos,))[0] != r.pos]
@@ -304,10 +334,11 @@ def main() -> int:
         str(r.period) if r.period < 7 else "7-100" for r in records if r.kind != "complex"
     )
     print(
-        f"{len(records)} records against bcftools norm -f, through both VCF readers: "
+        f"{len(records)} records against bcftools norm -f: "
         f"{kinds['deletion']} deletions, {kinds['insertion']} insertions, "
         f"{kinds['complex']} complex"
     )
+    print("  through both VCF readers, alone and as a two-sample cohort with --sample all")
     print("  repeat unit of the indels: " + ", ".join(
         f"{period} bp x{periods[period]}" for period in ["1", "2", "3", "4", "5", "6", "7-100"]))
     print(f"  {len(moved)} moved by bcftools, by up to {max(shifts, default=0)} bp")
