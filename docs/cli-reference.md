@@ -96,6 +96,7 @@ These apply only when `--bam` is provided.
 | `--count-mates-separately` | off | Count the two mates of a paired-end fragment as two observations instead of one molecule. |
 | `--phased-indel-min-freq <F>` | `0.0` | Minimum BAM-derived frequency to emit a phased indel/complex haplotype row. |
 | `--normalize-alleles` | off | Trim shared REF/ALT prefix/suffix before processing. |
+| `--left-align` | off | Left-align indels against the reference before processing, as `bcftools norm -f` does: an indel in a homopolymer or repeat moves to its leftmost equivalent position, where aligners place the gap, so its read support can be counted. Includes the trimming of `--normalize-alleles`; complex records are trimmed but not moved. Applies to VCF and iVar TSV input. See [Left-Alignment](indel-mnv-semantics.md#left-alignment). |
 | `--split-multiallelic` | on | Split multiallelic VCF records into independent ALT alleles. On by default since 1.1.6; still accepted so existing commands keep working. |
 
 ## Output

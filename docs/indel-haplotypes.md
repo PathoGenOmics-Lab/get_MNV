@@ -151,10 +151,11 @@ row beside it is where the real consequence is.
   level of the molecule, so a haplotype whose variants fall on different mates
   is found; the allele cannot be reproduced by either mate alone, so the row
   cannot be supported and the threshold drops it.
-- **Left-alignment is the input's job.** get_MNV matches the allele as given.
-  In a homopolymer or tandem repeat, an input indel placed differently from the
-  BAM's alignment yields zero exact support; a warning says so, and
-  `bcftools norm -f ref.fa` fixes it.
+- **An indel is matched where it is written.** In a homopolymer or tandem
+  repeat, an input indel placed differently from the BAM's alignment yields zero
+  exact support, and a warning says so. `--left-align` moves it to the leftmost
+  equivalent position, where aligners place the gap, before anything is counted
+  (see [Left-Alignment](indel-mnv-semantics.md#left-alignment)).
 - **An insertion anchored at a feature's last base is outside that feature**,
   because the inserted sequence falls beyond it. On a minus-strand gene that
   same coordinate is the transcript's *first* base, so the insertion lands in
