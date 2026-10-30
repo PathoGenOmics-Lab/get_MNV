@@ -448,6 +448,7 @@ mod tests {
             sample: None,
             chrom: None,
             normalize_alleles: false,
+            left_align: false,
             min_quality: 20,
             min_mapq: 20,
             threads: None,

@@ -5,6 +5,7 @@ pub mod alignment;
 pub mod annotation;
 pub mod fasta;
 pub mod ivar;
+pub(crate) mod left_align;
 pub mod validation;
 pub mod vcf;
 pub mod vcf_fast;
@@ -22,7 +23,7 @@ pub use fasta::{
 pub use validation::get_base_name;
 pub use vcf::{
     extract_original_info_headers, list_vcf_samples, load_vcf, load_vcf_positions_by_contig,
-    parse_declared_phase, DeclaredPhase, VcfPosition,
+    parse_declared_phase, AlleleNormalization, DeclaredPhase, VcfPosition,
 };
 
 #[cfg(test)]

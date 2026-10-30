@@ -1,5 +1,5 @@
 use get_mnv::error::{AppError, AppResult};
-use get_mnv::io::{self, Reference, VcfPosition};
+use get_mnv::io::{self, AlleleNormalization, Reference, VcfPosition};
 use get_mnv::variants::{get_mnv_variants_for_gene, Gene, Strand};
 use rayon::prelude::*;
 use rayon::{ThreadPool, ThreadPoolBuilder};
@@ -241,7 +241,7 @@ fn run_dataset(
         vcf_path.to_string_lossy().as_ref(),
         None,
         true,
-        false,
+        AlleleNormalization::AsWritten,
         false,
         Some(&references),
     )?;

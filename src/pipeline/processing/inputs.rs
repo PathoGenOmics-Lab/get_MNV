@@ -24,13 +24,15 @@ pub(crate) fn parse_inputs(args: &Args, sample_override: Option<&str>) -> AppRes
     }
 
     let snp_by_contig = match input_format {
-        VariantInputFormat::Tsv => io::ivar::load_ivar_tsv(variant_file, &references)
-            .map_err(reclassify_generic_as_validation)?,
+        VariantInputFormat::Tsv => {
+            io::ivar::load_ivar_tsv(variant_file, &references, args.left_align)
+                .map_err(reclassify_generic_as_validation)?
+        }
         VariantInputFormat::Vcf | VariantInputFormat::Auto => io::load_vcf(
             variant_file,
             sample_override,
             args.split_multiallelic,
-            args.normalize_alleles,
+            args.allele_normalization(),
             args.keep_original_info,
             Some(&references),
         )

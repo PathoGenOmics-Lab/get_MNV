@@ -7,8 +7,8 @@
 
 use super::validation::validate_vcf_allele;
 use super::vcf::{
-    freq_from_ad, freq_from_ao_ro, normalize_ref_alt, parse_optional_depth,
-    parse_optional_freq_index, VcfPosition,
+    freq_from_ad, freq_from_ao_ro, parse_optional_depth, parse_optional_freq_index,
+    AlleleNormalization, VcfPosition,
 };
 use crate::error::AppResult;
 use std::collections::HashMap;
@@ -27,7 +27,7 @@ pub fn load_vcf_text(
     vcf_file: &str,
     sample_name: Option<&str>,
     split_multiallelic: bool,
-    normalize_alleles: bool,
+    normalization: AlleleNormalization,
     keep_original_info: bool,
     references: Option<&crate::io::ReferenceMap>,
 ) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
@@ -44,6 +44,7 @@ pub fn load_vcf_text(
     let mut not_carried = 0usize;
     let mut overlapped = 0usize;
     let mut spelled_out = 0usize;
+    let mut left_aligned = 0usize;
     let mut record_idx = 0usize;
 
     // The INFO keys get_MNV writes itself, dropped from what keep_original_info
@@ -180,11 +181,9 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                 }
                 None => (pos, ref_allele.to_string(), alt_allele.to_string()),
             };
-            let (norm_pos, norm_ref, norm_alt) = if normalize_alleles {
-                normalize_ref_alt(start, &explicit_ref, &explicit_alt)
-            } else {
-                (start, explicit_ref, explicit_alt)
-            };
+            let (norm_pos, norm_ref, norm_alt, moved) =
+                normalization.apply(start, explicit_ref, explicit_alt, sequence);
+            left_aligned += usize::from(moved);
             validate_vcf_allele(&norm_ref, record_idx, chrom, norm_pos, "REF")?;
             validate_vcf_allele(&norm_alt, record_idx, chrom, norm_pos, "ALT")?;
 
@@ -248,6 +247,7 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
     }
     crate::io::vcf::log_overlapped(overlapped);
     crate::io::vcf::log_spelled_out(spelled_out);
+    crate::io::vcf::log_left_aligned(left_aligned);
 
     Ok(positions_by_contig)
 }
@@ -488,7 +488,15 @@ mod tests {
     fn test_load_vcf_text_example() {
         // Use the bundled example VCF
         let vcf = concat!(env!("CARGO_MANIFEST_DIR"), "/example/G35894.var.snp.vcf");
-        let result = load_vcf_text(vcf, None, false, false, false, None).unwrap();
+        let result = load_vcf_text(
+            vcf,
+            None,
+            false,
+            AlleleNormalization::AsWritten,
+            false,
+            None,
+        )
+        .unwrap();
         // Should have at least one contig
         assert!(!result.is_empty());
         // Total positions should be substantial
