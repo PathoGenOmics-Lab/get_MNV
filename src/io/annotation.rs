@@ -5,6 +5,7 @@
 //! loaders live in submodules; this file keeps the gene/variant overlap
 //! predicates and the top-level `load_genes` / `preload_gff_genes` entry points.
 
+use super::variant_index::VariantIndex;
 use super::vcf::VcfPosition;
 use crate::error::AppResult;
 use crate::variants::{AlleleComponentKind, Gene};
@@ -40,13 +41,15 @@ pub(crate) use gff_parse::{
 use cds_model::warn_if_multi_exon_cds_detected;
 use gff_load::gff_has_non_zero_phase_cds;
 use tsv::load_genes_from_tsv;
+pub(crate) use tsv::{load_tsv_genes_with, read_tsv_gene_rows, TsvGeneRow};
 pub use tsv::{tsv_named_contigs, tsv_rows_without_contig};
 
 /// Return true when any variant event overlaps the interval. Insertions only
 /// overlap when their inserted bases fall between bases inside the interval;
 /// deletions use the deleted reference span.
-pub(crate) fn has_snp_in_interval(snp_list: &[VcfPosition], start: usize, end: usize) -> bool {
-    snp_list
+pub(crate) fn has_snp_in_interval(variants: &VariantIndex, start: usize, end: usize) -> bool {
+    variants
+        .near(start, end)
         .iter()
         .any(|variant| variant.overlaps_interval(start, end))
 }
@@ -71,8 +74,8 @@ pub fn gene_overlaps_variant(gene: &Gene, variant: &VcfPosition) -> bool {
     })
 }
 
-fn gene_has_variant(gene: &Gene, snp_list: &[VcfPosition]) -> bool {
-    snp_list.iter().any(|variant| {
+fn gene_has_variant(gene: &Gene, variants: &VariantIndex) -> bool {
+    variants.near_gene(gene).iter().any(|variant| {
         gene_overlaps_variant(gene, variant)
             // Keep genes whose only nearby variant is intronic, whether at a
             // splice site or deeper in the intron, so it can be annotated
@@ -162,12 +165,17 @@ fn warn_if_cds_phase_ignored(genes_file: &str, feature_types: &[String]) -> AppR
     Ok(())
 }
 
-/// Filter genes that overlap with at least one SNP position.
-/// Requires `snp_list` to be sorted by position.
+/// Filter genes that overlap with at least one SNP position. The list need
+/// not be sorted, but the search is quickest when it is.
 pub fn filter_genes_with_snps(genes: &[Gene], snp_list: &[VcfPosition]) -> Vec<Gene> {
+    filter_genes_near(genes, &VariantIndex::new(snp_list))
+}
+
+/// [`filter_genes_with_snps`] for a contig whose variants are indexed already.
+pub(crate) fn filter_genes_near(genes: &[Gene], variants: &VariantIndex) -> Vec<Gene> {
     genes
         .iter()
-        .filter(|gene| gene_has_variant(gene, snp_list))
+        .filter(|gene| gene_has_variant(gene, variants))
         .cloned()
         .collect()
 }

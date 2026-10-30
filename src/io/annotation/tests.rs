@@ -107,6 +107,7 @@ fn test_has_snp_in_interval_found() {
             declared_phase: None,
         },
     ];
+    let snps = VariantIndex::new(&snps);
     assert!(has_snp_in_interval(&snps, 50, 150));
     assert!(has_snp_in_interval(&snps, 100, 100)); // exact match
     assert!(has_snp_in_interval(&snps, 150, 250));
@@ -123,13 +124,14 @@ fn test_has_snp_in_interval_not_found() {
         original_info: None,
         declared_phase: None,
     }];
+    let snps = VariantIndex::new(&snps);
     assert!(!has_snp_in_interval(&snps, 200, 300));
     assert!(!has_snp_in_interval(&snps, 50, 99));
 }
 
 #[test]
 fn test_has_snp_in_interval_empty() {
-    assert!(!has_snp_in_interval(&[], 1, 1000));
+    assert!(!has_snp_in_interval(&VariantIndex::new(&[]), 1, 1000));
 }
 
 // ---- gene_name_from_gff ----

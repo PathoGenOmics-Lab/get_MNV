@@ -18,6 +18,7 @@ use noodles::sam::Header;
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 mod inputs;
 mod read_support;
@@ -28,16 +29,38 @@ use read_support::{
     compute_frameshift_phasing, count_gene_variant_reads, count_indel_reads_into,
 };
 
+/// Everything one run reads before annotating. What a cohort's samples share
+/// is held behind an `Arc`, so each sample's copy is the same one.
 #[derive(Debug)]
 pub(crate) struct ParsedInputs {
     pub(crate) base_name: String,
-    pub(crate) references: ReferenceMap,
+    pub(crate) references: Arc<ReferenceMap>,
     pub(crate) snp_by_contig: HashMap<String, Vec<VcfPosition>>,
     pub(crate) contigs: Vec<String>,
     pub(crate) command_line: String,
-    pub(crate) preloaded_gff: Option<HashMap<String, Vec<Gene>>>,
-    pub(crate) original_info_headers: Vec<String>,
-    pub(crate) catalogue: Option<crate::variants::catalogue::Catalogue>,
+    pub(crate) preloaded_gff: Option<Arc<HashMap<String, Vec<Gene>>>>,
+    pub(crate) original_info_headers: Arc<Vec<String>>,
+    pub(crate) catalogue: Option<Arc<crate::variants::catalogue::Catalogue>>,
+}
+
+/// How one sample's run goes: with the inputs a cohort shares, if it is part
+/// of one, and with its genes spread over the thread pool or one after another
+/// on its own thread, which is how a cohort running its samples side by side
+/// keeps each sample's log lines on that sample's thread.
+#[derive(Clone, Copy)]
+pub(crate) struct SampleRun<'a> {
+    pub(crate) shared: Option<&'a super::shared::SharedInputs>,
+    pub(crate) parallel_genes: bool,
+}
+
+impl SampleRun<'_> {
+    /// A run on its own, as every run but a cohort's is.
+    pub(crate) fn alone() -> Self {
+        SampleRun {
+            shared: None,
+            parallel_genes: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -413,15 +436,16 @@ fn count_intergenic_variant_reads(
 pub(crate) fn process_contig(
     args: &Args,
     contig: &str,
-    references: &ReferenceMap,
-    snp_by_contig: &HashMap<String, Vec<VcfPosition>>,
-    preloaded_gff: Option<&HashMap<String, Vec<Gene>>>,
+    parsed: &ParsedInputs,
     genetic_code: crate::genetic_code::GeneticCode,
-    catalogue: Option<&crate::variants::catalogue::Catalogue>,
+    run: SampleRun<'_>,
 ) -> AppResult<(Vec<VariantInfo>, ContigSummary)> {
-    let reference =
-        io::reference_for_chrom(references, contig).map_err(reclassify_generic_as_validation)?;
-    let snp_list = snp_by_contig
+    let preloaded_gff = parsed.preloaded_gff.as_deref();
+    let catalogue = parsed.catalogue.as_deref();
+    let reference = io::reference_for_chrom(&parsed.references, contig)
+        .map_err(reclassify_generic_as_validation)?;
+    let snp_list = parsed
+        .snp_by_contig
         .get(contig)
         .ok_or_else(|| AppError::validation(format!("Missing VCF data for contig '{contig}'")))?;
     io::validate_vcf_reference_alleles(contig, snp_list, &reference)
@@ -446,9 +470,12 @@ pub(crate) fn process_contig(
         );
     }
 
+    // Where each record acts, worked out once: every gene below looks only at
+    // the records near it instead of testing the whole contig.
+    let variant_index = io::VariantIndex::new(snp_list);
     let genes = if let Some(gff_genes) = preloaded_gff {
         let all_contig_genes = gff_genes.get(contig).cloned().unwrap_or_default();
-        let filtered = io::filter_genes_with_snps(&all_contig_genes, snp_list);
+        let filtered = io::annotation::filter_genes_near(&all_contig_genes, &variant_index);
         log::info!(
             "GFF/GFF3 contig '{}': {} gene entries, {} mapped to SNPs, {} without SNPs",
             contig,
@@ -458,12 +485,15 @@ pub(crate) fn process_contig(
         );
         filtered
     } else {
-        io::load_genes(
-            args.genes_file(),
-            snp_list,
-            Some(contig),
-            &args.gff_features(),
-        )
+        match run.shared {
+            Some(shared) => shared.contig_genes(args, Some(snp_list), contig),
+            None => io::load_genes(
+                args.genes_file(),
+                snp_list,
+                Some(contig),
+                &args.gff_features(),
+            ),
+        }
         .map_err(reclassify_generic_as_validation)?
     };
     info!(
@@ -475,80 +505,92 @@ pub(crate) fn process_contig(
 
     let bam_path = args.bam_file.clone();
     let should_count_reads = args.bam_file.is_some() && !args.dry_run;
-    let worker_results: Result<Vec<WorkerResult>, AppError> = genes
-        .par_iter()
-        .map_init(
-            || -> AppResult<WorkerState> {
-                let (bam, bam_header) = if should_count_reads {
-                    if let Some(path) = bam_path.as_ref() {
-                        let (reader, header) = io::AlignmentReader::open(path, &args.fasta_file)
-                            .map_err(|e| {
-                                AppError::validation(format!(
-                                    "Failed to open '{path}' in worker thread: {e}"
-                                ))
-                            })?;
-                        (Some(reader), Some(header))
-                    } else {
-                        (None, None)
-                    }
-                } else {
-                    (None, None)
-                };
-                Ok(WorkerState {
-                    bam,
-                    bam_header,
-                    region_cache: LruCache::new(NonZeroUsize::new(64).expect("64 > 0")),
-                })
-            },
-            |state_result, gene| -> AppResult<WorkerResult> {
-                let state = state_result
-                    .as_mut()
-                    .map_err(|err| AppError::validation(err.to_string()))?;
-                // BAM-derived cis/trans phasing so an upstream indel does not
-                // frameshift a downstream codon it is not on the same molecule
-                // as, and the frequency the reads give each upstream indel,
-                // which is what the frameshift gate weighs when a BAM was given.
-                let evidence = compute_frameshift_phasing(state, args, contig, gene, snp_list)?;
-                let indel_config = variants::IndelAnnotationConfig {
-                    frameshift_min_freq: args.frameshift_min_freq,
-                    observed_indel_freq: evidence.observed_indel_freq,
-                };
-                let phasing = evidence.phasing;
-                let mut variants = annotate_variants_for_gene(
-                    gene,
-                    snp_list,
-                    &reference,
+    let open_worker = || -> AppResult<WorkerState> {
+        let (bam, bam_header) = if should_count_reads {
+            if let Some(path) = bam_path.as_ref() {
+                let (reader, header) =
+                    io::AlignmentReader::open(path, &args.fasta_file).map_err(|e| {
+                        AppError::validation(format!(
+                            "Failed to open '{path}' in worker thread: {e}"
+                        ))
+                    })?;
+                (Some(reader), Some(header))
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
+        };
+        Ok(WorkerState {
+            bam,
+            bam_header,
+            region_cache: LruCache::new(NonZeroUsize::new(64).expect("64 > 0")),
+        })
+    };
+    let annotate_gene =
+        |state_result: &mut AppResult<WorkerState>, gene: &Gene| -> AppResult<WorkerResult> {
+            let state = state_result
+                .as_mut()
+                .map_err(|err| AppError::validation(err.to_string()))?;
+            // The records this gene could claim. Everything below filters
+            // what it is given, so a stretch holding every one of them in
+            // list order gives what the whole contig gave.
+            let snp_list = variant_index.near_gene(gene);
+            // BAM-derived cis/trans phasing so an upstream indel does not
+            // frameshift a downstream codon it is not on the same molecule
+            // as, and the frequency the reads give each upstream indel,
+            // which is what the frameshift gate weighs when a BAM was given.
+            let evidence = compute_frameshift_phasing(state, args, contig, gene, snp_list)?;
+            let indel_config = variants::IndelAnnotationConfig {
+                frameshift_min_freq: args.frameshift_min_freq,
+                observed_indel_freq: evidence.observed_indel_freq,
+            };
+            let phasing = evidence.phasing;
+            let mut variants = annotate_variants_for_gene(
+                gene,
+                snp_list,
+                &reference,
+                contig,
+                genetic_code,
+                &indel_config,
+                &phasing,
+            );
+            if variants.is_empty() {
+                return Ok(WorkerResult::default());
+            }
+            let (cache_hits, cache_misses) =
+                count_gene_variant_reads(state, args, contig, gene, &mut variants)?;
+            append_supported_phased_indel_haplotypes(
+                state,
+                args,
+                PhasedIndelInputs {
                     contig,
+                    gene,
+                    reference: &reference,
+                    snp_list,
                     genetic_code,
-                    &indel_config,
-                    &phasing,
-                );
-                if variants.is_empty() {
-                    return Ok(WorkerResult::default());
-                }
-                let (cache_hits, cache_misses) =
-                    count_gene_variant_reads(state, args, contig, gene, &mut variants)?;
-                append_supported_phased_indel_haplotypes(
-                    state,
-                    args,
-                    PhasedIndelInputs {
-                        contig,
-                        gene,
-                        reference: &reference,
-                        snp_list,
-                        genetic_code,
-                    },
-                    &mut variants,
-                )?;
-                annotate_declared_phase(&mut variants, snp_list);
-                Ok(WorkerResult {
-                    variants,
-                    region_cache_hits: cache_hits,
-                    region_cache_misses: cache_misses,
-                })
-            },
-        )
-        .collect();
+                },
+                &mut variants,
+            )?;
+            annotate_declared_phase(&mut variants, &variant_index);
+            Ok(WorkerResult {
+                variants,
+                region_cache_hits: cache_hits,
+                region_cache_misses: cache_misses,
+            })
+        };
+    let worker_results: Result<Vec<WorkerResult>, AppError> = if run.parallel_genes {
+        genes
+            .par_iter()
+            .map_init(open_worker, annotate_gene)
+            .collect()
+    } else {
+        let mut state = open_worker();
+        genes
+            .iter()
+            .map(|gene| annotate_gene(&mut state, gene))
+            .collect()
+    };
 
     let mut all_variants = Vec::new();
     let mut cache_hits = 0usize;
@@ -591,9 +633,15 @@ pub(crate) fn process_contig(
                     .iter()
                     .all(|label| annotated.contains(label.as_str()))
         };
+        // Which genes lie near each record, so a record is not tested against
+        // every gene of the contig: one too far from it has no coding base,
+        // splice site or intron for it to fall in.
+        let gene_index = io::variant_index::GeneIndex::new(&genes);
         let mut intergenic: Vec<VariantInfo> = Vec::new();
         for snp in snp_list.iter() {
             if !produced_a_row(snp) {
+                let (span_start, span_end) = snp.acting_span();
+                let genes = gene_index.near(span_start, span_end);
                 // A variant not in any CDS may still sit inside a gene: at a
                 // splice site, or deeper in the intron. Both are annotated
                 // against their gene rather than called intergenic, which a
@@ -645,10 +693,10 @@ pub(crate) fn process_contig(
                         Vec::new();
                     for &position in &unannotated {
                         let class = if let Some((gene_name, splice)) =
-                            splice_site_for_variant(&genes, &[position])
+                            splice_site_for_variant(genes, &[position])
                         {
                             FallbackClass::Splice(gene_name, splice)
-                        } else if let Some(gene_name) = intron_for_variant(&genes, &[position]) {
+                        } else if let Some(gene_name) = intron_for_variant(genes, &[position]) {
                             FallbackClass::Intron(gene_name)
                         } else if let Some(gene) = genes
                             .iter()
@@ -698,11 +746,11 @@ pub(crate) fn process_contig(
                 }
 
                 let fully_unannotated = unannotated.len() == snp.changed_positions().len();
-                let variant = match splice_site_for_variant(&genes, &unannotated) {
+                let variant = match splice_site_for_variant(genes, &unannotated) {
                     Some((gene_name, splice)) => {
                         variants::build_splice_variant(contig, snp, &gene_name, splice)
                     }
-                    None => match intron_for_variant(&genes, &unannotated) {
+                    None => match intron_for_variant(genes, &unannotated) {
                         Some(gene_name) => variants::build_intron_variant(contig, snp, &gene_name),
                         None => match genes.iter().find(|gene| {
                             if fully_unannotated {
@@ -785,7 +833,8 @@ pub(crate) fn process_contig(
             for snp in snp_list.iter() {
                 let positions = snp.changed_positions();
                 let labels = snp.event().component_labels();
-                for gene in &genes {
+                let (span_start, span_end) = snp.acting_span();
+                for gene in gene_index.near(span_start, span_end) {
                     // Whatever this gene has to say about each of these bases, one
                     // row per answer. Bases that get different answers belong in
                     // different rows, exactly as the fallback above builds them, or
@@ -879,7 +928,7 @@ pub(crate) fn process_contig(
             // `GT`/`PS` reported cis inside a gene and nothing at all one base
             // outside it: the same input claim, kept or lost by which code path
             // happened to build the row.
-            annotate_declared_phase(&mut intergenic, snp_list);
+            annotate_declared_phase(&mut intergenic, &variant_index);
             if should_count_reads {
                 count_intergenic_variant_reads(args, contig, &mut intergenic)?;
             }
@@ -917,7 +966,15 @@ pub(crate) fn process_contig(
     // nearer exon.
     // Transcripts of one gene share its name, so a row is numbered against the
     // one whose intron holds the change: the transcript the row came from. Any
-    // transcript of that name will do only when none does.
+    // transcript of that name will do only when none does. The genes are looked
+    // up by name, not compared with every row.
+    let mut genes_by_name: HashMap<&str, Vec<&Gene>> = HashMap::new();
+    for gene in &genes {
+        genes_by_name
+            .entry(gene.name.as_str())
+            .or_default()
+            .push(gene);
+    }
     let transcript_of = |variant: &VariantInfo| -> Option<&Gene> {
         let changed = match (
             variant.positions.first(),
@@ -927,11 +984,12 @@ pub(crate) fn process_contig(
             (Some(&pos), Some(r), Some(a)) => crate::variants::hgvs::indel_core(pos, r, a).0,
             _ => return None,
         };
-        let mut named = genes.iter().filter(|g| g.name == variant.gene);
+        let named = genes_by_name.get(variant.gene.as_str())?;
         named
-            .clone()
+            .iter()
+            .copied()
             .find(|g| variants::intron_span(g, changed).is_some())
-            .or_else(|| named.next())
+            .or_else(|| named.first().copied())
     };
     for variant in &mut all_variants {
         // A complex indel's substitution is part of the indel event, as it is
@@ -971,8 +1029,11 @@ pub(crate) fn process_contig(
     if let Some(catalogue) = catalogue {
         let every_gene = match preloaded_gff {
             Some(by_contig) => by_contig.get(contig).cloned().unwrap_or_default(),
-            None => io::load_all_tsv_genes(args.genes_file(), contig)
-                .map_err(reclassify_generic_as_validation)?,
+            None => match run.shared {
+                Some(shared) => shared.contig_genes(args, None, contig),
+                None => io::load_all_tsv_genes(args.genes_file(), contig),
+            }
+            .map_err(reclassify_generic_as_validation)?,
         };
         let other_reference = crate::variants::catalogue::annotate_catalogue(
             catalogue,
