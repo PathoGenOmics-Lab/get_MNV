@@ -141,6 +141,19 @@ que la misma deleción escrita ahí. La que en esa posición sigue llegando a la
 base de antes del codón de inicio pierde el inicio. La fila conserva el registro
 tal como está escrito.
 
+En el otro extremo, una inserción o deleción del último exón que se desplaza en
+3' por el transcrito, como la coloca HGVS, hasta no cambiar ninguna base
+codificante después del codón de parada no es del gen: se da como se dan las
+bases que siguen al gen, intergénica, esté escrito como esté su registro. El
+caso habitual es una serie de As que empieza en un TAA: una A de menos,
+alineada a la izquierda sobre el codón de parada, se leería si no como un
+corrimiento de marco en el último residuo de la proteína, cuando el codón de
+parada sigue ahí de cualquier forma. En ningún extremo se mueve un indel más
+allá de una base que cambia otro registro, porque describiría otro haplotipo.
+Una deleción que en su posición más 3' sigue quitando bases del codón de parada
+se lee tal como está escrita. Las filas que salen así de un gen no tienen
+recuento de lecturas, como no lo tienen los indels intergénicos.
+
 Cuando una fila MNV solapa un indel, get_MNV conserva la fila MNV como contexto
 posicional y marca su efecto en el aminoácido como `Unknown` con
 `Change Type = Indel overlap`. Si el BAM respalda el evento combinado completo,

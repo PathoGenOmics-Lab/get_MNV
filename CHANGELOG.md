@@ -17,7 +17,7 @@ All notable changes to this project are documented in this file.
   gives it, placed from WHO's genomic coordinates on the run's FASTA.
   The four whole-gene deletions, which no VCF of changes inside genes
   describes, are listed as not converted. Of the 26,231 genomic variants WHO
-  links to those groups, 26,227 come out flagged for their drug, among them
+  links to those groups, 26,225 come out flagged for their drug, among them
   the 22 rpoB variants that need two changes in one codon, which only the
   codon reading finds. `tests/who_catalogue/run.py` checks the converter on
   real rows of the catalogue in CI.
@@ -133,6 +133,26 @@ All notable changes to this project are documented in this file.
   keep their `Met1?` and their catalogue entries, but 58 change between
   `start_lost` and `frameshift_variant&start_lost` (katG `2155586`, written two
   bases short of that place, is now a frameshift, as it was left-aligned).
+- **An indel HGVS places past the stop codon is not the gene's.** A run of As
+  that begins in a TAA can lose or gain an A anywhere along it. Left-aligned,
+  as `bcftools norm` and `--left-align` write it, that sits on the stop codon,
+  which the gene read as losing or gaining a base: a HIGH frameshift at the
+  protein's last residue, where the same change written after the gene was
+  intergenic and the stop codon is there either way. Deleting a TAA that
+  another TAA follows read as a lost stop, and inserting a copy of the stop
+  codon before it as a synonymous change of the gene. An insertion or
+  deletion in a gene's last exon that moves 3' along the transcript, as HGVS
+  places it, until it changes no coding base is now reported as the bases
+  after the gene are, intergenic, whichever way its record is written; it is
+  not moved past a base another record changes, which would make it another
+  haplotype, and neither is a deletion moved into a gene across its start. A
+  deletion that still removes stop-codon bases there is read as written,
+  since how many of its bases count as coding only reflects where its record
+  cuts. The rows moved are no longer counted against the reads, as
+  intergenic indels are not. On WHO's genomic variants for groups 1 and 2 this
+  moves two deletions WHO links to fbiC `p.Ala855fs`, which the bases after
+  them repeat, so fbiC's coding sequence stays whole: 6 records are now
+  flagged for none of their drugs instead of 4.
 
 ## [1.1.6] - 2026-10-29
 

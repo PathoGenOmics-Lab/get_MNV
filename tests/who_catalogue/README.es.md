@@ -55,7 +55,7 @@ python3 tests/who_catalogue/run.py --who-dir ruta/a/la/carpeta
 
 La batería reconstruye entonces la tabla incluida y la exige idéntica byte a
 byte, y anota todas las variantes genómicas que la OMS asocia a los grupos 1 y
-2: 26.231. 26.225 salen marcadas con su propia entrada, 198 solo por la lectura
+2: 26.231. 26.223 salen marcadas con su propia entrada, 198 solo por la lectura
 del codón, y 2 más con la entrada `LoF` del gen para el mismo fármaco. Entre
 las primeras están las deleciones que se llevan un codón de inicio, a menudo
 con las bases de antes: get_MNV las da como pérdidas del inicio (`Met1?`), y
@@ -63,7 +63,7 @@ la OMS como pérdidas de función. Una de las 2 es una deleción que la OMS
 escribe sobre la última base del codón de inicio de gid, gid `4407695`; deja
 ATG delante, así que get_MNV lee el corrimiento desde `Ser2`, donde lo pone la
 regla 3' de HGVS. Falla si quedan sin marcar para ninguno de sus fármacos más
-de estas 4:
+de estas 6:
 
 - 2 inserciones justo antes de un codón de inicio, tlyA `1917939 C>CAACG` y
   Rv2983 `3339117 C>CG`, que la OMS cuenta como pérdidas de función y get_MNV
@@ -72,6 +72,11 @@ de estas 4:
   `4407589 GC>CA` y tlyA `1917970 CT>TG`. Sobre H37Rv forman un codón de
   parada; sobre el ancestro del MTBC, que difiere de H37Rv justo al lado, dan
   `Ala205Trp` y `Leu11Trp`.
+- 2 deleciones que la OMS asocia a fbiC `p.Ala855fs`, de 62 y 124 bases desde
+  `1305494`. Las bases que siguen a cada una repiten lo que quita desde los
+  últimos codones de fbiC, así que HGVS la coloca después del codón de parada:
+  borrar a partir del final del gen deja exactamente el mismo genoma, con la
+  secuencia codificante de fbiC entera, y get_MNV las da como intergénicas.
 
 ## Licencia de los fixtures
 
