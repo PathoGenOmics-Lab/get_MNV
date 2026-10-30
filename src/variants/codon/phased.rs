@@ -6,7 +6,7 @@ use crate::variants::{Gene, VariantInfo, VariantType};
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::gene_path::{codon_bounds_for_position, effective_bounds};
-use super::indel_effect::{coding_placement, protein_effect_for_indel};
+use super::indel_effect::{coding_placement, placed_past_the_stop, protein_effect_for_indel};
 use super::transcript_model::{has_transcript_cds_model, transcript_offset_for_position};
 
 const LOCAL_HAPLOTYPE_JOIN_DISTANCE: usize = 3;
@@ -253,7 +253,13 @@ pub(super) fn phased_variant_from_group(
     };
 
     let event_components = component_labels_from_group(group);
-    let coding = coding_placement(gene, reference, &compound).unwrap_or_else(|| compound.clone());
+    // The group is the whole haplotype, so no other record bounds where it lies.
+    // Wholly past the stop codon it has nothing coding to report.
+    if placed_past_the_stop(gene, reference, &compound, &[], genetic_code) {
+        return None;
+    }
+    let coding =
+        coding_placement(gene, reference, &compound, &[]).unwrap_or_else(|| compound.clone());
     let super::indel_effect::IndelEffect {
         change_type,
         aa_changes,

@@ -495,7 +495,7 @@ fn get_mnv_variants_for_transcript(
         }
     }
 
-    let placed = coding_placements(gene, reference, &indels);
+    let (indels, placed) = coding_placements(gene, reference, indels, snp_list, genetic_code);
     let ptc_protein_pos =
         frameshift_ptc_protein_pos(gene, reference, &placed, genetic_code, config);
 
@@ -664,19 +664,46 @@ fn get_mnv_variants_for_transcript(
 }
 
 /// Where the coding sequence sees each indel (see
-/// [`indel_effect::coding_placement`]). The rows keep each record as written,
-/// which is what its reads are counted against.
+/// [`indel_effect::coding_placement`] and [`indel_effect::placed_past_the_stop`]),
+/// beside the records it keeps. The rows keep each record as written, which is
+/// what its reads are counted against. An indel HGVS places wholly past the
+/// stop codon changes no coding base, so the gene leaves it out and it is
+/// reported as the bases past the gene are.
 fn coding_placements(
     gene: &Gene,
     reference: &crate::io::Reference,
-    indels: &[crate::io::VcfPosition],
-) -> Vec<crate::io::VcfPosition> {
-    indels
-        .iter()
-        .map(|indel| {
-            indel_effect::coding_placement(gene, reference, indel).unwrap_or_else(|| indel.clone())
-        })
-        .collect()
+    indels: Vec<crate::io::VcfPosition>,
+    others: &[crate::io::VcfPosition],
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> (Vec<crate::io::VcfPosition>, Vec<crate::io::VcfPosition>) {
+    let mut kept = Vec::with_capacity(indels.len());
+    let mut placed = Vec::with_capacity(indels.len());
+    for indel in indels {
+        if indel_effect::placed_past_the_stop(gene, reference, &indel, others, genetic_code) {
+            continue;
+        }
+        let coding = indel_effect::coding_placement(gene, reference, &indel, others)
+            .unwrap_or_else(|| indel.clone());
+        kept.push(indel);
+        placed.push(coding);
+    }
+    (kept, placed)
+}
+
+/// Whether HGVS places this indel wholly past `gene`'s stop codon, where it
+/// changes no coding base, given `others`, the records the gene is given. The
+/// gene then reports nothing for it, and nothing else may name the gene for it
+/// either: it is reported as the bases past the gene are, however the record is
+/// written.
+pub fn lies_past_coding_sequence(
+    gene: &Gene,
+    reference: &crate::io::Reference,
+    variant: &crate::io::VcfPosition,
+    others: &[crate::io::VcfPosition],
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> bool {
+    gene.biotype.is_coding()
+        && indel_effect::placed_past_the_stop(gene, reference, variant, others, genetic_code)
 }
 
 /// The splice consequence of an indel, taken from the bases it changes.
@@ -785,7 +812,7 @@ pub fn get_mnv_variants_for_gene_with_config(
         return variants;
     }
 
-    let placed = coding_placements(gene, reference, &indels);
+    let (indels, placed) = coding_placements(gene, reference, indels, snp_list, genetic_code);
     let ptc_protein_pos =
         frameshift_ptc_protein_pos(gene, reference, &placed, genetic_code, config);
 

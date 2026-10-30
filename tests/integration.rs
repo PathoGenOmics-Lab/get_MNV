@@ -5201,6 +5201,87 @@ fn test_e2e_a_deletion_written_across_the_start_reads_as_written_inside() {
     fs::remove_dir_all(&tmp).ok();
 }
 
+/// An indel HGVS places past the stop codon reads as the bases after the gene
+/// do, however its record writes it, `--left-align` included.
+///
+/// In `CCATGAAATAAAACCC` the TAA ending gene `g` begins a run of four As. One A
+/// fewer is `9 TA>T` written on the stop codon, as `--left-align` writes it,
+/// and `12 AA>A` written after the gene: the first was a HIGH frameshift at the
+/// protein's last residue, the second intergenic, and the stop codon is there
+/// either way. One A more read the same way, and so did deleting a TAA that
+/// another TAA follows, which came out a lost stop.
+#[test]
+fn test_e2e_an_indel_past_the_stop_reads_as_written_after_the_gene() {
+    let tmp = temp_dir("e2e_indel_past_stop");
+    fs::write(tmp.join("genes.txt"), "g\t3\t11\t+\n").unwrap();
+    // The single row a record gives on `sequence`, with or without
+    // `--left-align`.
+    let run = |name: &str, sequence: &str, record: &str, left_align: bool| {
+        fs::write(
+            tmp.join(format!("{name}.fa")),
+            format!(">chr1\n{sequence}\n"),
+        )
+        .unwrap();
+        fs::write(
+            tmp.join(format!("{name}.vcf")),
+            format!(
+                "##fileformat=VCFv4.2\n##contig=<ID=chr1,length={}>\n\
+                 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+                 chr1\t{record}\t50\tPASS\tDP=30\n",
+                sequence.len()
+            ),
+        )
+        .unwrap();
+        let mut args = base_args();
+        args.vcf_file = Some(tmp.join(format!("{name}.vcf")).to_string_lossy().into());
+        args.fasta_file = tmp.join(format!("{name}.fa")).to_string_lossy().into();
+        args.genes_file_tsv = Some(tmp.join("genes.txt").to_string_lossy().into());
+        args.left_align = left_align;
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+        pipeline::run(&args).expect("indel past the stop run");
+        let rows = read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")));
+        assert_eq!(rows.len(), 1, "{name}: {rows:?}");
+        rows.into_iter().next().unwrap()
+    };
+    let run_of_as = "CCATGAAATAAAACCC";
+    let two_stops = "CCATGAAATAATAACCC";
+    for (name, sequence, record, left_align, hgvs_g) in [
+        ("on_the_stop", run_of_as, "9\t.\tTA\tT", false, "g.13del"),
+        ("after", run_of_as, "12\t.\tAA\tA", false, "g.13del"),
+        ("left_aligned", run_of_as, "12\t.\tAA\tA", true, "g.13del"),
+        ("one_more", run_of_as, "10\t.\tA\tAA", false, "g.13dup"),
+        (
+            "one_more_after",
+            run_of_as,
+            "13\t.\tA\tAA",
+            false,
+            "g.13dup",
+        ),
+        (
+            "stop_deleted",
+            two_stops,
+            "8\t.\tATAA\tA",
+            false,
+            "g.12_14del",
+        ),
+    ] {
+        let row = run(name, sequence, record, left_align);
+        assert_eq!(row["Gene"], "intergenic", "{name}");
+        assert_eq!(row["SO Term"], "intergenic_variant", "{name}");
+        assert_eq!(row["HGVS g."], hgvs_g, "{name}");
+    }
+    // `--left-align` wrote the record after the gene on the stop codon.
+    assert_eq!(
+        run("moved", run_of_as, "12\t.\tAA\tA", true)["Positions"],
+        "9"
+    );
+    // A G between the stop codon's two As has nowhere else to go.
+    let inside = run("inside", run_of_as, "10\t.\tA\tAG", false);
+    assert_eq!(inside["Gene"], "g");
+    fs::remove_dir_all(&tmp).ok();
+}
+
 /// An insertion inside the terminal stop codon truncates nothing, so it gets no
 /// NMD prediction, on either strand.
 ///
@@ -5251,9 +5332,12 @@ fn test_e2e_an_insertion_in_the_terminal_stop_gets_no_nmd_call() {
     )
     .unwrap();
 
-    // One base inserted inside the terminal stop codon, written for each strand.
+    // One base inserted inside the terminal stop codon, written for each strand:
+    // a G between its two As, TAA to TAGA, which keeps a stop at the same codon
+    // and has nowhere else to go. An A there would only lengthen the run of As
+    // the stop codon begins, which HGVS places after the stop, past the gene.
     let header = "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=3000>\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
-    for (name, pos, inserted) in [("plus", 1558usize, 'A'), ("minus", 2002usize, 'T')] {
+    for (name, pos, inserted) in [("plus", 1559usize, 'G'), ("minus", 2001usize, 'C')] {
         let anchor = bases[pos - 1];
         fs::write(
             tmp.join(format!("{name}.vcf")),
@@ -5285,7 +5369,8 @@ fn test_e2e_an_insertion_in_the_terminal_stop_gets_no_nmd_call() {
         minus.get("AA Changes"),
         "the two strands carry the same transcript-level event"
     );
-    for (name, row) in [("plus", &plus), ("minus", &minus)] {
+    for (name, row, gene) in [("plus", &plus, "geneS"), ("minus", &minus, "geneR")] {
+        assert_eq!(row.get("Gene").map(String::as_str), Some(gene), "{name}");
         assert_eq!(
             row.get("NMD Prediction").map(String::as_str),
             Some("-"),
@@ -5296,7 +5381,9 @@ fn test_e2e_an_insertion_in_the_terminal_stop_gets_no_nmd_call() {
     // A copy of the stop codon put in front of it, a second stop that is never
     // read. Counting the stops of the whole translation called it a stop gained
     // at HIGH impact, and the copy, read a codon upstream of where it stands,
-    // got an NMD call.
+    // got an NMD call. Placed 3'-most, as HGVS places an insertion, the copy
+    // goes in after the stop codon, past the gene, so it is reported as the
+    // same insertion written there is: intergenic, with no protein change.
     for (name, pos, inserted) in [("plus_copy", 1557usize, "TAA"), ("minus_copy", 2003, "TTA")] {
         let anchor = bases[pos - 1];
         fs::write(
@@ -5309,11 +5396,10 @@ fn test_e2e_an_insertion_in_the_terminal_stop_gets_no_nmd_call() {
     let minus = annotate("minus_copy");
     for (name, row) in [("plus", &plus), ("minus", &minus)] {
         for (column, expected) in [
-            ("Change Type", "Synonymous"),
-            ("AA Changes", "Synonymous"),
-            ("SO Term", "synonymous_variant"),
+            ("Gene", "intergenic"),
+            ("AA Changes", "-"),
+            ("SO Term", "intergenic_variant"),
             ("NMD Prediction", "-"),
-            ("HGVS c.", "c.358_360dup"),
         ] {
             assert_eq!(
                 row.get(column).map(String::as_str),

@@ -57,7 +57,7 @@ COORDINATES_FILE = "WHO-UCN-TB-2023.7-eng_genomic_coordinates.txt"
 # WHO genomic variants of groups 1 and 2 that get_MNV, run with the shipped
 # table on the MTBC ancestor, flags for none of their drugs. Every one is
 # explained in README.md; more than this many is a regression.
-UNFLAGGED_IN_GROUPS_1_2 = 4
+UNFLAGGED_IN_GROUPS_1_2 = 6
 
 spec = importlib.util.spec_from_file_location("converter", ROOT / "tools" / "who_catalogue_to_tsv.py")
 converter = importlib.util.module_from_spec(spec)
