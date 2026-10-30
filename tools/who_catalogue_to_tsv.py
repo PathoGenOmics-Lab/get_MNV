@@ -11,11 +11,8 @@ the rest are rewritten into the form get_MNV writes for the same change:
 
   * a same-length change in a coding sequence (`c.421_423delTTGinsCTC`) is the
     substitutions it is made of, `c.[421T>C;423G>C]`;
-  * an in-frame duplication (`p.Phe433dup`) is the insertion get_MNV names
-    between the residues around it, `p.Phe433_Met434insPhe`, and a lost stop
-    (`p.Ter187Argext*?`) is the residue that replaces it, `p.Ter187Arg`. The
-    residues come from the catalogue itself, whose entries name the reference
-    residue at nearly every position of its genes;
+  * a lost stop (`p.Ter187Argext*?`) is the residue that replaces it,
+    `p.Ter187Arg`;
   * an insertion or deletion outside a coding sequence (`c.-5delG` upstream of
     pncA, `n.2269_2270insT` in rrl) has no `c.` descriptor in get_MNV, so it is
     written as the `g.` one get_MNV gives its row: placed from WHO's genomic
@@ -102,26 +99,22 @@ RESIDUE = r"(?:Ala|Arg|Asn|Asp|Cys|Gln|Glu|Gly|His|Ile|Leu|Lys|Met|Phe|Pro|Ser|T
 
 # The protein forms get_MNV writes itself, compared as written once it has
 # read them: a substitution or a premature stop, a frameshift (matched by its
-# first residue whatever follows `fs`), a lost start, and an in-frame deletion,
-# insertion or deletion-insertion named by the residues around it.
+# first residue whatever follows `fs`), a lost start, an in-frame deletion,
+# duplication or deletion-insertion named by the residues it changes, and an
+# insertion named by the residues around it.
 PROTEIN_FORMS = (
     re.compile(rf"p\.{RESIDUE}\d+(?:{RESIDUE}|\*|Ter|=)"),
     re.compile(rf"p\.{RESIDUE}\d+(?:{RESIDUE})?fs(?:\*\d*|Ter\d*|\*\?)?"),
     re.compile(r"p\.Met1\?"),
     re.compile(rf"p\.{RESIDUE}\d+(?:_{RESIDUE}\d+)?del"),
+    re.compile(rf"p\.{RESIDUE}\d+(?:_{RESIDUE}\d+)?dup"),
     re.compile(rf"p\.{RESIDUE}\d+(?:_{RESIDUE}\d+)?delins(?:{RESIDUE})+"),
     re.compile(rf"p\.{RESIDUE}\d+_{RESIDUE}\d+ins(?:{RESIDUE})+"),
 )
 
-# An in-frame duplication, of one residue or of a run of them.
-DUPLICATION = re.compile(rf"p\.({RESIDUE})(\d+)(?:_({RESIDUE})(\d+))?dup")
-
 # A lost stop that names the residue taking its place. WHO also writes losses
 # that name none (`p.Ter628ext*?`), which leave nothing to compare with.
 STOP_LOSS = re.compile(rf"p\.Ter(\d+)({RESIDUE})ext\*\?")
-
-# Where a protein change names a residue: `p.Ser450Leu`, both ends of a range.
-NAMED_RESIDUE = re.compile(rf"(?:p\.|_)({RESIDUE})(\d+)")
 
 # A single-base substitution, numbered along a gene: `c.` for one that is
 # translated, `n.` for an rRNA, a minus sign upstream of the first base.
@@ -303,47 +296,15 @@ def coding_brackets(match: re.Match) -> str:
     return f"c.{changed[0]}" if len(changed) == 1 else f"c.[{';'.join(changed)}]"
 
 
-def residue_map(rows: list[dict]) -> dict[str, dict[int, str]]:
-    """Each gene's reference residues, as the catalogue's protein entries name
-    them: `rpoB_p.Met434Ile` says residue 434 of rpoB is Met."""
-    residues: dict[str, dict[int, str]] = {}
-    for row in rows:
-        mutation = row[MUTATION]
-        if mutation.startswith("p."):
-            for residue, position in NAMED_RESIDUE.findall(mutation):
-                residues.setdefault(row[GENE], {}).setdefault(int(position), residue)
-    return residues
-
-
-def duplication_as_insertion(match: re.Match, residues: dict[int, str]) -> str:
-    """`p.Phe433dup` as get_MNV writes it, `p.Phe433_Met434insPhe`.
-
-    get_MNV names an in-frame insertion by the residues on either side of it
-    and the residues inserted, never as a duplication, so the copied residues
-    and the one after them have to be known.
-    """
-    first_residue, first, last_residue, last = match.groups()
-    first = int(first)
-    last = int(last) if last else first
-    copied = [residues.get(position) for position in range(first, last + 1)]
-    after = residues.get(last + 1)
-    if None in copied or after is None:
-        raise NeedsGenome("in-frame duplication beside a residue the catalogue names nowhere")
-    if copied[0] != first_residue or copied[-1] != (last_residue or first_residue):
-        raise NeedsGenome("in-frame duplication whose residues disagree with the catalogue's")
-    return f"p.{copied[-1]}{last}_{after}{last + 1}ins{''.join(copied)}"
-
-
-def convert(mutation: str, residues=None, place=None) -> list[str]:
+def convert(mutation: str, place=None) -> list[str]:
     """The get_MNV variant(s) for one WHO mutation, or `Unconverted`.
 
-    `residues` are the reference residues of the entry's gene, by position.
     `place` returns the `g.` descriptors of the entry's genomic variants, for
     one with no get_MNV form of its own; it is None when no coordinates and
     FASTA were given.
     """
     try:
-        return name_level(mutation, residues or {})
+        return name_level(mutation)
     except NeedsGenome as why:
         if place is None:
             raise Unconverted(
@@ -353,7 +314,7 @@ def convert(mutation: str, residues=None, place=None) -> list[str]:
         return place()
 
 
-def name_level(mutation: str, residues: dict[int, str]) -> list[str]:
+def name_level(mutation: str) -> list[str]:
     """The entry rewritten from its name alone, or the reason it cannot be."""
     if mutation == "LoF":
         return ["LoF"]
@@ -364,9 +325,6 @@ def name_level(mutation: str, residues: dict[int, str]) -> list[str]:
         )
     if any(form.fullmatch(mutation) for form in PROTEIN_FORMS):
         return [mutation]
-    duplication = DUPLICATION.fullmatch(mutation)
-    if duplication:
-        return [duplication_as_insertion(duplication, residues)]
     stop_loss = STOP_LOSS.fullmatch(mutation)
     if stop_loss:
         # get_MNV writes the lost stop as the residue replacing it (`*187Arg`).
@@ -468,7 +426,6 @@ def main(argv=None) -> int:
         parser.error("--coordinates and --fasta go together")
 
     rows = read_master(args.master)
-    residues = residue_map(rows)
     kept = []
     for row in rows:
         number, name = grade_of(row[GRADE])
@@ -502,7 +459,7 @@ def main(argv=None) -> int:
         if placement is not None:
             place = lambda who_variant=row[VARIANT]: placement.descriptors(who_variant)
         try:
-            variants = convert(mutation, residues.get(gene), place)
+            variants = convert(mutation, place)
         except Unconverted as why:
             reasons[str(why)] += 1
             unconverted.append((gene, mutation, drug, grade, row[VARIANT], str(why)))

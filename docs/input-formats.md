@@ -302,9 +302,8 @@ get_MNV writes the same change, and are kept; the rest are rewritten:
 
 | WHO writes | The table holds |
 |---|---|
-| `p.Ser450Leu`, `p.Trp122*`, `p.Asp379fs`, `p.Met1?`, an in-frame `del`, `ins` or `delins` | the same |
+| `p.Ser450Leu`, `p.Trp122*`, `p.Asp379fs`, `p.Met1?`, an in-frame `del`, `ins`, `dup` or `delins` | the same |
 | `c.-15C>T`, `c.102G>A`, `n.1401A>G`, `LoF` | the same |
-| `p.Phe433dup`, an in-frame duplication | `p.Phe433_Met434insPhe`, the insertion as get_MNV names it, with the residues taken from the catalogue's other entries |
 | `p.Ter187Argext*?`, a lost stop | `p.Ter187Arg`, the residue that replaces it |
 | `c.421_423delTTGinsCTC`, the same length in and out | `c.[421T>C;423G>C]`, the substitutions it makes |
 | `c.-5delG` or `n.2269_2270insT`, an indel outside a coding sequence | the `HGVS g.` get_MNV gives the change, `g.2289247del`, from WHO's genomic coordinates and the run's FASTA (`--coordinates`, `--fasta`) |

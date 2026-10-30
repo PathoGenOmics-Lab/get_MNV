@@ -11,10 +11,10 @@ All notable changes to this project are documented in this file.
   groups 1 and 2 of the 2023 catalogue (second edition), labelled with the drug
   and grade (`RIF: Assoc w R`), and `tools/who_catalogue_to_tsv.py` builds it,
   or any other choice of groups, from WHO's own files with Python's standard
-  library alone. Most entries are already written as get_MNV writes the same
-  change; a duplication becomes the insertion get_MNV names, a lost stop the
-  residue that replaces it, and an indel outside a coding sequence the `g.`
-  get_MNV gives it, placed from WHO's genomic coordinates on the run's FASTA.
+  library alone. Most entries, in-frame duplications among them, are already
+  written as get_MNV writes the same change; a lost stop becomes the residue
+  that replaces it, and an indel outside a coding sequence the `g.` get_MNV
+  gives it, placed from WHO's genomic coordinates on the run's FASTA.
   The four whole-gene deletions, which no VCF of changes inside genes
   describes, are listed as not converted. Of the 26,231 genomic variants WHO
   links to those groups, 26,199 come out flagged for their drug, among them
@@ -25,6 +25,19 @@ All notable changes to this project are documented in this file.
   is numbered from its first base, as the WHO catalogue writes rrs and rrl
   changes (`n.1401A>G`). Such an entry was read as a protein change and
   matched nothing.
+
+### Changed
+
+- **An in-frame duplication is written `dup` in `AA Changes`.** An insertion
+  that repeats the residues just before it is now named as their duplication
+  at the 3'-most copy, as HGVS asks: rpoB `761102 A>ATTC` is `Phe433dup`, no
+  longer `Phe433_Met434insPhe`, and a run is `His68_Leu70dup`. The `HGVS c.`
+  and `HGVS g.` columns of the same row already said `dup`, and the WHO
+  catalogue writes these variants so: its `p.Phe433dup` and `p.Thr444dup` now
+  match as written, and the converter no longer rewrites a duplication, which
+  needed the residue after it and sent 36 of the 74 in the catalogue to WHO's
+  genomic coordinates. Other insertions keep the flanking residues
+  (`Lys2_Phe3insGly`).
 
 ### Fixed
 
