@@ -1,6 +1,7 @@
 //! Protein-level effect of indels (frameshift, in-frame, stop gained/lost).
 
 use crate::io::VcfPosition;
+use crate::variants::event::AlleleComponentKind;
 use crate::variants::{ChangeType, Gene, Strand};
 
 use super::allele_apply::apply_allele_to_feature;
@@ -89,7 +90,21 @@ pub(super) fn protein_effect_for_indel(
         }
     };
     let ref_protein = translate(&ref_cds);
-    let alt_protein = translate(&alt_cds);
+    // The alternate is read from its initiator only while it still has one. A
+    // deletion that takes the start codon away puts another codon first, and
+    // reading that one as an initiator too made a GTG or TTG from inside the
+    // gene Met again: fgd1 losing its GTG start, the 32 bases before it and 134
+    // more codons came out as the in-frame `Ala2_Val136del`. Nothing is
+    // predicted to start there, so the alternate makes no protein from this
+    // start, which the rules below read as a lost initiator and write `Met1?`.
+    let alt_protein = if starts_protein
+        && ref_protein.starts_with('M')
+        && removes_initiation_codon(gene, variant, &ref_cds, &alt_cds)
+    {
+        String::new()
+    } else {
+        translate(&alt_cds)
+    };
     let initiator_lost = starts_protein
         && crate::variants::consequence::initiator_lost_between(&ref_protein, &alt_protein);
     // What the ribosome actually makes, which stops at the first stop codon.
@@ -188,6 +203,84 @@ pub(super) fn protein_effect_for_indel(
         alt_codon,
         initiator_lost,
     }
+}
+
+/// The genomic positions of the protein's first codon, in the order the
+/// ribosome reads them. Empty for a feature shorter than a codon.
+fn first_codon_positions(gene: &Gene) -> Vec<usize> {
+    let segments = if gene.cds_segments.is_empty() {
+        vec![effective_bounds(gene)]
+    } else {
+        gene.cds_segments
+            .iter()
+            .map(|segment| (segment.start, segment.end))
+            .collect()
+    };
+    let mut positions = Vec::with_capacity(3);
+    for (start, end) in segments {
+        let wanted = 3 - positions.len();
+        match gene.strand {
+            Strand::Plus => positions.extend((start..=end).take(wanted)),
+            Strand::Minus => positions.extend((start..=end).rev().take(wanted)),
+        }
+        if positions.len() == 3 {
+            return positions;
+        }
+    }
+    Vec::new()
+}
+
+/// Whether the variant takes the protein's initiation codon away.
+///
+/// It does when it deletes one of the codon's bases or inserts between them and
+/// the codon now first is not the same three bases. Deleting `GTGGCA` from the
+/// front of `GTGGCAGTG` is deleting the `GCAGTG` behind the start, which leaves
+/// the start where it was and is written that way (`Ala2_Val3del`). A deletion
+/// that also removes the base before the start codon takes it away whatever
+/// codon comes up in its place: the sequence the ribosome finds there is no
+/// longer the one it started from. A substitution leaves the codon where it was,
+/// and the initiator rules read whatever it makes of it.
+fn removes_initiation_codon(
+    gene: &Gene,
+    variant: &VcfPosition,
+    ref_cds: &str,
+    alt_cds: &str,
+) -> bool {
+    let codon = first_codon_positions(gene);
+    let Some(&first) = codon.first() else {
+        return false;
+    };
+    let before = match gene.strand {
+        Strand::Plus => first.checked_sub(1),
+        Strand::Minus => first.checked_add(1),
+    };
+    let mut touched = false;
+    let mut reaches_before = false;
+    for component in variant.event().components {
+        match component.kind {
+            AlleleComponentKind::Deletion => {
+                let last = component.position + component.ref_allele.len().saturating_sub(1);
+                let deleted = component.position..=last;
+                if codon.iter().any(|position| deleted.contains(position)) {
+                    touched = true;
+                    reaches_before |= before.is_some_and(|base| deleted.contains(&base));
+                }
+            }
+            // Inserted bases follow their anchor along the genome, so they land
+            // inside the codon when the anchor and the base after it are both
+            // the codon's.
+            AlleleComponentKind::Insertion => {
+                touched |= codon.contains(&component.position)
+                    && codon.contains(&(component.position + 1));
+            }
+            _ => {}
+        }
+    }
+    let same_codon_first = match (ref_cds.get(..3), alt_cds.get(..3)) {
+        (Some(reference), Some(alternate)) => reference.eq_ignore_ascii_case(alternate),
+        _ => false,
+    };
+    touched && (reaches_before || !same_codon_first)
 }
 
 /// Whether the variant reaches into the bases the declared phase skips.

@@ -55,14 +55,16 @@ python3 tests/who_catalogue/run.py --who-dir ruta/a/la/carpeta
 
 La batería reconstruye entonces la tabla incluida y la exige idéntica byte a
 byte, y anota todas las variantes genómicas que la OMS asocia a los grupos 1 y
-2: 26.231. 26.190 salen marcadas con su propia entrada, 198 solo por la lectura
-del codón, y 9 más con la entrada `LoF` del gen para el mismo fármaco. Falla si
-quedan sin marcar para ninguno de sus fármacos más de estas 32:
+2: 26.231. 26.225 salen marcadas con su propia entrada, 198 solo por la lectura
+del codón, y 2 más con la entrada `LoF` del gen para el mismo fármaco. Entre
+las primeras están las deleciones que se llevan un codón de inicio, a menudo
+con las bases de antes: get_MNV las da como pérdidas del inicio (`Met1?`), y
+la OMS como pérdidas de función. Una de las 2 es una deleción que la OMS
+escribe sobre la última base del codón de inicio de gid, gid `4407695`; deja
+ATG delante, así que get_MNV lee el corrimiento desde `Ser2`, donde lo pone la
+regla 3' de HGVS. Falla si quedan sin marcar para ninguno de sus fármacos más
+de estas 4:
 
-- 28 deleciones que se llevan un codón de inicio junto con un número entero de
-  codones (en ddn, fbiA, fbiC, fgd1, Rv2983, pepQ, gid, katG, pncA y ethA). La
-  OMS las cuenta como pérdidas de función; get_MNV las da como deleciones en
-  fase, y `LoF` no las cubre.
 - 2 inserciones justo antes de un codón de inicio, tlyA `1917939 C>CAACG` y
   Rv2983 `3339117 C>CG`, que la OMS cuenta como pérdidas de función y get_MNV
   como intergénicas: el codón de inicio en sí queda intacto.

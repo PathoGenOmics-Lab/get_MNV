@@ -385,9 +385,27 @@ def expected_indel(
         stop = protein.find("*")
         return protein if stop < 0 else protein[: stop + 1]
 
+    # An indel that deletes a base of the start codon, or inserts bases inside
+    # it, leaves some other codon first, and that codon starts nothing even when
+    # table 11 could start on it: `translate` reads the ATA left by deleting the
+    # G of an ATG as Met. Unless it is the same three bases, with the base
+    # before them still there, which is the same as an indel behind the start
+    # codon.
+    start_codon = gene.cds_positions()[:3]
+    before_start = start_codon[0] - 1 if gene.strand == "+" else start_codon[0] + 1
+    splits_start = bool(deleted & set(start_codon)) or any(
+        int(anchor) in start_codon and int(anchor) + 1 in start_codon
+        for anchor in inserted_after
+    )
+    start_taken = splits_start and (
+        before_start in deleted or alternate_cds[:3] != reference_cds[:3]
+    )
+
     if frameshift:
         change_type = "Frameshift Indel"
-    elif reference_protein[:1] == "M" and alternate_protein[:1] not in ("M", "*"):
+    elif reference_protein[:1] == "M" and (
+        start_taken or alternate_protein[:1] not in ("M", "*")
+    ):
         change_type = "Start lost"
     elif alternate_protein.count("*") > reference_protein.count("*"):
         change_type = "Stop gained"

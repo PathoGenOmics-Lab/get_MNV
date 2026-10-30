@@ -17,7 +17,7 @@ All notable changes to this project are documented in this file.
   get_MNV gives it, placed from WHO's genomic coordinates on the run's FASTA.
   The four whole-gene deletions, which no VCF of changes inside genes
   describes, are listed as not converted. Of the 26,231 genomic variants WHO
-  links to those groups, 26,199 come out flagged for their drug, among them
+  links to those groups, 26,227 come out flagged for their drug, among them
   the 22 rpoB variants that need two changes in one codon, which only the
   codon reading finds. `tests/who_catalogue/run.py` checks the converter on
   real rows of the catalogue in CI.
@@ -87,6 +87,17 @@ All notable changes to this project are documented in this file.
   pyrazinamide could not be flagged, although the documentation's own example
   was such an entry. It is now compared with every row of the contig the gene
   is on.
+- **A deletion that takes a start codon away is a start loss.** The alternate
+  protein was read from the codon the deletion brought up first as if that
+  were the initiator, and table 11 starts on GTG, TTG, CTG, ATT, ATC and ATA as
+  well as ATG: fgd1 losing its GTG start, the 32 bases before it and 134 more
+  codons came out as the in-frame `Ala2_Val136del`. An indel that deletes a
+  base of the start codon, or inserts bases inside it, is now `start_lost` and
+  `Met1?` (`frameshift_variant&start_lost` when the frame shifts), unless it
+  leaves the same three bases first and the base before them in place, which
+  is the same as an indel behind the start. Of the genomic variants WHO links
+  to groups 1 and 2, 35 more match their own `LoF` or `p.Met1?` entry, 28 of
+  which were flagged for none of their drugs.
 
 ## [1.1.6] - 2026-10-29
 
