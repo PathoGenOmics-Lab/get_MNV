@@ -1,0 +1,57 @@
+# Excerpt of the WHO catalogue of mutations in Mycobacterium tuberculosis complex, 2nd ed. (2023),
+# rows of WHO-UCN-TB-2023.7-eng_genomic_coordinates.txt, from https://github.com/GTB-tbsequencing/mutation-catalogue-2023
+# (Final Result Files). Contains information from the WHO mutation catalogue, which is made
+# available under the ODC Attribution License (https://opendatacommons.org/licenses/by/1-0/).
+variant	chromosome	position	reference_nucleotide	alternative_nucleotide
+rpoB_p.Ser450Leu	NC_000962.3	761154	TCG	CTA
+rpoB_p.Ser450Leu	NC_000962.3	761154	TC	CT
+rpoB_p.Ser450Leu	NC_000962.3	761154	TCG	CTC
+rpoB_p.Ser450Leu	NC_000962.3	761154	TCG	CTT
+rpoB_p.Ser450Leu	NC_000962.3	761155	CG	TA
+rpoB_p.Ser450Leu	NC_000962.3	761155	C	T
+rpoB_p.Ser450Phe	NC_000962.3	761153	GTCG	CTTT
+rpoB_p.Ser450Phe	NC_000962.3	761155	CG	TC
+rpoB_p.Ser450Phe	NC_000962.3	761155	CG	TT
+rpoB_p.Ser441Gln	NC_000962.3	761127	TCG	CAA
+rpoB_p.Ser441Gln	NC_000962.3	761127	TC	CA
+rpoB_p.Met434Ile	NC_000962.3	761108	G	C
+rpoB_p.Met434Ile	NC_000962.3	761108	G	A
+rpoB_p.Met434Ile	NC_000962.3	761108	GGACCAGA	CGCCAACT
+rpoB_p.Met434Ile	NC_000962.3	761108	GG	CT
+rpoB_p.Met434Ile	NC_000962.3	761108	G	T
+rpoB_p.Met434Ile	NC_000962.3	761108	GG	AT
+rpoB_p.Phe433dup	NC_000962.3	761102	A	ATTC
+rpoB_p.Phe433dup	NC_000962.3	761105	C	CTTT
+rpoB_p.Asn438del	NC_000962.3	761114	GAAC	G
+katG_p.Ser315Thr	NC_000962.3	2155167	GC	AG
+katG_p.Ser315Thr	NC_000962.3	2155167	GC	TG
+katG_p.Ser315Thr	NC_000962.3	2155167	GC	CG
+katG_p.Ser315Thr	NC_000962.3	2155168	CTG	GTT
+katG_p.Ser315Thr	NC_000962.3	2155168	C	G
+katG_LoF	NC_000962.3	2153892	GCG	TCA
+katG_LoF	NC_000962.3	2153892	GCG	TTA
+katG_LoF	NC_000962.3	2153892	GCGCAC	G
+katG_p.Ala16fs	NC_000962.3	2156064	AG	A
+katG_p.Ala16fs	NC_000962.3	2156066	C	CT
+katG_c.421_423delTTGinsCTC	NC_000962.3	2155689	CAA	GAG
+inhA_c.-777C>T	NC_000962.3	1673423	GAC	TAT
+inhA_c.-777C>T	NC_000962.3	1673424	AC	GT
+inhA_c.-777C>T	NC_000962.3	1673425	C	T
+rrs_n.1401A>G	NC_000962.3	1473246	A	G
+rrl_n.2269_2270insT	NC_000962.3	1475926	A	AT
+pncA_c.-5delG	NC_000962.3	2289245	TC	T
+pncA_p.Met1?	NC_000962.3	2289235	CCCGCATACGT	C
+pncA_p.Met1?	NC_000962.3	2289237	CGCATACGT	C
+pncA_p.Met1?	NC_000962.3	2289238	GCATACGTC	G
+pncA_p.Ter187Argext*?	NC_000962.3	2288680	ATCA	TTCG
+pncA_p.Ter187Argext*?	NC_000962.3	2288681	TCA	GCG
+pncA_p.Ter187Argext*?	NC_000962.3	2288681	TCA	ACG
+pncA_p.Ter187Argext*?	NC_000962.3	2288681	TCA	CCG
+pncA_p.Ter187Argext*?	NC_000962.3	2288681	TCA	CCT
+pncA_p.Ter187Argext*?	NC_000962.3	2288683	A	T
+gyrA_p.Asp94Gly	NC_000962.3	7582	AC	GG
+gyrA_p.Asp94Gly	NC_000962.3	7582	AC	GT
+gyrA_p.Asp94Gly	NC_000962.3	7582	AC	GA
+gyrA_p.Asp94Gly	NC_000962.3	7582	A	G
+Rv0565c_p.TrpLeu266*	NC_000962.3	656672	GCC	CCT
+aftB_p.Ter628ext*?	NC_000962.3	4266953	T	TC

@@ -99,6 +99,50 @@ existing outputs instead of running the pipeline again:
 get_mnv --report-from run1.MNV.tsv run2.MNV.tsv --report cohort.html
 ```
 
+## Flag Known Resistance Mutations in *M. tuberculosis*
+
+`example/who_catalogue_2023.tsv` is the WHO catalogue of *M. tuberculosis*
+resistance mutations (2023), its groups 1 and 2, in the form `--catalogue`
+reads. On the example's reference and gene table:
+
+```bash
+get_mnv \
+  --vcf variants.vcf \
+  --fasta example/MTB_ancestor.fas \
+  --genes example/anot_genes.txt \
+  --catalogue example/who_catalogue_2023.tsv
+```
+
+A call that matches gets the entry in its `Catalogue` column. A codon with two
+substitutions is matched as the codon it makes, which base-by-base annotation
+does not see: rpoB `p.Ser450Phe` needs two changes in codon 450, and its row
+reads
+
+```text
+RIF: Assoc w R (rpoB p.Ser450Leu, per-SNV reading only); RIF: Assoc w R (rpoB p.Ser450Phe, codon reading only)
+```
+
+that is, the codon is Ser450Phe, and an annotator reading one base at a time
+would have reported Ser450Leu. For `p.Ser441Gln` it would have reported
+Ser441Pro and a premature stop. To keep other groups, or to place the table on
+another reference, build it from WHO's files:
+
+```bash
+base="https://raw.githubusercontent.com/GTB-tbsequencing/mutation-catalogue-2023/main/Final%20Result%20Files"
+curl -LO "$base/WHO-UCN-TB-2023.6-eng_catalogue_master_file.txt"
+curl -LO "$base/WHO-UCN-TB-2023.7-eng_genomic_coordinates.txt"
+python3 tools/who_catalogue_to_tsv.py WHO-UCN-TB-2023.6-eng_catalogue_master_file.txt \
+  --grades 1,2,5 \
+  --coordinates WHO-UCN-TB-2023.7-eng_genomic_coordinates.txt \
+  --fasta example/MTB_ancestor.fas \
+  --unconverted who_unconverted.tsv \
+  -o who_catalogue.tsv
+```
+
+What the converter rewrites, what it cannot convert, and what a gene table or
+reference of your own needs are in
+[Input formats](input-formats.md#the-who-catalogue-of-m-tuberculosis-resistance-mutations).
+
 ## Analyze CDS Features in a GFF
 
 ```bash

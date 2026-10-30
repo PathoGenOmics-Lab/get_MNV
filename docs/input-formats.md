@@ -263,8 +263,9 @@ A variant can be written as:
 |---|---|---|
 | Protein | `p.Ser450Leu`, `p.S450L`, `p.Gln10Ter`, `p.Ala11fs` | rows of the gene with that protein change. A frameshift matches by its first residue and position, whatever follows `fs`. |
 | Coding substitution | `c.1349C>T`, `c.-15C>T`, `c.*3G>A` | the substituted base, placed in the genome from the gene model (`c.-N` upstream of the first coding base, `c.*N` past the last), on any row that carries it, intergenic ones included |
+| Non-coding substitution | `n.1401A>G`, `n.-119C>T` | the same, in a gene that is not translated, such as an rRNA, numbered from its first base |
 | Genomic substitution | `g.761155C>T` | the substituted base at that position |
-| Other HGVS | `c.516_518dup`, `g.1673425del` | rows whose `HGVS c.` or `HGVS g.` is written exactly so |
+| Other HGVS | `c.516_518dup`, `g.1673425del` | rows of the gene whose `HGVS c.` is written exactly so, or rows anywhere on the gene's contig, intergenic ones included, whose `HGVS g.` is |
 | `LoF` | `LoF` | any frameshift, premature stop or start loss in the gene |
 
 The gene is matched by name, or by any `_`-separated part of a combined name, so
@@ -279,6 +280,87 @@ that no single base makes, which base-by-base annotation misses, and
 `per-SNV reading only` for one such annotation would report that the codon does
 not make. Matches go to the `Catalogue` column (see
 [Output formats](output-formats.md)).
+
+### The WHO Catalogue of *M. tuberculosis* Resistance Mutations
+
+The WHO catalogue of mutations in the *Mycobacterium tuberculosis* complex
+(second edition, 2023) grades about 48,000 variant and drug pairs into five
+groups, from `1) Assoc w R` to `5) Not assoc w R`. `example/who_catalogue_2023.tsv`
+holds groups 1 and 2, the variants associated with resistance, ready for
+`--catalogue`; [Common recipes](usage.md#flag-known-resistance-mutations-in-m-tuberculosis)
+shows the run. Each entry is labelled with the drug's WHO abbreviation and the
+grade, so a match reads `RIF: Assoc w R (rpoB p.Ser450Leu)`, and a variant
+graded for several drugs is one entry per drug. Three more columns keep WHO's
+drug name, grade and variant name (`rpoB_p.Ser450Leu`), for filtering the table
+or joining it back to the catalogue; get_MNV ignores them.
+
+`tools/who_catalogue_to_tsv.py` builds the table from WHO's own files, so it can
+be rebuilt with other groups (`--grades 1,2,5` adds the variants shown not to be
+associated, `--grades all` keeps every group) or placed on another reference.
+It needs only Python's standard library. Most entries are written the way
+get_MNV writes the same change, and are kept; the rest are rewritten:
+
+| WHO writes | The table holds |
+|---|---|
+| `p.Ser450Leu`, `p.Trp122*`, `p.Asp379fs`, `p.Met1?`, an in-frame `del`, `ins` or `delins` | the same |
+| `c.-15C>T`, `c.102G>A`, `n.1401A>G`, `LoF` | the same |
+| `p.Phe433dup`, an in-frame duplication | `p.Phe433_Met434insPhe`, the insertion as get_MNV names it, with the residues taken from the catalogue's other entries |
+| `p.Ter187Argext*?`, a lost stop | `p.Ter187Arg`, the residue that replaces it |
+| `c.421_423delTTGinsCTC`, the same length in and out | `c.[421T>C;423G>C]`, the substitutions it makes |
+| `c.-5delG` or `n.2269_2270insT`, an indel outside a coding sequence | the `HGVS g.` get_MNV gives the change, `g.2289247del`, from WHO's genomic coordinates and the run's FASTA (`--coordinates`, `--fasta`) |
+| `deletion`, the whole gene | nothing: WHO gives it no genomic variant, and a VCF of changes inside genes has no row for a gene the sample lacks |
+
+A rewritten entry keeps WHO's name in its label: `PZA: Assoc w R, WHO c.-5delG
+(pncA g.2289247del)`. `--unconverted` writes what was not converted, with the
+reason. For groups 1 and 2 that is the four whole-gene deletions, of katG, ethA,
+fgd1 and pncA, which each have a `LoF` entry for the same drug; without
+`--coordinates`, the three indels outside coding sequences (pncA `c.-5delG`, eis
+`c.-8delC`, rrl `n.2269_2270insT`) are listed as well.
+
+Matching protein changes, rather than genomic records, is what lets a codon with
+two substitutions be found. 22 of the rpoB variants in groups 1 and 2, among
+them `p.Ser450Phe`, `p.Ser450Tyr`, `p.Ser441Gln` and `p.His445Cys`, need two
+changes in one codon; read base by base, `p.Ser450Phe` is `p.Ser450Leu` and a
+synonymous change. get_MNV flags each of them with `codon reading only`.
+
+WHO also lists, for every graded variant, the genomic changes that make it:
+26,231 of them for groups 1 and 2. Each was annotated on the example's MTBC
+ancestor with the shipped table. 26,190 come out flagged with their own entry,
+198 of them through the codon reading only, and 9 more with another entry for
+the same drug, the gene's `LoF`. The 32 left are 28 deletions that take a start
+codon away along with a whole number of codons, which WHO counts as losses of
+function and get_MNV reports as in-frame deletions; 2 insertions just before a
+start codon, which WHO counts as losses of function and get_MNV as intergenic;
+and 2 changes whose consequence on the ancestor is not the one they have on
+H37Rv. Given the folder that holds WHO's two files, `tests/who_catalogue/run.py`
+repeats the check.
+
+With your own data:
+
+- **Gene names.** WHO names genes by their H37Rv symbols and locus tags (`rpoB`,
+  `katG`, `Rv0678`, `rrs`), and an entry matches a gene of that name or with it
+  as one `_`-separated part. All 65 genes of the catalogue are found that way in
+  `example/anot_genes.txt` and in NCBI's annotation of H37Rv (GCF_000195955.2),
+  whose genes get_MNV names `rpoB_Rv0667`. With an annotation that names them
+  otherwise, change the table's `gene` column to the annotation's names.
+- **Reference.** The catalogue is written against H37Rv (NC_000962.3). Protein,
+  `c.` and `n.` entries are numbered along their gene, so they hold on any
+  reference whose genes match H37Rv's. The `g.` entries are H37Rv positions:
+  build the table with your own FASTA in `--fasta` when it is on H37Rv
+  coordinates, and leave `--coordinates` out when it is not. The MTBC ancestor
+  of the example shares H37Rv's coordinates but not the alleles H37Rv's own
+  lineage carries: 38 entries name a residue or base the ancestor does not have
+  there, none in groups 1 and 2 (`embB p.Glu378Ala`, a lineage marker, is one).
+  Against the ancestor they match nothing, and a sample carrying H37Rv's allele
+  shows the reverse change, `Ala378Glu`.
+
+The table and the files it comes from contain information from the
+[WHO mutation catalogue](https://github.com/GTB-tbsequencing/mutation-catalogue-2023),
+which is made available under the
+[ODC Attribution License](https://opendatacommons.org/licenses/by/1-0/); cite
+it as *Catalogue of mutations in Mycobacterium tuberculosis complex and their
+association with drug resistance, second edition. Geneva: World Health
+Organization; 2023*.
 
 ## Contig Names
 
