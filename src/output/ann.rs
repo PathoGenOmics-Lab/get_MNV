@@ -42,7 +42,7 @@ fn field(value: &str) -> String {
 }
 
 /// The protein change as HGVS.p, when `AA` holds one: `Ser450Leu`, `Met1?`,
-/// `Gln5*`, `Lys2_Phe3insGly`, `Ser450fs`. A label (`Synonymous`, `Unknown`,
+/// `Gln5*`, `Lys2_Phe3insGly`, `Phe433dup`, `Ser450fs`. A label (`Synonymous`, `Unknown`,
 /// `downstream of premature stop`), a residue that could not be read (`X`) or a
 /// change read in a shifted frame (`Gly92Glu (fs)`) is not one.
 fn hgvs_p(aa: &str) -> Option<String> {
@@ -342,6 +342,7 @@ mod tests {
             ("*100Gln", Some("p.Ter100Glnext*?")),
             ("*100*", None),
             ("Lys2_Phe3insGly", Some("p.Lys2_Phe3insGly")),
+            ("Phe433dup", Some("p.Phe433dup")),
             ("Ser450fs", Some("p.Ser450fs")),
             ("Gly92Glu (fs)", None),
             ("Synonymous", None),

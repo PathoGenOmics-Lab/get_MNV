@@ -5214,6 +5214,36 @@ fn test_e2e_an_insertion_in_the_terminal_stop_gets_no_nmd_call() {
             "{name}: the alternate CDS ends at the same residue, so nothing is truncated"
         );
     }
+
+    // A copy of the stop codon put in front of it, a second stop that is never
+    // read. Counting the stops of the whole translation called it a stop gained
+    // at HIGH impact, and the copy, read a codon upstream of where it stands,
+    // got an NMD call.
+    for (name, pos, inserted) in [("plus_copy", 1557usize, "TAA"), ("minus_copy", 2003, "TTA")] {
+        let anchor = bases[pos - 1];
+        fs::write(
+            tmp.join(format!("{name}.vcf")),
+            format!("{header}chr1\t{pos}\t.\t{anchor}\t{anchor}{inserted}\t100\tPASS\tDP=100\n"),
+        )
+        .unwrap();
+    }
+    let plus = annotate("plus_copy");
+    let minus = annotate("minus_copy");
+    for (name, row) in [("plus", &plus), ("minus", &minus)] {
+        for (column, expected) in [
+            ("Change Type", "Synonymous"),
+            ("AA Changes", "Synonymous"),
+            ("SO Term", "synonymous_variant"),
+            ("NMD Prediction", "-"),
+            ("HGVS c.", "c.358_360dup"),
+        ] {
+            assert_eq!(
+                row.get(column).map(String::as_str),
+                Some(expected),
+                "{name}: a copy of the stop codon leaves the protein as it was ({column})"
+            );
+        }
+    }
 }
 
 /// A run whose optional external tool is missing must not claim its output.

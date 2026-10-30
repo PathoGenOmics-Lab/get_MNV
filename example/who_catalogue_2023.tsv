@@ -1179,7 +1179,7 @@ rpoB	p.Met434Val	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB
 rpoB	p.Phe425_Gly426del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Phe425_Gly426del
 rpoB	p.Phe433_Asp435del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Phe433_Asp435del
 rpoB	p.Phe433_Gln436del	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Phe433_Gln436del
-rpoB	p.Phe433_Met434insPhe	RIF: Assoc w R, WHO p.Phe433dup	Rifampicin	1) Assoc w R	rpoB_p.Phe433dup
+rpoB	p.Phe433dup	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Phe433dup
 rpoB	p.Pro439Ala	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Pro439Ala
 rpoB	p.Pro439Leu	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Pro439Leu
 rpoB	p.Pro439Ser	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Pro439Ser
@@ -1221,7 +1221,7 @@ rpoB	p.Thr427Gly	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB
 rpoB	p.Thr427Ile	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr427Ile
 rpoB	p.Thr427Pro	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr427Pro
 rpoB	p.Thr427Ser	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr427Ser
-rpoB	p.Thr444_His445insThr	RIF: Assoc w R, WHO p.Thr444dup	Rifampicin	1) Assoc w R	rpoB_p.Thr444dup
+rpoB	p.Thr444dup	RIF: Assoc w R	Rifampicin	1) Assoc w R	rpoB_p.Thr444dup
 rpoB	p.Thr444Ile	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr444Ile
 rpoB	p.Thr444Pro	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr444Pro
 rpoB	p.Thr444Ser	RIF: Assoc w R - Interim	Rifampicin	2) Assoc w R - Interim	rpoB_p.Thr444Ser
