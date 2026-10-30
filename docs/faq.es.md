@@ -73,9 +73,11 @@ sigue aceptando y no cambia nada.
 Sí. get_MNV descompone los alelos `REF/ALT` en componentes SNV, MNV, inserción,
 deleción, delins y complejo, informa su efecto a nivel de proteína cuando se
 solapan con una característica codificante y (con `--bam`) cuenta el soporte
-exacto del evento indel. No alinea a la izquierda ni normaliza por completo los
-indels por ti: normaliza las entradas entre distintos llamadores con
-`bcftools norm -f ref.fa` (o `--normalize-alleles` para un recorte sencillo).
+exacto del evento indel. Con `--left-align` además alinea a la izquierda cada
+indel sobre la referencia, como hace `bcftools norm -f ref.fa`, que es lo que
+necesita un indel en un homopolímero o una repetición para encontrar sus
+lecturas cuando la entrada lo escribió en otro sitio que el alineador.
+`--normalize-alleles` solo recorta el contexto compartido y nunca mueve un indel.
 
 ## ¿Y las variantes intergénicas?
 

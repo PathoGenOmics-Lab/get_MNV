@@ -7,8 +7,8 @@
 
 use super::validation::validate_vcf_allele;
 use super::vcf::{
-    freq_from_ad, freq_from_ao_ro, normalize_ref_alt, parse_optional_depth,
-    parse_optional_freq_index, VcfPosition,
+    freq_from_ad, freq_from_ao_ro, parse_optional_depth, parse_optional_freq_index,
+    AlleleNormalization, VcfPosition,
 };
 use super::vcf_text::{ReadLine, Splitting, VcfLine, VcfText};
 use crate::error::AppResult;
@@ -29,7 +29,7 @@ pub fn load_vcf_text(
     vcf_file: &str,
     sample_name: Option<&str>,
     split_multiallelic: bool,
-    normalize_alleles: bool,
+    normalization: AlleleNormalization,
     keep_original_info: bool,
     references: Option<&crate::io::ReferenceMap>,
 ) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
@@ -48,7 +48,7 @@ pub fn load_vcf_text(
     let mut records = TextRecords::new(
         sample_name,
         split_multiallelic,
-        normalize_alleles,
+        normalization,
         keep_original_info,
         references,
         per_allele_info,
@@ -69,7 +69,7 @@ pub(crate) fn load_held_vcf_text(
     text: &VcfText,
     sample_name: Option<&str>,
     split_multiallelic: bool,
-    normalize_alleles: bool,
+    normalization: AlleleNormalization,
     keep_original_info: bool,
     references: Option<&crate::io::ReferenceMap>,
 ) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
@@ -84,7 +84,7 @@ pub(crate) fn load_held_vcf_text(
     let mut records = TextRecords::new(
         sample_name,
         split_multiallelic,
-        normalize_alleles,
+        normalization,
         keep_original_info,
         references,
         per_allele_info,
@@ -102,7 +102,7 @@ pub(crate) fn load_held_vcf_text(
 struct TextRecords<'a> {
     sample_name: Option<&'a str>,
     split_multiallelic: bool,
-    normalize_alleles: bool,
+    normalization: AlleleNormalization,
     keep_original_info: bool,
     references: Option<&'a crate::io::ReferenceMap>,
     per_allele_info: HashMap<String, char>,
@@ -114,6 +114,7 @@ struct TextRecords<'a> {
     not_carried: usize,
     overlapped: usize,
     spelled_out: usize,
+    left_aligned: usize,
     record_idx: usize,
 }
 
@@ -121,7 +122,7 @@ impl<'a> TextRecords<'a> {
     fn new(
         sample_name: Option<&'a str>,
         split_multiallelic: bool,
-        normalize_alleles: bool,
+        normalization: AlleleNormalization,
         keep_original_info: bool,
         references: Option<&'a crate::io::ReferenceMap>,
         per_allele_info: HashMap<String, char>,
@@ -129,7 +130,7 @@ impl<'a> TextRecords<'a> {
         TextRecords {
             sample_name,
             split_multiallelic,
-            normalize_alleles,
+            normalization,
             keep_original_info,
             references,
             per_allele_info,
@@ -141,6 +142,7 @@ impl<'a> TextRecords<'a> {
             not_carried: 0,
             overlapped: 0,
             spelled_out: 0,
+            left_aligned: 0,
             record_idx: 0,
         }
     }
@@ -269,11 +271,10 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                 }
                 None => (pos, ref_allele.to_string(), alt_allele.to_string()),
             };
-            let (norm_pos, norm_ref, norm_alt) = if self.normalize_alleles {
-                normalize_ref_alt(start, &explicit_ref, &explicit_alt)
-            } else {
-                (start, explicit_ref, explicit_alt)
-            };
+            let (norm_pos, norm_ref, norm_alt, moved) =
+                self.normalization
+                    .apply(start, explicit_ref, explicit_alt, sequence);
+            self.left_aligned += usize::from(moved);
             validate_vcf_allele(&norm_ref, record_idx, chrom, norm_pos, "REF")?;
             validate_vcf_allele(&norm_alt, record_idx, chrom, norm_pos, "ALT")?;
 
@@ -334,6 +335,7 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
             not_carried,
             overlapped,
             spelled_out,
+            left_aligned,
             ..
         } = self;
         if !header_seen {
@@ -354,6 +356,7 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
         }
         crate::io::vcf::log_overlapped(overlapped);
         crate::io::vcf::log_spelled_out(spelled_out);
+        crate::io::vcf::log_left_aligned(left_aligned);
 
         Ok(positions_by_contig)
     }
@@ -602,7 +605,15 @@ mod tests {
     fn test_load_vcf_text_example() {
         // Use the bundled example VCF
         let vcf = concat!(env!("CARGO_MANIFEST_DIR"), "/example/G35894.var.snp.vcf");
-        let result = load_vcf_text(vcf, None, false, false, false, None).unwrap();
+        let result = load_vcf_text(
+            vcf,
+            None,
+            false,
+            AlleleNormalization::AsWritten,
+            false,
+            None,
+        )
+        .unwrap();
         // Should have at least one contig
         assert!(!result.is_empty());
         // Total positions should be substantial

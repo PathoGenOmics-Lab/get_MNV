@@ -25,6 +25,27 @@ All notable changes to this project are documented in this file.
   is numbered from its first base, as the WHO catalogue writes rrs and rrl
   changes (`n.1401A>G`). Such an entry was read as a protein change and
   matched nothing.
+- **`--left-align` left-aligns indels against the reference, as
+  `bcftools norm -f` does.** An insertion or deletion in a homopolymer or a
+  tandem repeat can be written at several positions that describe the same
+  change, and an indel's read support is counted from reads whose CIGAR carries
+  that exact gap. One written further right than the aligner put it, as a
+  3'-shifted HGVS description turned back into VCF is, found no supporting
+  reads, under a warning that sent the user to normalize the input with
+  bcftools first. The flag now takes that step: each indel moves to its leftmost
+  equivalent position, anchored on the base before it, or on the base after it
+  at the start of a contig. Shared REF/ALT context is trimmed, so the flag
+  includes `--normalize-alleles`; substitutions and complex records are trimmed
+  but never moved; symbolic alleles, ambiguity codes and a REF that disagrees
+  with the reference are left as written. It applies to VCF and iVar TSV input,
+  is off by default, and has a toggle in the desktop app, whose "Normalize
+  alleles" tooltip claimed to left-align and now says it only trims.
+
+  `tests/leftalign` checks it against `bcftools norm -f` on 3,554 indels and
+  complex records placed at random in the repeats of the example genome and
+  spelled several ways, through both VCF readers, and finds no disagreement;
+  2,668 of them move, by up to 218 bases. The zero-support warning now points
+  at the flag, or, when it is already on, at the alignment.
 
 ### Changed
 

@@ -350,10 +350,17 @@ pub(super) fn count_indel_reads_into(
     // left-aligned the same way as the BAM (common in homopolymers/tandem
     // repeats), so the exact-anchor match yields zero support.
     if summary.mnv_total_reads > 0 && summary.mnv_count == 0 {
+        // Once the run has left-aligned the allele, asking for that again is
+        // no help: the reads put the gap somewhere else, or do not carry it.
+        let hint = if args.left_align {
+            "The allele is left-aligned, so the reads either place the gap elsewhere \
+             (an aligner that does not left-align) or do not carry this indel."
+        } else {
+            "If it lies in a homopolymer/repeat, rerun with --left-align (or left-align \
+             the input with `bcftools norm -f ref.fa`) so the allele matches the read alignment."
+        };
         log::warn!(
-            "Indel at {}:{} {}>{} has {} spanning read(s) but 0 with exact CIGAR support. \
-             If it lies in a homopolymer/repeat, left-align the input first \
-             (e.g. `bcftools norm -f ref.fa`) so the allele matches the read alignment.",
+            "Indel at {}:{} {}>{} has {} spanning read(s) but 0 with exact CIGAR support. {hint}",
             contig,
             position,
             ref_allele,

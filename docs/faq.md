@@ -66,9 +66,11 @@ accepted and changes nothing.
 
 Yes. get_MNV decomposes `REF/ALT` alleles into SNV, MNV, insertion, deletion,
 delins and complex components, reports their protein effect when they overlap a
-coding feature, and (with `--bam`) counts exact indel-event support. It does not
-left-align or fully normalize indels for you; normalize cross-caller inputs
-with `bcftools norm -f ref.fa` (or `--normalize-alleles` for simple trimming).
+coding feature, and (with `--bam`) counts exact indel-event support. With
+`--left-align` it also left-aligns each indel against the reference, as
+`bcftools norm -f ref.fa` does, which an indel in a homopolymer or repeat needs
+to find its reads when the input wrote it somewhere other than the aligner did.
+`--normalize-alleles` only trims shared context and never moves an indel.
 
 ## What about intergenic variants?
 

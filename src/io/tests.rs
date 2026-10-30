@@ -1,7 +1,7 @@
 use super::annotation::{detect_annotation_format, preload_gff_genes, AnnotationFormat};
 use super::fasta::{load_references, validate_vcf_reference_alleles, Reference};
 use super::validation::validate_iupac_sequence;
-use super::vcf::{load_vcf_positions_by_contig, VcfPosition};
+use super::vcf::{load_vcf_positions_by_contig, AlleleNormalization, VcfPosition};
 use std::collections::HashMap;
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -342,7 +342,7 @@ fn test_load_vcf_positions_multiallelic_split_mode() {
         path.to_string_lossy().as_ref(),
         None,
         false,
-        false,
+        AlleleNormalization::AsWritten,
         false,
         None,
     )
@@ -353,7 +353,7 @@ fn test_load_vcf_positions_multiallelic_split_mode() {
         path.to_string_lossy().as_ref(),
         None,
         true,
-        false,
+        AlleleNormalization::AsWritten,
         false,
         None,
     )
@@ -424,12 +424,24 @@ fn test_bcf_input_reads_the_same_as_the_vcf_it_encodes() {
     fs::write(&vcf, BCF_FIXTURE_VCF).unwrap();
     write_bcf(BCF_FIXTURE_VCF, &bcf);
 
-    let from_vcf =
-        load_vcf_positions_by_contig(vcf.to_str().unwrap(), None, true, false, false, None)
-            .expect("VCF loads");
-    let from_bcf =
-        load_vcf_positions_by_contig(bcf.to_str().unwrap(), None, true, false, false, None)
-            .expect("BCF loads");
+    let from_vcf = load_vcf_positions_by_contig(
+        vcf.to_str().unwrap(),
+        None,
+        true,
+        AlleleNormalization::AsWritten,
+        false,
+        None,
+    )
+    .expect("VCF loads");
+    let from_bcf = load_vcf_positions_by_contig(
+        bcf.to_str().unwrap(),
+        None,
+        true,
+        AlleleNormalization::AsWritten,
+        false,
+        None,
+    )
+    .expect("BCF loads");
     assert_eq!(describe(&from_vcf).len(), 4, "{:?}", describe(&from_vcf));
     assert_eq!(describe(&from_bcf), describe(&from_vcf));
 
@@ -465,12 +477,24 @@ chr1\t2\t.\tT\tC\t50\tPASS\tXS=a%b\tGT:FREQ\t0/1:20%\n";
     let bcf = base.with_extension("bcf");
     fs::write(&vcf, text).unwrap();
     write_bcf(text, &bcf);
-    let from_vcf =
-        load_vcf_positions_by_contig(vcf.to_str().unwrap(), None, true, false, true, None)
-            .expect("VCF loads");
-    let from_bcf =
-        load_vcf_positions_by_contig(bcf.to_str().unwrap(), None, true, false, true, None)
-            .expect("BCF loads");
+    let from_vcf = load_vcf_positions_by_contig(
+        vcf.to_str().unwrap(),
+        None,
+        true,
+        AlleleNormalization::AsWritten,
+        true,
+        None,
+    )
+    .expect("VCF loads");
+    let from_bcf = load_vcf_positions_by_contig(
+        bcf.to_str().unwrap(),
+        None,
+        true,
+        AlleleNormalization::AsWritten,
+        true,
+        None,
+    )
+    .expect("BCF loads");
     assert_eq!(describe(&from_bcf), describe(&from_vcf));
     assert_eq!(from_bcf["chr1"][0].original_freq, Some(0.2));
     assert_eq!(from_bcf["chr1"][0].original_info.as_deref(), Some("XS=a%b"));
@@ -486,7 +510,14 @@ chr1\t2\t.\tT\tC\t50\tPASS\tXS=a%b\tGT:FREQ\t0/1:20%\n";
 fn test_a_file_cut_between_blocks_fails_instead_of_reading_short() {
     use std::io::Write as _;
     let load = |path: &std::path::Path| {
-        load_vcf_positions_by_contig(path.to_str().unwrap(), None, true, false, false, None)
+        load_vcf_positions_by_contig(
+            path.to_str().unwrap(),
+            None,
+            true,
+            AlleleNormalization::AsWritten,
+            false,
+            None,
+        )
     };
     let base = unique_temp_path("get_mnv_cut_between_blocks", "in");
 
@@ -558,8 +589,14 @@ fn test_damaged_bcf_fails_instead_of_reading_short() {
     let samples =
         super::vcf::list_vcf_samples(bcf.to_str().unwrap()).expect("the header alone still reads");
     assert_eq!(samples, vec!["S1".to_string()]);
-    let result =
-        load_vcf_positions_by_contig(bcf.to_str().unwrap(), None, true, false, false, None);
+    let result = load_vcf_positions_by_contig(
+        bcf.to_str().unwrap(),
+        None,
+        true,
+        AlleleNormalization::AsWritten,
+        false,
+        None,
+    );
     assert!(
         result.is_err(),
         "a truncated BCF must not read as a shorter VCF"
@@ -586,7 +623,14 @@ fn load_with_either_reader(
     path: &std::path::Path,
     sample: Option<&str>,
 ) -> crate::error::AppResult<HashMap<String, Vec<VcfPosition>>> {
-    super::vcf::load_vcf(path.to_str().unwrap(), sample, true, false, false, None)
+    super::vcf::load_vcf(
+        path.to_str().unwrap(),
+        sample,
+        true,
+        AlleleNormalization::AsWritten,
+        false,
+        None,
+    )
 }
 
 /// A `*` ALT stands for a deletion that starts upstream and is annotated at its
@@ -661,6 +705,85 @@ chr1\t9\t.\tG\tA\t50\tPASS\t.\tGT:AD\t1:6,2\t1:3,3\n\
         let second = load_with_either_reader(path, Some("S2")).unwrap();
         let freq = second["chr1"][0].original_freq.expect("C from 10,5,.");
         assert!((freq - 5.0 / 15.0).abs() < 1e-9, "{path:?}: {freq}");
+    }
+    fs::remove_file(&plain).ok();
+    fs::remove_file(&gz).ok();
+}
+
+/// `--left-align` moves an indel written at the right end of its repeat to the
+/// left end, where an aligner puts the gap, and both readers move it alike.
+/// `--normalize-alleles` alone only trims, so it never moves one.
+#[test]
+fn test_both_readers_left_align_indels_against_the_reference() {
+    //                    1 2-5  6-11   12
+    let reference = "GAAAACACACATGCATGCAT";
+    let references = super::ReferenceMap::from([("chr1".to_string(), reference.to_string())]);
+    let text = "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=20>\n\
+##INFO=<ID=ANN,Number=.,Type=String,Description=\"Functional annotations\">\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t4\t.\tAA\tA\t50\tPASS\tANN=A|frameshift_variant|HIGH\n\
+chr1\t7\t.\tACA\tAGA\t50\tPASS\t.\n\
+chr1\t11\t.\tA\tACA\t50\tPASS\t.\n";
+    let (plain, gz) = write_both_containers(text, "get_mnv_left_align");
+    let load = |path: &std::path::Path, normalization, references| {
+        super::vcf::load_vcf(
+            path.to_str().unwrap(),
+            None,
+            true,
+            normalization,
+            true,
+            references,
+        )
+        .expect("loads")
+    };
+    for path in [&plain, &gz] {
+        let as_written = describe(&load(
+            path,
+            AlleleNormalization::AsWritten,
+            Some(&references),
+        ));
+        let trimmed = describe(&load(path, AlleleNormalization::Trim, Some(&references)));
+        let aligned = load(path, AlleleNormalization::LeftAlign, Some(&references));
+        assert_eq!(
+            as_written,
+            vec![
+                "chr1:11 A>ACA dp=None freq=None",
+                "chr1:4 AA>A dp=None freq=None",
+                "chr1:7 ACA>AGA dp=None freq=None",
+            ],
+            "{path:?}"
+        );
+        assert_eq!(
+            trimmed,
+            vec![
+                "chr1:11 A>ACA dp=None freq=None",
+                "chr1:4 AA>A dp=None freq=None",
+                "chr1:8 C>G dp=None freq=None",
+            ],
+            "{path:?}"
+        );
+        assert_eq!(
+            describe(&aligned),
+            vec![
+                "chr1:1 GA>G dp=None freq=None",
+                "chr1:4 A>AAC dp=None freq=None",
+                "chr1:8 C>G dp=None freq=None",
+            ],
+            "{path:?}"
+        );
+        // The input's annotation of the deletion follows it to its new ALT.
+        assert_eq!(
+            aligned["chr1"][0].original_info.as_deref(),
+            Some("ANN=G|frameshift_variant|HIGH"),
+            "{path:?}"
+        );
+        // With no reference to walk, a record can still be trimmed.
+        assert_eq!(
+            describe(&load(path, AlleleNormalization::LeftAlign, None)),
+            trimmed,
+            "{path:?}"
+        );
     }
     fs::remove_file(&plain).ok();
     fs::remove_file(&gz).ok();

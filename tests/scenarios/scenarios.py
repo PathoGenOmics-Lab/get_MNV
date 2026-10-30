@@ -2974,6 +2974,60 @@ scenario_multiallelic_format_freq = Scenario(
 
 
 
+
+# ---------------------------------------------------------------------------
+# 80-81: an indel written where HGVS puts it is not where the reads have it.
+# geneA's codons 2-99 are GCT repeated, so deleting one of them can be written
+# anywhere along 4-297. An aligner puts the gap at the left end (CIGAR 3M3D,
+# 4-6); a description shifted 3' for HGVS, turned back into VCF, puts it at the
+# right end (295-297). The exact-CIGAR count finds no read for the right-hand
+# spelling; --left-align moves it onto the reads' gap first.
+def _gct_deletion_scenario(name, description, extra_cli_args, expected):
+    return Scenario(
+        name=name,
+        description=description,
+        variants=[VcfRecord(pos=294, ref="TGCT", alt="T")],
+        reads=[
+            ReadGroup(
+                name_prefix="r_left_aligned_del", start=1, length=300,
+                ops=[Op(kind="del", pos=4, length=3)], count=20,
+            ),
+        ],
+        extra_cli_args=extra_cli_args,
+        expected=[expected],
+        expected_row_count=1,
+    )
+
+
+scenario_right_shifted_indel_finds_no_reads = _gct_deletion_scenario(
+    "80_right_shifted_indel_finds_no_reads",
+    "GCT deletion written at the 3' end of its repeat, reads carry it at the 5' end: 0 of 20 reads",
+    None,
+    ExpectedRow(
+        positions="294",
+        reference_bases="TGCT",
+        base_changes="T",
+        event_components="DEL:295-297:GCT",
+        event_reads="0",
+    ),
+)
+
+scenario_left_align_finds_the_reads = _gct_deletion_scenario(
+    "81_left_align_finds_the_reads",
+    "The same record with --left-align moves to 3 GGCT>G, the reads' gap: 20 of 20 reads",
+    ["--left-align"],
+    ExpectedRow(
+        positions="3",
+        gene="geneA",
+        reference_bases="GGCT",
+        base_changes="G",
+        event_class="deletion",
+        event_components="DEL:4-6:GCT",
+        event_reads="20",
+        event_frequency="1.0000",
+    ),
+)
+
 ALL_SCENARIOS = [
     scenario_snp_simple,
     scenario_snp_mnv_full,
@@ -3064,6 +3118,8 @@ ALL_SCENARIOS = [
     scenario_slippage_indel_reaches_both,
     scenario_splice_region_indel_is_one_row,
     scenario_multiallelic_format_freq,
+    scenario_right_shifted_indel_finds_no_reads,
+    scenario_left_align_finds_the_reads,
 ]
 
 

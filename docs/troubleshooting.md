@@ -216,7 +216,7 @@ its own.
 
 | Warning | What it means | What to do |
 |---|---|---|
-| `has N spanning read(s) but 0 with exact CIGAR support` | Reads cover the site but none of them carries that exact indel, which is what happens when the allele is written at a different position inside a homopolymer or repeat. | Left-align the input first, for example `bcftools norm -f ref.fa`. |
+| `has N spanning read(s) but 0 with exact CIGAR support` | Reads cover the site but none of them carries that exact indel, which is what happens when the allele is written at a different position inside a homopolymer or repeat. | Rerun with `--left-align`, or left-align the input first with `bcftools norm -f ref.fa`. If the warning says the allele is already left-aligned, the reads place the gap elsewhere or do not carry the indel: look at the alignment. |
 | `was declared X by the input VCF, but N of M reads spanning the site carry the whole haplotype` | The caller and the reads disagree about whether these changes travel together. | Look at the alignment before trusting either. |
 | `shows N distinct combinations on the reads; reporting the K best supported` | A window with more local haplotypes than get_MNV reports. The dropped ones are the weakly supported tail. See [Indels and Local Haplotypes](indel-haplotypes.md). | Nothing, unless a rare haplotype matters; `--chrom` takes whole contig names, not regions, so inspect the window in the alignment instead. |
 

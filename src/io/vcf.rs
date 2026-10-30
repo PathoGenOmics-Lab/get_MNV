@@ -397,6 +397,70 @@ pub(crate) fn spell_out_symbolic(
     }
 }
 
+/// How the readers rewrite each record's alleles before anything annotates
+/// them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AlleleNormalization {
+    /// Kept as written.
+    #[default]
+    AsWritten,
+    /// `--normalize-alleles`: the context REF and ALT share is trimmed wherever
+    /// that leaves the event where it was ([`normalize_ref_alt`]).
+    Trim,
+    /// `--left-align`: trimmed and moved to the leftmost place that describes
+    /// the same change, as `bcftools norm -f` writes it. A record left-alignment
+    /// leaves as written is still trimmed, so this includes [`Self::Trim`].
+    LeftAlign,
+}
+
+impl AlleleNormalization {
+    /// The record as this setting writes it, and whether that moved its event
+    /// rather than only respelling it, which is what [`log_left_aligned`]
+    /// counts. `sequence` is the record's contig, which left-alignment walks;
+    /// without it a record is only trimmed.
+    pub(crate) fn apply(
+        self,
+        pos: usize,
+        ref_allele: String,
+        alt_allele: String,
+        sequence: Option<&str>,
+    ) -> (usize, String, String, bool) {
+        let trimmed = |ref_allele: &str, alt_allele: &str| {
+            let (pos, ref_allele, alt_allele) = normalize_ref_alt(pos, ref_allele, alt_allele);
+            (pos, ref_allele, alt_allele, false)
+        };
+        match self {
+            Self::AsWritten => (pos, ref_allele, alt_allele, false),
+            Self::Trim => trimmed(&ref_allele, &alt_allele),
+            Self::LeftAlign => {
+                let aligned = sequence.and_then(|seq| {
+                    super::left_align::left_align(pos, &ref_allele, &alt_allele, seq)
+                });
+                match aligned {
+                    Some((new_pos, new_ref, new_alt)) => {
+                        let moved =
+                            crate::variants::decompose_allele(pos, &ref_allele, &alt_allele)
+                                .components
+                                != crate::variants::decompose_allele(new_pos, &new_ref, &new_alt)
+                                    .components;
+                        (new_pos, new_ref, new_alt, moved)
+                    }
+                    None => trimmed(&ref_allele, &alt_allele),
+                }
+            }
+        }
+    }
+}
+
+pub(crate) fn log_left_aligned(moved: usize) {
+    if moved > 0 {
+        log::info!(
+            "Left-aligned {moved} indel(s) against the reference: each now sits at the \
+             leftmost position that describes the same change, where aligners place it"
+        );
+    }
+}
+
 pub(crate) fn normalize_ref_alt(
     pos: usize,
     ref_allele: &str,
@@ -986,7 +1050,7 @@ pub fn load_vcf(
     vcf_file: &str,
     sample_name: Option<&str>,
     split_multiallelic: bool,
-    normalize_alleles: bool,
+    normalization: AlleleNormalization,
     keep_original_info: bool,
     references: Option<&crate::io::ReferenceMap>,
 ) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
@@ -995,7 +1059,7 @@ pub fn load_vcf(
             vcf_file,
             sample_name,
             split_multiallelic,
-            normalize_alleles,
+            normalization,
             keep_original_info,
             references,
         )
@@ -1004,7 +1068,7 @@ pub fn load_vcf(
             vcf_file,
             sample_name,
             split_multiallelic,
-            normalize_alleles,
+            normalization,
             keep_original_info,
             references,
         )
@@ -1015,7 +1079,7 @@ pub fn load_vcf_positions_by_contig(
     vcf_file: &str,
     sample_name: Option<&str>,
     split_multiallelic: bool,
-    normalize_alleles: bool,
+    normalization: AlleleNormalization,
     keep_original_info: bool,
     references: Option<&crate::io::ReferenceMap>,
 ) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
@@ -1034,7 +1098,7 @@ pub fn load_vcf_positions_by_contig(
     let mut records = VcfRecords::new(
         sample_index,
         split_multiallelic,
-        normalize_alleles,
+        normalization,
         keep_original_info,
         references,
         per_allele_info,
@@ -1056,7 +1120,7 @@ pub(crate) fn load_held_vcf_positions(
     text: &super::vcf_text::VcfText,
     sample_name: Option<&str>,
     split_multiallelic: bool,
-    normalize_alleles: bool,
+    normalization: AlleleNormalization,
     keep_original_info: bool,
     references: Option<&crate::io::ReferenceMap>,
 ) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
@@ -1084,7 +1148,7 @@ pub(crate) fn load_held_vcf_positions(
     let mut records = VcfRecords::new(
         sample_index,
         split_multiallelic,
-        normalize_alleles,
+        normalization,
         keep_original_info,
         references,
         per_allele_info,
@@ -1102,7 +1166,7 @@ pub(crate) fn load_held_vcf_positions(
 struct VcfRecords<'a> {
     sample_index: Option<usize>,
     split_multiallelic: bool,
-    normalize_alleles: bool,
+    normalization: AlleleNormalization,
     keep_original_info: bool,
     references: Option<&'a crate::io::ReferenceMap>,
     per_allele_info: HashMap<String, char>,
@@ -1112,6 +1176,7 @@ struct VcfRecords<'a> {
     not_carried: usize,
     overlapped: usize,
     spelled_out: usize,
+    left_aligned: usize,
     record_idx: usize,
     header_seen: bool,
 }
@@ -1120,7 +1185,7 @@ impl<'a> VcfRecords<'a> {
     fn new(
         sample_index: Option<usize>,
         split_multiallelic: bool,
-        normalize_alleles: bool,
+        normalization: AlleleNormalization,
         keep_original_info: bool,
         references: Option<&'a crate::io::ReferenceMap>,
         per_allele_info: HashMap<String, char>,
@@ -1128,7 +1193,7 @@ impl<'a> VcfRecords<'a> {
         VcfRecords {
             sample_index,
             split_multiallelic,
-            normalize_alleles,
+            normalization,
             keep_original_info,
             references,
             per_allele_info,
@@ -1138,6 +1203,7 @@ impl<'a> VcfRecords<'a> {
             not_carried: 0,
             overlapped: 0,
             spelled_out: 0,
+            left_aligned: 0,
             record_idx: 0,
             header_seen: false,
         }
@@ -1250,11 +1316,10 @@ impl<'a> VcfRecords<'a> {
                     }
                     None => (pos, ref_allele.to_string(), alt_allele.to_string()),
                 };
-            let (normalized_pos, normalized_ref, normalized_alt) = if self.normalize_alleles {
-                normalize_ref_alt(start, &explicit_ref, &explicit_alt)
-            } else {
-                (start, explicit_ref, explicit_alt)
-            };
+            let (normalized_pos, normalized_ref, normalized_alt, moved) =
+                self.normalization
+                    .apply(start, explicit_ref, explicit_alt, sequence);
+            self.left_aligned += usize::from(moved);
             validate_vcf_allele(&normalized_ref, record_idx, chrom, normalized_pos, "REF")?;
             validate_vcf_allele(&normalized_alt, record_idx, chrom, normalized_pos, "ALT")?;
 
@@ -1303,6 +1368,7 @@ impl<'a> VcfRecords<'a> {
             not_carried,
             overlapped,
             spelled_out,
+            left_aligned,
             header_seen,
             ..
         } = self;
@@ -1324,6 +1390,7 @@ impl<'a> VcfRecords<'a> {
         }
         log_overlapped(overlapped);
         log_spelled_out(spelled_out);
+        log_left_aligned(left_aligned);
 
         Ok(positions_by_contig)
     }
@@ -1430,7 +1497,7 @@ mod tests {
             path.to_str().unwrap(),
             None,
             false,
-            false,
+            super::AlleleNormalization::AsWritten,
             false,
             None,
         )

@@ -38,6 +38,7 @@ fn base_args() -> Args {
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: None,
@@ -1758,6 +1759,7 @@ chr1\t300\t.\tG\tA\t.\tPASS\t.\tGT:DP\t1/1:25\t1/1:30
         sample: Some("all".to_string()),
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: None,
@@ -1847,6 +1849,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT:DP\t1/1:20\t0/0:15
         sample: Some("SAMPLE_B".to_string()),
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: None,
@@ -1927,6 +1930,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT\t1/1
         sample: Some("NONEXISTENT".to_string()),
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: None,
@@ -2011,6 +2015,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: None,
@@ -2182,19 +2187,32 @@ fn test_e2e_phased_indel_min_freq_out_of_range_errors() {
 
 #[test]
 fn test_fast_parser_matches_htslib() {
-    use get_mnv::io::{vcf, vcf_fast};
+    use get_mnv::io::{vcf, vcf_fast, AlleleNormalization};
 
     let ex = example_dir();
     let vcf_file = ex.join("G35894.var.snp.vcf").to_string_lossy().to_string();
 
     // Fast text parser
-    let fast_result = vcf_fast::load_vcf_text(&vcf_file, None, false, false, false, None)
-        .expect("fast parser should succeed");
+    let fast_result = vcf_fast::load_vcf_text(
+        &vcf_file,
+        None,
+        false,
+        AlleleNormalization::AsWritten,
+        false,
+        None,
+    )
+    .expect("fast parser should succeed");
 
     // htslib parser
-    let htslib_result =
-        vcf::load_vcf_positions_by_contig(&vcf_file, None, false, false, false, None)
-            .expect("htslib parser should succeed");
+    let htslib_result = vcf::load_vcf_positions_by_contig(
+        &vcf_file,
+        None,
+        false,
+        AlleleNormalization::AsWritten,
+        false,
+        None,
+    )
+    .expect("htslib parser should succeed");
 
     // Same contigs
     assert_eq!(
@@ -2272,16 +2290,29 @@ fn test_fast_parser_matches_htslib() {
 
 #[test]
 fn test_fast_parser_keep_info_matches_htslib() {
-    use get_mnv::io::{vcf, vcf_fast};
+    use get_mnv::io::{vcf, vcf_fast, AlleleNormalization};
 
     let ex = example_dir();
     let vcf_file = ex.join("G35894.var.snp.vcf").to_string_lossy().to_string();
 
-    let fast_result = vcf_fast::load_vcf_text(&vcf_file, None, false, false, true, None)
-        .expect("fast parser should succeed");
-    let htslib_result =
-        vcf::load_vcf_positions_by_contig(&vcf_file, None, false, false, true, None)
-            .expect("htslib parser should succeed");
+    let fast_result = vcf_fast::load_vcf_text(
+        &vcf_file,
+        None,
+        false,
+        AlleleNormalization::AsWritten,
+        true,
+        None,
+    )
+    .expect("fast parser should succeed");
+    let htslib_result = vcf::load_vcf_positions_by_contig(
+        &vcf_file,
+        None,
+        false,
+        AlleleNormalization::AsWritten,
+        true,
+        None,
+    )
+    .expect("htslib parser should succeed");
 
     for contig in fast_result.keys() {
         let fast_positions = &fast_result[contig];
@@ -2325,6 +2356,7 @@ fn test_invalid_translation_table_fails() {
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: Some(1),
@@ -2391,6 +2423,7 @@ fn test_translation_table_1_standard() {
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: Some(1),
@@ -2472,6 +2505,7 @@ fn test_empty_vcf_no_records() {
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: Some(1),
@@ -2558,6 +2592,7 @@ fn test_truncated_vcf_record() {
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: Some(1),
@@ -2645,6 +2680,7 @@ fn test_vcf_no_header() {
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: Some(1),
@@ -2728,6 +2764,7 @@ fn test_error_json_written_on_failure() {
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: Some(1),

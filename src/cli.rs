@@ -97,6 +97,13 @@ pub struct Args {
     #[arg(long = "normalize-alleles")]
     pub normalize_alleles: bool,
 
+    /// Left-align indels against the reference before processing, as
+    /// `bcftools norm -f` does. An indel in a homopolymer or repeat moves to its
+    /// leftmost equivalent position, where aligners place the gap, so its read
+    /// support can be counted. Includes the trimming of --normalize-alleles
+    #[arg(long = "left-align")]
+    pub left_align: bool,
+
     /// Number of threads to use (default: Rayon auto)
     #[arg(long)]
     pub threads: Option<usize>,
@@ -307,6 +314,18 @@ impl Args {
         }
     }
 
+    /// What the input readers do to each record's alleles: --left-align trims
+    /// as well as moving indels, so it includes --normalize-alleles.
+    pub fn allele_normalization(&self) -> crate::io::AlleleNormalization {
+        if self.left_align {
+            crate::io::AlleleNormalization::LeftAlign
+        } else if self.normalize_alleles {
+            crate::io::AlleleNormalization::Trim
+        } else {
+            crate::io::AlleleNormalization::AsWritten
+        }
+    }
+
     /// Resolved gene annotation file path (from --genes or --gff).
     pub fn genes_file(&self) -> &str {
         self.gff_file
@@ -397,6 +416,40 @@ mod tests {
         with_flag.push("--split-multiallelic");
         let args = Args::try_parse_from(with_flag).unwrap();
         assert!(args.split_multiallelic);
+    }
+
+    #[test]
+    fn test_left_align_is_off_by_default_and_includes_trimming() {
+        let base = [
+            "get_mnv", "--vcf", "in.vcf", "--fasta", "ref.fa", "--genes", "g.txt",
+        ];
+        let args = Args::try_parse_from(base).unwrap();
+        assert!(!args.left_align);
+        assert_eq!(
+            args.allele_normalization(),
+            crate::io::AlleleNormalization::AsWritten
+        );
+
+        for extra in [
+            vec!["--left-align"],
+            vec!["--left-align", "--normalize-alleles"],
+        ] {
+            let mut with_flag = base.to_vec();
+            with_flag.extend(extra);
+            let args = Args::try_parse_from(with_flag).unwrap();
+            assert_eq!(
+                args.allele_normalization(),
+                crate::io::AlleleNormalization::LeftAlign
+            );
+        }
+
+        let mut trim_only = base.to_vec();
+        trim_only.push("--normalize-alleles");
+        let args = Args::try_parse_from(trim_only).unwrap();
+        assert_eq!(
+            args.allele_normalization(),
+            crate::io::AlleleNormalization::Trim
+        );
     }
 
     #[test]
