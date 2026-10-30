@@ -10,7 +10,11 @@ use commands::{
 };
 
 fn main() {
-    env_logger::init();
+    // Installed through get_mnv so a cohort can hold each sample's lines back
+    // and log its samples in order while it runs them side by side.
+    let logger = env_logger::Builder::from_default_env().build();
+    let max_level = logger.filter();
+    get_mnv::logging::install(logger, max_level).expect("the logger is installed once");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())

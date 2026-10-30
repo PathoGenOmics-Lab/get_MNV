@@ -79,6 +79,7 @@ pub(crate) fn load_genes_from_gff(
     let mut genes_without_snps = 0usize;
     let mut genes_other_contigs = 0usize;
     let mut other_contigs: HashSet<String> = HashSet::new();
+    let variants = crate::io::VariantIndex::new(snp_list);
 
     for rec in records {
         if let Some(chrom) = expected_chrom {
@@ -91,7 +92,7 @@ pub(crate) fn load_genes_from_gff(
 
         parsed_entries += 1;
 
-        if gene_has_variant(&rec.gene, snp_list) {
+        if gene_has_variant(&rec.gene, &variants) {
             genes_with_snps += 1;
             genes.push(rec.gene);
         } else {

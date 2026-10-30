@@ -10,6 +10,7 @@ use crate::io::VcfPosition;
 use crate::variants::Gene;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::sync::Arc;
 
 use super::gff_parse::{parse_gff_phase, parse_interval, parse_strand};
 use super::has_snp_in_interval;
@@ -70,14 +71,42 @@ pub(super) fn load_genes_from_tsv(
     snp_list: Option<&[VcfPosition]>,
     expected_chrom: Option<&str>,
 ) -> AppResult<Vec<Gene>> {
+    load_tsv_genes_with(
+        genes_file,
+        || read_tsv_gene_rows(genes_file).map(Arc::new),
+        snp_list,
+        expected_chrom,
+    )
+}
+
+/// [`load_genes_from_tsv`] with the reading of the table left to `read`, so a
+/// cohort can read it once for all of its samples and every sample still logs
+/// what loading it logs.
+pub(crate) fn load_tsv_genes_with(
+    genes_file: &str,
+    read: impl FnOnce() -> AppResult<Arc<Vec<TsvGeneRow>>>,
+    snp_list: Option<&[VcfPosition]>,
+    expected_chrom: Option<&str>,
+) -> AppResult<Vec<Gene>> {
     log::info!("Loading TSV gene file: {genes_file}");
+    let rows = read()?;
+    Ok(select_tsv_genes(&rows, snp_list, expected_chrom))
+}
+
+/// One row of the TSV gene table, read and checked.
+#[derive(Debug, Clone)]
+pub(crate) struct TsvGeneRow {
+    gene: Gene,
+    /// The contig the seventh column names, if it names one.
+    contig: Option<String>,
+}
+
+/// Every row of the TSV gene table, read and checked, whatever its contig. The
+/// first row that fails a check fails the whole table, as it fails the run.
+pub(crate) fn read_tsv_gene_rows(genes_file: &str) -> AppResult<Vec<TsvGeneRow>> {
     let file = File::open(genes_file)?;
     let reader = BufReader::new(file);
-    let mut genes: Vec<Gene> = Vec::new();
-    let mut parsed_entries = 0usize;
-    let mut genes_with_snps = 0usize;
-    let mut genes_without_snps = 0usize;
-    let mut on_other_contigs = 0usize;
+    let mut rows = Vec::new();
 
     for (line_idx, line) in reader.lines().enumerate() {
         let line_number = line_idx + 1;
@@ -88,7 +117,6 @@ pub(super) fn load_genes_from_tsv(
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
-        parsed_entries += 1;
 
         let fields: Vec<&str> = trimmed.split('\t').collect();
         if fields.len() < 4 {
@@ -119,16 +147,8 @@ pub(super) fn load_genes_from_tsv(
             crate::variants::Biotype::default()
         };
 
-        if let (Some(contig), Some(expected)) = (row_contig(&fields), expected_chrom) {
-            if contig != expected {
-                on_other_contigs += 1;
-                continue;
-            }
-        }
-
-        if snp_list.is_none_or(|snps| has_snp_in_interval(snps, start, end)) {
-            genes_with_snps += 1;
-            genes.push(crate::variants::Gene {
+        rows.push(TsvGeneRow {
+            gene: crate::variants::Gene {
                 name: fields[0].to_string(),
                 start,
                 end,
@@ -138,15 +158,51 @@ pub(super) fn load_genes_from_tsv(
                 transcript_id: None,
                 cds_segments: Vec::new(),
                 biotype,
-            });
+            },
+            contig: row_contig(&fields).map(str::to_string),
+        });
+    }
+
+    Ok(rows)
+}
+
+/// The genes of rows already read that lie on `expected_chrom`, keeping only
+/// those with a variant from `snp_list` inside, or every one when `snp_list` is
+/// `None`, and the line that says how many went where.
+fn select_tsv_genes(
+    rows: &[TsvGeneRow],
+    snp_list: Option<&[VcfPosition]>,
+    expected_chrom: Option<&str>,
+) -> Vec<Gene> {
+    let variants = snp_list.map(crate::io::VariantIndex::new);
+    let mut genes: Vec<Gene> = Vec::new();
+    let mut genes_with_snps = 0usize;
+    let mut genes_without_snps = 0usize;
+    let mut on_other_contigs = 0usize;
+
+    for row in rows {
+        if let (Some(contig), Some(expected)) = (row.contig.as_deref(), expected_chrom) {
+            if contig != expected {
+                on_other_contigs += 1;
+                continue;
+            }
+        }
+
+        if variants
+            .as_ref()
+            .is_none_or(|variants| has_snp_in_interval(variants, row.gene.start, row.gene.end))
+        {
+            genes_with_snps += 1;
+            genes.push(row.gene.clone());
         } else {
             genes_without_snps += 1;
         }
     }
 
     log::info!(
-        "TSV gene entries parsed: {parsed_entries} | mapped to SNPs: {genes_with_snps} | without SNPs: {genes_without_snps} | on other contigs: {on_other_contigs}"
+        "TSV gene entries parsed: {} | mapped to SNPs: {genes_with_snps} | without SNPs: {genes_without_snps} | on other contigs: {on_other_contigs}",
+        rows.len()
     );
 
-    Ok(genes)
+    genes
 }
