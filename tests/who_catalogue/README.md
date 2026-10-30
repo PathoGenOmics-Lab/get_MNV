@@ -52,14 +52,15 @@ python3 tests/who_catalogue/run.py --who-dir path/to/folder
 
 The suite then rebuilds the shipped table and requires it byte for byte, and
 annotates every genomic variant WHO links to groups 1 and 2: 26,231 of them.
-26,190 come out flagged with their own entry, 198 through the codon reading
-only, and 9 more with the gene's `LoF` entry for the same drug. It fails if
-more than these 32 are flagged for none of their drugs:
+26,225 come out flagged with their own entry, 198 through the codon reading
+only, and 2 more with the gene's `LoF` entry for the same drug. Deletions that
+take a start codon away, often with the bases before it, are among the first:
+get_MNV reports them as start losses (`Met1?`), and WHO as losses of function.
+One of the 2 is a deletion WHO writes over the last base of gid's start codon,
+gid `4407695`; it leaves ATG first, so get_MNV reads the frameshift from
+`Ser2`, where HGVS's 3' rule puts it. It fails if more than these 4 are
+flagged for none of their drugs:
 
-- 28 deletions that take a start codon away along with a whole number of
-  codons (in ddn, fbiA, fbiC, fgd1, Rv2983, pepQ, gid, katG, pncA and ethA).
-  WHO counts them as losses of function; get_MNV reports them as in-frame
-  deletions, and `LoF` does not cover those.
 - 2 insertions just before a start codon, tlyA `1917939 C>CAACG` and Rv2983
   `3339117 C>CG`, which WHO counts as losses of function and get_MNV as
   intergenic: the start codon itself is untouched.
