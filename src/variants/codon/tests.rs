@@ -361,6 +361,138 @@ fn an_initiation_codon_inside_the_protein_is_its_ordinary_residue() {
     assert_eq!(variants[0].aa_changes, vec!["Val2Ala".to_string()]);
 }
 
+/// A deletion that takes the start codon away loses the protein's start, even
+/// when the codon it brings up first is an initiation codon too.
+///
+/// The alternate was read from its first codon as from an initiator, so a GTG
+/// or CTG brought up from inside the gene was Met again and the deletion an
+/// in-frame one: on the MTBC ancestor, fgd1 losing its start and the bases
+/// before it came out as `Ala2_Val136del`, a deletion the WHO catalogue counts
+/// as a loss of function. A deletion that leaves the same codon first, and the
+/// bases before it alone, still keeps the start.
+#[test]
+fn a_deletion_of_the_start_codon_loses_the_start_whatever_comes_up_first() {
+    // TTTTTT | GTG GCA GTG CTG TTT TAA | CCCCCC: Met-Ala-Val-Leu-Phe, CDS 7-24.
+    let plus = "TTTTTTGTGGCAGTGCTGTTTTAACCCCCC";
+    let deletion = |sequence: &str, first: usize, last: usize| crate::io::VcfPosition {
+        record_start: first - 1,
+        ref_allele: sequence[first - 2..last].to_string(),
+        alt_allele: sequence[first - 2..first - 1].to_string(),
+        original_dp: None,
+        original_freq: None,
+        original_info: None,
+        declared_phase: None,
+    };
+    // The deleted bases on the plus strand, and what the deletion does.
+    let cases = [
+        // Two bases before the start and codons 1-2: the GTG of codon 3 comes
+        // up first, the same codon as the start, with nothing before it as it was.
+        ((5, 12), ChangeType::StartLost, "Met1?"),
+        // Codons 1-3: CTG, an initiation codon in table 11, comes up first.
+        ((7, 15), ChangeType::StartLost, "Met1?"),
+        // Codons 1-2 leave GTG first and the bases before it alone, which is
+        // deleting codons 2-3.
+        ((7, 12), ChangeType::InFrameIndel, "Ala2_Val3del"),
+        // Codon 2 alone.
+        ((10, 12), ChangeType::InFrameIndel, "Ala2del"),
+    ];
+    for strand in [Strand::Plus, Strand::Minus] {
+        let sequence = match strand {
+            Strand::Plus => plus.to_string(),
+            Strand::Minus => reverse_complement(plus),
+        };
+        let reference = crate::io::Reference {
+            sequence: &sequence,
+        };
+        let genomic = single_exon_gene("cds", 7, 24, strand);
+        let transcript = transcript_gene("tx_cds", strand, &[(7, 24)]);
+        for gene in [&genomic, &transcript] {
+            for ((first, last), change_type, aa_change) in cases {
+                let (first, last) = match strand {
+                    Strand::Plus => (first, last),
+                    Strand::Minus => (plus.len() + 1 - last, plus.len() + 1 - first),
+                };
+                let variants = crate::variants::get_mnv_variants_for_gene(
+                    gene,
+                    &[deletion(&sequence, first, last)],
+                    &reference,
+                    "chr1",
+                    crate::genetic_code::GeneticCode::default(),
+                );
+                let context = format!("{} {strand:?}, deletion of {first}-{last}", gene.name);
+                assert_eq!(variants.len(), 1, "{context}");
+                assert_eq!(variants[0].change_type, change_type, "{context}");
+                assert_eq!(
+                    variants[0].aa_changes,
+                    vec![aa_change.to_string()],
+                    "{context}"
+                );
+            }
+        }
+    }
+}
+
+/// The same holds inside the start codon. Deleting the G of an ATG followed by
+/// A leaves ATA first, and inserting TTA after its A leaves ATT first: table 11
+/// can start on either, but neither is the gene's start. An insertion after the
+/// start codon leaves it whole.
+#[test]
+fn an_indel_inside_the_start_codon_loses_the_start() {
+    // CC | ATG ATT TTC TAA | CC: Met-Ile-Phe, CDS 3-14.
+    let reference = crate::io::Reference {
+        sequence: "CCATGATTTTCTAACC",
+    };
+    let gene = single_exon_gene("cds", 3, 14, Strand::Plus);
+    let indel = |position: usize, ref_allele: &str, alt_allele: &str| crate::io::VcfPosition {
+        record_start: position,
+        ref_allele: ref_allele.to_string(),
+        alt_allele: alt_allele.to_string(),
+        original_dp: None,
+        original_freq: None,
+        original_info: None,
+        declared_phase: None,
+    };
+    let cases = [
+        (
+            indel(4, "TG", "T"),
+            ChangeType::FrameshiftIndel,
+            "Met1?",
+            true,
+        ),
+        (indel(3, "A", "ATTA"), ChangeType::StartLost, "Met1?", true),
+        (
+            indel(5, "G", "GTTA"),
+            ChangeType::InFrameIndel,
+            "Met1_Ile2insLeu",
+            false,
+        ),
+    ];
+    for (variant, change_type, aa_change, initiator_lost) in cases {
+        let context = format!(
+            "{} {}>{}",
+            variant.record_start, variant.ref_allele, variant.alt_allele
+        );
+        let variants = crate::variants::get_mnv_variants_for_gene(
+            &gene,
+            &[variant],
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+        assert_eq!(variants.len(), 1, "{context}");
+        assert_eq!(variants[0].change_type, change_type, "{context}");
+        assert_eq!(
+            variants[0].aa_changes,
+            vec![aa_change.to_string()],
+            "{context}"
+        );
+        assert_eq!(
+            variants[0].annotations.initiator_lost, initiator_lost,
+            "{context}"
+        );
+    }
+}
+
 #[test]
 fn test_transcript_model_restored_frame_does_not_mark_downstream_snp_frameshift() {
     let gene = spliced_gene("tx_cds", Strand::Plus, &[(1, 6), (20, 25)]);
@@ -818,8 +950,10 @@ fn test_deletion_anchored_before_cds_keeps_protein_effect() {
     assert_eq!(variants[0].event_class.as_deref(), Some("deletion"));
     assert_eq!(variants[0].event_components, vec!["DEL:2:A".to_string()]);
     assert_eq!(variants[0].change_type, ChangeType::FrameshiftIndel);
-    assert_ne!(variants[0].aa_changes, vec!["Unknown".to_string()]);
-    assert!(variants[0].aa_changes[0].contains("fs"));
+    // The deleted A is the start codon's own, so the frameshift loses the start
+    // as well, and that is the protein change named.
+    assert_eq!(variants[0].aa_changes, vec!["Met1?".to_string()]);
+    assert!(variants[0].annotations.initiator_lost);
 }
 
 #[test]

@@ -87,6 +87,9 @@ disagreements, all on the minus-strand genes. Against the build before the
 start-codon fix it reports 11 more, all indels that remove the initiator.
 Against the build before the stop-codon duplication fix it reports 14, all
 insertions copying a stop codon that it called a stop gained.
+Against the build that still read the codon an indel leaves first as an
+initiator it reports 7: three-base indels that split an ATG and leave ATA or
+ATC first, which table 11 can start on but which are not the gene's start.
 
 Failures are grouped by category and sampled from each group rather than
 printed in order, because one noisy category otherwise buries another: the run

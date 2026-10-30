@@ -35,11 +35,70 @@ haplotipos y la distancia de fusión de MNP. Por ahora, get_MNV no realiza este
 descubrimiento de haplotipos de novo ni el modelado de verosimilitud de
 genotipos.
 
+## Alineamiento a la izquierda
+
+Una inserción o una deleción dentro de un homopolímero o de una repetición en
+tándem puede escribirse en varias posiciones que describen el mismo cambio:
+borrar un `GCT` de `GCTGCTGCT` quita la primera copia, la segunda o la tercera.
+Los alineadores ponen el hueco en la de más a la izquierda, y get_MNV cuenta el
+soporte de un indel a partir de las lecturas cuyo CIGAR lleva ese hueco exacto,
+así que un alelo escrito más a la derecha no encuentra ninguna lectura que lo
+respalde. Un VCF escrito a partir de una descripción HGVS desplazada hacia 3', o
+por un llamador que coloca los indels a su manera, hace justo eso.
+
+`--left-align` lleva cada indel a su posición equivalente más a la izquierda
+sobre la referencia de `--fasta` antes de que nada más lo lea, que es la
+normalización que hace `bcftools norm -f ref.fa`:
+
+- Una inserción o una deleción se desplaza a la izquierda mientras el resultado
+  describa el mismo cambio, y se escribe con la base anterior como ancla. Si
+  llega a la primera base del contig, donde no hay base anterior, se ancla en la
+  base siguiente, como pide la especificación VCF.
+- Se recortan las bases que REF y ALT comparten en cualquiera de los dos
+  extremos, como las recorta `--normalize-alleles`, así que `--left-align`
+  incluye ese flag.
+- Las sustituciones (SNV y MNV) y los registros complejos (una deleción y una
+  inserción en un mismo registro, o un indel y una sustitución) se recortan pero
+  nunca se mueven: una vez recortados, sus dos alelos acaban en bases distintas,
+  así que ninguna otra posición los describe. Un registro complejo no se parte
+  en registros más simples, que es lo que hace `bcftools norm -a`.
+- Se quedan como están escritos: los alelos simbólicos que get_MNV no escribe de
+  forma explícita (`<INV>`, `<INS>`, eventos de más de 10.000 bases), los
+  breakends, `*`, los alelos con un código de ambigüedad como `R`, que bcftools
+  también rechaza, y un REF que no coincide con la referencia, que detiene la
+  ejecución igual que detiene a bcftools.
+- Un `<DEL>` o un `<DUP>` que get_MNV escribe a partir de la referencia es un
+  indel explícito desde ese momento y se alinea a la izquierda como cualquier
+  otro. bcftools deja los registros simbólicos donde están.
+- La entrada TSV de iVar también se alinea a la izquierda. iVar lee sus indels
+  del alineamiento, así que normalmente ya están donde los tienen las lecturas.
+
+El cambio de proteína y las descripciones HGVS no dependen de dónde se escribió
+el registro, porque HGVS coloca un indel en su posición más 3' diga lo que diga
+la entrada. Lo que se mueve es `Positions`, `Reference Bases`, `Base Changes`,
+`Event Components`, el registro del VCF de salida y, con ellos, el soporte de
+lecturas. El alineamiento a la izquierda ayuda a ese soporte solo cuando el
+alineador colocó los huecos a la izquierda, que es lo que hace la mayoría;
+cuando las lecturas ponen un hueco en otro sitio, lo dice la advertencia sobre
+lecturas que cubren el sitio sin soporte exacto.
+
+Está desactivado por defecto, en la línea de comandos y en la app de escritorio.
+La única diferencia deliberada con bcftools es un código de ambigüedad en la
+referencia: bcftools lee `R` como `A`, mueve un indel a través de ella y escribe
+esa `A` en REF, que entonces no coincide con el FASTA, mientras que get_MNV
+detiene el indel en la `R`. La suite `tests/leftalign` pasa las dos herramientas
+por miles de indels y registros complejos colocados al azar en las repeticiones
+del genoma incluido, escritos de varias maneras, y exige el mismo registro de
+las dos.
+
 ## Qué aporta get_MNV
 
 - Agrupación de SNVs por codón en filas SNP, MNV y mixtas `SNP/MNV`.
 - Normalización de inserciones/deleciones de iVar en alelos anclados compatibles
   con VCF.
+- Alineamiento a la izquierda de indels sobre la referencia con `--left-align`,
+  como hace `bcftools norm -f` (mira
+  [Alineamiento a la izquierda](#alineamiento-a-la-izquierda)).
 - Efectos proteicos de indels y alelos complejos a partir del feature
   seleccionado, la hebra, la fase del GFF y el offset proteico del transcrito.
 - Soporte derivado del BAM para observaciones individuales de SNP/MNV y para
@@ -98,11 +157,11 @@ utilizable mantienen el comportamiento anterior por característica.
 
 ## Limitaciones actuales
 
-- El alineamiento a la izquierda de indels y la normalización completa no se
-  realizan de forma automática salvo que `--normalize-alleles` logre recortar un
-  prefijo o sufijo compartido. Para comparaciones entre llamadores, normaliza
-  primero las entradas con una herramienta que tenga en cuenta el FASTA, como
-  `bcftools norm -f ref.fa`.
+- Los indels solo se alinean a la izquierda cuando lo pide `--left-align`; sin
+  él, un indel se empareja con las lecturas donde lo escribió la entrada. Los
+  registros complejos se recortan, no se parten en registros más simples, y no
+  se unen registros de líneas distintas; `bcftools norm` hace las dos cosas
+  cuando una comparación las necesita.
 - Los genotipos, la ploidía, los conjuntos de fase y las verosimilitudes de
   genotipo no se vuelven a estimar. En datos eucariotas diploides/poliploides,
   interpreta con cautela los MNV heterocigotos sin fase a nivel de exón salvo que
@@ -125,6 +184,11 @@ ellos ya no adoptan por defecto el comportamiento original de la herramienta,
 porque ese comportamiento acertaba menos veces de las que fallaba: el cambio de
 marco solo se propaga desde un indel aguas arriba mayoritario, y la profundidad
 del locus del indel se cuenta desde la base ancla.
+
+- `--left-align` (desactivado por defecto): lleva cada indel a su posición
+  equivalente más a la izquierda sobre la referencia antes de anotarlo, como
+  hace `bcftools norm -f`, para que coincida con el hueco que reporta el
+  alineador. Mira [Alineamiento a la izquierda](#alineamiento-a-la-izquierda).
 
 - `--frameshift-min-freq <0.0-1.0>` (por defecto `0.5`): frecuencia alélica
   mínima que un indel *aguas arriba* debe alcanzar para desplazar el marco de
@@ -184,9 +248,11 @@ del locus del indel se cuenta desde la base ancla.
 Cuando un indel con cobertura de lecturas no produce ningún soporte de
 CIGAR exacto, get_MNV emite una advertencia: por lo general, esto significa que
 el indel de entrada no está alineado a la izquierda del mismo modo que el BAM
-(algo habitual en homopolímeros y repeticiones en tándem). Normaliza antes la
-entrada con una herramienta que tenga en cuenta el FASTA (`bcftools norm -f
-ref.fa`) para que el alelo coincida con el alineamiento de las lecturas.
+(algo habitual en homopolímeros y repeticiones en tándem). Vuelve a ejecutar con
+`--left-align`, o normaliza antes la entrada con `bcftools norm -f ref.fa`, para
+que el alelo coincida con el alineamiento de las lecturas. Si la advertencia
+sigue con `--left-align`, las lecturas ponen el hueco en otro sitio o no llevan
+el indel.
 
 ## Referencias
 

@@ -223,7 +223,7 @@ El cuarto por sí solo no cambia nada.
 
 | Aviso | Qué significa | Qué hacer |
 |---|---|---|
-| `has N spanning read(s) but 0 with exact CIGAR support` | Hay lecturas que cubren el sitio pero ninguna lleva ese indel exacto, que es lo que pasa cuando el alelo está escrito en otra posición dentro de un homopolímero o una repetición. | Alinea a la izquierda la entrada primero, por ejemplo con `bcftools norm -f ref.fa`. |
+| `has N spanning read(s) but 0 with exact CIGAR support` | Hay lecturas que cubren el sitio pero ninguna lleva ese indel exacto, que es lo que pasa cuando el alelo está escrito en otra posición dentro de un homopolímero o una repetición. | Vuelve a ejecutar con `--left-align`, o alinea antes la entrada a la izquierda con `bcftools norm -f ref.fa`. Si la advertencia dice que el alelo ya está alineado a la izquierda, las lecturas ponen el hueco en otro sitio o no llevan el indel: mira el alineamiento. |
 | `was declared X by the input VCF, but N of M reads spanning the site carry the whole haplotype` | El llamador y las lecturas discrepan sobre si esos cambios viajan juntos. | Mira el alineamiento antes de fiarte de ninguno de los dos. |
 | `shows N distinct combinations on the reads; reporting the K best supported` | Una ventana con más haplotipos locales de los que get_MNV reporta. Los descartados son la cola con poco soporte. Consulta [Indels y haplotipos locales](indel-haplotypes.es.md). | Nada, salvo que te importe un haplotipo raro; `--chrom` toma nombres de contig enteros, no regiones, así que inspecciona la ventana en el alineamiento. |
 

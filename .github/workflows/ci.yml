@@ -281,6 +281,22 @@ jobs:
         # Fails on any count that differs and is not explained in the suite.
         run: python3 tests/pileup/run.py
 
+  left-align:
+    name: Indel left-alignment vs bcftools norm
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install bcftools
+        run: sudo apt-get update && sudo apt-get install -y bcftools
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --release --locked
+      - name: Compare --left-align against bcftools norm -f
+        # Fails on any record whose POS, REF or ALT differs from bcftools'.
+        run: python3 tests/leftalign/run.py
+
   differential:
     name: Differential annotation vs bcftools csq and SnpEff
     runs-on: ubuntu-latest

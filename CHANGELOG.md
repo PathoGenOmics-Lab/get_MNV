@@ -17,7 +17,7 @@ All notable changes to this project are documented in this file.
   gives it, placed from WHO's genomic coordinates on the run's FASTA.
   The four whole-gene deletions, which no VCF of changes inside genes
   describes, are listed as not converted. Of the 26,231 genomic variants WHO
-  links to those groups, 26,199 come out flagged for their drug, among them
+  links to those groups, 26,227 come out flagged for their drug, among them
   the 22 rpoB variants that need two changes in one codon, which only the
   codon reading finds. `tests/who_catalogue/run.py` checks the converter on
   real rows of the catalogue in CI.
@@ -25,6 +25,27 @@ All notable changes to this project are documented in this file.
   is numbered from its first base, as the WHO catalogue writes rrs and rrl
   changes (`n.1401A>G`). Such an entry was read as a protein change and
   matched nothing.
+- **`--left-align` left-aligns indels against the reference, as
+  `bcftools norm -f` does.** An insertion or deletion in a homopolymer or a
+  tandem repeat can be written at several positions that describe the same
+  change, and an indel's read support is counted from reads whose CIGAR carries
+  that exact gap. One written further right than the aligner put it, as a
+  3'-shifted HGVS description turned back into VCF is, found no supporting
+  reads, under a warning that sent the user to normalize the input with
+  bcftools first. The flag now takes that step: each indel moves to its leftmost
+  equivalent position, anchored on the base before it, or on the base after it
+  at the start of a contig. Shared REF/ALT context is trimmed, so the flag
+  includes `--normalize-alleles`; substitutions and complex records are trimmed
+  but never moved; symbolic alleles, ambiguity codes and a REF that disagrees
+  with the reference are left as written. It applies to VCF and iVar TSV input,
+  is off by default, and has a toggle in the desktop app, whose "Normalize
+  alleles" tooltip claimed to left-align and now says it only trims.
+
+  `tests/leftalign` checks it against `bcftools norm -f` on 3,554 indels and
+  complex records placed at random in the repeats of the example genome and
+  spelled several ways, through both VCF readers, and finds no disagreement;
+  2,668 of them move, by up to 218 bases. The zero-support warning now points
+  at the flag, or, when it is already on, at the alignment.
 
 ### Changed
 
@@ -84,6 +105,17 @@ All notable changes to this project are documented in this file.
   pyrazinamide could not be flagged, although the documentation's own example
   was such an entry. It is now compared with every row of the contig the gene
   is on.
+- **A deletion that takes a start codon away is a start loss.** The alternate
+  protein was read from the codon the deletion brought up first as if that
+  were the initiator, and table 11 starts on GTG, TTG, CTG, ATT, ATC and ATA as
+  well as ATG: fgd1 losing its GTG start, the 32 bases before it and 134 more
+  codons came out as the in-frame `Ala2_Val136del`. An indel that deletes a
+  base of the start codon, or inserts bases inside it, is now `start_lost` and
+  `Met1?` (`frameshift_variant&start_lost` when the frame shifts), unless it
+  leaves the same three bases first and the base before them in place, which
+  is the same as an indel behind the start. Of the genomic variants WHO links
+  to groups 1 and 2, 35 more match their own `LoF` or `p.Met1?` entry, 28 of
+  which were flagged for none of their drugs.
 
 ## [1.1.6] - 2026-10-29
 

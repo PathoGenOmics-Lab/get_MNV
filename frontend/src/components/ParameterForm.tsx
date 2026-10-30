@@ -209,6 +209,7 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
       config.phasedIndelMinReads === merged.phasedIndelMinReads &&
       config.phasedIndelMinFreq === merged.phasedIndelMinFreq &&
       config.normalizeAlleles === merged.normalizeAlleles &&
+      config.leftAlign === merged.leftAlign &&
       config.splitMultiallelic === merged.splitMultiallelic &&
       config.strict === merged.strict &&
       config.emitFiltered === merged.emitFiltered &&
@@ -517,9 +518,15 @@ export default function ParameterForm({ config, onChange, isGff, availableFeatur
         <ParamGroup title="Analysis Options" accent="#149389">
           <ToggleField
             label="Normalize alleles"
-            tip="Left-align and trim VCF alleles before analysis. iVar TSV alleles are converted to VCF-like REF/ALT internally."
+            tip="Trim the bases REF and ALT share at either end of a VCF record, wherever that leaves the change in place. It never moves an indel: Left-align indels does. iVar TSV alleles are already minimal."
             checked={config.normalizeAlleles}
             onChange={(v) => update("normalizeAlleles", v)}
+          />
+          <ToggleField
+            label="Left-align indels"
+            tip="Move each insertion or deletion in a homopolymer or repeat to its leftmost equivalent position against the reference, as bcftools norm -f does, so it matches the gap an aligner reports and its reads can be counted. Also trims shared REF/ALT context. Applies to VCF and iVar TSV input; off by default, as in the CLI."
+            checked={config.leftAlign}
+            onChange={(v) => update("leftAlign", v)}
           />
           <ToggleField
             label="Split multiallelic"

@@ -336,14 +336,12 @@ con `codon reading only`.
 
 La OMS también da, para cada variante clasificada, los cambios genómicos que la
 producen: 26.231 en los grupos 1 y 2. Cada uno se anotó sobre el ancestro del
-MTBC del ejemplo con la tabla incluida. 26.190 salen marcados con su propia
-entrada, 198 de ellos solo por la lectura del codón, y 9 más con otra entrada
-para el mismo fármaco, el `LoF` del gen. Los 32 restantes son 28 deleciones que
-se llevan un codón de inicio junto con un número entero de codones, que la OMS
-cuenta como pérdidas de función y get_MNV da como deleciones en fase; 2
-inserciones justo antes de un codón de inicio, que la OMS cuenta como pérdidas
-de función y get_MNV como intergénicas; y 2 cambios cuya consecuencia sobre el
-ancestro no es la que tienen sobre H37Rv. Con la carpeta que guarda los dos
+MTBC del ejemplo con la tabla incluida. 26.225 salen marcados con su propia
+entrada, 198 de ellos solo por la lectura del codón, y 2 más con otra entrada
+para el mismo fármaco, el `LoF` del gen. Los 4 restantes son 2 inserciones
+justo antes de un codón de inicio, que la OMS cuenta como pérdidas de función y
+get_MNV como intergénicas, y 2 cambios cuya consecuencia sobre el ancestro no
+es la que tienen sobre H37Rv. Con la carpeta que guarda los dos
 archivos de la OMS, `tests/who_catalogue/run.py` repite la comprobación.
 
 Con tus propios datos:

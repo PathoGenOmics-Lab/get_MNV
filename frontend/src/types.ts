@@ -26,6 +26,9 @@ export interface AnalysisConfig {
   phasedIndelMinReads: number;
   phasedIndelMinFreq: number;
   normalizeAlleles: boolean;
+  /** Left-align indels against the reference, as `--left-align` does. Off by
+   *  default, as in the CLI; includes the trimming of `normalizeAlleles`. */
+  leftAlign: boolean;
   splitMultiallelic: boolean;
   strict: boolean;
   emitFiltered: boolean;
@@ -208,6 +211,7 @@ export const DEFAULT_CONFIG: AnalysisConfig = {
   phasedIndelMinReads: 2,
   phasedIndelMinFreq: 0,
   normalizeAlleles: true,
+  leftAlign: false,
   splitMultiallelic: true,
   strict: false,
   emitFiltered: false,

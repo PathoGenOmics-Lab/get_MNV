@@ -65,7 +65,8 @@ pub fn substitution_change_type(
 /// lose. A Met left at position 1 still initiates translation.
 fn indel_start_effect(reference_protein: &str, alternate_protein: &str) -> Option<ChangeType> {
     let reference = reference_protein.chars().next()?;
-    // An alternate that translates to nothing has lost its initiator too.
+    // An alternate that translates to nothing has lost its initiator too. The
+    // indel path hands over an empty one when the indel deleted the start codon.
     let alternate = alternate_protein.chars().next().unwrap_or('-');
     initiator_lost(reference, alternate).then_some(ChangeType::StartLost)
 }

@@ -38,6 +38,7 @@ fn base_args() -> Args {
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: None,
@@ -1758,6 +1759,7 @@ chr1\t300\t.\tG\tA\t.\tPASS\t.\tGT:DP\t1/1:25\t1/1:30
         sample: Some("all".to_string()),
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: None,
@@ -1847,6 +1849,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT:DP\t1/1:20\t0/0:15
         sample: Some("SAMPLE_B".to_string()),
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: None,
@@ -1927,6 +1930,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT\t1/1
         sample: Some("NONEXISTENT".to_string()),
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: None,
@@ -2011,6 +2015,7 @@ chr1\t100\t.\tA\tT\t.\tPASS\t.
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: None,
@@ -2182,19 +2187,32 @@ fn test_e2e_phased_indel_min_freq_out_of_range_errors() {
 
 #[test]
 fn test_fast_parser_matches_htslib() {
-    use get_mnv::io::{vcf, vcf_fast};
+    use get_mnv::io::{vcf, vcf_fast, AlleleNormalization};
 
     let ex = example_dir();
     let vcf_file = ex.join("G35894.var.snp.vcf").to_string_lossy().to_string();
 
     // Fast text parser
-    let fast_result = vcf_fast::load_vcf_text(&vcf_file, None, false, false, false, None)
-        .expect("fast parser should succeed");
+    let fast_result = vcf_fast::load_vcf_text(
+        &vcf_file,
+        None,
+        false,
+        AlleleNormalization::AsWritten,
+        false,
+        None,
+    )
+    .expect("fast parser should succeed");
 
     // htslib parser
-    let htslib_result =
-        vcf::load_vcf_positions_by_contig(&vcf_file, None, false, false, false, None)
-            .expect("htslib parser should succeed");
+    let htslib_result = vcf::load_vcf_positions_by_contig(
+        &vcf_file,
+        None,
+        false,
+        AlleleNormalization::AsWritten,
+        false,
+        None,
+    )
+    .expect("htslib parser should succeed");
 
     // Same contigs
     assert_eq!(
@@ -2272,16 +2290,29 @@ fn test_fast_parser_matches_htslib() {
 
 #[test]
 fn test_fast_parser_keep_info_matches_htslib() {
-    use get_mnv::io::{vcf, vcf_fast};
+    use get_mnv::io::{vcf, vcf_fast, AlleleNormalization};
 
     let ex = example_dir();
     let vcf_file = ex.join("G35894.var.snp.vcf").to_string_lossy().to_string();
 
-    let fast_result = vcf_fast::load_vcf_text(&vcf_file, None, false, false, true, None)
-        .expect("fast parser should succeed");
-    let htslib_result =
-        vcf::load_vcf_positions_by_contig(&vcf_file, None, false, false, true, None)
-            .expect("htslib parser should succeed");
+    let fast_result = vcf_fast::load_vcf_text(
+        &vcf_file,
+        None,
+        false,
+        AlleleNormalization::AsWritten,
+        true,
+        None,
+    )
+    .expect("fast parser should succeed");
+    let htslib_result = vcf::load_vcf_positions_by_contig(
+        &vcf_file,
+        None,
+        false,
+        AlleleNormalization::AsWritten,
+        true,
+        None,
+    )
+    .expect("htslib parser should succeed");
 
     for contig in fast_result.keys() {
         let fast_positions = &fast_result[contig];
@@ -2325,6 +2356,7 @@ fn test_invalid_translation_table_fails() {
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: Some(1),
@@ -2391,6 +2423,7 @@ fn test_translation_table_1_standard() {
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: Some(1),
@@ -2472,6 +2505,7 @@ fn test_empty_vcf_no_records() {
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: Some(1),
@@ -2558,6 +2592,7 @@ fn test_truncated_vcf_record() {
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: Some(1),
@@ -2645,6 +2680,7 @@ fn test_vcf_no_header() {
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: Some(1),
@@ -2728,6 +2764,7 @@ fn test_error_json_written_on_failure() {
         sample: None,
         chrom: None,
         normalize_alleles: false,
+        left_align: false,
         min_quality: 20,
         min_mapq: 0,
         threads: Some(1),
@@ -4981,6 +5018,108 @@ fn test_e2e_catalogue_matches_an_upstream_deletion_and_a_non_coding_gene() {
         upstream["Catalogue"], "PZA: Assoc w R (pncA g.2289247del)",
         "the same descriptor under a gene the annotation lacks names no contig, so it matches nothing"
     );
+    fs::remove_dir_all(&tmp).ok();
+}
+
+/// A deletion that takes a start codon away is a start loss, so the WHO
+/// catalogue's `LoF` and `p.Met1?` entries match it.
+///
+/// The alternate was read from the codon the deletion brought up first as from
+/// an initiator, and in table 11 that is Met for GTG, CTG and ATG alike: fgd1
+/// losing its start came out as the in-frame `Ala2_Val136del`, and WHO's own
+/// genomic variants for these entries went unflagged. The three deletions here
+/// are among them, on the example's MTBC ancestor. A deletion behind the start
+/// codon is still an in-frame deletion, which `LoF` does not cover, even when it
+/// is written left-aligned onto the start codon's last base.
+#[test]
+fn test_e2e_deletions_of_a_start_codon_are_start_losses() {
+    let tmp = temp_dir("e2e_start_codon_deletions");
+    let fasta = fs::read_to_string(example_dir().join("MTB_ancestor.fas")).unwrap();
+    let genome: String = fasta
+        .lines()
+        .filter(|line| !line.starts_with('>'))
+        .collect();
+    // The deletion of `first..=last`, anchored on the base before it.
+    let deletion = |first: usize, last: usize| {
+        format!(
+            "MTB_anc\t{}\t.\t{}\t{}\t50\tPASS\tDP=30",
+            first - 1,
+            &genome[first - 2..last],
+            &genome[first - 2..first - 1]
+        )
+    };
+    let records = [
+        // fgd1 (490783-491793, plus, GTG start): the 32 bases before the start
+        // and codons 1-135, which brings up the GTG of codon 136.
+        deletion(490751, 491187),
+        // katG (2153889-2156111, minus, GTG start): codons 1-175 and the 27
+        // bases before them, which brings up an ATG.
+        deletion(2155587, 2156138),
+        // pepQ (2859300-2860418, minus, GTG start): codons 1-162 and nothing
+        // before them, which brings up a CTG.
+        deletion(2859933, 2860418),
+        // ddn (3986844-3987299, plus): ATG CCG AAA losing its CCG, written at
+        // GCC so that it ends on the start codon's G. ATG still comes first.
+        deletion(3986846, 3986848),
+    ];
+    fs::write(
+        tmp.join("calls.vcf"),
+        format!(
+            "##fileformat=VCFv4.2\n##contig=<ID=MTB_anc,length=4411532>\n\
+             #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n{}\n",
+            records.join("\n")
+        ),
+    )
+    .unwrap();
+    fs::write(
+        tmp.join("catalogue.tsv"),
+        "gene\tvariant\tlabel\n\
+         fgd1\tLoF\tDLM: Assoc w R - Interim\n\
+         katG\tp.Met1?\tINH: Assoc w R\n\
+         pepQ\tLoF\tBDQ: Assoc w R - Interim\n\
+         ddn\tLoF\tDLM: Assoc w R - Interim\n",
+    )
+    .unwrap();
+
+    let mut args = base_args();
+    args.vcf_file = Some(tmp.join("calls.vcf").to_string_lossy().into());
+    args.catalogue = Some(tmp.join("catalogue.tsv").to_string_lossy().into());
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("start".to_string());
+    pipeline::run(&args).expect("start codon deletions run");
+
+    let rows = read_tsv_rows(&tmp.join("start.MNV.tsv"));
+    let at_position = |positions: &str| -> &HashMap<String, String> {
+        rows.iter()
+            .find(|row| row["Positions"] == positions)
+            .unwrap_or_else(|| panic!("no row at {positions}: {rows:?}"))
+    };
+    for (position, gene, catalogue) in [
+        (
+            "490750",
+            "fgd1_Rv0407",
+            "DLM: Assoc w R - Interim (fgd1 LoF)",
+        ),
+        ("2155586", "katG_Rv1908c", "INH: Assoc w R (katG p.Met1?)"),
+        (
+            "2859932",
+            "pepQ_Rv2535c",
+            "BDQ: Assoc w R - Interim (pepQ LoF)",
+        ),
+    ] {
+        let row = at_position(position);
+        assert_eq!(row["Gene"], gene, "{position}");
+        assert_eq!(row["AA Changes"], "Met1?", "{position}");
+        assert_eq!(row["Change Type"], "Start lost", "{position}");
+        assert_eq!(row["SO Term"], "start_lost", "{position}");
+        assert_eq!(row["Impact"], "HIGH", "{position}");
+        assert_eq!(row["Catalogue"], catalogue, "{position}");
+    }
+    let behind = at_position("3986845");
+    assert_eq!(behind["Gene"], "ddn_Rv3547");
+    assert_eq!(behind["AA Changes"], "Pro2del");
+    assert_eq!(behind["SO Term"], "inframe_deletion");
+    assert_eq!(behind["Catalogue"], "-");
     fs::remove_dir_all(&tmp).ok();
 }
 

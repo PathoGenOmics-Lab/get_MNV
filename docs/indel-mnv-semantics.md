@@ -31,10 +31,64 @@ genotyping parameters such as sample ploidy, maximum haplotypes, and MNP merge
 distance. get_MNV currently does not perform this de novo haplotype discovery or
 genotype likelihood modelling.
 
+## Left-Alignment
+
+An insertion or deletion inside a homopolymer or a tandem repeat can be written
+at any of several positions that all describe the same change: deleting one
+`GCT` from `GCTGCTGCT` removes the first copy, the second or the third.
+Aligners put the gap at the leftmost of them, and get_MNV counts an indel's read
+support from reads whose CIGAR carries that exact gap, so an allele written
+further right finds no supporting reads at all. A VCF written from a 3'-shifted
+HGVS description, or by a caller that places indels its own way, does exactly
+that.
+
+`--left-align` moves each indel to its leftmost equivalent position against the
+`--fasta` reference before anything else reads it, which is the normalization
+`bcftools norm -f ref.fa` performs:
+
+- An insertion or deletion moves left for as long as the result describes the
+  same change, and is written with the base before it as its anchor. One that
+  reaches the first base of the contig, where there is no base before it, is
+  anchored on the base after it, as the VCF specification asks.
+- The bases REF and ALT share at either end are trimmed, as
+  `--normalize-alleles` trims them, so `--left-align` includes that flag.
+- Substitutions (SNVs and MNVs) and complex records (a deletion and an insertion
+  in one record, or an indel and a substitution) are trimmed but never moved:
+  once trimmed, their two alleles end in different bases, so no other position
+  describes them. A complex record is not split into simpler ones, which is
+  what `bcftools norm -a` does.
+- Left as written: symbolic alleles get_MNV does not write out (`<INV>`,
+  `<INS>`, events over 10,000 bases), breakends, `*`, alleles carrying an
+  ambiguity code such as `R`, which bcftools refuses as well, and a REF that
+  disagrees with the reference, which stops the run as it stops bcftools.
+- A `<DEL>` or `<DUP>` that get_MNV writes out from the reference is an explicit
+  indel from then on and is left-aligned like any other. bcftools leaves
+  symbolic records where they are.
+- iVar TSV input is left-aligned too. iVar reads its indels off the alignment,
+  so they are usually where the reads have them already.
+
+The protein change and the HGVS descriptions do not depend on where the record
+was written, since HGVS places an indel at its 3'-most position whatever the
+input says. What moves is `Positions`, `Reference Bases`, `Base Changes`,
+`Event Components`, the output VCF record and, with them, the read support.
+Left-alignment helps that support only where the aligner left-aligned the gaps,
+which most aligners do; when the reads place a gap somewhere else, the warning
+about spanning reads without exact support says so.
+
+It is off by default, on the command line and in the desktop app. The one
+deliberate difference from bcftools is an ambiguity code in the reference:
+bcftools reads `R` as `A`, moves an indel through it and writes that `A` into
+REF, which then disagrees with the FASTA, where get_MNV stops the indel at the
+`R`. The `tests/leftalign` suite runs both tools on thousands of indels and
+complex records placed at random in the repeats of the bundled genome, spelled
+in several ways, and requires the same record from each.
+
 ## What get_MNV Adds
 
 - Codon-aware grouping of SNVs into SNP, MNV, and mixed `SNP/MNV` rows.
 - iVar insertion/deletion normalization into VCF-compatible anchored alleles.
+- Left-alignment of indels against the reference with `--left-align`, as
+  `bcftools norm -f` does (see [Left-Alignment](#left-alignment)).
 - Indel and complex-allele protein effects using the selected feature, strand,
   GFF phase, and transcript protein offset.
 - BAM-derived support for individual SNP/MNV observations and exact indel or
@@ -90,10 +144,10 @@ usable transcript identifier keep the older per-feature behavior.
 
 ## Current Limits
 
-- Indel left-alignment and full normalization are not performed automatically
-  unless `--normalize-alleles` can trim a shared prefix or suffix. For
-  cross-caller comparisons, normalize inputs first with a FASTA-aware tool such
-  as `bcftools norm -f ref.fa`.
+- Indels are left-aligned only when `--left-align` asks for it; without it an
+  indel is matched against the reads where the input wrote it. Complex records
+  are trimmed, not split into simpler records, and records are not joined
+  across lines; `bcftools norm` does both when a comparison needs them.
 - Genotypes, ploidy, phase sets, and genotype likelihoods are not re-estimated.
   For diploid/polyploid eukaryotic data, interpret unphased heterozygous
   exon-level MNVs cautiously unless the VCF or BAM evidence confirms that the
@@ -111,6 +165,11 @@ These flags change indel-aware behaviour. Two of them no longer default to the
 tool's original behaviour, because that behaviour was wrong more often than it
 was right: the frame shift propagates only from a majority upstream indel, and
 indel locus depth is counted from the anchor base.
+
+- `--left-align` (default off): move each indel to its leftmost equivalent
+  position against the reference before annotating it, as `bcftools norm -f`
+  does, so it matches the gap an aligner reports. See
+  [Left-Alignment](#left-alignment).
 
 - `--frameshift-min-freq <0.0-1.0>` (default `0.5`): minimum allele frequency an
   *upstream* indel must reach before it shifts the reading frame of downstream
@@ -164,9 +223,10 @@ indel locus depth is counted from the anchor base.
 
 When an indel that has read coverage produces zero exact-CIGAR support, get_MNV
 emits a warning: this usually means the input indel is not left-aligned the same
-way as the BAM (common in homopolymers/tandem repeats). Normalise the input
-first with a FASTA-aware tool (`bcftools norm -f ref.fa`) so the allele matches
-the read alignment.
+way as the BAM (common in homopolymers/tandem repeats). Rerun with
+`--left-align`, or normalize the input first with `bcftools norm -f ref.fa`, so
+the allele matches the read alignment. If the warning stays with
+`--left-align`, the reads place the gap elsewhere or do not carry the indel.
 
 ## References
 
