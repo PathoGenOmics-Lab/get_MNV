@@ -154,6 +154,20 @@ impl AppError {
         Self::new(ErrorCode::Json, message)
     }
 
+    /// An error that reads exactly like this one: the same code, message and
+    /// chain of causes, each cause rendered as it prints. A cohort loads an
+    /// input every sample shares only once, and a sample that needed it after
+    /// the load failed has to fail the way the first one did.
+    pub(crate) fn replica(&self) -> AppError {
+        AppError {
+            code: self.code,
+            message: self.message.clone(),
+            source: self.source.as_deref().map(|cause| {
+                Box::new(RenderedCause::of(cause)) as Box<dyn std::error::Error + Send + Sync>
+            }),
+        }
+    }
+
     /// Return the full causal chain as a multi-line string (for debugging).
     pub fn chain(&self) -> String {
         let mut lines = vec![self.to_string()];
@@ -163,6 +177,37 @@ impl AppError {
             current = cause;
         }
         lines.join("\n")
+    }
+}
+
+/// A cause as it printed, with the causes behind it: what [`AppError::replica`]
+/// keeps of an error it cannot clone.
+#[derive(Debug)]
+struct RenderedCause {
+    text: String,
+    source: Option<Box<RenderedCause>>,
+}
+
+impl RenderedCause {
+    fn of(cause: &(dyn std::error::Error + 'static)) -> Self {
+        RenderedCause {
+            text: cause.to_string(),
+            source: cause.source().map(|next| Box::new(RenderedCause::of(next))),
+        }
+    }
+}
+
+impl Display for RenderedCause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str(&self.text)
+    }
+}
+
+impl std::error::Error for RenderedCause {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.source
+            .as_deref()
+            .map(|cause| cause as &(dyn std::error::Error + 'static))
     }
 }
 
@@ -440,5 +485,22 @@ mod tests {
         unique_exits.sort();
         unique_exits.dedup();
         assert_eq!(exits.len(), unique_exits.len(), "duplicate exit codes");
+    }
+
+    /// A replica has to be indistinguishable wherever an error is shown: the
+    /// printed line, the causal chain and the error JSON.
+    #[test]
+    fn a_replica_reads_like_the_original() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::InvalidData, "not UTF-8");
+        let original = AppError::from(io_err).context("while reading 'genes.tsv'");
+        let replica = original.replica();
+        assert_eq!(replica.to_string(), original.to_string());
+        assert_eq!(replica.chain(), original.chain());
+        assert_eq!(error_to_json(&replica), error_to_json(&original));
+        assert_eq!(replica.code, original.code);
+
+        let plain = AppError::validation("no contigs");
+        assert_eq!(plain.replica().to_string(), plain.to_string());
+        assert_eq!(error_to_json(&plain.replica()), error_to_json(&plain));
     }
 }

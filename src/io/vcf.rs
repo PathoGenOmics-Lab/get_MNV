@@ -7,6 +7,7 @@
 //! Plain `.vcf` files use the fast text parser in `vcf_fast.rs`.
 
 use super::validation::validate_vcf_allele;
+use super::vcf_text::VcfLine;
 use crate::error::{AppError, AppResult};
 use crate::variants::{
     decompose_allele, substitution_components, AlleleComponent, AlleleComponentKind, AlleleEvent,
@@ -182,6 +183,27 @@ impl VcfPosition {
         positions.sort_unstable();
         positions.dedup();
         positions
+    }
+
+    /// The first and last base this record's components act on. Every overlap,
+    /// splice and intron test asked of the record looks inside this span: an
+    /// insertion acts on its anchor, anything else on the bases of its REF. A
+    /// record with no component, a REF repeated as its ALT, acts on its POS,
+    /// which is where [`VcfPosition::changed_positions`] places it.
+    pub fn acting_span(&self) -> (usize, usize) {
+        self.event()
+            .components
+            .iter()
+            .map(|component| {
+                let end = component
+                    .position
+                    .saturating_add(component.ref_allele.len().saturating_sub(1));
+                (component.position, end)
+            })
+            .reduce(|(start, end), (next_start, next_end)| {
+                (start.min(next_start), end.max(next_end))
+            })
+            .unwrap_or((self.record_start, self.record_start))
     }
 
     pub fn substitution_components(&self) -> Vec<AlleleComponent> {
@@ -448,21 +470,12 @@ fn trimmed(
     Some((pos + start, norm_ref, norm_alt))
 }
 
-/// Parse a VCF line into fields. Returns None if the line is a header or empty.
 /// Whether a line is the `#CHROM` line that names the columns, in whichever
 /// case it is written. Every reader asks this one question, so a lowercase
 /// `#chrom` cannot be a header to one reader and nothing to another.
 pub(crate) fn is_column_header(line: &str) -> bool {
     line.get(..6)
         .is_some_and(|start| start.eq_ignore_ascii_case("#CHROM"))
-}
-
-fn parse_vcf_line(line: &str) -> Option<Vec<&str>> {
-    let line = line.trim();
-    if line.is_empty() || line.starts_with('#') {
-        return None;
-    }
-    Some(line.split('\t').collect())
 }
 
 /// Extract INFO field value by key from a raw INFO string.
@@ -853,22 +866,48 @@ fn decode_percent_sign(line: &[u8]) -> std::borrow::Cow<'_, [u8]> {
 
 pub fn list_vcf_samples(vcf_file: &str) -> AppResult<Vec<String>> {
     let reader = open_vcf_text(vcf_file)?;
+    let samples = samples_from_lines(reader.lines().map(|line| line.map(ReadText::Owned)))?;
+    Ok(samples.map(|names| names.to_vec()).unwrap_or_default())
+}
 
-    // Parse header to find #CHROM line
-    for line_result in reader.lines() {
-        let line = line_result?;
-        if is_column_header(&line) {
-            let fields: Vec<&str> = line.split('\t').collect();
-            if fields.len() > 9 {
-                return Ok(fields[9..].iter().map(|s| s.to_string()).collect());
-            }
-            return Ok(Vec::new());
+/// A line of the file, as read or as held in memory.
+enum ReadText<'a> {
+    Owned(String),
+    Held(&'a super::vcf_text::HeldLine),
+}
+
+impl ReadText<'_> {
+    fn text(&self) -> &str {
+        match self {
+            ReadText::Owned(text) => text,
+            ReadText::Held(line) => line.text(),
         }
-        if !line.starts_with('#') {
+    }
+
+    fn header_samples(&self) -> Option<std::sync::Arc<Vec<String>>> {
+        match self {
+            ReadText::Owned(text) => super::vcf_text::samples_named_by(text),
+            ReadText::Held(line) => line.header_samples(),
+        }
+    }
+}
+
+/// The sample names of the `#CHROM` line, read the way [`list_vcf_samples`]
+/// reads them: from the header, stopping at the first record. `None` when the
+/// file names no sample.
+fn samples_from_lines<'a>(
+    lines: impl Iterator<Item = std::io::Result<ReadText<'a>>>,
+) -> AppResult<Option<std::sync::Arc<Vec<String>>>> {
+    for line_result in lines {
+        let line = line_result?;
+        if is_column_header(line.text()) {
+            return Ok(line.header_samples());
+        }
+        if !line.text().starts_with('#') {
             break;
         }
     }
-    Ok(Vec::new())
+    Ok(None)
 }
 
 fn resolve_sample_index(samples: &[String], sample_name: Option<&str>) -> AppResult<Option<usize>> {
@@ -907,11 +946,18 @@ pub(crate) fn header_written_by_get_mnv(id: &str) -> bool {
 }
 
 pub fn extract_original_info_headers(vcf_file: &str) -> AppResult<Vec<String>> {
+    let reader = open_vcf_text(vcf_file)?;
+    original_info_headers_from(reader.lines())
+}
+
+/// The INFO header lines of [`extract_original_info_headers`], from the file's
+/// lines wherever they come from.
+pub(crate) fn original_info_headers_from(
+    lines_read: impl Iterator<Item = std::io::Result<String>>,
+) -> AppResult<Vec<String>> {
     let mut lines = Vec::new();
 
-    let reader = open_vcf_text(vcf_file)?;
-
-    for line_result in reader.lines() {
+    for line_result in lines_read {
         let line = line_result?;
         if line.starts_with("##INFO=") {
             // Extract ID from the header line
@@ -977,7 +1023,6 @@ pub fn load_vcf_positions_by_contig(
 
     let samples = list_vcf_samples(vcf_file)?;
     let sample_index = resolve_sample_index(&samples, sample_name)?;
-    let own_tags: HashSet<&str> = GET_MNV_INFO_TAGS.iter().copied().collect();
     let per_allele_info = if keep_original_info {
         per_allele_info_numbers(&extract_original_info_headers(vcf_file)?)
     } else {
@@ -986,31 +1031,139 @@ pub fn load_vcf_positions_by_contig(
 
     let reader = open_vcf_text(vcf_file)?;
 
-    let mut positions_by_contig: HashMap<String, Vec<VcfPosition>> = HashMap::new();
-    let mut split_count = 0usize;
-    let mut not_carried = 0usize;
-    let mut overlapped = 0usize;
-    let mut spelled_out = 0usize;
-    let mut record_idx = 0usize;
-    let mut header_seen = false;
-
+    let mut records = VcfRecords::new(
+        sample_index,
+        split_multiallelic,
+        normalize_alleles,
+        keep_original_info,
+        references,
+        per_allele_info,
+    );
     for line_result in reader.lines() {
         let line = line_result?;
-        if is_column_header(&line) {
-            header_seen = true;
+        records.read(&super::vcf_text::ReadLine {
+            text: &line,
+            splitting: super::vcf_text::Splitting::Trimmed,
+        })?;
+    }
+    records.finish()
+}
+
+/// [`load_vcf_positions_by_contig`] for a file a cohort holds in memory: the
+/// same lines, the same checks and the same log lines, without reading or
+/// decompressing the file again.
+pub(crate) fn load_held_vcf_positions(
+    text: &super::vcf_text::VcfText,
+    sample_name: Option<&str>,
+    split_multiallelic: bool,
+    normalize_alleles: bool,
+    keep_original_info: bool,
+    references: Option<&crate::io::ReferenceMap>,
+) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
+    log::info!("Loading VCF: {}", text.path());
+
+    let replay = || {
+        text.lines()
+            .iter()
+            .map(|line| Ok(ReadText::Held(line)))
+            .chain(text.unread().map(Err))
+    };
+    let samples = samples_from_lines(replay())?;
+    let sample_index = resolve_sample_index(
+        samples.as_deref().map_or(&[][..], Vec::as_slice),
+        sample_name,
+    )?;
+    let per_allele_info = if keep_original_info {
+        per_allele_info_numbers(&original_info_headers_from(
+            text.replay().map(|line| line.map(str::to_string)),
+        )?)
+    } else {
+        HashMap::new()
+    };
+
+    let mut records = VcfRecords::new(
+        sample_index,
+        split_multiallelic,
+        normalize_alleles,
+        keep_original_info,
+        references,
+        per_allele_info,
+    );
+    for line in text.lines() {
+        records.read(line)?;
+    }
+    if let Some(error) = text.unread() {
+        return Err(error.into());
+    }
+    records.finish()
+}
+
+/// The reader's state as it goes through the file's lines.
+struct VcfRecords<'a> {
+    sample_index: Option<usize>,
+    split_multiallelic: bool,
+    normalize_alleles: bool,
+    keep_original_info: bool,
+    references: Option<&'a crate::io::ReferenceMap>,
+    per_allele_info: HashMap<String, char>,
+    own_tags: HashSet<&'static str>,
+    positions_by_contig: HashMap<String, Vec<VcfPosition>>,
+    split_count: usize,
+    not_carried: usize,
+    overlapped: usize,
+    spelled_out: usize,
+    record_idx: usize,
+    header_seen: bool,
+}
+
+impl<'a> VcfRecords<'a> {
+    fn new(
+        sample_index: Option<usize>,
+        split_multiallelic: bool,
+        normalize_alleles: bool,
+        keep_original_info: bool,
+        references: Option<&'a crate::io::ReferenceMap>,
+        per_allele_info: HashMap<String, char>,
+    ) -> Self {
+        VcfRecords {
+            sample_index,
+            split_multiallelic,
+            normalize_alleles,
+            keep_original_info,
+            references,
+            per_allele_info,
+            own_tags: GET_MNV_INFO_TAGS.iter().copied().collect(),
+            positions_by_contig: HashMap::new(),
+            split_count: 0,
+            not_carried: 0,
+            overlapped: 0,
+            spelled_out: 0,
+            record_idx: 0,
+            header_seen: false,
         }
-        let fields = match parse_vcf_line(&line) {
-            Some(f) => f,
-            None => continue,
-        };
+    }
+
+    fn read(&mut self, line: &impl super::vcf_text::VcfLine) -> AppResult<()> {
+        let text = line.text();
+        if is_column_header(text) {
+            self.header_seen = true;
+        }
+        // A header or a blank line is not a record.
+        let trimmed = text.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            return Ok(());
+        }
         // Skip any data line appearing before the #CHROM header, matching the
         // plain-text fast parser. A well-formed VCF has no records before it.
-        if !header_seen {
-            continue;
+        if !self.header_seen {
+            return Ok(());
         }
-        record_idx += 1;
+        self.record_idx += 1;
+        let record_idx = self.record_idx;
+        let record = line.record(self.sample_index.map(|idx| 9 + idx));
+        let fields = record.fixed;
 
-        if fields.len() < 8 {
+        if record.count < 8 {
             return Err(format!("VCF record {} has fewer than 8 fields", record_idx).into());
         }
 
@@ -1041,7 +1194,7 @@ pub fn load_vcf_positions_by_contig(
         validate_vcf_allele(ref_allele, record_idx, chrom, pos, "REF")?;
 
         let alts: Vec<&str> = alt_field.split(',').collect();
-        if alts.len() > 1 && !split_multiallelic {
+        if alts.len() > 1 && !self.split_multiallelic {
             return Err(format!(
                 "Multiallelic VCF record {} at {}:{} is not supported. Split multiallelic sites first (e.g. bcftools norm -m -).",
                 record_idx, chrom, pos
@@ -1049,12 +1202,12 @@ pub fn load_vcf_positions_by_contig(
         }
 
         // Get FORMAT and sample fields
-        let format_keys: Vec<&str> = if fields.len() > 8 {
+        let format_keys: Vec<&str> = if record.count > 8 {
             fields[8].split(':').collect()
         } else {
             Vec::new()
         };
-        let sample_field = sample_index.and_then(|idx| fields.get(9 + idx).copied());
+        let sample_field = record.sample;
         let genotype = sample_field.and_then(|sample| get_format_value(&format_keys, sample, "GT"));
         let phase_set =
             sample_field.and_then(|sample| get_format_value(&format_keys, sample, "PS"));
@@ -1064,7 +1217,9 @@ pub fn load_vcf_positions_by_contig(
         // cohort sample that carries none of them, then still reports the contig
         // it covered, which is what separates "this run has nothing to annotate"
         // from "this file holds no records at all". Only the second is an error.
-        positions_by_contig.entry(chrom.to_string()).or_default();
+        self.positions_by_contig
+            .entry(chrom.to_string())
+            .or_default();
 
         let mut pushed_here = 0usize;
         for (alt_idx, alt_allele) in alts.iter().enumerate() {
@@ -1076,25 +1231,26 @@ pub fn load_vcf_positions_by_contig(
                 .into());
             }
             if !sample_carries_alt(genotype, alt_idx) {
-                not_carried += 1;
+                self.not_carried += 1;
                 continue;
             }
             if *alt_allele == "*" {
-                overlapped += 1;
+                self.overlapped += 1;
                 continue;
             }
-            let sequence = references
+            let sequence = self
+                .references
                 .and_then(|refs| refs.get(chrom))
                 .map(String::as_str);
             let (start, explicit_ref, explicit_alt) =
                 match spell_out_symbolic(pos, ref_allele, alt_allele, info, alt_idx, sequence) {
                     Some(spelled) => {
-                        spelled_out += 1;
+                        self.spelled_out += 1;
                         spelled
                     }
                     None => (pos, ref_allele.to_string(), alt_allele.to_string()),
                 };
-            let (normalized_pos, normalized_ref, normalized_alt) = if normalize_alleles {
+            let (normalized_pos, normalized_ref, normalized_alt) = if self.normalize_alleles {
                 normalize_ref_alt(start, &explicit_ref, &explicit_alt)
             } else {
                 (start, explicit_ref, explicit_alt)
@@ -1104,12 +1260,12 @@ pub fn load_vcf_positions_by_contig(
 
             let (original_dp, original_freq) =
                 parse_original_metrics_from_fields(info, &format_keys, sample_field, alt_idx);
-            let original_info = if keep_original_info {
+            let original_info = if self.keep_original_info {
                 retarget_input_ann(
                     filter_and_subset_original_info(
                         info,
-                        |k| own_tags.contains(k),
-                        &per_allele_info,
+                        |k| self.own_tags.contains(k),
+                        &self.per_allele_info,
                         alt_idx,
                     ),
                     alt_allele,
@@ -1121,7 +1277,7 @@ pub fn load_vcf_positions_by_contig(
                 None
             };
 
-            positions_by_contig
+            self.positions_by_contig
                 .entry(chrom.to_string())
                 .or_default()
                 .push(VcfPosition {
@@ -1135,29 +1291,42 @@ pub fn load_vcf_positions_by_contig(
                 });
             pushed_here += 1;
         }
-        split_count += pushed_here.saturating_sub(1);
+        self.split_count += pushed_here.saturating_sub(1);
+        Ok(())
     }
 
-    if !header_seen {
-        return Err("No #CHROM header line found in VCF".into());
-    }
+    fn finish(self) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
+        let VcfRecords {
+            split_multiallelic,
+            mut positions_by_contig,
+            split_count,
+            not_carried,
+            overlapped,
+            spelled_out,
+            header_seen,
+            ..
+        } = self;
+        if !header_seen {
+            return Err("No #CHROM header line found in VCF".into());
+        }
 
-    for values in positions_by_contig.values_mut() {
-        values.sort_by_key(|v| v.record_start);
-    }
+        for values in positions_by_contig.values_mut() {
+            values.sort_by_key(|v| v.record_start);
+        }
 
-    if split_multiallelic && split_count > 0 {
-        log::info!("Split {split_count} additional ALT alleles from multiallelic VCF records");
-    }
-    if not_carried > 0 {
-        log::info!(
-            "Skipped {not_carried} ALT alleles the selected sample's genotype does not carry"
-        );
-    }
-    log_overlapped(overlapped);
-    log_spelled_out(spelled_out);
+        if split_multiallelic && split_count > 0 {
+            log::info!("Split {split_count} additional ALT alleles from multiallelic VCF records");
+        }
+        if not_carried > 0 {
+            log::info!(
+                "Skipped {not_carried} ALT alleles the selected sample's genotype does not carry"
+            );
+        }
+        log_overlapped(overlapped);
+        log_spelled_out(spelled_out);
 
-    Ok(positions_by_contig)
+        Ok(positions_by_contig)
+    }
 }
 
 /// A `*` ALT is not a change at its position. It says this allele is missing

@@ -5,6 +5,7 @@ pub mod config;
 pub mod manifest;
 pub(crate) mod output_paths;
 pub mod processing;
+pub(crate) mod shared;
 pub mod summary;
 
 // Re-export public types.
@@ -21,8 +22,9 @@ use manifest::{
 };
 use processing::{
     emit_contig_variants, parse_inputs, process_contig, reclassify_generic_as_validation,
-    resolve_variant_input_format,
+    resolve_variant_input_format, SampleRun,
 };
+use shared::SharedInputs;
 use summary::update_global_summary;
 
 use crate::cli::{Args, VariantInputFormat};
@@ -31,6 +33,7 @@ use crate::io;
 use crate::output;
 use log::info;
 use serde_json::json;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 fn run_single(
@@ -39,6 +42,7 @@ fn run_single(
     sample_suffix: Option<&str>,
     write_reports: bool,
     on_progress: &dyn Fn(ProgressEvent),
+    run: SampleRun<'_>,
 ) -> AppResult<RunSummary> {
     let total_start = Instant::now();
     let genetic_code =
@@ -59,12 +63,16 @@ fn run_single(
     });
 
     let parse_start = Instant::now();
-    let parsed = parse_inputs(args, sample_override)?;
+    let parsed = parse_inputs(args, sample_override, run.shared)?;
     let parse_inputs_ms = parse_start.elapsed().as_secs_f64() * 1000.0;
     // SHA-256 checksums are deferred until after parsing to keep parse_inputs_ms
     // measuring only I/O + validation, not hashing.
     let needs_checksums = args.summary_json.is_some() || args.run_manifest.is_some();
-    let inputs = build_input_metadata(args, needs_checksums)?;
+    let inputs = match run.shared {
+        // The same files for every sample of a cohort, hashed once.
+        Some(shared) if needs_checksums => shared.input_metadata(args)?,
+        _ => build_input_metadata(args, needs_checksums)?,
+    };
     let paths = output_paths::OutputPaths::resolve(args, &parsed.base_name, sample_suffix);
 
     // Fail fast on a missing/un-indexed BAM before any output file is created.
@@ -175,15 +183,8 @@ fn run_single(
         });
 
         let process_start = Instant::now();
-        let (contig_variants, contig_summary) = process_contig(
-            args,
-            contig,
-            &parsed.references,
-            &parsed.snp_by_contig,
-            parsed.preloaded_gff.as_ref(),
-            genetic_code,
-            parsed.catalogue.as_ref(),
-        )?;
+        let (contig_variants, contig_summary) =
+            process_contig(args, contig, &parsed, genetic_code, run)?;
         process_ms += process_start.elapsed().as_secs_f64() * 1000.0;
 
         let emit_start = Instant::now();
@@ -402,6 +403,197 @@ fn run_report_from_tsvs(args: &Args) -> AppResult<RunSummary> {
     })
 }
 
+/// What one sample of a cohort said and did, held until the samples before it
+/// have been written.
+struct SampleOutcome {
+    index: usize,
+    held: Vec<crate::logging::Held>,
+    /// Each progress event with the number of held lines that came before it.
+    progress: Vec<(usize, ProgressEvent)>,
+    summary: AppResult<RunSummary>,
+}
+
+impl SampleOutcome {
+    /// Write the sample's lines and report its progress, in the order the
+    /// sample produced them.
+    fn release(self, on_progress: &dyn Fn(ProgressEvent)) -> AppResult<RunSummary> {
+        let mut written = 0;
+        for (position, event) in self.progress {
+            for line in &self.held[written..position] {
+                line.write();
+            }
+            written = position;
+            on_progress(event);
+        }
+        for line in &self.held[written..] {
+            line.write();
+        }
+        self.summary
+    }
+}
+
+/// Annotate every sample of a `--sample all` cohort, and return their
+/// summaries in sample order, with the inputs they shared if they shared any.
+///
+/// The samples used to run one after another, each reading every input again.
+/// They now share the inputs and run side by side, one sample per thread, and
+/// each sample's log lines and progress events are held until the samples
+/// before it have been written, so the log and the progress read exactly as
+/// they did. Both lean on the logger [`crate::logging::install`] sets up;
+/// without it the samples run one after another as before. A cohort with a BAM
+/// and fewer samples than threads also goes one sample at a time, since its
+/// cost is in counting reads gene by gene, which spreads over the threads
+/// better than its few samples do.
+fn run_samples(
+    args: &Args,
+    sample_names: &[String],
+    on_progress: &dyn Fn(ProgressEvent),
+) -> AppResult<(Vec<RunSummary>, Option<SharedInputs>)> {
+    if !crate::logging::can_hold() {
+        let summaries = samples_one_at_a_time(args, sample_names, on_progress, SampleRun::alone())?;
+        return Ok((summaries, None));
+    }
+    let shared = SharedInputs::new(args);
+    let threads = rayon::current_num_threads();
+    let workers = threads.min(sample_names.len());
+    let summaries = if workers < 2 || (args.bam_file.is_some() && sample_names.len() < threads) {
+        let run = SampleRun {
+            shared: Some(&shared),
+            parallel_genes: true,
+        };
+        samples_one_at_a_time(args, sample_names, on_progress, run)?
+    } else {
+        samples_side_by_side(args, sample_names, on_progress, &shared, workers)?
+    };
+    Ok((summaries, Some(shared)))
+}
+
+fn samples_one_at_a_time(
+    args: &Args,
+    sample_names: &[String],
+    on_progress: &dyn Fn(ProgressEvent),
+    run: SampleRun<'_>,
+) -> AppResult<Vec<RunSummary>> {
+    let mut summaries = Vec::with_capacity(sample_names.len());
+    for sample in sample_names {
+        info!("Processing sample '{sample}' in --sample all mode");
+        summaries.push(run_single(
+            args,
+            Some(sample),
+            Some(sample),
+            false,
+            on_progress,
+            run,
+        )?);
+    }
+    Ok(summaries)
+}
+
+/// Run the samples on `workers` threads, a sample at a time on each, and
+/// write what each said in sample order as soon as the samples before it have
+/// been written.
+///
+/// Samples are started in order. When one fails, no sample after it is
+/// started, the samples before it finish, and its error is the run's, as it
+/// was when they ran one after another. Samples after it that were already
+/// running finish and keep their output.
+fn samples_side_by_side(
+    args: &Args,
+    sample_names: &[String],
+    on_progress: &dyn Fn(ProgressEvent),
+    shared: &SharedInputs,
+    workers: usize,
+) -> AppResult<Vec<RunSummary>> {
+    let next = AtomicUsize::new(0);
+    let first_failure = AtomicUsize::new(usize::MAX);
+    std::thread::scope(|scope| -> AppResult<Vec<RunSummary>> {
+        let (sender, outcomes) = std::sync::mpsc::channel::<SampleOutcome>();
+        let mut started = 0;
+        for _ in 0..workers {
+            let sender = sender.clone();
+            let (next, first_failure) = (&next, &first_failure);
+            let worker = std::thread::Builder::new()
+                .stack_size(config::WORKER_STACK_SIZE)
+                .spawn_scoped(scope, move || loop {
+                    let index = next.fetch_add(1, Ordering::SeqCst);
+                    if index >= sample_names.len() || index > first_failure.load(Ordering::SeqCst) {
+                        break;
+                    }
+                    let sample = sample_names[index].as_str();
+                    let progress = std::cell::RefCell::new(Vec::new());
+                    let report = |event: ProgressEvent| {
+                        progress
+                            .borrow_mut()
+                            .push((crate::logging::held_so_far(), event));
+                    };
+                    let (summary, held) = crate::logging::holding(|| {
+                        info!("Processing sample '{sample}' in --sample all mode");
+                        run_single(
+                            args,
+                            Some(sample),
+                            Some(sample),
+                            false,
+                            &report,
+                            SampleRun {
+                                shared: Some(shared),
+                                parallel_genes: false,
+                            },
+                        )
+                    });
+                    if summary.is_err() {
+                        first_failure.fetch_min(index, Ordering::SeqCst);
+                    }
+                    let outcome = SampleOutcome {
+                        index,
+                        held,
+                        progress: progress.into_inner(),
+                        summary,
+                    };
+                    if sender.send(outcome).is_err() {
+                        break;
+                    }
+                });
+            if worker.is_err() {
+                break;
+            }
+            started += 1;
+        }
+        drop(sender);
+        if started == 0 {
+            let run = SampleRun {
+                shared: Some(shared),
+                parallel_genes: true,
+            };
+            return samples_one_at_a_time(args, sample_names, on_progress, run);
+        }
+
+        let mut waiting = std::collections::BTreeMap::new();
+        let mut summaries = Vec::with_capacity(sample_names.len());
+        for (index, sample) in sample_names.iter().enumerate() {
+            let outcome = loop {
+                if let Some(outcome) = waiting.remove(&index) {
+                    break outcome;
+                }
+                match outcomes.recv() {
+                    Ok(outcome) => {
+                        waiting.insert(outcome.index, outcome);
+                    }
+                    // Every worker has stopped and this sample never came back,
+                    // which only a worker that panicked leaves behind. Leaving
+                    // the scope passes its panic on.
+                    Err(_) => {
+                        return Err(AppError::msg(format!(
+                            "Sample '{sample}' was not processed"
+                        )))
+                    }
+                }
+            };
+            summaries.push(outcome.release(on_progress)?);
+        }
+        Ok(summaries)
+    })
+}
+
 /// Run the pipeline (CLI entry point, no progress reporting).
 pub fn run(args: &Args) -> AppResult<RunSummary> {
     run_with_progress(args, &|_| {})
@@ -497,7 +689,14 @@ pub fn run_with_progress(
     }
 
     if args.sample.as_deref() != Some("all") {
-        return run_single(args, args.sample.as_deref(), None, true, on_progress);
+        return run_single(
+            args,
+            args.sample.as_deref(),
+            None,
+            true,
+            on_progress,
+            SampleRun::alone(),
+        );
     }
 
     let variant_file = args.variant_file();
@@ -530,17 +729,7 @@ pub fn run_with_progress(
         }
     }
 
-    let mut sample_summaries = Vec::new();
-    for sample in &sample_names {
-        info!("Processing sample '{sample}' in --sample all mode");
-        sample_summaries.push(run_single(
-            args,
-            Some(sample),
-            Some(sample),
-            false,
-            on_progress,
-        )?);
-    }
+    let (sample_summaries, shared) = run_samples(args, &sample_names, on_progress)?;
 
     let mut aggregate = RunSummary {
         schema_version: "1.0.0".to_string(),
@@ -548,7 +737,10 @@ pub fn run_with_progress(
         dry_run: args.dry_run,
         bam_provided: args.bam_file.is_some(),
         translation_table: args.translation_table,
-        inputs: build_input_metadata(args, true)?,
+        inputs: match &shared {
+            Some(shared) => shared.input_metadata(args)?,
+            None => build_input_metadata(args, true)?,
+        },
         output_tsv: None,
         output_vcf: None,
         output_bcf: None,
@@ -635,6 +827,143 @@ pub fn run_with_progress(
 mod tests {
     use super::summary::summary_to_json;
     use super::{ContigSummary, GlobalSummary, InputChecksums, RunInputs, RunSummary, RunTimings};
+
+    /// A cohort run side by side must say, report and write exactly what the
+    /// same cohort run one sample at a time does: the same files byte for
+    /// byte, the same log lines in the same order and the same progress
+    /// events, whatever order its samples happen to finish in.
+    #[test]
+    fn a_cohort_side_by_side_matches_one_sample_at_a_time() {
+        use super::{
+            samples_one_at_a_time, samples_side_by_side, ProgressEvent, SampleRun, SharedInputs,
+        };
+        use clap::Parser;
+        use std::cell::RefCell;
+        use std::collections::BTreeMap;
+
+        crate::logging::tests::install_for_tests();
+        let root = std::env::temp_dir().join(format!("get_mnv_cohort_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let example = concat!(env!("CARGO_MANIFEST_DIR"), "/example");
+
+        // Eight samples over the example's first 300 records: genotypes that
+        // differ from sample to sample, and a depth and frequency that some
+        // samples give and others leave missing.
+        let source = std::fs::read_to_string(format!("{example}/G35894.var.snp.vcf")).unwrap();
+        let samples: Vec<String> = (0..8).map(|i| format!("S{i}")).collect();
+        let mut vcf = String::new();
+        for line in source.lines().filter(|line| line.starts_with("##")) {
+            vcf.push_str(line);
+            vcf.push('\n');
+        }
+        vcf.push_str("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t");
+        vcf.push_str(&samples.join("\t"));
+        vcf.push('\n');
+        for (row, line) in source
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .take(300)
+            .enumerate()
+        {
+            let fixed: Vec<&str> = line.split('\t').take(8).collect();
+            vcf.push_str(&fixed.join("\t"));
+            vcf.push_str("\tGT:DP:FREQ");
+            for sample in 0..samples.len() {
+                let carried = (row * 7 + sample * 3) % 5 != 0;
+                if sample % 3 == 2 {
+                    vcf.push_str(&format!("\t{}:.:.", u8::from(carried)));
+                } else {
+                    vcf.push_str(&format!(
+                        "\t{}:{}:{}%",
+                        u8::from(carried),
+                        10 + row % 40,
+                        20 + sample * 9
+                    ));
+                }
+            }
+            vcf.push('\n');
+        }
+        let vcf_path = root.join("cohort.vcf");
+        std::fs::write(&vcf_path, vcf).unwrap();
+
+        let run = |label: &str, side_by_side: bool| {
+            let out = root.join(label);
+            let args = crate::cli::Args::parse_from([
+                "get_MNV".to_string(),
+                "--vcf".to_string(),
+                vcf_path.to_string_lossy().into_owned(),
+                "--fasta".to_string(),
+                format!("{example}/MTB_ancestor.fas"),
+                "--genes".to_string(),
+                format!("{example}/anot_genes.txt"),
+                "--sample".to_string(),
+                "all".to_string(),
+                "--both".to_string(),
+                "--output-dir".to_string(),
+                out.to_string_lossy().into_owned(),
+            ]);
+            std::fs::create_dir_all(&out).unwrap();
+            let events = RefCell::new(Vec::new());
+            // Each event is logged as well, so the lines also show where every
+            // event fell among them.
+            let on_progress = |event: ProgressEvent| {
+                let said = format!(
+                    "{} {:?} {}/{}",
+                    event.phase, event.contig, event.current, event.total
+                );
+                log::info!(target: "progress", "{said}");
+                events.borrow_mut().push(said);
+            };
+            let before = crate::logging::tests::written_here().len();
+            let summaries = if side_by_side {
+                let shared = SharedInputs::new(&args);
+                samples_side_by_side(&args, &samples, &on_progress, &shared, 3)
+            } else {
+                samples_one_at_a_time(&args, &samples, &on_progress, SampleRun::alone())
+            }
+            .expect("the cohort runs");
+            let lines: Vec<String> = crate::logging::tests::written_here()[before..]
+                .iter()
+                .map(|line| line.replace(&out.to_string_lossy().into_owned(), "<out>"))
+                .collect();
+            let files: BTreeMap<String, Vec<u8>> = std::fs::read_dir(&out)
+                .unwrap()
+                .map(|entry| {
+                    let entry = entry.unwrap();
+                    (
+                        entry.file_name().to_string_lossy().into_owned(),
+                        std::fs::read(entry.path()).unwrap(),
+                    )
+                })
+                .collect();
+            let counts: Vec<usize> = summaries
+                .iter()
+                .map(|summary| summary.global.produced_variants)
+                .collect();
+            (lines, events.into_inner(), files, counts)
+        };
+
+        let (lines, events, files, counts) = run("one_at_a_time", false);
+        let (side_lines, side_events, side_files, side_counts) = run("side_by_side", true);
+        assert_eq!(files.len(), 2 * samples.len());
+        assert!(
+            lines.len() > 10 * samples.len(),
+            "only {} lines",
+            lines.len()
+        );
+        assert_eq!(side_lines, lines);
+        assert_eq!(side_events, events);
+        assert_eq!(side_counts, counts);
+        assert_eq!(
+            side_files.keys().collect::<Vec<_>>(),
+            files.keys().collect::<Vec<_>>()
+        );
+        for (name, bytes) in &files {
+            assert!(side_files[name] == *bytes, "{name} differs");
+        }
+        std::fs::remove_dir_all(&root).ok();
+    }
 
     #[test]
     fn test_summary_to_json_contains_expected_keys() {
