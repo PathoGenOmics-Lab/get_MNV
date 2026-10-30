@@ -283,6 +283,65 @@ fn removes_initiation_codon(
     touched && (reaches_before || !same_codon_first)
 }
 
+/// Where the coding sequence sees a deletion its record writes across the
+/// protein's start: at its 3'-most place along the transcript within the first
+/// exon, as HGVS places it. `None` for any other record, which is seen where it
+/// is written.
+///
+/// A deletion in a repeat can be written anywhere along the repeat, and the
+/// feature clips a deletion at its edges. Left-aligned, as `bcftools norm` and
+/// `--left-align` write it, deleting the second ATG of `ATGATG` begins on the G
+/// before the gene, so only two of its three bases were coding: a frameshift
+/// that lost the start, where the same deletion written inside the gene was
+/// `Met2del`. Placed 3'-most, a deletion lies inside the coding sequence
+/// whenever any spelling of it does, and every spelling of it is read the same.
+/// One that still reaches the base before the start codon there really removes
+/// the start.
+pub(super) fn coding_placement(
+    gene: &Gene,
+    reference: &crate::io::Reference<'_>,
+    variant: &VcfPosition,
+) -> Option<VcfPosition> {
+    if !gene.starts_protein() {
+        return None;
+    }
+    let event = variant.event();
+    let [component] = event.components.as_slice() else {
+        return None;
+    };
+    if component.kind != AlleleComponentKind::Deletion {
+        return None;
+    }
+    let first = *first_codon_positions(gene).first()?;
+    let before = match gene.strand {
+        Strand::Plus => first.checked_sub(1)?,
+        Strand::Minus => first.checked_add(1)?,
+    };
+    let deleted = component.position..component.position + component.ref_allele.len();
+    if !(deleted.contains(&before) && deleted.contains(&first)) {
+        return None;
+    }
+    let (exon_start, exon_end) = match gene.cds_segments.first() {
+        Some(segment) => (segment.start, segment.end),
+        None => effective_bounds(gene),
+    };
+    let (pos, ref_allele, alt_allele) = crate::variants::hgvs::shift_within(
+        reference.sequence,
+        variant.record_start,
+        &variant.ref_allele,
+        &variant.alt_allele,
+        gene.strand,
+        exon_start,
+        exon_end,
+    );
+    Some(VcfPosition {
+        record_start: pos,
+        ref_allele,
+        alt_allele,
+        ..variant.clone()
+    })
+}
+
 /// Whether the variant reaches into the bases the declared phase skips.
 ///
 /// Those bases code, but their codon began in a neighbouring exon, so a single

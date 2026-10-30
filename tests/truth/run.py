@@ -367,6 +367,25 @@ def expected_indel(
         )
         if not ((position in coding and position + 1 in coding) or internal_junction):
             return None
+
+    # A deletion from the bases before the start codon into it is read where
+    # HGVS places it: moved 3' along the transcript, within the first exon, for
+    # as long as it removes the same bases. Clipped at the gene's edge where its
+    # record happens to cut, it came out a frameshift or in frame depending
+    # only on how the record was written.
+    start_codon = gene.cds_positions()[:3]
+    before_start = start_codon[0] - 1 if gene.strand == "+" else start_codon[0] + 1
+    if before_start in deleted and start_codon[0] in deleted:
+        first_exon = gene.segments[0] if gene.strand == "+" else gene.segments[-1]
+        low, high = min(deleted), max(deleted)
+        if gene.strand == "+":
+            while high < first_exon[1] and genome[low - 1] == genome[high]:
+                low, high = low + 1, high + 1
+        else:
+            while low > first_exon[0] and genome[low - 2] == genome[high - 1]:
+                low, high = low - 1, high - 1
+        deleted = set(range(low, high + 1))
+
     reference_cds = gene.cds(genome)
     alternate_cds = gene.cds_with_indel(genome, deleted, inserted_after)
 
@@ -391,8 +410,6 @@ def expected_indel(
     # G of an ATG as Met. Unless it is the same three bases, with the base
     # before them still there, which is the same as an indel behind the start
     # codon.
-    start_codon = gene.cds_positions()[:3]
-    before_start = start_codon[0] - 1 if gene.strand == "+" else start_codon[0] + 1
     splits_start = bool(deleted & set(start_codon)) or any(
         int(anchor) in start_codon and int(anchor) + 1 in start_codon
         for anchor in inserted_after

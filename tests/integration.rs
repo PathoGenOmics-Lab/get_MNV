@@ -5052,8 +5052,8 @@ fn test_e2e_deletions_of_a_start_codon_are_start_losses() {
         // fgd1 (490783-491793, plus, GTG start): the 32 bases before the start
         // and codons 1-135, which brings up the GTG of codon 136.
         deletion(490751, 491187),
-        // katG (2153889-2156111, minus, GTG start): codons 1-175 and the 27
-        // bases before them, which brings up an ATG.
+        // katG (2153889-2156111, minus, GTG start): as WHO writes it, codons
+        // 1-175 and the 27 bases before them.
         deletion(2155587, 2156138),
         // pepQ (2859300-2860418, minus, GTG start): codons 1-162 and nothing
         // before them, which brings up a CTG.
@@ -5094,24 +5094,33 @@ fn test_e2e_deletions_of_a_start_codon_are_start_losses() {
             .find(|row| row["Positions"] == positions)
             .unwrap_or_else(|| panic!("no row at {positions}: {rows:?}"))
     };
-    for (position, gene, catalogue) in [
+    for (position, gene, so_term, catalogue) in [
         (
             "490750",
             "fgd1_Rv0407",
+            "start_lost",
             "DLM: Assoc w R - Interim (fgd1 LoF)",
         ),
-        ("2155586", "katG_Rv1908c", "INH: Assoc w R (katG p.Met1?)"),
+        // WHO writes this deletion two bases short of its 3'-most place, where
+        // it removes 527 coding bases and 25 before the start rather than 525
+        // and 27: a frameshift that loses the start, however it is written.
+        (
+            "2155586",
+            "katG_Rv1908c",
+            "frameshift_variant&start_lost",
+            "INH: Assoc w R (katG p.Met1?)",
+        ),
         (
             "2859932",
             "pepQ_Rv2535c",
+            "start_lost",
             "BDQ: Assoc w R - Interim (pepQ LoF)",
         ),
     ] {
         let row = at_position(position);
         assert_eq!(row["Gene"], gene, "{position}");
         assert_eq!(row["AA Changes"], "Met1?", "{position}");
-        assert_eq!(row["Change Type"], "Start lost", "{position}");
-        assert_eq!(row["SO Term"], "start_lost", "{position}");
+        assert_eq!(row["SO Term"], so_term, "{position}");
         assert_eq!(row["Impact"], "HIGH", "{position}");
         assert_eq!(row["Catalogue"], catalogue, "{position}");
     }
@@ -5120,6 +5129,75 @@ fn test_e2e_deletions_of_a_start_codon_are_start_losses() {
     assert_eq!(behind["AA Changes"], "Pro2del");
     assert_eq!(behind["SO Term"], "inframe_deletion");
     assert_eq!(behind["Catalogue"], "-");
+    fs::remove_dir_all(&tmp).ok();
+}
+
+/// A deletion behind a repeated start codon reads the same however its record
+/// writes it, `--left-align` included.
+///
+/// In `CCCCG ATG ATG AAA TTT TAA`, deleting the second ATG is `8 GATG>G`, and
+/// left-aligned, as `--left-align` and `bcftools norm` write it, `4 CGAT>C`,
+/// which starts on the G before the gene. The gene's edge clipped that one to
+/// two coding bases: a frameshift that lost the start and shifted every codon
+/// behind it, so turning `--left-align` on changed `Met2del` into
+/// `frameshift_variant&start_lost` and a missense downstream into a
+/// frameshifted one.
+#[test]
+fn test_e2e_a_deletion_written_across_the_start_reads_as_written_inside() {
+    let tmp = temp_dir("e2e_deletion_across_start");
+    fs::write(tmp.join("ref.fa"), ">chr1\nCCCCGATGATGAAATTTTAACCCCC\n").unwrap();
+    fs::write(tmp.join("genes.txt"), "g\t6\t20\t+\n").unwrap();
+    // Runs the deletion `ref_allele>` its first base at `position`, with TTT ->
+    // TTG at codon 4 behind it (Phe4Leu), and returns the deletion's row, which
+    // is at `row_at`, and the substitution's.
+    let run = |name: &str, position: usize, ref_allele: &str, left_align: bool, row_at: usize| {
+        fs::write(
+            tmp.join(format!("{name}.vcf")),
+            format!(
+                "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=25>\n\
+                 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+                 chr1\t{position}\t.\t{ref_allele}\t{}\t50\tPASS\tDP=30\n\
+                 chr1\t17\t.\tT\tG\t50\tPASS\tDP=30\n",
+                &ref_allele[..1]
+            ),
+        )
+        .unwrap();
+        let mut args = base_args();
+        args.vcf_file = Some(tmp.join(format!("{name}.vcf")).to_string_lossy().into());
+        args.fasta_file = tmp.join("ref.fa").to_string_lossy().into();
+        args.genes_file_tsv = Some(tmp.join("genes.txt").to_string_lossy().into());
+        args.left_align = left_align;
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+        pipeline::run(&args).expect("deletion across the start run");
+        let rows = read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")));
+        let row = |positions: &str| -> HashMap<String, String> {
+            rows.iter()
+                .find(|row| row["Positions"] == positions)
+                .cloned()
+                .unwrap_or_else(|| panic!("{name}: no row at {positions}: {rows:?}"))
+        };
+        (row(&row_at.to_string()), row("17"))
+    };
+    let inside = run("inside", 8, "GATG", false, 8);
+    let across = run("across", 4, "CGAT", false, 4);
+    // `--left-align` writes the first record as the second.
+    let left_aligned = run("left_aligned", 8, "GATG", true, 4);
+    assert_eq!(left_aligned.0["Reference Bases"], "CGAT");
+    for (name, (deletion, substitution)) in [
+        ("inside", &inside),
+        ("across", &across),
+        ("left_aligned", &left_aligned),
+    ] {
+        assert_eq!(deletion["AA Changes"], "Met2del", "{name}");
+        assert_eq!(deletion["Change Type"], "In-frame Indel", "{name}");
+        assert_eq!(deletion["SO Term"], "inframe_deletion", "{name}");
+        assert_eq!(deletion["Reference Codon"], "ATG", "{name}");
+        assert_eq!(deletion["MNV Codon"], "AAA", "{name}");
+        assert_eq!(deletion["HGVS c."], "c.5_7del", "{name}");
+        assert_eq!(substitution["AA Changes"], "Phe4Leu", "{name}");
+        assert_eq!(substitution["SO Term"], "missense_variant", "{name}");
+    }
     fs::remove_dir_all(&tmp).ok();
 }
 
