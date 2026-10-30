@@ -13,6 +13,7 @@ a fin, incluido el visor de lecturas de la GUI.
 | `G35894.var.snp.MNV.tsv` | Salida de get_MNV precalculada para ese VCF (sin BAM) |
 | `G35894.demo.bam` (`.bai`) | Alineamiento sintético minúsculo para el visor de lecturas (ver abajo) |
 | `make_demo_bam.py` | Regenera `G35894.demo.bam` a partir de la referencia |
+| `who_catalogue_2023.tsv` | Catálogo de mutaciones de resistencia de la OMS (2023), grupos 1 y 2, para `--catalogue` (ver abajo) |
 
 ## Ejecuta la CLI
 
@@ -59,3 +60,28 @@ ejecuta y luego abre esa fila `SNP/MNV` para ver las 24 lecturas en el pileup.
 ```bash
 cd example && python3 make_demo_bam.py   # needs samtools on PATH (or $SAMTOOLS)
 ```
+
+## Marcar mutaciones de resistencia de la OMS
+
+`who_catalogue_2023.tsv` recoge las 1.379 entradas de los grupos 1 y 2
+(asociadas a resistencia) del catálogo de mutaciones del complejo
+*M. tuberculosis* de la OMS, segunda edición (2023), convertidas con
+`tools/who_catalogue_to_tsv.py` y colocadas sobre `MTB_ancestor.fas`:
+
+```bash
+get_mnv \
+  --vcf example/G35894.var.snp.vcf \
+  --fasta example/MTB_ancestor.fas \
+  --genes example/anot_genes.txt \
+  --catalogue example/who_catalogue_2023.tsv
+```
+
+G35894 no lleva ninguna, así que la columna `Catalogue` se queda en `-` en todas
+las filas. Cómo se construye la tabla, y cómo se ve una muestra que sí las
+lleva, está en las páginas de recetas y de formatos de entrada de la
+documentación.
+
+La tabla contiene información del
+[catálogo de mutaciones de la OMS](https://github.com/GTB-tbsequencing/mutation-catalogue-2023),
+que se distribuye bajo la
+[licencia ODC Attribution](https://opendatacommons.org/licenses/by/1-0/).

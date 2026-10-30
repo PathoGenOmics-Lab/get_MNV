@@ -3,8 +3,9 @@
 //! A catalogue is the user's own table of variants that mean something: drug
 //! resistance mutations, lineage markers, known pathogenic changes. Each entry
 //! names a gene and a variant, at the protein (`p.Ser450Leu`), coding
-//! (`c.1349C>T`, `c.-15C>T`) or genomic (`g.761155C>T`) level, or `LoF` for any
-//! loss of function in the gene, and carries a free-text label.
+//! (`c.1349C>T`, `c.-15C>T`), non-coding (`n.1401A>G`, for a gene that is not
+//! translated) or genomic (`g.761155C>T`) level, or `LoF` for any loss of
+//! function in the gene, and carries a free-text label.
 //!
 //! Protein entries are where codon-level annotation matters. A codon with two
 //! substitutions has two readings, the residue each base gives on its own and
@@ -28,7 +29,8 @@ pub enum CatalogueVariant {
     Protein(String),
     /// A single-base substitution at a coding position, in coding-strand bases:
     /// `c.N`, or `c.N+d` / `c.N-d` for a base `d` into the intron or flank
-    /// beside coding base `N` (`offset` is then `d` or `-d`).
+    /// beside coding base `N` (`offset` is then `d` or `-d`). `n.N` numbers a
+    /// gene that is not translated from its first base, as `c.N` does there.
     CodingSubstitution {
         position: CodingAnchor,
         offset: isize,
@@ -186,7 +188,11 @@ pub fn parse_variant(text: &str) -> Option<CatalogueVariant> {
     if text.eq_ignore_ascii_case("lof") {
         return Some(CatalogueVariant::LossOfFunction);
     }
-    if let Some(rest) = text.strip_prefix("c.") {
+    // An rRNA or other untranslated gene is numbered `n.` from its first base,
+    // the base a `c.` number starts from in such a gene: the WHO catalogue
+    // writes rrs and rrl changes so, and they were read as protein changes that
+    // matched nothing.
+    if let Some(rest) = text.strip_prefix("c.").or_else(|| text.strip_prefix("n.")) {
         if let Some((position, reference, alternate)) = parse_substitution(rest) {
             // An intronic or flanking base is written from the coding base
             // beside it: c.30+20, c.31-11, c.-15-3. The sign that opens the
@@ -411,6 +417,11 @@ pub fn annotate_catalogue(
     }
     // Resolve the positional entries once per contig.
     let mut by_position: HashMap<(usize, char), Vec<usize>> = HashMap::new();
+    // A genomic descriptor names its own place too, so it is looked up for
+    // every row of the contig rather than among the rows of its gene: the row
+    // of a deletion upstream of a gene is intergenic, and an entry met only
+    // through the gene's name could never match it.
+    let mut by_descriptor: HashMap<&str, Vec<usize>> = HashMap::new();
     for (index, entry) in catalogue.entries.iter().enumerate() {
         let named: Vec<usize> = genes_by_name
             .get(entry.gene.as_str())
@@ -445,6 +456,13 @@ pub fn annotate_catalogue(
                 reference,
                 alternate,
             } if !named.is_empty() => Some((*position, *reference, *alternate)),
+            CatalogueVariant::GenomicOther(written) if !named.is_empty() => {
+                by_descriptor
+                    .entry(written.as_str())
+                    .or_default()
+                    .push(index);
+                continue;
+            }
             _ => continue,
         };
         let Some((position, reference, alternate)) = placed else {
@@ -493,12 +511,20 @@ pub fn annotate_catalogue(
                 hits.push(describe(&catalogue.entries[index], None));
             }
         }
-        let (so_term, _) = crate::output::so_consequence(variant);
         let genomic = variant
             .annotations
             .hgvs_g
             .clone()
             .or_else(|| crate::variants::hgvs::genomic(variant));
+        for &index in genomic
+            .as_deref()
+            .and_then(|written| by_descriptor.get(written))
+            .into_iter()
+            .flatten()
+        {
+            hits.push(describe(&catalogue.entries[index], None));
+        }
+        let (so_term, _) = crate::output::so_consequence(variant);
         let codon_changes = protein_changes(&variant.aa_changes);
         let single_changes = protein_changes(&variant.snp_aa_changes);
         let mut indices: Vec<usize> = std::iter::once(variant.gene.as_str())
@@ -527,11 +553,6 @@ pub fn annotate_catalogue(
                 }
                 CatalogueVariant::CodingOther(written)
                     if variant.annotations.hgvs_c.as_deref() == Some(written.as_str()) =>
-                {
-                    hits.push(describe(entry, None));
-                }
-                CatalogueVariant::GenomicOther(written)
-                    if genomic.as_deref() == Some(written.as_str()) =>
                 {
                     hits.push(describe(entry, None));
                 }
@@ -585,13 +606,19 @@ pub fn annotate_catalogue(
                     reference.to_ascii_uppercase(),
                     alternate.to_ascii_uppercase()
                 );
+                for &index in by_descriptor
+                    .get(own_genomic.as_str())
+                    .into_iter()
+                    .flatten()
+                {
+                    base_hits.push(describe(&catalogue.entries[index], None));
+                }
                 for entry in indices.iter().map(|&index| &catalogue.entries[index]) {
                     let hit = match &entry.variant {
                         CatalogueVariant::Protein(change) => own_change.iter().any(|a| a == change),
                         CatalogueVariant::CodingOther(written) => {
                             single.and_then(|e| e.hgvs_c.as_deref()) == Some(written.as_str())
                         }
-                        CatalogueVariant::GenomicOther(written) => &own_genomic == written,
                         CatalogueVariant::LossOfFunction => own_term.as_deref().is_some_and(|t| {
                             t.split('&').any(|term| LOSS_OF_FUNCTION.contains(&term))
                         }),
@@ -688,6 +715,35 @@ mod tests {
             Some(CatalogueVariant::CodingOther("c.517_519dup".into()))
         );
         assert_eq!(parse_variant("LoF"), Some(CatalogueVariant::LossOfFunction));
+    }
+
+    /// An untranslated gene is numbered `n.`, as the WHO catalogue numbers rrs
+    /// and rrl; such an entry was taken for a protein change and matched
+    /// nothing.
+    #[test]
+    fn non_coding_entries_are_read_by_position_like_coding_ones() {
+        assert_eq!(
+            parse_variant("n.1401A>G"),
+            Some(CatalogueVariant::CodingSubstitution {
+                position: CodingAnchor::Cds(1401),
+                offset: 0,
+                reference: 'A',
+                alternate: 'G'
+            })
+        );
+        assert_eq!(
+            parse_variant("n.-119C>T"),
+            Some(CatalogueVariant::CodingSubstitution {
+                position: CodingAnchor::Upstream(119),
+                offset: 0,
+                reference: 'C',
+                alternate: 'T'
+            })
+        );
+        assert_eq!(
+            parse_variant("n.2269_2270insT"),
+            Some(CatalogueVariant::CodingOther("n.2269_2270insT".into()))
+        );
     }
 
     /// A base in an intron or a flank is written from the coding base beside it,

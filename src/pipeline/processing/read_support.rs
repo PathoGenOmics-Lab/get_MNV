@@ -4,7 +4,7 @@
 use super::{PhasedIndelInputs, RegionCacheKey, WorkerState};
 use crate::cli::Args;
 use crate::error::{AppError, AppResult};
-use crate::io::VcfPosition;
+use crate::io::{VariantIndex, VcfPosition};
 use crate::read_count::{self, ReadCountSummary};
 use crate::variants::{self, Gene, VariantInfo, VariantType};
 use std::collections::HashMap;
@@ -166,12 +166,21 @@ pub(super) fn compute_frameshift_phasing(
 /// Carry the input caller's own phase claim onto the multi-position rows, and
 /// note where the reads flatly refute it. Run after read counting so both
 /// sides of that comparison are available.
-pub(super) fn annotate_declared_phase(variants: &mut [VariantInfo], snp_list: &[VcfPosition]) {
+pub(super) fn annotate_declared_phase(variants: &mut [VariantInfo], snp_index: &VariantIndex) {
     for variant in variants.iter_mut() {
+        // Only a record acting on one of the row's own bases can carry the
+        // claim for it, so the search starts from those bases rather than from
+        // the gene the row came from.
+        let (Some(&first), Some(&last)) = (
+            variant.positions.iter().min(),
+            variant.positions.iter().max(),
+        ) else {
+            continue;
+        };
         let Some(mut call) = variants::declared_phase::declared_phase_for_row(
             &variant.positions,
             &variant.base_changes,
-            snp_list,
+            snp_index.near(first, last),
         ) else {
             continue;
         };

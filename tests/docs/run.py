@@ -105,6 +105,14 @@ def tool_vocabulary(get_mnv: Path) -> tuple[set[str], set[str], set[str]]:
     bench = REPO / "src" / "bin" / "bench_variants.rs"
     if bench.exists():
         flags |= set(re.findall(r'"(--[a-z0-9][a-z0-9-]*)"', bench.read_text()))
+    # So is the converter that builds a catalogue from WHO's files, and its own
+    # --help is where its flags are written down.
+    converter = REPO / "tools" / "who_catalogue_to_tsv.py"
+    if converter.exists():
+        converter_help = subprocess.run(
+            [sys.executable, str(converter), "--help"], capture_output=True, text=True, check=False
+        ).stdout
+        flags |= set(re.findall(FLAG_PATTERN, converter_help))
 
     work = Path(tempfile.mkdtemp(prefix="get_mnv_docs_"))
     try:

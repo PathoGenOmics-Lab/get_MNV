@@ -203,6 +203,22 @@ jobs:
         # cannot judge.
         run: python3 tests/truth/run.py
 
+  who_catalogue:
+    name: WHO catalogue converter on real catalogue rows
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build get_mnv
+        run: cargo build -p get_mnv --locked
+      - name: Convert real rows and match WHO's own variants with them
+        # Converts real rows of the catalogue, annotates WHO's genomic variants
+        # for them with the result, and checks the table shipped in example/.
+        # Exits non-zero on any entry that converts or matches differently.
+        run: python3 tests/who_catalogue/run.py
+
   docs:
     name: Documentation site builds, and names only what the tool has
     runs-on: ubuntu-latest

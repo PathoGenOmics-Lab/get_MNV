@@ -12,7 +12,7 @@ use std::path::Path;
 /// decodes a CRAM block compressed with order-1 rANS with its tables on the
 /// stack, which in a release build takes more than the 2 MiB rayon gives a
 /// thread by default: a CRAM of 60,000 reads aborted with a stack overflow.
-const WORKER_STACK_SIZE: usize = 8 * 1024 * 1024;
+pub(crate) const WORKER_STACK_SIZE: usize = 8 * 1024 * 1024;
 
 pub(crate) fn configure_threads(threads: Option<usize>) -> AppResult<()> {
     let mut pool = rayon::ThreadPoolBuilder::new().stack_size(WORKER_STACK_SIZE);

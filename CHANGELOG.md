@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- **The WHO catalogue of *M. tuberculosis* resistance mutations, ready for
+  `--catalogue`.** `example/who_catalogue_2023.tsv` holds the 1,379 entries of
+  groups 1 and 2 of the 2023 catalogue (second edition), labelled with the drug
+  and grade (`RIF: Assoc w R`), and `tools/who_catalogue_to_tsv.py` builds it,
+  or any other choice of groups, from WHO's own files with Python's standard
+  library alone. Most entries are already written as get_MNV writes the same
+  change; a duplication becomes the insertion get_MNV names, a lost stop the
+  residue that replaces it, and an indel outside a coding sequence the `g.`
+  get_MNV gives it, placed from WHO's genomic coordinates on the run's FASTA.
+  The four whole-gene deletions, which no VCF of changes inside genes
+  describes, are listed as not converted. Of the 26,231 genomic variants WHO
+  links to those groups, 26,199 come out flagged for their drug, among them
+  the 22 rpoB variants that need two changes in one codon, which only the
+  codon reading finds. `tests/who_catalogue/run.py` checks the converter on
+  real rows of the catalogue in CI.
+- **`--catalogue` reads `n.`.** A gene that is not translated, such as an rRNA,
+  is numbered from its first base, as the WHO catalogue writes rrs and rrl
+  changes (`n.1401A>G`). Such an entry was read as a protein change and
+  matched nothing.
 - **`--left-align` left-aligns indels against the reference, as
   `bcftools norm -f` does.** An insertion or deletion in a homopolymer or a
   tandem repeat can be written at several positions that describe the same
@@ -27,6 +46,47 @@ All notable changes to this project are documented in this file.
   spelled several ways, through both VCF readers, and finds no disagreement;
   2,668 of them move, by up to 218 bases. The zero-support warning now points
   at the flag, or, when it is already on, at the alignment.
+
+### Changed
+
+- **A gene looks only at the variants near it.** Every gene was tested
+  against every variant of its contig, decomposing the allele again for each
+  test, so on a bacterial genome nearly all of a run went into deciding which
+  genes to annotate: the bundled example, 950 variants over 4,008 genes, spent
+  95% of its time there. Where each variant acts is now worked out once, and a
+  gene finds the variants within its reach, splice region and introns
+  included, by binary search. The per-gene passes for read support and
+  phasing, the pass that places variants outside every coding sequence, and
+  the lookup of a variant's declared phase do the same. The example runs in
+  0.017 s instead of 0.271 s, and every output is the same byte for byte.
+
+- **`--sample all` reads its inputs once and runs the samples side by side.**
+  Each sample read the reference, the annotation and the whole VCF again, and
+  split every line of the VCF to reach its own column, so a wide cohort cost
+  sites x samples x samples. The reference and annotation are now loaded once,
+  the VCF is held in memory with the columns of each line found once (a file of
+  more than 4 GiB is still read again for each sample), and the samples run on
+  the `--threads` threads. Each sample's log lines and progress events are held
+  until the samples before it have been written, so the log and the desktop
+  app's progress read exactly as before, and every output file is the same
+  byte for byte. 200 samples of the example take 0.12 s instead of 30 s, and
+  3,000 take 1.5 s instead of 8 minutes. A cohort with a BAM and
+  fewer samples than threads still runs one sample at a time, with its genes
+  spread over the threads. When a sample fails, the run still stops with that
+  sample's error, but a sample after it that was already running finishes and
+  keeps its output. Programs that embed the library get the cohort speed-up by
+  installing their logger with `get_mnv::logging::install`; with any other
+  logger the samples run one after another, as before.
+
+### Fixed
+
+- **A `g.` catalogue entry matches wherever its change is.** A genomic
+  descriptor other than a single substitution (`g.2289247del`) was compared only
+  with the rows of the entry's gene, and a deletion upstream of a gene sits on
+  an intergenic row, so the pncA promoter deletion WHO grades as resistance to
+  pyrazinamide could not be flagged, although the documentation's own example
+  was such an entry. It is now compared with every row of the contig the gene
+  is on.
 
 ## [1.1.6] - 2026-10-29
 

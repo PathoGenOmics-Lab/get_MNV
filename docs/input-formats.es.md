@@ -270,8 +270,9 @@ Una variante se puede escribir como:
 |---|---|---|
 | Proteína | `p.Ser450Leu`, `p.S450L`, `p.Gln10Ter`, `p.Ala11fs` | las filas del gen con ese cambio proteico. Un corrimiento de marco coincide por su primer residuo y su posición, siga lo que siga a `fs`. |
 | Sustitución codificante | `c.1349C>T`, `c.-15C>T`, `c.*3G>A` | la base sustituida, colocada en el genoma con el modelo del gen (`c.-N` antes de la primera base codificante, `c.*N` después de la última), en cualquier fila que la lleve, también las intergénicas |
+| Sustitución no codificante | `n.1401A>G`, `n.-119C>T` | lo mismo, en un gen que no se traduce, como un ARNr, numerado desde su primera base |
 | Sustitución genómica | `g.761155C>T` | la base sustituida en esa posición |
-| Otro HGVS | `c.516_518dup`, `g.1673425del` | las filas cuyo `HGVS c.` o `HGVS g.` se escribe exactamente así |
+| Otro HGVS | `c.516_518dup`, `g.1673425del` | las filas del gen cuyo `HGVS c.` se escribe exactamente así, o las filas de cualquier punto del contig del gen, también las intergénicas, cuyo `HGVS g.` se escribe así |
 | `LoF` | `LoF` | cualquier corrimiento de marco, parada prematura o pérdida del inicio en el gen |
 
 El gen se compara por nombre, o por cualquier parte separada por `_` de un
@@ -287,6 +288,93 @@ catálogo que ninguna base sola produce, y que la anotación base a base no ve, 
 `per-SNV reading only` para uno que esa anotación daría y que el codón no
 produce. Las coincidencias van a la columna `Catalogue` (consulta
 [Formatos de salida](output-formats.es.md)).
+
+### El catálogo de la OMS de mutaciones de resistencia de *M. tuberculosis*
+
+El catálogo de mutaciones del complejo *Mycobacterium tuberculosis* de la OMS
+(segunda edición, 2023) clasifica unos 48.000 pares de variante y fármaco en
+cinco grupos, de `1) Assoc w R` a `5) Not assoc w R`. `example/who_catalogue_2023.tsv`
+recoge los grupos 1 y 2, las variantes asociadas a resistencia, listas para
+`--catalogue`; en [Recetas habituales](usage.es.md#marcar-mutaciones-de-resistencia-conocidas-en-m-tuberculosis)
+está la ejecución. Cada entrada lleva como etiqueta la abreviatura del fármaco
+que usa la OMS y el grupo, así que una coincidencia se lee
+`RIF: Assoc w R (rpoB p.Ser450Leu)`, y una variante clasificada para varios
+fármacos es una entrada por fármaco. Otras tres columnas guardan el nombre del
+fármaco, el grupo y el nombre de la variante de la OMS (`rpoB_p.Ser450Leu`),
+para filtrar la tabla o volver a cruzarla con el catálogo; get_MNV las ignora.
+
+`tools/who_catalogue_to_tsv.py` construye la tabla a partir de los archivos de
+la OMS, así que se puede rehacer con otros grupos (`--grades 1,2,5` añade las
+variantes que se ha visto que no se asocian, `--grades all` conserva todos) o
+colocar sobre otra referencia. Solo necesita la biblioteca estándar de Python.
+La mayoría de las entradas se escriben como get_MNV escribe el mismo cambio y se
+conservan tal cual; las demás se reescriben:
+
+| La OMS escribe | La tabla guarda |
+|---|---|
+| `p.Ser450Leu`, `p.Trp122*`, `p.Asp379fs`, `p.Met1?`, un `del`, `ins` o `delins` en fase | lo mismo |
+| `c.-15C>T`, `c.102G>A`, `n.1401A>G`, `LoF` | lo mismo |
+| `p.Phe433dup`, una duplicación en fase | `p.Phe433_Met434insPhe`, la inserción como la nombra get_MNV, con los residuos sacados de las demás entradas del catálogo |
+| `p.Ter187Argext*?`, una parada perdida | `p.Ter187Arg`, el residuo que la sustituye |
+| `c.421_423delTTGinsCTC`, misma longitud a la entrada y a la salida | `c.[421T>C;423G>C]`, las sustituciones que produce |
+| `c.-5delG` o `n.2269_2270insT`, un indel fuera de una secuencia codificante | el `HGVS g.` que get_MNV da al cambio, `g.2289247del`, a partir de las coordenadas genómicas de la OMS y del FASTA de la ejecución (`--coordinates`, `--fasta`) |
+| `deletion`, el gen entero | nada: la OMS no le da ninguna variante genómica, y un VCF de cambios dentro de los genes no tiene fila para un gen que a la muestra le falta |
+
+Una entrada reescrita conserva en su etiqueta el nombre de la OMS:
+`PZA: Assoc w R, WHO c.-5delG (pncA g.2289247del)`. `--unconverted` escribe lo
+que no se ha convertido, con el motivo. En los grupos 1 y 2 son las cuatro
+deleciones de gen entero, de katG, ethA, fgd1 y pncA, que tienen cada una una
+entrada `LoF` para el mismo fármaco; sin `--coordinates` se añaden los tres
+indels fuera de secuencias codificantes (pncA `c.-5delG`, eis `c.-8delC`, rrl
+`n.2269_2270insT`).
+
+Comparar cambios proteicos, y no registros genómicos, es lo que permite
+encontrar un codón con dos sustituciones. 22 de las variantes de rpoB de los
+grupos 1 y 2, entre ellas `p.Ser450Phe`, `p.Ser450Tyr`, `p.Ser441Gln` y
+`p.His445Cys`, necesitan dos cambios en un mismo codón; leída base a base,
+`p.Ser450Phe` es `p.Ser450Leu` más un cambio sinónimo. get_MNV marca cada una
+con `codon reading only`.
+
+La OMS también da, para cada variante clasificada, los cambios genómicos que la
+producen: 26.231 en los grupos 1 y 2. Cada uno se anotó sobre el ancestro del
+MTBC del ejemplo con la tabla incluida. 26.190 salen marcados con su propia
+entrada, 198 de ellos solo por la lectura del codón, y 9 más con otra entrada
+para el mismo fármaco, el `LoF` del gen. Los 32 restantes son 28 deleciones que
+se llevan un codón de inicio junto con un número entero de codones, que la OMS
+cuenta como pérdidas de función y get_MNV da como deleciones en fase; 2
+inserciones justo antes de un codón de inicio, que la OMS cuenta como pérdidas
+de función y get_MNV como intergénicas; y 2 cambios cuya consecuencia sobre el
+ancestro no es la que tienen sobre H37Rv. Con la carpeta que guarda los dos
+archivos de la OMS, `tests/who_catalogue/run.py` repite la comprobación.
+
+Con tus propios datos:
+
+- **Nombres de gen.** La OMS nombra los genes por sus símbolos y locus tags de
+  H37Rv (`rpoB`, `katG`, `Rv0678`, `rrs`), y una entrada coincide con un gen de
+  ese nombre o que lo tenga como una de sus partes separadas por `_`. Los 65
+  genes del catálogo se encuentran así en `example/anot_genes.txt` y en la
+  anotación de H37Rv del NCBI (GCF_000195955.2), cuyos genes get_MNV nombra
+  `rpoB_Rv0667`. Con una anotación que los nombre de otra manera, cambia la
+  columna `gene` de la tabla a los nombres de la anotación.
+- **Referencia.** El catálogo está escrito contra H37Rv (NC_000962.3). Las
+  entradas de proteína, `c.` y `n.` se numeran a lo largo de su gen, así que
+  valen en cualquier referencia cuyos genes coincidan con los de H37Rv. Las
+  entradas `g.` son posiciones de H37Rv: construye la tabla con tu propio FASTA
+  en `--fasta` cuando esté en coordenadas de H37Rv, y deja fuera
+  `--coordinates` cuando no lo esté. El ancestro del MTBC del ejemplo comparte
+  las coordenadas de H37Rv, pero no los alelos que lleva el propio linaje de
+  H37Rv: 38 entradas nombran un residuo o una base que el ancestro no tiene en
+  ese punto, ninguna de los grupos 1 y 2 (`embB p.Glu378Ala`, un marcador de
+  linaje, es una). Contra el ancestro no coinciden con nada, y una muestra con
+  el alelo de H37Rv muestra el cambio inverso, `Ala378Glu`.
+
+La tabla y los archivos de los que sale contienen información del
+[catálogo de mutaciones de la OMS](https://github.com/GTB-tbsequencing/mutation-catalogue-2023),
+que se distribuye bajo la
+[licencia ODC Attribution](https://opendatacommons.org/licenses/by/1-0/); cítalo
+como *Catalogue of mutations in Mycobacterium tuberculosis complex and their
+association with drug resistance, second edition. Geneva: World Health
+Organization; 2023*.
 
 ## Nombres de contig
 

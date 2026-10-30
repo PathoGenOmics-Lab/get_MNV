@@ -9,6 +9,13 @@
 
 use crate::variants::{Gene, SpliceConsequence, Strand};
 
+/// How far from the exon base that bounds a junction a position can still be
+/// a splice site: the intronic splice region ends eight bases into the intron.
+/// A variant further than this from every CDS segment of a gene can be neither
+/// a splice site nor intronic for it, which is what lets a gene look only at
+/// the variants near it.
+pub(crate) const SPLICE_REACH: usize = 8;
+
 /// Which half of a junction a boundary describes, so the two essential intronic
 /// bases map to the correct donor / acceptor term.
 #[derive(Clone, Copy)]
@@ -262,6 +269,46 @@ mod tests {
         let slippage = joined_gene("t", Strand::Plus, &[(266, 13468), (13468, 21555)]);
         assert!(!is_intronic_position(&slippage, 13468));
         assert!(!is_intronic_position(&slippage, 13469));
+    }
+
+    /// The gene lookup only shows a gene the variants within `SPLICE_REACH` of
+    /// its CDS segments, so nothing further out may be a splice site or
+    /// intronic. Checked on both strands, with an intron shorter than the
+    /// splice region, and with a last exon so short that the splice region of
+    /// the junction before it runs past the end of the transcript.
+    #[test]
+    fn nothing_beyond_the_splice_reach_is_a_splice_site() {
+        let genes = [
+            spliced_gene("t", Strand::Plus, &[(801, 900), (1001, 1200)]),
+            spliced_gene("t", Strand::Minus, &[(1001, 1200), (801, 900)]),
+            spliced_gene("t", Strand::Plus, &[(801, 900), (904, 1000), (1100, 1180)]),
+            spliced_gene("t", Strand::Minus, &[(1100, 1180), (904, 1000), (801, 900)]),
+            spliced_gene("t", Strand::Plus, &[(801, 900), (902, 903)]),
+            spliced_gene("t", Strand::Minus, &[(1098, 1099), (1001, 1096)]),
+        ];
+        for gene in &genes {
+            let low = gene.cds_segments.iter().map(|s| s.start).min().unwrap();
+            let high = gene.cds_segments.iter().map(|s| s.end).max().unwrap();
+            let mut reached = (usize::MAX, 0);
+            for position in 700..1300 {
+                if splice_consequence_for_position(gene, position).is_some()
+                    || is_intronic_position(gene, position)
+                {
+                    reached = (reached.0.min(position), reached.1.max(position));
+                }
+            }
+            assert!(
+                reached.0 + SPLICE_REACH >= low && reached.1 <= high + SPLICE_REACH,
+                "{reached:?} reaches past {low}-{high} by more than {SPLICE_REACH}"
+            );
+        }
+        // And the reach is no wider than it needs to be: the eighth intronic
+        // base past an exon is still a splice region.
+        let plus = spliced_gene("t", Strand::Plus, &[(801, 900), (1001, 1200)]);
+        assert_eq!(
+            splice_consequence_for_position(&plus, 900 + SPLICE_REACH),
+            Some(SpliceConsequence::Region)
+        );
     }
 
     #[test]

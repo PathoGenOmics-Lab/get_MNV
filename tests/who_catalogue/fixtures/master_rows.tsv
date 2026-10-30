@@ -1,0 +1,33 @@
+# Excerpt of the WHO catalogue of mutations in Mycobacterium tuberculosis complex, 2nd ed. (2023),
+# rows of WHO-UCN-TB-2023.6-eng_catalogue_master_file.txt, the columns the converter reads, from https://github.com/GTB-tbsequencing/mutation-catalogue-2023
+# (Final Result Files). Contains information from the WHO mutation catalogue, which is made
+# available under the ODC Attribution License (https://opendatacommons.org/licenses/by/1-0/).
+drug	gene	mutation	variant	tier	effect	FINAL CONFIDENCE GRADING
+Amikacin	rrs	n.1401A>G	rrs_n.1401A>G	1	non_coding_transcript_exon_variant	1) Assoc w R
+Capreomycin	rrl	n.2269_2270insT	rrl_n.2269_2270insT	2	non_coding_transcript_exon_variant	3) Uncertain significance
+Capreomycin	rrs	n.1401A>G	rrs_n.1401A>G	1	non_coding_transcript_exon_variant	1) Assoc w R
+Ethambutol	aftB	p.Ter628ext*?	aftB_p.Ter628ext*?	2	stop_lost	3) Uncertain significance
+Ethionamide	inhA	c.-777C>T	inhA_c.-777C>T	1	upstream_gene_variant	1) Assoc w R
+Ethionamide	Rv0565c	p.TrpLeu266*	Rv0565c_p.TrpLeu266*	2	stop_gained	3) Uncertain significance
+Isoniazid	inhA	c.-777C>T	inhA_c.-777C>T	1	upstream_gene_variant	1) Assoc w R
+Isoniazid	katG	c.421_423delTTGinsCTC	katG_c.421_423delTTGinsCTC	1	synonymous_variant	4) Not assoc w R - Interim
+Isoniazid	katG	LoF	katG_LoF	1	LoF	1) Assoc w R
+Isoniazid	katG	p.Ala16fs	katG_p.Ala16fs	1	frameshift	2) Assoc w R - Interim
+Isoniazid	katG	p.Ser315Thr	katG_p.Ser315Thr	1	missense_variant	1) Assoc w R
+Kanamycin	rrs	n.1401A>G	rrs_n.1401A>G	1	non_coding_transcript_exon_variant	1) Assoc w R
+Levofloxacin	gyrA	p.Asp94Gly	gyrA_p.Asp94Gly	1	missense_variant	1) Assoc w R
+Levofloxacin	gyrA	p.Glu21Gln	gyrA_p.Glu21Gln	1	missense_variant	5) Not assoc w R
+Linezolid	rrl	n.2269_2270insT	rrl_n.2269_2270insT	1	non_coding_transcript_exon_variant	2) Assoc w R - Interim
+Moxifloxacin	gyrA	p.Asp94Gly	gyrA_p.Asp94Gly	1	missense_variant	1) Assoc w R
+Moxifloxacin	gyrA	p.Glu21Gln	gyrA_p.Glu21Gln	1	missense_variant	5) Not assoc w R
+Pyrazinamide	pncA	c.-5delG	pncA_c.-5delG	1	upstream_gene_variant	1) Assoc w R
+Pyrazinamide	pncA	deletion	pncA_deletion	1	feature_ablation	2) Assoc w R - Interim
+Pyrazinamide	pncA	p.Met1?	pncA_p.Met1?	1	start_lost	1) Assoc w R
+Pyrazinamide	pncA	p.Ter187Argext*?	pncA_p.Ter187Argext*?	1	stop_lost	2) Assoc w R - Interim
+Rifampicin	rpoB	p.Asn438del	rpoB_p.Asn438del	1	inframe_deletion	2) Assoc w R - Interim
+Rifampicin	rpoB	p.Met434Ile	rpoB_p.Met434Ile	1	missense_variant	2) Assoc w R - Interim
+Rifampicin	rpoB	p.Phe433dup	rpoB_p.Phe433dup	1	inframe_insertion	1) Assoc w R
+Rifampicin	rpoB	p.Ser441Gln	rpoB_p.Ser441Gln	1	missense_variant	1) Assoc w R
+Rifampicin	rpoB	p.Ser450Leu	rpoB_p.Ser450Leu	1	missense_variant	1) Assoc w R
+Rifampicin	rpoB	p.Ser450Phe	rpoB_p.Ser450Phe	1	missense_variant	1) Assoc w R
+Streptomycin	rrs	n.1401A>G	rrs_n.1401A>G	1	non_coding_transcript_exon_variant	3) Uncertain significance

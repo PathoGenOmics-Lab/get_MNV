@@ -307,9 +307,11 @@ pub fn build_tabix_index(vcf_gz_path: &str) -> AppResult<ExternalStep> {
         );
     }
     // Use external tabix command (from htslib/samtools)
-    let status = std::process::Command::new("tabix")
-        .args(["-p", "vcf", vcf_gz_path])
-        .status();
+    let status = crate::logging::run_program(std::process::Command::new("tabix").args([
+        "-p",
+        "vcf",
+        vcf_gz_path,
+    ]));
     match status {
         Ok(s) if s.success() => Ok(ExternalStep::Ran),
         Ok(s) => Err(format!("tabix exited with status {s} for '{vcf_gz_path}'").into()),
@@ -327,9 +329,14 @@ pub fn convert_vcf_to_bcf(input_vcf_path: &str, output_bcf_path: &str) -> AppRes
         );
     }
     // Use external bcftools for VCF→BCF conversion
-    let status = std::process::Command::new("bcftools")
-        .args(["view", "-O", "b", "-o", output_bcf_path, input_vcf_path])
-        .status();
+    let status = crate::logging::run_program(std::process::Command::new("bcftools").args([
+        "view",
+        "-O",
+        "b",
+        "-o",
+        output_bcf_path,
+        input_vcf_path,
+    ]));
     match status {
         Ok(s) if s.success() => Ok(ExternalStep::Ran),
         Ok(s) => Err(format!("bcftools exited with status {s} converting to BCF").into()),
