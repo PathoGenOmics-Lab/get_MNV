@@ -493,6 +493,142 @@ fn an_indel_inside_the_start_codon_loses_the_start() {
     }
 }
 
+/// A deletion written across the protein's start is read where it lies inside
+/// the gene, when it can be moved there.
+///
+/// Deleting the second ATG of a gene that starts `ATGATG` right after a G can be
+/// written left-aligned, as `bcftools norm` and `--left-align` write it,
+/// starting on that G. Clipped at the gene's edge, that removed two coding
+/// bases rather than three: a frameshift that lost the start, carried onto
+/// every codon behind it, where the same deletion written inside the gene was
+/// `Met2del`. A deletion that cannot be moved clear of the base before the
+/// start codon still loses the start.
+#[test]
+fn a_deletion_written_across_the_start_is_read_where_it_lies_inside() {
+    // CCCCG | ATG ATG AAA TTT TAA | CCCCC: Met-Met-Lys-Phe, CDS 6-20.
+    let plus = "CCCCGATGATGAAATTTTAACCCCC";
+    let record = |position: usize, ref_allele: &str, alt_allele: &str| crate::io::VcfPosition {
+        record_start: position,
+        ref_allele: ref_allele.to_string(),
+        alt_allele: alt_allele.to_string(),
+        original_dp: None,
+        original_freq: None,
+        original_info: None,
+        declared_phase: None,
+    };
+    for strand in [Strand::Plus, Strand::Minus] {
+        let sequence = match strand {
+            Strand::Plus => plus.to_string(),
+            Strand::Minus => reverse_complement(plus),
+        };
+        let reference = crate::io::Reference {
+            sequence: &sequence,
+        };
+        // The deletion of the plus strand's `first..=last`, anchored on the base
+        // before it on this strand.
+        let deletion = |first: usize, last: usize| {
+            let (first, last) = match strand {
+                Strand::Plus => (first, last),
+                Strand::Minus => (plus.len() + 1 - last, plus.len() + 1 - first),
+            };
+            record(
+                first - 1,
+                &sequence[first - 2..last],
+                &sequence[first - 2..first - 1],
+            )
+        };
+        // TTT -> TTG at codon 4: Phe4Leu, behind the deletion.
+        let substitution = match strand {
+            Strand::Plus => record(17, "T", "G"),
+            Strand::Minus => record(9, "A", "C"),
+        };
+        let genomic = single_exon_gene("cds", 6, 20, strand);
+        let transcript = transcript_gene("tx_cds", strand, &[(6, 20)]);
+        for gene in [&genomic, &transcript] {
+            let annotate = |indel: crate::io::VcfPosition| {
+                let rows = crate::variants::get_mnv_variants_for_gene(
+                    gene,
+                    &[indel, substitution.clone()],
+                    &reference,
+                    "chr1",
+                    crate::genetic_code::GeneticCode::default(),
+                );
+                let find = |kind: VariantType| {
+                    rows.iter()
+                        .find(|row| row.variant_type == kind)
+                        .cloned()
+                        .unwrap_or_else(|| panic!("no {kind:?} row: {rows:?}"))
+                };
+                (find(VariantType::Indel), find(VariantType::Snp))
+            };
+            let context = format!("{} {strand:?}", gene.name);
+            // The G before the gene and the AT of the first ATG, and the same
+            // deletion written on the second ATG.
+            let (across, across_snv) = annotate(deletion(5, 7));
+            let (inside, inside_snv) = annotate(deletion(9, 11));
+            for (row, snv) in [(&across, &across_snv), (&inside, &inside_snv)] {
+                assert_eq!(row.change_type, ChangeType::InFrameIndel, "{context}");
+                assert_eq!(row.aa_changes, vec!["Met2del".to_string()], "{context}");
+                assert_eq!(row.ref_codon.as_deref(), Some("ATG"), "{context}");
+                assert_eq!(row.mnv_codon.as_deref(), Some("AAA"), "{context}");
+                assert_eq!(
+                    row.annotations.hgvs_c.as_deref(),
+                    Some("c.5_7del"),
+                    "{context}"
+                );
+                assert_eq!(snv.change_type, ChangeType::NonSynonymous, "{context}");
+                assert_eq!(snv.aa_changes, vec!["Phe4Leu".to_string()], "{context}");
+            }
+            // The rows still name the records as written.
+            assert_ne!(across.positions, inside.positions, "{context}");
+            // The C and G before the gene and the whole first ATG: no placement
+            // inside the gene removes the same bases.
+            let (stuck, _) = annotate(deletion(4, 8));
+            assert_eq!(stuck.change_type, ChangeType::StartLost, "{context}");
+            assert_eq!(stuck.aa_changes, vec!["Met1?".to_string()], "{context}");
+        }
+    }
+}
+
+/// A deletion that reaches the base before the start codon wherever it is
+/// written still reads the same however it is written. In `TTTGA ATG CCC`,
+/// deleting `GAAT` and deleting `AATG` leave the same sequence, `TTTGCCC`. The
+/// first kept two coding bases inside the gene's edge and came out a
+/// frameshift, the second three and came out in frame. Both remove the start.
+#[test]
+fn a_deletion_still_across_the_start_reads_the_same_however_written() {
+    // TTTGA | ATG CCC AAA TAA | TTTTT: Met-Pro-Lys, CDS 6-17.
+    let reference = crate::io::Reference {
+        sequence: "TTTGAATGCCCAAATAATTTTT",
+    };
+    let deletion = |position: usize, ref_allele: &str| crate::io::VcfPosition {
+        record_start: position,
+        ref_allele: ref_allele.to_string(),
+        alt_allele: ref_allele[..1].to_string(),
+        original_dp: None,
+        original_freq: None,
+        original_info: None,
+        declared_phase: None,
+    };
+    let genomic = single_exon_gene("cds", 6, 17, Strand::Plus);
+    let transcript = transcript_gene("tx_cds", Strand::Plus, &[(6, 17)]);
+    for gene in [&genomic, &transcript] {
+        for variant in [deletion(3, "TGAAT"), deletion(4, "GAATG")] {
+            let context = format!("{} {}", gene.name, variant.ref_allele);
+            let rows = crate::variants::get_mnv_variants_for_gene(
+                gene,
+                &[variant],
+                &reference,
+                "chr1",
+                crate::genetic_code::GeneticCode::default(),
+            );
+            assert_eq!(rows.len(), 1, "{context}");
+            assert_eq!(rows[0].change_type, ChangeType::StartLost, "{context}");
+            assert_eq!(rows[0].aa_changes, vec!["Met1?".to_string()], "{context}");
+        }
+    }
+}
+
 #[test]
 fn test_transcript_model_restored_frame_does_not_mark_downstream_snp_frameshift() {
     let gene = spliced_gene("tx_cds", Strand::Plus, &[(1, 6), (20, 25)]);
@@ -768,7 +904,10 @@ fn indel_at(record_start: usize, ref_allele: &str, alt_allele: &str) -> crate::i
 
 /// Copying the terminal stop codon (ATG AAA TTT TAA to ATG AAA TTT TAA TAA)
 /// adds a stop no ribosome reaches: the protein made is Met-Lys-Phe either way.
-/// Counting the stops of the whole translation called it a stop gained.
+/// Counting the stops of the whole translation called it a stop gained. Placed
+/// 3'-most, as HGVS places an insertion, the copy goes in after the stop codon,
+/// so the gene has nothing to report for it: the run reports it as it reports
+/// the same insertion written after the gene.
 #[test]
 fn an_insertion_copying_the_terminal_stop_codon_changes_nothing() {
     let gene = single_exon_gene("cds", 1, 12, Strand::Plus);
@@ -783,9 +922,124 @@ fn an_insertion_copying_the_terminal_stop_codon_changes_nothing() {
         crate::genetic_code::GeneticCode::default(),
     );
 
-    assert_eq!(variants.len(), 1);
-    assert_eq!(variants[0].change_type, ChangeType::Synonymous);
-    assert_eq!(variants[0].aa_changes, vec!["Synonymous".to_string()]);
+    assert!(variants.is_empty(), "{variants:?}");
+}
+
+/// An indel HGVS places wholly past the stop codon changes no coding base, and
+/// the gene reports nothing for it, however its record is written.
+///
+/// The TAA of `ATG AAA TAA` begins a run of four As. One A fewer, or one more,
+/// written left-aligned, as `bcftools norm` and `--left-align` write it, sits on
+/// the stop codon, which read it as a HIGH frameshift at the protein's last
+/// residue; written after the gene, the same change was intergenic. A G put
+/// between the stop's two As has nowhere else to go and stays the gene's, and
+/// so does a deletion that another record's base in the run holds in place.
+#[test]
+fn an_indel_hgvs_places_past_the_stop_is_not_the_genes() {
+    // CC | ATG AAA TAA | AAACCC: Met-Lys, CDS 3-11.
+    let plus = "CCATGAAATAAAACCC";
+    let record = |position: usize, ref_allele: &str, alt_allele: &str| crate::io::VcfPosition {
+        record_start: position,
+        ref_allele: ref_allele.to_string(),
+        alt_allele: alt_allele.to_string(),
+        original_dp: None,
+        original_freq: None,
+        original_info: None,
+        declared_phase: None,
+    };
+    for strand in [Strand::Plus, Strand::Minus] {
+        let sequence = match strand {
+            Strand::Plus => plus.to_string(),
+            Strand::Minus => reverse_complement(plus),
+        };
+        let reference = crate::io::Reference {
+            sequence: &sequence,
+        };
+        let mirror = |position: usize| match strand {
+            Strand::Plus => position,
+            Strand::Minus => plus.len() + 1 - position,
+        };
+        // The deletion of the plus strand's base `at`, anchored on the base
+        // before it on this strand.
+        let deletion = |at: usize| {
+            let at = mirror(at);
+            record(at - 1, &sequence[at - 2..at], &sequence[at - 2..at - 1])
+        };
+        // `base` (as the plus strand reads it) inserted between the plus
+        // strand's `at` and `at + 1`.
+        let insertion = |at: usize, base: &str| {
+            let anchor = match strand {
+                Strand::Plus => at,
+                Strand::Minus => mirror(at + 1),
+            };
+            let inserted = match strand {
+                Strand::Plus => base.to_string(),
+                Strand::Minus => reverse_complement(base),
+            };
+            let anchor_base = &sequence[anchor - 1..anchor];
+            record(anchor, anchor_base, &format!("{anchor_base}{inserted}"))
+        };
+        // The A after the stop codon changed to G.
+        let in_the_run = {
+            let at = mirror(12);
+            let (from, to) = match strand {
+                Strand::Plus => ("A", "G"),
+                Strand::Minus => ("T", "C"),
+            };
+            record(at, from, to)
+        };
+        let genomic = single_exon_gene(
+            "cds",
+            mirror(3).min(mirror(11)),
+            mirror(3).max(mirror(11)),
+            strand,
+        );
+        let transcript = transcript_gene(
+            "tx_cds",
+            strand,
+            &[(mirror(3).min(mirror(11)), mirror(3).max(mirror(11)))],
+        );
+        for gene in [&genomic, &transcript] {
+            let annotate = |records: &[crate::io::VcfPosition]| {
+                crate::variants::get_mnv_variants_for_gene(
+                    gene,
+                    records,
+                    &reference,
+                    "chr1",
+                    crate::genetic_code::GeneticCode::default(),
+                )
+            };
+            let context = format!("{} {strand:?}", gene.name);
+            for past in [deletion(10), insertion(10, "A")] {
+                assert!(
+                    annotate(std::slice::from_ref(&past)).is_empty(),
+                    "{context} {past:?}"
+                );
+                assert!(
+                    crate::variants::lies_past_coding_sequence(
+                        gene,
+                        &reference,
+                        &past,
+                        &[],
+                        crate::genetic_code::GeneticCode::default(),
+                    ),
+                    "{context} {past:?}"
+                );
+            }
+            let kept = insertion(10, "G");
+            assert_eq!(
+                annotate(std::slice::from_ref(&kept)).len(),
+                1,
+                "{context} {kept:?}"
+            );
+            let held = annotate(&[deletion(10), in_the_run.clone()]);
+            assert!(
+                held.iter()
+                    .any(|row| row.variant_type == VariantType::Indel),
+                "{context}: {held:?}"
+            );
+        }
+    }
 }
 
 /// An in-frame insertion repeating the codon before it is a duplication in

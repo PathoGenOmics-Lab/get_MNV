@@ -90,6 +90,9 @@ todas inserciones que copian un codón de parada y que llamaba stop gained.
 Contra el que todavía leía como iniciador el codón que un indel deja primero
 reporta 7: indels de tres bases que parten un ATG y dejan primero ATA o ATC,
 con los que la tabla 11 puede empezar pero que no son el inicio del gen.
+Contra el que leía como del gen un indel que HGVS coloca después del codón de
+parada reporta 30 (18 duplicaciones, 8 inserciones, 4 deleciones), cada uno
+con una fila del gen donde ahora no hay ninguna.
 
 Los fallos se agrupan por categoría y se muestran ejemplos de cada grupo, en vez
 de los primeros en orden, porque si no una categoría ruidosa entierra a otra: la

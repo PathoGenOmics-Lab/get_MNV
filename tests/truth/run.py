@@ -178,6 +178,8 @@ class IndelCase:
     ref_codon: str | None
     alt_codon: str | None
     note: str = ""
+    # HGVS places it wholly past the stop codon: the gene reports nothing.
+    past_the_stop: bool = False
 
 
 @dataclass
@@ -367,6 +369,61 @@ def expected_indel(
         )
         if not ((position in coding and position + 1 in coding) or internal_junction):
             return None
+
+    # A deletion from the bases before the start codon into it is read where
+    # HGVS places it: moved 3' along the transcript, within the first exon, for
+    # as long as it removes the same bases. Clipped at the gene's edge where its
+    # record happens to cut, it came out a frameshift or in frame depending
+    # only on how the record was written.
+    start_codon = gene.cds_positions()[:3]
+    before_start = start_codon[0] - 1 if gene.strand == "+" else start_codon[0] + 1
+    if before_start in deleted and start_codon[0] in deleted:
+        first_exon = gene.segments[0] if gene.strand == "+" else gene.segments[-1]
+        low, high = min(deleted), max(deleted)
+        if gene.strand == "+":
+            while high < first_exon[1] and genome[low - 1] == genome[high]:
+                low, high = low + 1, high + 1
+        else:
+            while low > first_exon[0] and genome[low - 2] == genome[high - 1]:
+                low, high = low - 1, high - 1
+        deleted = set(range(low, high + 1))
+
+    # One in the last exon that can be moved 3' along the transcript until it
+    # changes no coding base, out past the stop codon, is placed there by HGVS
+    # too, and the gene has nothing to report for it: a run of As beginning in
+    # a TAA loses or gains an A after the stop, wherever the record writes it.
+    last = gene.cds_positions()[-1]
+    last_exon = gene.segments[-1] if gene.strand == "+" else gene.segments[0]
+    in_last_exon = any(last_exon[0] <= p <= last_exon[1] for p in deleted) or (
+        inserted_after and last_exon[0] <= position <= last_exon[1]
+    )
+    if in_last_exon and deleted:
+        low, high = min(deleted), max(deleted)
+        if gene.strand == "+":
+            while high < len(genome) and genome[low - 1] == genome[high]:
+                low, high = low + 1, high + 1
+            past = low > last
+        else:
+            while low > 1 and genome[low - 2] == genome[high - 1]:
+                low, high = low - 1, high - 1
+            past = high < last
+    elif in_last_exon:
+        after, bases = position, inserted_after[str(position)]
+        if gene.strand == "+":
+            while after < len(genome) and genome[after] == bases[0]:
+                after, bases = after + 1, bases[1:] + bases[:1]
+            past = after >= last
+        else:
+            while after > 1 and genome[after - 1] == bases[-1]:
+                after, bases = after - 1, bases[-1:] + bases[:-1]
+            past = after < last
+    else:
+        past = False
+    if past:
+        event_class = "deletion" if len(alt_allele) < len(ref_allele) else "insertion"
+        return IndelCase(position, ref_allele, alt_allele, gene.name, "", event_class,
+                         None, None, past_the_stop=True)
+
     reference_cds = gene.cds(genome)
     alternate_cds = gene.cds_with_indel(genome, deleted, inserted_after)
 
@@ -391,8 +448,6 @@ def expected_indel(
     # G of an ATG as Met. Unless it is the same three bases, with the base
     # before them still there, which is the same as an indel behind the start
     # codon.
-    start_codon = gene.cds_positions()[:3]
-    before_start = start_codon[0] - 1 if gene.strand == "+" else start_codon[0] + 1
     splits_start = bool(deleted & set(start_codon)) or any(
         int(anchor) in start_codon and int(anchor) + 1 in start_codon
         for anchor in inserted_after
@@ -679,6 +734,12 @@ def main() -> int:
         with (case_dir / "in.MNV.tsv").open() as handle:
             rows = [row for row in csv.DictReader(handle, delimiter="\t")]
         row = next((r for r in rows if r["Gene"] == indel.gene), None)
+        if indel.past_the_stop:
+            if row is not None:
+                failures.append(f"{indel.note}: a row for gene {indel.gene}, past its stop")
+            else:
+                checked_indels += 1
+            continue
         if row is None:
             failures.append(f"{indel.note}: no row for gene {indel.gene}")
             continue

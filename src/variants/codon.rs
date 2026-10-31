@@ -495,8 +495,9 @@ fn get_mnv_variants_for_transcript(
         }
     }
 
+    let (indels, placed) = coding_placements(gene, reference, indels, snp_list, genetic_code);
     let ptc_protein_pos =
-        frameshift_ptc_protein_pos(gene, reference, &indels, genetic_code, config);
+        frameshift_ptc_protein_pos(gene, reference, &placed, genetic_code, config);
 
     let mut codon_starts = codon_to_groups.keys().copied().collect::<Vec<_>>();
     codon_starts.sort_unstable();
@@ -515,7 +516,7 @@ fn get_mnv_variants_for_transcript(
             let mut codon_snps = codon_snps;
             codon_snps.sort_by_key(|s| s.transcript_offset);
 
-            let overlaps_indel = indels
+            let overlaps_indel = placed
                 .iter()
                 .any(|indel| indel_disturbs_codon(gene, indel, codon_start, codon_end));
 
@@ -535,8 +536,8 @@ fn get_mnv_variants_for_transcript(
             let mut upstream_shift: isize = 0;
             let mut has_symbolic_sv = false;
             let mut frameshift_linkage = Vec::new();
-            for indel in &indels {
-                if indel_is_upstream_of_codon_offset(gene, indel, codon_start) {
+            for (indel, coding) in indels.iter().zip(&placed) {
+                if indel_is_upstream_of_codon_offset(gene, coding, codon_start) {
                     // Only let sufficiently frequent upstream indels shift the frame
                     // of downstream codons (see IndelAnnotationConfig).
                     if !indel_passes_frameshift_gate(indel, config) {
@@ -554,7 +555,7 @@ fn get_mnv_variants_for_transcript(
                     }
                     if indel.alt_allele.starts_with('<') {
                         has_symbolic_sv = true;
-                    } else if let Some(delta) = coding_delta_for_variant(gene, reference, indel) {
+                    } else if let Some(delta) = coding_delta_for_variant(gene, reference, coding) {
                         upstream_shift += delta;
                     } else {
                         has_symbolic_sv = true;
@@ -604,7 +605,7 @@ fn get_mnv_variants_for_transcript(
         }
     }
 
-    for indel in indels {
+    for (indel, coding) in indels.into_iter().zip(placed) {
         let indel_effect::IndelEffect {
             change_type,
             aa_changes,
@@ -612,9 +613,9 @@ fn get_mnv_variants_for_transcript(
             ref_codon,
             alt_codon,
             initiator_lost,
-        } = protein_effect_for_indel(gene, reference, &indel, genetic_code);
+        } = protein_effect_for_indel(gene, reference, &coding, genetic_code);
         let (event_class, event_components) = variant_event_metadata(&indel);
-        let nmd = nmd::indel_nmd_prediction(gene, reference, &indel, genetic_code);
+        let nmd = nmd::indel_nmd_prediction(gene, reference, &coding, genetic_code);
 
         variants.push(VariantInfo {
             chrom: chrom.to_string(),
@@ -652,7 +653,7 @@ fn get_mnv_variants_for_transcript(
             annotations: crate::variants::VariantAnnotations {
                 nmd,
                 splice: splice_consequence_for_indel(gene, &indel),
-                hgvs_c: indel_hgvs_c(gene, &indel, reference),
+                hgvs_c: indel_hgvs_c(gene, &coding, reference),
                 initiator_lost,
                 ..Default::default()
             },
@@ -660,6 +661,49 @@ fn get_mnv_variants_for_transcript(
     }
 
     variants
+}
+
+/// Where the coding sequence sees each indel (see
+/// [`indel_effect::coding_placement`] and [`indel_effect::placed_past_the_stop`]),
+/// beside the records it keeps. The rows keep each record as written, which is
+/// what its reads are counted against. An indel HGVS places wholly past the
+/// stop codon changes no coding base, so the gene leaves it out and it is
+/// reported as the bases past the gene are.
+fn coding_placements(
+    gene: &Gene,
+    reference: &crate::io::Reference,
+    indels: Vec<crate::io::VcfPosition>,
+    others: &[crate::io::VcfPosition],
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> (Vec<crate::io::VcfPosition>, Vec<crate::io::VcfPosition>) {
+    let mut kept = Vec::with_capacity(indels.len());
+    let mut placed = Vec::with_capacity(indels.len());
+    for indel in indels {
+        if indel_effect::placed_past_the_stop(gene, reference, &indel, others, genetic_code) {
+            continue;
+        }
+        let coding = indel_effect::coding_placement(gene, reference, &indel, others)
+            .unwrap_or_else(|| indel.clone());
+        kept.push(indel);
+        placed.push(coding);
+    }
+    (kept, placed)
+}
+
+/// Whether HGVS places this indel wholly past `gene`'s stop codon, where it
+/// changes no coding base, given `others`, the records the gene is given. The
+/// gene then reports nothing for it, and nothing else may name the gene for it
+/// either: it is reported as the bases past the gene are, however the record is
+/// written.
+pub fn lies_past_coding_sequence(
+    gene: &Gene,
+    reference: &crate::io::Reference,
+    variant: &crate::io::VcfPosition,
+    others: &[crate::io::VcfPosition],
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> bool {
+    gene.biotype.is_coding()
+        && indel_effect::placed_past_the_stop(gene, reference, variant, others, genetic_code)
 }
 
 /// The splice consequence of an indel, taken from the bases it changes.
@@ -768,8 +812,9 @@ pub fn get_mnv_variants_for_gene_with_config(
         return variants;
     }
 
+    let (indels, placed) = coding_placements(gene, reference, indels, snp_list, genetic_code);
     let ptc_protein_pos =
-        frameshift_ptc_protein_pos(gene, reference, &indels, genetic_code, config);
+        frameshift_ptc_protein_pos(gene, reference, &placed, genetic_code, config);
 
     let mut codon_starts: Vec<usize> = codon_to_groups.keys().copied().collect();
     match gene.strand {
@@ -798,7 +843,7 @@ pub fn get_mnv_variants_for_gene_with_config(
             }
             let codon_seq = &reference.sequence[(codon_start - 1)..codon_end];
 
-            let overlaps_indel = indels
+            let overlaps_indel = placed
                 .iter()
                 .any(|indel| indel.overlaps_interval(codon_start, codon_end));
 
@@ -815,9 +860,9 @@ pub fn get_mnv_variants_for_gene_with_config(
             let mut has_symbolic_sv = false;
             let mut frameshift_linkage = Vec::new();
 
-            for indel in &indels {
+            for (indel, coding) in indels.iter().zip(&placed) {
                 let is_upstream =
-                    indel_is_upstream_of_codon(indel, gene.strand, codon_start, codon_end);
+                    indel_is_upstream_of_codon(coding, gene.strand, codon_start, codon_end);
 
                 if is_upstream {
                     // Only sufficiently frequent upstream indels shift the frame of
@@ -837,7 +882,7 @@ pub fn get_mnv_variants_for_gene_with_config(
                     }
                     if indel.alt_allele.starts_with('<') {
                         has_symbolic_sv = true;
-                    } else if let Some(delta) = coding_delta_for_variant(gene, reference, indel) {
+                    } else if let Some(delta) = coding_delta_for_variant(gene, reference, coding) {
                         // CDS-clipped coding-length change, consistent with the
                         // transcript model. For indels that span the gene/CDS
                         // boundary this counts only the in-CDS portion, unlike the
@@ -892,7 +937,7 @@ pub fn get_mnv_variants_for_gene_with_config(
         }
     }
 
-    for indel in indels {
+    for (indel, coding) in indels.into_iter().zip(placed) {
         let indel_effect::IndelEffect {
             change_type,
             aa_changes,
@@ -900,7 +945,7 @@ pub fn get_mnv_variants_for_gene_with_config(
             ref_codon,
             alt_codon,
             initiator_lost,
-        } = protein_effect_for_indel(gene, reference, &indel, genetic_code);
+        } = protein_effect_for_indel(gene, reference, &coding, genetic_code);
         let (event_class, event_components) = variant_event_metadata(&indel);
 
         variants.push(VariantInfo {
@@ -938,7 +983,7 @@ pub fn get_mnv_variants_for_gene_with_config(
             event_components,
             annotations: crate::variants::VariantAnnotations {
                 splice: splice_consequence_for_indel(gene, &indel),
-                hgvs_c: indel_hgvs_c(gene, &indel, reference),
+                hgvs_c: indel_hgvs_c(gene, &coding, reference),
                 initiator_lost,
                 ..Default::default()
             },

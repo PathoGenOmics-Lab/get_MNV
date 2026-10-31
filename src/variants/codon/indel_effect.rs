@@ -208,25 +208,47 @@ pub(super) fn protein_effect_for_indel(
     }
 }
 
-/// The genomic positions of the protein's first codon, in the order the
-/// ribosome reads them. Empty for a feature shorter than a codon.
-fn first_codon_positions(gene: &Gene) -> Vec<usize> {
-    let segments = if gene.cds_segments.is_empty() {
+/// The genomic spans the coding sequence is read from, in transcript order.
+fn coding_segments(gene: &Gene) -> Vec<(usize, usize)> {
+    if gene.cds_segments.is_empty() {
         vec![effective_bounds(gene)]
     } else {
         gene.cds_segments
             .iter()
             .map(|segment| (segment.start, segment.end))
             .collect()
-    };
+    }
+}
+
+/// The genomic positions of the protein's first codon, in the order the
+/// ribosome reads them. Empty for a feature shorter than a codon.
+fn first_codon_positions(gene: &Gene) -> Vec<usize> {
     let mut positions = Vec::with_capacity(3);
-    for (start, end) in segments {
+    for (start, end) in coding_segments(gene) {
         let wanted = 3 - positions.len();
         match gene.strand {
             Strand::Plus => positions.extend((start..=end).take(wanted)),
             Strand::Minus => positions.extend((start..=end).rev().take(wanted)),
         }
         if positions.len() == 3 {
+            return positions;
+        }
+    }
+    Vec::new()
+}
+
+/// The genomic positions of the coding sequence's last codon, in the order the
+/// ribosome reads them. Empty for a feature shorter than a codon.
+fn last_codon_positions(gene: &Gene) -> Vec<usize> {
+    let mut positions = Vec::with_capacity(3);
+    for (start, end) in coding_segments(gene).into_iter().rev() {
+        let wanted = 3 - positions.len();
+        match gene.strand {
+            Strand::Plus => positions.extend((start..=end).rev().take(wanted)),
+            Strand::Minus => positions.extend((start..=end).take(wanted)),
+        }
+        if positions.len() == 3 {
+            positions.reverse();
             return positions;
         }
     }
@@ -284,6 +306,199 @@ fn removes_initiation_codon(
         _ => false,
     };
     touched && (reaches_before || !same_codon_first)
+}
+
+/// `lo..=hi` narrowed so that sliding `variant` along it never carries it past
+/// a base another record changes. Records describe one haplotype together, and
+/// an indel moved across a substitution in its repeat describes another: a
+/// substituted codon that lay behind an inserted stop, and was never translated,
+/// came out as a missense once the insertion was moved past it.
+fn clear_of_others(
+    variant: &VcfPosition,
+    others: &[VcfPosition],
+    strand: Strand,
+    (lo, hi): (usize, usize),
+) -> (usize, usize) {
+    let event = variant.event();
+    let [component] = event.components.as_slice() else {
+        return (lo, hi);
+    };
+    let insertion = component.kind == AlleleComponentKind::Insertion;
+    // The bases the indel removes, or the two an insertion falls between.
+    let (first, last) = if insertion {
+        (component.position + 1, component.position)
+    } else {
+        let end = component.position + component.ref_allele.len().saturating_sub(1);
+        (component.position, end)
+    };
+    let mut bounds = (lo, hi);
+    for other in others.iter().filter(|other| {
+        other.record_start != variant.record_start
+            || other.ref_allele != variant.ref_allele
+            || other.alt_allele != variant.alt_allele
+    }) {
+        for position in other.changed_positions() {
+            match strand {
+                Strand::Plus if position > last => bounds.1 = bounds.1.min(position - 1),
+                Strand::Minus if position < first => {
+                    let floor = if insertion { position } else { position + 1 };
+                    bounds.0 = bounds.0.max(floor);
+                }
+                _ => {}
+            }
+        }
+    }
+    bounds
+}
+
+/// Where the coding sequence sees a deletion its record writes across the
+/// protein's start: at its 3'-most place along the transcript within the first
+/// exon, as HGVS places it, without passing another of `others`' bases. `None`
+/// for any other record, which is seen where it is written.
+///
+/// A deletion in a repeat can be written anywhere along the repeat, and the
+/// feature clips a deletion at its edges. Left-aligned, as `bcftools norm` and
+/// `--left-align` write it, deleting the second ATG of a gene that starts
+/// `ATGATG` right after a G begins on that G, so only two of its three bases
+/// were coding: a frameshift that lost the start, where the same deletion
+/// written inside the gene was `Met2del`. Placed 3'-most, a deletion lies
+/// inside the coding sequence whenever any spelling of it does, and every
+/// spelling of it is read the same. One that still reaches the base before the
+/// start codon there really removes the start.
+pub(super) fn coding_placement(
+    gene: &Gene,
+    reference: &crate::io::Reference<'_>,
+    variant: &VcfPosition,
+    others: &[VcfPosition],
+) -> Option<VcfPosition> {
+    if !gene.starts_protein() {
+        return None;
+    }
+    let event = variant.event();
+    let [component] = event.components.as_slice() else {
+        return None;
+    };
+    if component.kind != AlleleComponentKind::Deletion {
+        return None;
+    }
+    let first = *first_codon_positions(gene).first()?;
+    let before = match gene.strand {
+        Strand::Plus => first.checked_sub(1)?,
+        Strand::Minus => first.checked_add(1)?,
+    };
+    let deleted = component.position..component.position + component.ref_allele.len();
+    if !(deleted.contains(&before) && deleted.contains(&first)) {
+        return None;
+    }
+    let exon = match gene.cds_segments.first() {
+        Some(segment) => (segment.start, segment.end),
+        None => effective_bounds(gene),
+    };
+    let (lo, hi) = clear_of_others(variant, others, gene.strand, exon);
+    let (pos, ref_allele, alt_allele) = crate::variants::hgvs::shift_within(
+        reference.sequence,
+        variant.record_start,
+        &variant.ref_allele,
+        &variant.alt_allele,
+        gene.strand,
+        lo,
+        hi,
+    );
+    Some(VcfPosition {
+        record_start: pos,
+        ref_allele,
+        alt_allele,
+        ..variant.clone()
+    })
+}
+
+/// Whether an indel in the last exon lies wholly past the stop codon once
+/// placed 3'-most along the transcript, as HGVS places it, without passing
+/// another of `others`' bases. It then changes no coding base. Never when the
+/// coding sequence does not end in a stop codon (a CDS row ending at an exon,
+/// or one annotated without its stop), past which the transcript does not
+/// simply go on.
+///
+/// A homopolymer or repeat can run out of the stop codon, and an indel in it
+/// can be written anywhere along it. Left-aligned, as `bcftools norm` and
+/// `--left-align` write it, removing one A from the `AAAA` that begins in a TAA
+/// sits on the stop codon, which the feature read as losing a base: a HIGH
+/// frameshift at the protein's last residue. Written after the gene, the same
+/// deletion was intergenic, and the stop codon is there either way.
+///
+/// A deletion that still takes stop-codon bases away there is read as written.
+/// How many of its bases are coding, and with that its frame, says only where
+/// its record cuts; read 3'-most, deletions removing a gene's end with the
+/// bases after it came out in-frame stop losses instead of frameshifts.
+pub(super) fn placed_past_the_stop(
+    gene: &Gene,
+    reference: &crate::io::Reference<'_>,
+    variant: &VcfPosition,
+    others: &[VcfPosition],
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> bool {
+    lies_past_the_stop(gene, reference, variant, others, genetic_code).unwrap_or(false)
+}
+
+fn lies_past_the_stop(
+    gene: &Gene,
+    reference: &crate::io::Reference<'_>,
+    variant: &VcfPosition,
+    others: &[VcfPosition],
+    genetic_code: crate::genetic_code::GeneticCode,
+) -> Option<bool> {
+    let event = variant.event();
+    let [component] = event.components.as_slice() else {
+        return None;
+    };
+    let deletion = match component.kind {
+        AlleleComponentKind::Deletion => true,
+        AlleleComponentKind::Insertion => false,
+        _ => return None,
+    };
+    let codon = last_codon_positions(gene);
+    let &last = codon.last()?;
+    let bases = reference.sequence.as_bytes();
+    let mut stop = [0u8; 3];
+    for (slot, &position) in stop.iter_mut().zip(&codon) {
+        let base = (*bases.get(position.checked_sub(1)?)? as char).to_ascii_uppercase();
+        let base = match gene.strand {
+            Strand::Plus => base,
+            Strand::Minus => super::protein::complement_base(base),
+        };
+        *slot = base as u8;
+    }
+    if genetic_code.translate(&stop) != '*' {
+        return None;
+    }
+    // In the last exon, or the HGVS rule would carry it out through an intron.
+    let (exon_start, exon_end) = *coding_segments(gene).last()?;
+    let touched_end = component.position + component.ref_allele.len().max(1) - 1;
+    if touched_end < exon_start || component.position > exon_end {
+        return None;
+    }
+    let past_the_exon = match gene.strand {
+        Strand::Plus => (exon_start, reference.sequence.len()),
+        Strand::Minus => (1, exon_end),
+    };
+    let (lo, hi) = clear_of_others(variant, others, gene.strand, past_the_exon);
+    let (pos, ref_allele, alt_allele) = crate::variants::hgvs::shift_within(
+        reference.sequence,
+        variant.record_start,
+        &variant.ref_allele,
+        &variant.alt_allele,
+        gene.strand,
+        lo,
+        hi,
+    );
+    let (start, removed, _) = crate::variants::hgvs::indel_core(pos, &ref_allele, &alt_allele);
+    // A deletion past the stop removes no coding base; an insertion, put
+    // between `start - 1` and `start`, puts none between two of them.
+    Some(match (gene.strand, deletion) {
+        (Strand::Plus, _) => start > last,
+        (Strand::Minus, true) => start + removed.len() - 1 < last,
+        (Strand::Minus, false) => start <= last,
+    })
 }
 
 /// Whether the variant reaches into the bases the declared phase skips.

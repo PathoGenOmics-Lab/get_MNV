@@ -754,7 +754,16 @@ pub(crate) fn process_contig(
                         Some(gene_name) => variants::build_intron_variant(contig, snp, &gene_name),
                         None => match genes.iter().find(|gene| {
                             if fully_unannotated {
+                                // Placed as HGVS places it, an indel can lie
+                                // wholly past the gene it is written in.
                                 io::gene_overlaps_variant(gene, snp)
+                                    && !variants::lies_past_coding_sequence(
+                                        gene,
+                                        &reference,
+                                        snp,
+                                        variant_index.near_gene(gene),
+                                        genetic_code,
+                                    )
                             } else {
                                 unannotated
                                     .iter()
@@ -835,6 +844,17 @@ pub(crate) fn process_contig(
                 let labels = snp.event().component_labels();
                 let (span_start, span_end) = snp.acting_span();
                 for gene in gene_index.near(span_start, span_end) {
+                    // An indel HGVS places wholly past this gene's stop codon is
+                    // none of its business, wherever the record is written.
+                    if variants::lies_past_coding_sequence(
+                        gene,
+                        &reference,
+                        snp,
+                        variant_index.near_gene(gene),
+                        genetic_code,
+                    ) {
+                        continue;
+                    }
                     // Whatever this gene has to say about each of these bases, one
                     // row per answer. Bases that get different answers belong in
                     // different rows, exactly as the fallback above builds them, or

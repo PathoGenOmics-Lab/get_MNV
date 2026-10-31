@@ -336,12 +336,14 @@ con `codon reading only`.
 
 La OMS también da, para cada variante clasificada, los cambios genómicos que la
 producen: 26.231 en los grupos 1 y 2. Cada uno se anotó sobre el ancestro del
-MTBC del ejemplo con la tabla incluida. 26.225 salen marcados con su propia
+MTBC del ejemplo con la tabla incluida. 26.223 salen marcados con su propia
 entrada, 198 de ellos solo por la lectura del codón, y 2 más con otra entrada
-para el mismo fármaco, el `LoF` del gen. Los 4 restantes son 2 inserciones
+para el mismo fármaco, el `LoF` del gen. Los 6 restantes son 2 inserciones
 justo antes de un codón de inicio, que la OMS cuenta como pérdidas de función y
-get_MNV como intergénicas, y 2 cambios cuya consecuencia sobre el ancestro no
-es la que tienen sobre H37Rv. Con la carpeta que guarda los dos
+get_MNV como intergénicas; 2 cambios cuya consecuencia sobre el ancestro no es
+la que tienen sobre H37Rv; y 2 deleciones que la OMS asocia a fbiC
+`p.Ala855fs` y que repiten las bases que las siguen, así que HGVS las coloca
+después del codón de parada de fbiC, con su secuencia codificante entera. Con la carpeta que guarda los dos
 archivos de la OMS, `tests/who_catalogue/run.py` repite la comprobación.
 
 Con tus propios datos:

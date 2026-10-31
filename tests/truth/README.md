@@ -90,6 +90,9 @@ insertions copying a stop codon that it called a stop gained.
 Against the build that still read the codon an indel leaves first as an
 initiator it reports 7: three-base indels that split an ATG and leave ATA or
 ATC first, which table 11 can start on but which are not the gene's start.
+Against the build that read an indel HGVS places past the stop codon as the
+gene's it reports 30 (18 duplications, 8 insertions, 4 deletions), each with
+a row for the gene where there is now none.
 
 Failures are grouped by category and sampled from each group rather than
 printed in order, because one noisy category otherwise buries another: the run

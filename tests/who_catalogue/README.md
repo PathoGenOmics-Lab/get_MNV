@@ -52,13 +52,13 @@ python3 tests/who_catalogue/run.py --who-dir path/to/folder
 
 The suite then rebuilds the shipped table and requires it byte for byte, and
 annotates every genomic variant WHO links to groups 1 and 2: 26,231 of them.
-26,225 come out flagged with their own entry, 198 through the codon reading
+26,223 come out flagged with their own entry, 198 through the codon reading
 only, and 2 more with the gene's `LoF` entry for the same drug. Deletions that
 take a start codon away, often with the bases before it, are among the first:
 get_MNV reports them as start losses (`Met1?`), and WHO as losses of function.
 One of the 2 is a deletion WHO writes over the last base of gid's start codon,
 gid `4407695`; it leaves ATG first, so get_MNV reads the frameshift from
-`Ser2`, where HGVS's 3' rule puts it. It fails if more than these 4 are
+`Ser2`, where HGVS's 3' rule puts it. It fails if more than these 6 are
 flagged for none of their drugs:
 
 - 2 insertions just before a start codon, tlyA `1917939 C>CAACG` and Rv2983
@@ -68,6 +68,11 @@ flagged for none of their drugs:
   `4407589 GC>CA` and tlyA `1917970 CT>TG`. On H37Rv they make a stop codon;
   on the MTBC ancestor, which differs from H37Rv next to them, they make
   `Ala205Trp` and `Leu11Trp`.
+- 2 deletions WHO links to fbiC `p.Ala855fs`, of 62 and 124 bases from
+  `1305494`. The bases right after each repeat what it removes from fbiC's
+  last codons on, so HGVS places it past the stop codon: deleting from
+  after the gene leaves the very same genome, with fbiC's coding sequence
+  whole, and get_MNV reports them as intergenic.
 
 ## Licence of the fixtures
 

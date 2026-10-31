@@ -324,12 +324,14 @@ synonymous change. get_MNV flags each of them with `codon reading only`.
 
 WHO also lists, for every graded variant, the genomic changes that make it:
 26,231 of them for groups 1 and 2. Each was annotated on the example's MTBC
-ancestor with the shipped table. 26,225 come out flagged with their own entry,
+ancestor with the shipped table. 26,223 come out flagged with their own entry,
 198 of them through the codon reading only, and 2 more with another entry for
-the same drug, the gene's `LoF`. The 4 left are 2 insertions just before a
-start codon, which WHO counts as losses of function and get_MNV as intergenic,
-and 2 changes whose consequence on the ancestor is not the one they have on
-H37Rv. Given the folder that holds WHO's two files, `tests/who_catalogue/run.py`
+the same drug, the gene's `LoF`. The 6 left are 2 insertions just before a
+start codon, which WHO counts as losses of function and get_MNV as intergenic;
+2 changes whose consequence on the ancestor is not the one they have on H37Rv;
+and 2 deletions WHO links to fbiC `p.Ala855fs` that the bases after them
+repeat, which HGVS places past fbiC's stop codon, leaving its coding sequence
+whole. Given the folder that holds WHO's two files, `tests/who_catalogue/run.py`
 repeats the check.
 
 With your own data:
