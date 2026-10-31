@@ -257,6 +257,31 @@ pub struct Args {
     #[arg(long = "catalogue", value_name = "TSV_FILE")]
     pub catalogue: Option<String>,
 
+    /// Keep a catalogue match that only the codon reading supports even when
+    /// the reads place that codon's substitutions on different molecules.
+    ///
+    /// With `--bam`, the molecules say whether a codon's substitutions travel
+    /// together. When they travel apart, the amino acid the codon spells is
+    /// carried by nothing in the sample, and a catalogue entry matched through
+    /// it alone is withheld: it is still listed, prefixed `withheld`, with the
+    /// reason, so the row keeps the evidence without asserting the change.
+    /// Pass this to list such a match as any other, which is what every
+    /// version before this one did.
+    #[arg(long = "keep-unphased-codon-matches")]
+    pub keep_unphased_codon_matches: bool,
+
+    /// How far `D'` must fall below zero before the reads are taken to
+    /// contradict a codon reading (default: 0.5). `D'` runs from -1, the
+    /// substitutions never sharing a molecule as far as their frequencies
+    /// allow, to +1, always sharing one.
+    #[arg(long = "phase-conflict-dprime", default_value_t = 0.5)]
+    pub phase_conflict_dprime: f64,
+
+    /// Largest Fisher exact p-value accepted as evidence that a codon's
+    /// substitutions exclude each other (default: 0.05).
+    #[arg(long = "phase-conflict-p", default_value_t = 0.05)]
+    pub phase_conflict_p: f64,
+
     /// NCBI translation table number for codon-to-amino-acid mapping
     /// (default: 11 = Bacterial/Archaeal/Plant Plastid).
     /// Supported: 1 (Standard), 2 (Vertebrate Mito), 3 (Yeast Mito),

@@ -1060,6 +1060,11 @@ pub(crate) fn process_contig(
             &mut all_variants,
             &every_gene,
             reference.sequence,
+            crate::variants::catalogue::PhasePolicy {
+                min_magnitude: args.phase_conflict_dprime,
+                max_p_value: args.phase_conflict_p,
+                keep_unphased: args.keep_unphased_codon_matches,
+            },
         );
         if other_reference > 0 {
             log::warn!(

@@ -43,6 +43,24 @@ pub struct CodonLinkage {
     pub molecules: usize,
 }
 
+impl CodonLinkage {
+    /// Whether the reads place this codon's substitutions on *different*
+    /// molecules, strongly enough to contradict reading them as one change.
+    ///
+    /// A codon-level MNV asserts that one molecule carries every substitution.
+    /// When `D'` is negative the molecules say the opposite, and when it is
+    /// negative enough, and the table is unlikely enough to have arisen by
+    /// chance, that assertion is refuted rather than merely unsupported.
+    ///
+    /// Both conditions are needed. The p-value alone would let a deep sample
+    /// refute the codon on a `D'` of -0.05, which is a measurable but
+    /// meaningless exclusion; the magnitude alone would let three molecules do
+    /// it. Requiring both is what keeps a withheld call rare and deserved.
+    pub fn contradicts_codon(&self, min_magnitude: f64, max_p_value: f64) -> bool {
+        self.d_prime <= -min_magnitude && self.p_value <= max_p_value
+    }
+}
+
 /// The 2x2 table of molecules for one pair of positions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PairTable {
@@ -396,5 +414,64 @@ mod tests {
     #[test]
     fn a_single_position_row_has_no_pair() {
         assert!(codon_linkage(&[(vec![true], 10)], 1).is_none());
+    }
+
+    #[test]
+    fn substitutions_that_exclude_each_other_contradict_the_codon() {
+        // 30 molecules with the first alternate, 30 with the second, none with
+        // both: the codon that spells both is carried by nothing.
+        let apart = pair_linkage(PairTable {
+            both: 0,
+            first_only: 30,
+            second_only: 30,
+            neither: 40,
+        })
+        .expect("both alleles vary, so D' has a value");
+        assert!(apart.d_prime < 0.0);
+        assert!(apart.contradicts_codon(0.5, 0.05));
+    }
+
+    #[test]
+    fn substitutions_that_travel_together_do_not() {
+        let together = pair_linkage(PairTable {
+            both: 30,
+            first_only: 0,
+            second_only: 0,
+            neither: 70,
+        })
+        .expect("both alleles vary, so D' has a value");
+        assert!(together.d_prime > 0.0);
+        assert!(!together.contradicts_codon(0.5, 0.05));
+    }
+
+    #[test]
+    fn a_handful_of_molecules_cannot_contradict_a_codon() {
+        // The same perfect exclusion on three molecules: real linkage cannot be
+        // told from chance here, and the p-value is what says so.
+        let thin = pair_linkage(PairTable {
+            both: 0,
+            first_only: 1,
+            second_only: 1,
+            neither: 1,
+        })
+        .expect("both alleles vary, so D' has a value");
+        assert_eq!(thin.d_prime, -1.0);
+        assert!(!thin.contradicts_codon(0.5, 0.05));
+    }
+
+    #[test]
+    fn a_weak_exclusion_does_not_contradict_however_deep_the_sample() {
+        // Barely fewer double carriers than independence predicts, on enough
+        // molecules to be significant: measurable, and not a refutation.
+        let weak = pair_linkage(PairTable {
+            both: 800,
+            first_only: 1200,
+            second_only: 1200,
+            neither: 800,
+        })
+        .expect("both alleles vary, so D' has a value");
+        assert!(weak.d_prime < 0.0, "fewer together than chance predicts");
+        assert!(weak.d_prime > -0.5, "but not nearly all the way");
+        assert!(!weak.contradicts_codon(0.5, 0.05));
     }
 }
