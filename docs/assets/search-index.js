@@ -752,6 +752,20 @@ window.GET_MNV_DOCS_INDEX = [
 {
 "lang": "en",
 "page": "Linkage",
+"section": "When the reads refute the codon",
+"url": "linkage/index.html#when-the-reads-refute-the-codon",
+"text": "A codon-level match in the Catalogue column asserts that one molecule carries every substitution of the codon. D' can refute that. When it does, an entry matched through the codon reading alone names an amino acid nothing in the sample carries, and get_MNV withholds it: withheld: RIF: Assoc w R (rpoB p.Ser450Tyr) (codon reading only, the reads place these substitutions on different molecules) The entry is still listed, so nothing is hidden, but it is no longer stated as found. A match the per-SNV reading also makes is untouched: each of those substitutions is on the molecules on its own, whatever company it keeps. This needs --bam, since without molecules there is no D' and nothing changes. Two thresholds govern it, and both must be met: --phase-conflict-dprime 0.5 how far below zero D' must fall --phase-conflict-p 0.05 largest Fisher exact p-value accepted Requiring both is deliberate. The p-value alone would let a deep sample refute a codon on a D' of -0.05, a measurable but meaningless exclusion; the magnitude alone would let three molecules do it. --keep-unphased-codon-matches restores the behaviour of earlier versions, which listed such a match as any other."
+},
+{
+"lang": "en",
+"page": "Linkage",
+"section": "Why this is withheld rather than deleted",
+"url": "linkage/index.html#why-this-is-withheld-rather-than-deleted",
+"text": "Two samples can give byte-identical VCFs and mean opposite things: 30% of molecules carrying S450Y, against a premature stop and a synonymous change at 30% each on separate molecules. The first holds a resistant sub-population; the second holds none, and calling it S450Y invents a variant nothing carries. The VCF cannot tell them apart and the reads can, so the honest output names the entry, says the molecules were asked, and says what they answered."
+},
+{
+"lang": "en",
+"page": "Linkage",
 "section": "Limits",
 "url": "linkage/index.html#limits",
 "text": "The statistic is within a window: a codon, or a local haplotype window. get_MNV does not infer long-range phase, and a variant outside the window is not part of the table. It describes the molecules that were sequenced. Read-level linkage in an amplicon scheme is bounded by the amplicon, and a pair separated by more than a fragment simply has no molecules in common to count. It says nothing about which of two competing lineages is which. D' near -1 reports that two exist; identifying them is a job for a phasing or strain-deconvolution tool."
@@ -1833,6 +1847,20 @@ window.GET_MNV_DOCS_INDEX = [
 "section": "Cómo se comprueba esto",
 "url": "es/linkage/index.html#cómo-se-comprueba-esto",
 "text": "tests/phasing/ construye alineamientos molécula a molécula, eligiendo qué lecturas llevan qué variantes, y compara contra D' y un test exacto derivados por segunda vez en la propia suite. Barre tablas 2x2 que cubren la independencia, las dos direcciones de asociación, y las tablas degeneradas donde D' no tiene valor, junto a los barridos de soporte de fase."
+},
+{
+"lang": "es",
+"page": "Ligamiento",
+"section": "Cuando las lecturas desmienten al codón",
+"url": "es/linkage/index.html#cuando-las-lecturas-desmienten-al-codón",
+"text": "Una coincidencia a nivel de codón en la columna Catalogue afirma que una misma molécula lleva todas las sustituciones del codón. D' puede desmentirlo. Cuando lo hace, una entrada que coincide solo por la lectura de codón nombra un aminoácido que nada en la muestra lleva, y get_MNV la retiene: withheld: RIF: Assoc w R (rpoB p.Ser450Tyr) (codon reading only, the reads place these substitutions on different molecules) La entrada se sigue listando, así que no se oculta nada, pero deja de afirmarse como encontrada. Una coincidencia que también hace la lectura por SNV no se toca: cada una de esas sustituciones está en las moléculas por sí misma, acompañada o no. Requiere --bam, porque sin moléculas no hay D' y nada cambia. Lo gobiernan dos umbrales, y hay que cumplir los dos: --phase-conflict-dprime 0.5 cuánto debe bajar D' de cero --phase-conflict-p 0.05 mayor p-valor exacto de Fisher aceptado Exigir ambos es deliberado. El p-valor solo dejaría que una muestra profunda desmintiera un codón con D' de -0,05, una exclusión medible y sin sentido; la magnitud sola dejaría que lo hicieran tres moléculas. --keep-unphased-codon-matches restaura el comportamiento de versiones anteriores, que listaban esa coincidencia como cualquier otra."
+},
+{
+"lang": "es",
+"page": "Ligamiento",
+"section": "Por qué se retiene en vez de borrarse",
+"url": "es/linkage/index.html#por-qué-se-retiene-en-vez-de-borrarse",
+"text": "Dos muestras pueden dar VCF idénticos byte a byte y significar lo contrario: un 30% de moléculas con S450Y, frente a una parada prematura y un cambio sinónimo al 30% cada uno en moléculas distintas. La primera tiene una subpoblación resistente; la segunda no, y llamarla S450Y inventa una variante que nadie lleva. El VCF no las distingue y las lecturas sí, así que la salida honesta nombra la entrada, dice que se preguntó a las moléculas y dice qué contestaron."
 },
 {
 "lang": "es",

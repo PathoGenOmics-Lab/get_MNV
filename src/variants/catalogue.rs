@@ -386,6 +386,46 @@ fn describe(entry: &CatalogueEntry, note: Option<&str>) -> String {
 
 const LOSS_OF_FUNCTION: [&str; 3] = ["frameshift_variant", "stop_gained", "start_lost"];
 
+/// When the reads are taken to contradict a codon reading, and what to do then.
+///
+/// A codon-level match asserts that one molecule carries every substitution of
+/// the codon. With `--bam` the molecules can refute that, and an entry matched
+/// through the codon reading alone then names an amino acid nothing in the
+/// sample carries. Withholding it is the difference between reporting what was
+/// found and reporting what was inferred.
+#[derive(Debug, Clone, Copy)]
+pub struct PhasePolicy {
+    /// How far `D'` must fall below zero to count as contradiction.
+    pub min_magnitude: f64,
+    /// Largest Fisher exact p-value accepted as evidence.
+    pub max_p_value: f64,
+    /// List a contradicted codon-only match as any other, as before this existed.
+    pub keep_unphased: bool,
+}
+
+impl Default for PhasePolicy {
+    fn default() -> Self {
+        Self {
+            min_magnitude: 0.5,
+            max_p_value: 0.05,
+            keep_unphased: false,
+        }
+    }
+}
+
+impl PhasePolicy {
+    /// Whether this row's reads refute reading its substitutions as one codon.
+    fn contradicted(&self, variant: &VariantInfo) -> bool {
+        if self.keep_unphased {
+            return false;
+        }
+        variant
+            .annotations
+            .linkage
+            .is_some_and(|ld| ld.contradicts_codon(self.min_magnitude, self.max_p_value))
+    }
+}
+
 /// Annotate every row of a contig with the catalogue entries it matches.
 ///
 /// `genes` are all the annotation's genes on this contig, with or without a
@@ -398,6 +438,7 @@ pub fn annotate_catalogue(
     variants: &mut [VariantInfo],
     genes: &[Gene],
     sequence: &str,
+    phase: PhasePolicy,
 ) -> usize {
     let mut other_reference = 0usize;
     // Each gene's coding numbering, built once per contig however many entries
@@ -525,6 +566,7 @@ pub fn annotate_catalogue(
             hits.push(describe(&catalogue.entries[index], None));
         }
         let (so_term, _) = crate::output::so_consequence(variant);
+        let contradicted = phase.contradicted(variant);
         let codon_changes = protein_changes(&variant.aa_changes);
         let single_changes = protein_changes(&variant.snp_aa_changes);
         let mut indices: Vec<usize> = std::iter::once(variant.gene.as_str())
@@ -542,6 +584,19 @@ pub fn annotate_catalogue(
                     let single = variant.snp_aa_changes.len() > 1
                         && single_changes.iter().any(|a| a == change);
                     let several = variant.snp_aa_changes.len() > 1;
+                    // Only a match that rests on the codon alone is at stake:
+                    // one the per-SNV reading also makes stands whatever the
+                    // molecules did, because each substitution is there on its
+                    // own.
+                    let codon_only = codon && !single && several;
+                    if codon_only && contradicted {
+                        hits.push(format!(
+                            "withheld: {} (codon reading only, the reads place these \
+                             substitutions on different molecules)",
+                            describe(entry, None)
+                        ));
+                        continue;
+                    }
                     let note = match (codon, single) {
                         (true, false) if several => Some("codon reading only"),
                         (false, true) => Some("per-SNV reading only"),
