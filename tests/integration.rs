@@ -3354,6 +3354,21 @@ chr1\t10\t.\tA\tC\t60\tPASS\tDP=30\tGT\t1/1\t1/1\n",
         message.contains("sample_a_b"),
         "the error should name the file both samples want: {message}"
     );
+    // Names that differ only in case are one file on macOS and Windows, and
+    // side by side the two samples tore its lines.
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1>\n\
+##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\ts1\n\
+chr1\t10\t.\tA\tC\t60\tPASS\tDP=30\tGT\t1/1\t1/1\n",
+    )
+    .unwrap();
+    let message = pipeline::run(&args)
+        .expect_err("names differing only in case must stop the run")
+        .to_string();
+    assert!(message.contains("'sample_S1' and 'sample_s1'"), "{message}");
 
     let outputs = fs::read_dir(&tmp)
         .unwrap()
@@ -5005,6 +5020,266 @@ fn test_e2e_catalogue_matches_protein_coding_upstream_and_loss_of_function() {
         "an entry against another reference matches nothing"
     );
     fs::remove_dir_all(&tmp).ok();
+}
+
+/// A catalogue match is withheld only when no molecule carries the reading it
+/// rests on. Codon 2 of `gene1` is AAA: A4G alone is Glu, A5C alone is Thr,
+/// both together are Ala.
+#[test]
+fn test_e2e_catalogue_withholds_a_reading_only_when_no_molecule_carries_it() {
+    let tmp = temp_dir("e2e_catalogue_withheld");
+    let (ref_path, genes_path) = write_phase_reference_files(&tmp);
+    let vcf_path = tmp.join("calls.vcf");
+    fs::write(
+        &vcf_path,
+        "##fileformat=VCFv4.2\n\
+##contig=<ID=chr1,length=12>\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+chr1\t4\t.\tA\tG\t.\tPASS\t.\n\
+chr1\t5\t.\tA\tC\t.\tPASS\t.\n",
+    )
+    .unwrap();
+    let catalogue_path = tmp.join("catalogue.tsv");
+    fs::write(
+        &catalogue_path,
+        "gene\tvariant\tlabel\n\
+gene1\tp.Lys2Ala\tcodon\n\
+gene1\tp.Lys2Glu\tfirst\n\
+gene1\tc.4A>G\tbase\n",
+    )
+    .unwrap();
+    // Reads of each kind: both substitutions, A4G alone, A5C alone, neither.
+    let run = |name: &str, counts: [usize; 4], configure: &dyn Fn(&mut Args)| {
+        let mut reads = Vec::new();
+        for (sequence, count) in [
+            "ATGGCATTTCCC",
+            "ATGGAATTTCCC",
+            "ATGACATTTCCC",
+            "ATGAAATTTCCC",
+        ]
+        .into_iter()
+        .zip(counts)
+        {
+            for i in 0..count {
+                reads.push(SyntheticRead {
+                    name: Box::leak(format!("{sequence}_{i}").into_boxed_str()),
+                    start: 1,
+                    cigar: "12M",
+                    sequence,
+                });
+            }
+        }
+        let bam_path = tmp.join(format!("{name}.bam"));
+        write_synthetic_bam(&bam_path, 12, &reads);
+        let mut args = base_args();
+        args.vcf_file = Some(vcf_path.to_string_lossy().into());
+        args.bam_file = Some(bam_path.to_string_lossy().into());
+        args.fasta_file = ref_path.to_string_lossy().into();
+        args.genes_file_tsv = Some(genes_path.to_string_lossy().into());
+        args.catalogue = Some(catalogue_path.to_string_lossy().into());
+        args.threads = Some(1);
+        args.both = true;
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+        configure(&mut args);
+        pipeline::run(&args).expect("catalogue run");
+        let rows = read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")));
+        let codon = find_row(&rows, "mnv", "A, A", "G, C")
+            .unwrap_or_else(|| panic!("no codon row: {rows:?}"))
+            .clone();
+        let vcf = fs::read_to_string(tmp.join(format!("{name}.MNV.vcf"))).unwrap();
+        (codon, vcf)
+    };
+
+    // On separate molecules: Ala is carried by nothing, Glu by the molecules
+    // with A4G alone.
+    let (codon, vcf) = run("trans", [0, 10, 10, 0], &|_| {});
+    assert_eq!(
+        codon["Catalogue Withheld"],
+        "codon (gene1 p.Lys2Ala, codon reading only: no molecule carries the whole codon)"
+    );
+    assert!(
+        codon["Catalogue"].contains("first (gene1 p.Lys2Glu, per-SNV reading only)"),
+        "{codon:?}"
+    );
+    assert!(
+        codon["Catalogue"].contains("base (gene1 c.4A>G)"),
+        "{codon:?}"
+    );
+    assert!(!codon["Catalogue"].contains("Lys2Ala"), "{codon:?}");
+    assert!(vcf.contains("CATW="), "the VCF carries the withheld entry");
+
+    // D' is -1 here as well, since both substitutions are above half the
+    // molecules, but three of them carry the whole codon: Ala is in the sample.
+    let (codon, _) = run("some_carry", [3, 7, 7, 0], &|_| {});
+    assert_eq!(codon["Catalogue Withheld"], "-", "{codon:?}");
+    assert!(
+        codon["Catalogue"].contains("codon (gene1 p.Lys2Ala, codon reading only)"),
+        "{codon:?}"
+    );
+
+    // Always together: Glu is carried by nothing, the nucleotide change is.
+    let (codon, _) = run("cis", [10, 0, 0, 10], &|_| {});
+    assert_eq!(
+        codon["Catalogue Withheld"],
+        "first (gene1 p.Lys2Glu, per-SNV reading only: no molecule carries this substitution \
+         without the rest)"
+    );
+    assert!(codon["Catalogue"].contains("p.Lys2Ala"), "{codon:?}");
+    assert!(
+        codon["Catalogue"].contains("base (gene1 c.4A>G)"),
+        "{codon:?}"
+    );
+
+    // The flag lists every match as before.
+    let (codon, _) = run("kept", [0, 10, 10, 0], &|args| {
+        args.keep_unphased_codon_matches = true
+    });
+    assert_eq!(codon["Catalogue Withheld"], "-", "{codon:?}");
+    assert!(codon["Catalogue"].contains("p.Lys2Ala"), "{codon:?}");
+
+    fs::remove_dir_all(&tmp).ok();
+}
+
+/// An indel running out of a stop codon is held in place by a substitution
+/// further along its repeat, however far past the gene that substitution lies:
+/// the gene used to be shown only the records within eight bases of it, and a
+/// frameshift on the stop codon slid past one ten bases on and came out
+/// intergenic.
+#[test]
+fn test_e2e_a_record_far_past_the_gene_still_holds_an_indel_on_the_stop_codon() {
+    let tmp = temp_dir("e2e_far_bound");
+    // g1: ATG, 18 x GCT, TAA at 101-160, then twenty As.
+    let flank = "ACGTTGCA".repeat(13);
+    let bases = format!(
+        "{}ATG{}TAA{}{}",
+        &flank[..100],
+        "GCT".repeat(18),
+        "A".repeat(20),
+        "C".repeat(30)
+    );
+    fs::write(tmp.join("ref.fas"), format!(">chr1\n{bases}\n")).unwrap();
+    fs::write(tmp.join("genes.txt"), "g1\t101\t160\t+\n").unwrap();
+    let run = |name: &str, records: &[&str]| {
+        fs::write(
+            tmp.join(format!("{name}.vcf")),
+            format!(
+                "##fileformat=VCFv4.2\n##contig=<ID=chr1,length={}>\n\
+                 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n{}\n",
+                bases.len(),
+                records.join("\n")
+            ),
+        )
+        .unwrap();
+        let mut args = base_args();
+        args.vcf_file = Some(tmp.join(format!("{name}.vcf")).to_string_lossy().into());
+        args.fasta_file = tmp.join("ref.fas").to_string_lossy().into();
+        args.genes_file_tsv = Some(tmp.join("genes.txt").to_string_lossy().into());
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        args.output_prefix = Some(name.to_string());
+        pipeline::run(&args).expect("run");
+        read_tsv_rows(&tmp.join(format!("{name}.MNV.tsv")))
+            .into_iter()
+            .find(|row| row["Positions"] == "158")
+            .expect("the deletion's row")
+    };
+    let deletion = "chr1\t158\t.\tTAAAAAAAAAA\tT\t50\tPASS\tDP=30";
+    let alone = run("alone", &[deletion]);
+    assert_eq!(alone["Gene"], "intergenic", "{alone:?}");
+    let held = run("held", &[deletion, "chr1\t170\t.\tA\tG\t50\tPASS\tDP=30"]);
+    assert_eq!(held["Gene"], "g1", "{held:?}");
+    assert!(held["SO Term"].contains("frameshift_variant"), "{held:?}");
+    fs::remove_dir_all(&tmp).ok();
+}
+
+/// The reads put a substitution in the last sense codon and an A deleted from
+/// the stop codon's run on the same molecules. The deletion lies past the stop
+/// once moved along the run, so the haplotype's coding change is the
+/// substitution's alone: the compound row used to call it a frameshift, and the
+/// deletion's own row disappeared behind it.
+#[test]
+fn test_e2e_a_phased_compound_with_an_indel_past_the_stop_is_not_a_frameshift() {
+    let tmp = temp_dir("e2e_compound_past_stop");
+    // g: ATG, seven GCT, CAG, TAA at 101-130, then five As.
+    let flank = "ACGTTGCA".repeat(13);
+    let bases = format!(
+        "{}ATG{}CAGTAAAAAAA{}",
+        &flank[..100],
+        "GCT".repeat(7),
+        "C".repeat(30)
+    );
+    fs::write(tmp.join("ref.fas"), format!(">chr1\n{bases}\n")).unwrap();
+    fs::write(tmp.join("genes.txt"), "g\t101\t130\t+\n").unwrap();
+    fs::write(
+        tmp.join("calls.vcf"),
+        format!(
+            "##fileformat=VCFv4.2\n##contig=<ID=chr1,length={}>\n\
+             #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+             chr1\t126\t.\tA\tT\t50\tPASS\tDP=20\n\
+             chr1\t128\t.\tTA\tT\t50\tPASS\tDP=20\n",
+            bases.len()
+        ),
+    )
+    .unwrap();
+    // 101-128 with T at 126, 129 deleted, then 130-140.
+    let read = format!(
+        "{}T{}{}",
+        &bases[100..125],
+        &bases[126..128],
+        &bases[129..140]
+    );
+    let read: &'static str = Box::leak(read.into_boxed_str());
+    let reads: Vec<SyntheticRead> = (0..20)
+        .map(|i| SyntheticRead {
+            name: Box::leak(format!("both_{i}").into_boxed_str()),
+            start: 101,
+            cigar: "28M1D11M",
+            sequence: read,
+        })
+        .collect();
+    write_synthetic_bam(&tmp.join("reads.bam"), bases.len(), &reads);
+
+    let mut args = base_args();
+    args.vcf_file = Some(tmp.join("calls.vcf").to_string_lossy().into());
+    args.bam_file = Some(tmp.join("reads.bam").to_string_lossy().into());
+    args.fasta_file = tmp.join("ref.fas").to_string_lossy().into();
+    args.genes_file_tsv = Some(tmp.join("genes.txt").to_string_lossy().into());
+    args.threads = Some(1);
+    args.output_dir = Some(tmp.to_string_lossy().into());
+    args.output_prefix = Some("compound".to_string());
+    pipeline::run(&args).expect("run");
+    let rows = read_tsv_rows(&tmp.join("compound.MNV.tsv"));
+    assert!(
+        rows.iter().all(|row| !row["AA Changes"].contains("fs")),
+        "{rows:?}"
+    );
+    let substitution = rows.iter().find(|row| row["Positions"] == "126").unwrap();
+    assert_eq!(substitution["AA Changes"], "Gln9Leu");
+    let deletion = rows
+        .iter()
+        .find(|row| row["Positions"] == "128")
+        .unwrap_or_else(|| panic!("the deletion keeps its own row: {rows:?}"));
+    assert_eq!(deletion["Gene"], "intergenic");
+    fs::remove_dir_all(&tmp).ok();
+}
+
+/// The two thresholds of the phase-conflict test are a magnitude and a
+/// p-value, and a value outside 0 to 1 is refused rather than ignored.
+#[test]
+fn test_e2e_phase_conflict_thresholds_outside_zero_to_one_are_refused() {
+    for (dprime, p) in [(1.5, 0.05), (-0.5, 0.05), (0.5, 2.0), (0.5, f64::NAN)] {
+        let tmp = temp_dir("e2e_phase_conflict_range");
+        let mut args = base_args();
+        args.phase_conflict_dprime = dprime;
+        args.phase_conflict_p = p;
+        args.output_dir = Some(tmp.to_string_lossy().into());
+        let error = pipeline::run(&args).expect_err("an out-of-range threshold is refused");
+        assert!(
+            error.to_string().contains("--phase-conflict"),
+            "{dprime} {p}: {error}"
+        );
+        fs::remove_dir_all(&tmp).ok();
+    }
 }
 
 /// Two entries the WHO catalogue of M. tuberculosis resistance mutations needs,

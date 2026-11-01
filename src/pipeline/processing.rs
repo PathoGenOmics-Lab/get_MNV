@@ -165,11 +165,11 @@ fn annotate_variants_for_gene(
 /// splice consequence. The variant's anchor position is tested; only multi-exon
 /// transcript models have internal junctions, so single-feature (prokaryotic)
 /// annotations never match.
-fn splice_site_for_variant(
-    genes: &[Gene],
+fn splice_site_for_variant<'a>(
+    genes: impl IntoIterator<Item = &'a Gene>,
     positions: &[usize],
 ) -> Option<(String, crate::variants::SpliceConsequence)> {
-    genes.iter().find_map(|gene| {
+    genes.into_iter().find_map(|gene| {
         positions
             .iter()
             .filter_map(|&position| {
@@ -183,9 +183,12 @@ fn splice_site_for_variant(
 /// First gene with a real intron containing this variant. Only reached when the
 /// variant is not in any CDS and not at a splice site, so it describes a variant
 /// sitting deep inside an intron.
-fn intron_for_variant(genes: &[Gene], positions: &[usize]) -> Option<String> {
+fn intron_for_variant<'a>(
+    genes: impl IntoIterator<Item = &'a Gene>,
+    positions: &[usize],
+) -> Option<String> {
     genes
-        .iter()
+        .into_iter()
         .find(|gene| {
             positions
                 .iter()
@@ -473,6 +476,9 @@ pub(crate) fn process_contig(
     // Where each record acts, worked out once: every gene below looks only at
     // the records near it instead of testing the whole contig.
     let variant_index = io::VariantIndex::new(snp_list);
+    // The whole contig, for what reaches beyond a gene's own records: an indel
+    // moved along its repeat out of the gene.
+    let contig_records: &[VcfPosition] = snp_list;
     let genes = if let Some(gff_genes) = preloaded_gff {
         let all_contig_genes = gff_genes.get(contig).cloned().unwrap_or_default();
         let filtered = io::annotation::filter_genes_near(&all_contig_genes, &variant_index);
@@ -544,6 +550,7 @@ pub(crate) fn process_contig(
             let indel_config = variants::IndelAnnotationConfig {
                 frameshift_min_freq: args.frameshift_min_freq,
                 observed_indel_freq: evidence.observed_indel_freq,
+                contig_records,
             };
             let phasing = evidence.phasing;
             let mut variants = annotate_variants_for_gene(
@@ -746,24 +753,32 @@ pub(crate) fn process_contig(
                 }
 
                 let fully_unannotated = unannotated.len() == snp.changed_positions().len();
-                let variant = match splice_site_for_variant(genes, &unannotated) {
+                // Moved along its repeat, an indel can lie wholly outside the
+                // protein of a gene it is written in, and is then none of that
+                // gene's business, its splice region and introns included.
+                let claiming: Vec<&Gene> = genes
+                    .iter()
+                    .filter(|gene| {
+                        !fully_unannotated
+                            || !variants::lies_outside_coding_sequence(
+                                gene,
+                                &reference,
+                                snp,
+                                contig_records,
+                                genetic_code,
+                            )
+                    })
+                    .collect();
+                let variant = match splice_site_for_variant(claiming.iter().copied(), &unannotated)
+                {
                     Some((gene_name, splice)) => {
                         variants::build_splice_variant(contig, snp, &gene_name, splice)
                     }
-                    None => match intron_for_variant(genes, &unannotated) {
+                    None => match intron_for_variant(claiming.iter().copied(), &unannotated) {
                         Some(gene_name) => variants::build_intron_variant(contig, snp, &gene_name),
-                        None => match genes.iter().find(|gene| {
+                        None => match claiming.iter().find(|gene| {
                             if fully_unannotated {
-                                // Placed as HGVS places it, an indel can lie
-                                // wholly past the gene it is written in.
                                 io::gene_overlaps_variant(gene, snp)
-                                    && !variants::lies_past_coding_sequence(
-                                        gene,
-                                        &reference,
-                                        snp,
-                                        variant_index.near_gene(gene),
-                                        genetic_code,
-                                    )
                             } else {
                                 unannotated
                                     .iter()
@@ -844,13 +859,14 @@ pub(crate) fn process_contig(
                 let labels = snp.event().component_labels();
                 let (span_start, span_end) = snp.acting_span();
                 for gene in gene_index.near(span_start, span_end) {
-                    // An indel HGVS places wholly past this gene's stop codon is
-                    // none of its business, wherever the record is written.
-                    if variants::lies_past_coding_sequence(
+                    // An indel that can be placed wholly past this gene's stop
+                    // codon, or before its start codon, is none of its
+                    // business, wherever the record is written.
+                    if variants::lies_outside_coding_sequence(
                         gene,
                         &reference,
                         snp,
-                        variant_index.near_gene(gene),
+                        contig_records,
                         genetic_code,
                     ) {
                         continue;

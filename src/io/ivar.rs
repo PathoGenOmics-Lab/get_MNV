@@ -291,7 +291,6 @@ pub fn load_ivar_tsv(
     let mut kept = 0usize;
     let mut skipped_failed = 0usize;
     let mut skipped_reference = 0usize;
-    let mut left_aligned = 0usize;
 
     for line_result in reader.lines() {
         let line = line_result.map_err(|e| format!("Error reading iVar TSV line: {e}"))?;
@@ -347,12 +346,8 @@ pub fn load_ivar_tsv(
         validate_vcf_allele(&vcf_ref, record_idx, chrom, vcf_pos, "REF")?;
         validate_vcf_allele(&vcf_alt, record_idx, chrom, vcf_pos, "ALT")?;
         let (vcf_pos, vcf_ref, vcf_alt) = if left_align {
-            let normalization = crate::io::AlleleNormalization::LeftAlign;
             let sequence = references.get(chrom).map(String::as_str);
-            let (pos, ref_allele, alt_allele, moved) =
-                normalization.apply(vcf_pos, vcf_ref, vcf_alt, sequence);
-            left_aligned += usize::from(moved);
-            (pos, ref_allele, alt_allele)
+            crate::io::AlleleNormalization::LeftAlign.apply(vcf_pos, vcf_ref, vcf_alt, sequence)
         } else {
             (vcf_pos, vcf_ref, vcf_alt)
         };
@@ -381,6 +376,11 @@ pub fn load_ivar_tsv(
         .into());
     }
 
+    let left_aligned = if left_align {
+        crate::io::left_align::left_align_contigs(&mut positions_by_contig, references)
+    } else {
+        Default::default()
+    };
     for values in positions_by_contig.values_mut() {
         values.sort_by_key(|v| v.record_start);
     }

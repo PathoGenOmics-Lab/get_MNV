@@ -144,35 +144,47 @@ the suite itself. It sweeps 2x2 tables covering independence, both directions of
 association, and the degenerate tables where `D'` has no value, alongside the
 linkage-support sweeps.
 
-## When the reads refute the codon
+## When the reads refute a reading
 
-A codon-level match in the `Catalogue` column asserts that one molecule carries
-every substitution of the codon. `D'` can refute that. When it does, an entry
-matched through the codon reading **alone** names an amino acid nothing in the
-sample carries, and get_MNV withholds it:
+A codon with two substitutions has two readings, and a catalogue match made
+through one of them alone makes a claim about molecules. A codon-level match
+in the `Catalogue` column asserts that one molecule carries every substitution
+of the codon; a per-SNV match asserts that one carries a substitution without
+the rest. With `--bam` the molecules can refute either claim. An entry matched
+through a refuted reading **alone** names an amino acid nothing in the sample
+carries, and get_MNV withholds it: the entry moves to the `Catalogue Withheld`
+column (the `CATW` INFO key in the VCF), with the reason.
 
 ```
-withheld: RIF: Assoc w R (rpoB p.Ser450Tyr) (codon reading only, the reads
-place these substitutions on different molecules)
+Catalogue           -
+Catalogue Withheld  RIF: Assoc w R (rpoB p.Ser450Tyr, codon reading only: no molecule carries the whole codon)
 ```
 
-The entry is still listed, so nothing is hidden, but it is no longer stated as
-found. A match the per-SNV reading also makes is untouched: each of those
-substitutions is on the molecules on its own, whatever company it keeps.
+The entry is still listed, so nothing is hidden, but it is no longer stated
+as found. A match both readings make is untouched, and so is a match on a
+nucleotide (`c.1349C>A`, `g.761155C>A`): that base is on the molecules
+whatever company it keeps.
 
-This needs `--bam`, since without molecules there is no `D'` and nothing
-changes. Two thresholds govern it, and both must be met:
+**The molecules decide, `D'` confirms.** The codon reading is refuted when
+none of the molecules spanning the codon carries every substitution (`MNV
+Reads` is 0) and `D'` is at or below `-0.5`; a substitution's own reading is
+refuted when every molecule with it carries the whole codon (its `SNP Reads`
+is 0 while `MNV Reads` is not) and `D'` is at or above `0.5`. `D'` alone is
+not enough: with both substitutions on more than half the molecules, some must
+share one, so `D'` reaches `-1` with 30% of the molecules carrying the whole
+codon, and that amino acid is in the sample. This needs `--bam`, since without
+molecules there is nothing to count and nothing changes. Two thresholds govern
+the `D'` side, and both must be met:
 
 | Flag | Default | What it asks |
 |---|---|---|
-| `--phase-conflict-dprime` | `0.5` | how far below zero `D'` must fall |
+| `--phase-conflict-dprime` | `0.5` | how far from zero `D'` must be |
 | `--phase-conflict-p` | `0.05` | largest Fisher exact p-value accepted |
 
 Requiring both is deliberate. The p-value alone would let a deep sample refute
-a codon on a `D'` of -0.05, a measurable but meaningless exclusion; the
+a reading on a `D'` of -0.05, a measurable but meaningless exclusion; the
 magnitude alone would let three molecules do it. `--keep-unphased-codon-matches`
-restores the behaviour of earlier versions, which listed such a match as any
-other.
+lists every such match in `Catalogue` as any other.
 
 ### Why this is withheld rather than deleted
 

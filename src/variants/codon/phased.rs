@@ -6,7 +6,7 @@ use crate::variants::{Gene, VariantInfo, VariantType};
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::gene_path::{codon_bounds_for_position, effective_bounds};
-use super::indel_effect::{coding_placement, placed_past_the_stop, protein_effect_for_indel};
+use super::indel_effect::{coding_placement, placed_outside_the_protein, protein_effect_for_indel};
 use super::transcript_model::{has_transcript_cds_model, transcript_offset_for_position};
 
 const LOCAL_HAPLOTYPE_JOIN_DISTANCE: usize = 3;
@@ -238,6 +238,26 @@ pub(super) fn phased_variant_from_group(
     group: &[&VcfPosition],
     genetic_code: crate::genetic_code::GeneticCode,
 ) -> Option<VariantInfo> {
+    // A member that lies wholly outside the protein changes no coding base, and
+    // a haplotype holding one is no coding change of its own: an A deleted from
+    // the run after a stop codon turned the missense beside it into a
+    // frameshift, and the deletion lost its own row to the compound. The group
+    // is one molecule's haplotype, so what the caller said about frequencies
+    // and phase does not separate its members.
+    let members: Vec<VcfPosition> = group
+        .iter()
+        .map(|member| VcfPosition {
+            original_freq: None,
+            declared_phase: None,
+            ..(*member).clone()
+        })
+        .collect();
+    if members
+        .iter()
+        .any(|member| placed_outside_the_protein(gene, reference, member, &members, genetic_code))
+    {
+        return None;
+    }
     let compound = compound_allele_from_variants(reference, group)?;
     let compound_event = compound.event();
     let (has_indel, has_substitution, indel_components) = group_component_flags(group);
@@ -255,7 +275,7 @@ pub(super) fn phased_variant_from_group(
     let event_components = component_labels_from_group(group);
     // The group is the whole haplotype, so no other record bounds where it lies.
     // Wholly past the stop codon it has nothing coding to report.
-    if placed_past_the_stop(gene, reference, &compound, &[], genetic_code) {
+    if placed_outside_the_protein(gene, reference, &compound, &[], genetic_code) {
         return None;
     }
     let coding =

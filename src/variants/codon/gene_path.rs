@@ -69,6 +69,8 @@ pub(super) fn compute_annotations(
         single_bases: Vec::new(),
         // Filled in per contig by the pipeline, which has the catalogue.
         catalogue_bases: Vec::new(),
+        catalogue_withheld: Vec::new(),
+        catalogue_bases_withheld: Vec::new(),
         // A codon row's bases are each their own record.
         combines_records: false,
     }

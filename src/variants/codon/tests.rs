@@ -433,9 +433,11 @@ fn a_deletion_of_the_start_codon_loses_the_start_whatever_comes_up_first() {
 }
 
 /// The same holds inside the start codon. Deleting the G of an ATG followed by
-/// A leaves ATA first, and inserting TTA after its A leaves ATT first: table 11
+/// A leaves ATA first, and inserting TTG after its A leaves ATT first: table 11
 /// can start on either, but neither is the gene's start. An insertion after the
-/// start codon leaves it whole.
+/// start codon leaves it whole, and so does one that could as well be written
+/// before it: TTA after the A is ATT before the ATG (see
+/// `an_indel_that_fits_before_the_start_codon_is_not_the_genes`).
 #[test]
 fn an_indel_inside_the_start_codon_loses_the_start() {
     // CC | ATG ATT TTC TAA | CC: Met-Ile-Phe, CDS 3-14.
@@ -459,7 +461,7 @@ fn an_indel_inside_the_start_codon_loses_the_start() {
             "Met1?",
             true,
         ),
-        (indel(3, "A", "ATTA"), ChangeType::StartLost, "Met1?", true),
+        (indel(3, "A", "ATTG"), ChangeType::StartLost, "Met1?", true),
         (
             indel(5, "G", "GTTA"),
             ChangeType::InFrameIndel,
@@ -1016,7 +1018,7 @@ fn an_indel_hgvs_places_past_the_stop_is_not_the_genes() {
                     "{context} {past:?}"
                 );
                 assert!(
-                    crate::variants::lies_past_coding_sequence(
+                    crate::variants::lies_outside_coding_sequence(
                         gene,
                         &reference,
                         &past,
@@ -1040,6 +1042,224 @@ fn an_indel_hgvs_places_past_the_stop_is_not_the_genes() {
             );
         }
     }
+}
+
+/// A record holds an indel in place only if it can be on the indel's
+/// molecules. On `ATG AAA TAA` followed by a run of As, one A fewer written on
+/// the stop codon lies past it; a substitution in the run holds it there, but
+/// not one on a twentieth of the molecules, one the caller phased apart, or
+/// the insertion that is the other allele of the same site.
+#[test]
+fn only_a_record_on_the_same_molecules_holds_an_indel_in_place() {
+    // CC | ATG AAA TAA | AAACCC: Met-Lys, CDS 3-11.
+    let reference = crate::io::Reference {
+        sequence: "CCATGAAATAAAACCC",
+    };
+    let gene = single_exon_gene("cds", 3, 11, Strand::Plus);
+    let record = |position: usize, ref_allele: &str, alt_allele: &str, freq: Option<f64>| {
+        crate::io::VcfPosition {
+            record_start: position,
+            ref_allele: ref_allele.to_string(),
+            alt_allele: alt_allele.to_string(),
+            original_dp: None,
+            original_freq: freq,
+            original_info: None,
+            declared_phase: None,
+        }
+    };
+    let outside = |variant: &crate::io::VcfPosition, others: &[crate::io::VcfPosition]| {
+        crate::variants::lies_outside_coding_sequence(
+            &gene,
+            &reference,
+            variant,
+            others,
+            crate::genetic_code::GeneticCode::default(),
+        )
+    };
+    let deletion = record(9, "TA", "T", Some(1.0));
+    assert!(outside(&deletion, &[]));
+    assert!(!outside(&deletion, &[record(12, "A", "G", Some(1.0))]));
+    assert!(!outside(&deletion, &[record(12, "A", "G", Some(0.6))]));
+    assert!(outside(&deletion, &[record(12, "A", "G", Some(0.05))]));
+    // A frequency the caller did not give says nothing either way.
+    assert!(!outside(&deletion, &[record(12, "A", "G", None)]));
+
+    let phased = |slot: u8| crate::io::DeclaredPhase {
+        phase_set: Some(1),
+        alt_haplotypes: vec![slot],
+        has_unknown_slot: false,
+    };
+    let mut on_one = deletion.clone();
+    on_one.declared_phase = Some(phased(0));
+    let mut on_the_other = record(12, "A", "G", Some(1.0));
+    on_the_other.declared_phase = Some(phased(1));
+    assert!(outside(&on_one, std::slice::from_ref(&on_the_other)));
+    on_the_other.declared_phase = Some(phased(0));
+    assert!(!outside(&on_one, std::slice::from_ref(&on_the_other)));
+
+    // `9 TA>T,TAA` split in two, as `bcftools norm -m-` writes it.
+    let insertion = record(9, "T", "TA", Some(1.0));
+    assert!(outside(&insertion, &[]));
+    assert!(outside(&insertion, std::slice::from_ref(&deletion)));
+    assert!(outside(&deletion, std::slice::from_ref(&insertion)));
+}
+
+/// Three bases that spell a stop are no stop codon where the coding sequence
+/// does not end on a codon boundary: a CDS row ending mid-codon at an exon
+/// edge kept its frameshifts only when its last bases were not a stop.
+#[test]
+fn a_row_ending_mid_codon_has_no_stop_codon_to_slide_past() {
+    // ATG AAA A | TAA then a run of As: the row is 10 bases long.
+    let reference = crate::io::Reference {
+        sequence: "ATGAAAATAAAAAAC",
+    };
+    let deletion = indel_at(9, "AA", "A");
+    // Ten bases from the first, or eight after a phase of 2: neither ends on
+    // a codon boundary.
+    for gene in [
+        single_exon_gene("row", 1, 10, Strand::Plus),
+        single_exon_gene_with_phase("row", 1, 10, Strand::Plus, 2),
+    ] {
+        assert!(
+            !crate::variants::lies_outside_coding_sequence(
+                &gene,
+                &reference,
+                &deletion,
+                &[],
+                crate::genetic_code::GeneticCode::default(),
+            ),
+            "{gene:?}"
+        );
+    }
+    // After a phase of 1 the same nine bases end on one, and TAA is a codon.
+    assert!(crate::variants::lies_outside_coding_sequence(
+        &single_exon_gene_with_phase("row", 1, 10, Strand::Plus, 1),
+        &reference,
+        &deletion,
+        &[],
+        crate::genetic_code::GeneticCode::default(),
+    ));
+    // As it is in a gene of whole codons.
+    let gene = single_exon_gene("cds", 1, 9, Strand::Plus);
+    let reference = crate::io::Reference {
+        sequence: "ATGAAATAAAAAAC",
+    };
+    assert!(crate::variants::lies_outside_coding_sequence(
+        &gene,
+        &reference,
+        &indel_at(8, "AA", "A"),
+        &[],
+        crate::genetic_code::GeneticCode::default(),
+    ));
+}
+
+/// An indel that can sit wholly before the start codon leaves the start codon
+/// whole and the protein as it was, however the record writes it: one A fewer
+/// or more in an `AAAA` ending in the A of the ATG is not a start loss on the
+/// gene, as it was when written on the start codon, while the same change
+/// written before the gene was intergenic. A deletion of the start codon's own
+/// bases, which cannot move before it, still loses the start.
+#[test]
+fn an_indel_that_fits_before_the_start_codon_is_not_the_genes() {
+    // CCC AAA | ATG AAA TTT GGG TAA | CCC: the gene is 7-21.
+    let plus = "CCCAAAATGAAATTTGGGTAACCC";
+    for strand in [Strand::Plus, Strand::Minus] {
+        let sequence = match strand {
+            Strand::Plus => plus.to_string(),
+            Strand::Minus => reverse_complement(plus),
+        };
+        let reference = crate::io::Reference {
+            sequence: &sequence,
+        };
+        let mirror = |position: usize| match strand {
+            Strand::Plus => position,
+            Strand::Minus => plus.len() + 1 - position,
+        };
+        let gene = single_exon_gene(
+            "cds",
+            mirror(7).min(mirror(21)),
+            mirror(7).max(mirror(21)),
+            strand,
+        );
+        // The plus strand's bases `from..=to` deleted, anchored on the base
+        // before them on the genome.
+        let deletion = |from: usize, to: usize| {
+            let (low, high) = (mirror(from).min(mirror(to)), mirror(from).max(mirror(to)));
+            indel_at(
+                low - 1,
+                &sequence[low - 2..high],
+                &sequence[low - 2..low - 1],
+            )
+        };
+        // An A (as the plus strand reads it) put between the plus strand's
+        // `at` and `at + 1`.
+        let insertion = |at: usize| {
+            let anchor = match strand {
+                Strand::Plus => at,
+                Strand::Minus => mirror(at + 1),
+            };
+            let base = &sequence[anchor - 1..anchor];
+            let inserted = match strand {
+                Strand::Plus => "A",
+                Strand::Minus => "T",
+            };
+            indel_at(anchor, base, &format!("{base}{inserted}"))
+        };
+        let outside = |variant: &crate::io::VcfPosition| {
+            crate::variants::lies_outside_coding_sequence(
+                &gene,
+                &reference,
+                variant,
+                &[],
+                crate::genetic_code::GeneticCode::default(),
+            )
+        };
+        let context = format!("{strand:?}");
+        // The A of the ATG, which an A before it can stand in for.
+        assert!(outside(&deletion(7, 7)), "{context}");
+        assert!(outside(&insertion(7)), "{context}");
+        // The whole start codon, and a G put inside it.
+        assert!(!outside(&deletion(7, 9)), "{context}");
+        let inside = match strand {
+            Strand::Plus => indel_at(7, "A", "AG"),
+            Strand::Minus => indel_at(
+                mirror(8),
+                &sequence[mirror(8) - 1..mirror(8)],
+                &format!("{}C", &sequence[mirror(8) - 1..mirror(8)]),
+            ),
+        };
+        assert!(!outside(&inside), "{context}");
+        let rows = crate::variants::get_mnv_variants_for_gene(
+            &gene,
+            &[deletion(7, 7)],
+            &reference,
+            "chr1",
+            crate::genetic_code::GeneticCode::default(),
+        );
+        assert!(rows.is_empty(), "{context}: {rows:?}");
+    }
+    // A copy of the first two codons put after them can be written before the
+    // gene too, but it begins with an ATG where the old one began, and the
+    // ribosome reads the copy: that is the gene's, a duplication.
+    let reference = crate::io::Reference { sequence: plus };
+    let gene = single_exon_gene("cds", 7, 21, Strand::Plus);
+    let copy = indel_at(12, "A", "AATGAAA");
+    assert!(!crate::variants::lies_outside_coding_sequence(
+        &gene,
+        &reference,
+        &copy,
+        &[],
+        crate::genetic_code::GeneticCode::default(),
+    ));
+    let rows = crate::variants::get_mnv_variants_for_gene(
+        &gene,
+        &[copy],
+        &reference,
+        "chr1",
+        crate::genetic_code::GeneticCode::default(),
+    );
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0].change_type, ChangeType::InFrameIndel, "{rows:?}");
 }
 
 /// An in-frame insertion repeating the codon before it is a duplication in

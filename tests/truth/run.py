@@ -178,8 +178,9 @@ class IndelCase:
     ref_codon: str | None
     alt_codon: str | None
     note: str = ""
-    # HGVS places it wholly past the stop codon: the gene reports nothing.
-    past_the_stop: bool = False
+    # It can be placed wholly past the stop codon or before the start codon:
+    # the gene reports nothing.
+    outside_the_protein: bool = False
 
 
 @dataclass
@@ -336,6 +337,61 @@ def expected_for(genome: str, gene: Gene, changes: list[tuple[int, str]]) -> Cas
     )
 
 
+def placed_before_start(
+    genome: str, gene: Gene, position: int, ref_allele: str, alt_allele: str
+) -> bool:
+    """Whether an indel in the first exon can be moved 5' along the transcript
+    until it changes no coding base, out before the start codon, leaving no
+    initiation codon where the start codon began.
+
+    Wherever its record writes it, the genome then holds the start codon whole,
+    and the bases before it as they were, so the ribosome finds the same start
+    and the same protein. Unless the bases it leaves at the start codon's place
+    are an initiation codon themselves, as a copy of the gene's first bases put
+    before them is: the ribosome reads the copy.
+    """
+    first = gene.cds_positions()[0]
+    first_exon = gene.segments[0] if gene.strand == "+" else gene.segments[-1]
+    deleted = list(range(position + 1, position + len(ref_allele)))
+    if deleted:
+        if not any(first_exon[0] <= p <= first_exon[1] for p in deleted):
+            return False
+        low, high = deleted[0], deleted[-1]
+        if gene.strand == "+":
+            while low > 1 and genome[low - 2] == genome[high - 1]:
+                low, high = low - 1, high - 1
+            if high >= first:
+                return False
+        else:
+            while high < len(genome) and genome[low - 1] == genome[high]:
+                low, high = low + 1, high + 1
+            if low <= first:
+                return False
+        alternate = genome[: low - 1] + genome[high:]
+    else:
+        if not first_exon[0] <= position <= first_exon[1]:
+            return False
+        after, bases = position, alt_allele[1:]
+        if gene.strand == "+":
+            while after > 1 and genome[after - 1] == bases[-1]:
+                after, bases = after - 1, bases[-1:] + bases[:-1]
+            if after >= first:
+                return False
+        else:
+            while after < len(genome) and genome[after] == bases[0]:
+                after, bases = after + 1, bases[1:] + bases[:1]
+            if after < first:
+                return False
+        alternate = genome[:after] + bases + genome[after:]
+    # The start codon's place, counted from the untouched 5' side.
+    if gene.strand == "+":
+        codon = alternate[first - 1 : first + 2]
+    else:
+        at = first + len(alternate) - len(genome)
+        codon = revcomp(alternate[at - 3 : at])
+    return codon not in INITIATION_CODONS
+
+
 def expected_indel(
     genome: str, gene: Gene, position: int, ref_allele: str, alt_allele: str
 ) -> IndelCase | None:
@@ -422,7 +478,11 @@ def expected_indel(
     if past:
         event_class = "deletion" if len(alt_allele) < len(ref_allele) else "insertion"
         return IndelCase(position, ref_allele, alt_allele, gene.name, "", event_class,
-                         None, None, past_the_stop=True)
+                         None, None, outside_the_protein=True)
+    if placed_before_start(genome, gene, position, ref_allele, alt_allele):
+        event_class = "deletion" if len(alt_allele) < len(ref_allele) else "insertion"
+        return IndelCase(position, ref_allele, alt_allele, gene.name, "", event_class,
+                         None, None, outside_the_protein=True)
 
     reference_cds = gene.cds(genome)
     alternate_cds = gene.cds_with_indel(genome, deleted, inserted_after)
@@ -734,9 +794,9 @@ def main() -> int:
         with (case_dir / "in.MNV.tsv").open() as handle:
             rows = [row for row in csv.DictReader(handle, delimiter="\t")]
         row = next((r for r in rows if r["Gene"] == indel.gene), None)
-        if indel.past_the_stop:
+        if indel.outside_the_protein:
             if row is not None:
-                failures.append(f"{indel.note}: a row for gene {indel.gene}, past its stop")
+                failures.append(f"{indel.note}: a row for gene {indel.gene}, outside its protein")
             else:
                 checked_indels += 1
             continue

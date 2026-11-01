@@ -59,6 +59,14 @@ impl CodonLinkage {
     pub fn contradicts_codon(&self, min_magnitude: f64, max_p_value: f64) -> bool {
         self.d_prime <= -min_magnitude && self.p_value <= max_p_value
     }
+
+    /// Whether the reads place this codon's substitutions on the *same*
+    /// molecules, strongly enough that none of them stands alone: the mirror of
+    /// [`Self::contradicts_codon`], which is what refutes reading one of them on
+    /// its own.
+    pub fn confirms_codon(&self, min_magnitude: f64, max_p_value: f64) -> bool {
+        self.d_prime >= min_magnitude && self.p_value <= max_p_value
+    }
 }
 
 /// The 2x2 table of molecules for one pair of positions.
@@ -139,8 +147,10 @@ pub fn pair_linkage(table: PairTable) -> Option<CodonLinkage> {
 ///
 /// A codon-level MNV asserts that one molecule carries *all* of its
 /// substitutions, so the claim is only as good as its weakest pair: the pair
-/// with the lowest `D'` is the one reported. With two positions there is one
-/// pair and this is simply that pair.
+/// with the lowest `D'` is the one reported, and of pairs with the same `D'`
+/// the one with the most evidence, the lowest p-value. Taking the first of
+/// equal pairs made the verdict depend on which codon position held a rare
+/// allele. With two positions there is one pair and this is simply that pair.
 pub fn codon_linkage(patterns: &[(Vec<bool>, usize)], positions: usize) -> Option<CodonLinkage> {
     if positions < 2 {
         return None;
@@ -164,7 +174,11 @@ pub fn codon_linkage(patterns: &[(Vec<bool>, usize)], positions: usize) -> Optio
             let Some(linkage) = pair_linkage(table) else {
                 continue;
             };
-            if weakest.is_none_or(|current| linkage.d_prime < current.d_prime) {
+            let weaker = |current: CodonLinkage| {
+                linkage.d_prime < current.d_prime
+                    || (linkage.d_prime == current.d_prime && linkage.p_value < current.p_value)
+            };
+            if weakest.is_none_or(weaker) {
                 weakest = Some(linkage);
             }
         }
@@ -383,6 +397,29 @@ mod tests {
         ];
         let linkage = codon_linkage(&patterns, 3).expect("some pair varies");
         approx(linkage.d_prime, 0.0);
+    }
+
+    /// Three substitutions that never share a molecule, one of them rare: every
+    /// pair has a `D'` of -1, and the pair reported must be the one the depth
+    /// can speak for, wherever the rare allele sits in the codon.
+    #[test]
+    fn of_equally_weak_pairs_the_best_supported_is_reported() {
+        let alone = |position: usize, count: usize| {
+            let mut pattern = vec![false; 3];
+            pattern[position] = true;
+            (pattern, count)
+        };
+        for rare in 0..3 {
+            let common: Vec<usize> = (0..3).filter(|p| *p != rare).collect();
+            let patterns = vec![alone(common[0], 50), alone(rare, 2), alone(common[1], 48)];
+            let linkage = codon_linkage(&patterns, 3).expect("three varying positions");
+            approx(linkage.d_prime, -1.0);
+            assert!(
+                linkage.p_value < 1e-20,
+                "rare allele at {rare}: {}",
+                linkage.p_value
+            );
+        }
     }
 
     #[test]

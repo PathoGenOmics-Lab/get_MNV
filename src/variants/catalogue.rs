@@ -19,7 +19,7 @@
 use crate::error::{AppError, AppResult};
 use crate::variants::CodingNumbering;
 use crate::variants::{parse_component_label, AlleleComponentKind, Gene, Strand, VariantInfo};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// What an entry describes, normalized for comparison.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -291,8 +291,79 @@ impl Catalogue {
             });
         }
         log::info!("Catalogue '{path}': {} entries", entries.len());
+        // get_MNV writes no `n.` descriptor, so only an `n.` substitution,
+        // placed by its position, can ever be met.
+        let unplaceable: Vec<&str> = entries
+            .iter()
+            .filter(|entry| {
+                matches!(&entry.variant, CatalogueVariant::CodingOther(written) if written.starts_with("n."))
+            })
+            .map(|entry| entry.written.as_str())
+            .collect();
+        if !unplaceable.is_empty() {
+            log::warn!(
+                "Catalogue '{path}': {} n. entr{} other than a substitution ({}) can never match: \
+                 get_MNV writes no n. descriptor for an untranslated gene. Write them in g. notation.",
+                unplaceable.len(),
+                if unplaceable.len() == 1 { "y" } else { "ies" },
+                examples(&unplaceable)
+            );
+        }
         Ok(Self { entries })
     }
+
+    /// Warns about the entries that name a gene the annotation does not have,
+    /// under any of its names, on any contig: they can never match, and a
+    /// table naming genes differently from the annotation (`Rv0667` for
+    /// `RVBD_0667`) used to match nothing without a word.
+    pub fn warn_about_unknown_genes<'a>(&self, gene_names: impl IntoIterator<Item = &'a str>) {
+        let (entries, unknown) = self.unknown_genes(gene_names);
+        if entries == 0 {
+            return;
+        }
+        log::warn!(
+            "{entries} catalogue entr{} name{} {} gene{} the annotation does not have ({}), so \
+             {} never match. Check that the catalogue and the annotation name genes the same way.",
+            if entries == 1 { "y" } else { "ies" },
+            if entries == 1 { "s" } else { "" },
+            unknown.len(),
+            if unknown.len() == 1 { "" } else { "s" },
+            examples(&unknown),
+            if entries == 1 { "it can" } else { "they can" },
+        );
+    }
+
+    /// How many entries name a gene that none of `gene_names` answers to (see
+    /// [`gene_matches`]), and those genes, sorted.
+    fn unknown_genes<'a>(
+        &self,
+        gene_names: impl IntoIterator<Item = &'a str>,
+    ) -> (usize, Vec<&str>) {
+        let mut known: HashSet<&str> = HashSet::new();
+        for name in gene_names {
+            known.insert(name);
+            known.extend(name.split('_'));
+        }
+        let mut unknown: Vec<&str> = self
+            .entries
+            .iter()
+            .map(|entry| entry.gene.as_str())
+            .filter(|gene| !known.contains(gene))
+            .collect();
+        let entries = unknown.len();
+        unknown.sort_unstable();
+        unknown.dedup();
+        (entries, unknown)
+    }
+}
+
+/// A few of `items`, enough to recognise the pattern without flooding the log.
+fn examples(items: &[&str]) -> String {
+    let mut shown = items.iter().take(5).copied().collect::<Vec<_>>().join(", ");
+    if items.len() > 5 {
+        shown.push_str(&format!(" and {} more", items.len() - 5));
+    }
+    shown
 }
 
 /// Whether a row's gene is the gene a catalogue names: the same name, or one
@@ -386,13 +457,21 @@ fn describe(entry: &CatalogueEntry, note: Option<&str>) -> String {
 
 const LOSS_OF_FUNCTION: [&str; 3] = ["frameshift_variant", "stop_gained", "start_lost"];
 
-/// When the reads are taken to contradict a codon reading, and what to do then.
+/// When the reads are taken to refute one reading of a codon, and what to do
+/// then.
 ///
 /// A codon-level match asserts that one molecule carries every substitution of
-/// the codon. With `--bam` the molecules can refute that, and an entry matched
-/// through the codon reading alone then names an amino acid nothing in the
-/// sample carries. Withholding it is the difference between reporting what was
-/// found and reporting what was inferred.
+/// the codon, and a per-SNV match that one carries a substitution without the
+/// rest. With `--bam` the molecules can refute either, and an entry matched
+/// through that reading alone then names an amino acid nothing in the sample
+/// carries. Withholding it is the difference between reporting what was found
+/// and reporting what was inferred.
+///
+/// The molecules decide, not `D'`. A `D'` of -1 only says the substitutions
+/// share as few molecules as their frequencies allow, and with both above 50%
+/// that is not none: 30% of the molecules carried the whole codon and the match
+/// was withheld all the same. The linkage test adds that the pattern is more
+/// than chance, so three molecules cannot withhold anything.
 #[derive(Debug, Clone, Copy)]
 pub struct PhasePolicy {
     /// How far `D'` must fall below zero to count as contradiction.
@@ -414,17 +493,37 @@ impl Default for PhasePolicy {
 }
 
 impl PhasePolicy {
-    /// Whether this row's reads refute reading its substitutions as one codon.
-    fn contradicted(&self, variant: &VariantInfo) -> bool {
-        if self.keep_unphased {
-            return false;
-        }
-        variant
-            .annotations
-            .linkage
-            .is_some_and(|ld| ld.contradicts_codon(self.min_magnitude, self.max_p_value))
+    /// Whether no molecule carries this row's codon reading: none of those
+    /// observing the codon carries every substitution, and the substitutions
+    /// exclude each other more than chance allows.
+    fn codon_carried_by_none(&self, variant: &VariantInfo) -> bool {
+        !self.keep_unphased
+            && variant.mnv_reads == Some(0)
+            && variant
+                .annotations
+                .linkage
+                .is_some_and(|ld| ld.contradicts_codon(self.min_magnitude, self.max_p_value))
+    }
+
+    /// Whether no molecule carries base `base`'s substitution without the rest
+    /// of the codon: every molecule with it carries the whole codon, and the
+    /// substitutions travel together more than chance allows.
+    fn alone_carried_by_none(&self, variant: &VariantInfo, base: usize) -> bool {
+        !self.keep_unphased
+            && variant.snp_reads.as_ref().and_then(|reads| reads.get(base)) == Some(&0)
+            && variant.mnv_reads.is_some_and(|reads| reads > 0)
+            && variant
+                .annotations
+                .linkage
+                .is_some_and(|ld| ld.confirms_codon(self.min_magnitude, self.max_p_value))
     }
 }
+
+/// The note a withheld entry carries, saying which reading the molecules
+/// refuted.
+const CODON_CARRIED_BY_NONE: &str = "codon reading only: no molecule carries the whole codon";
+const ALONE_CARRIED_BY_NONE: &str =
+    "per-SNV reading only: no molecule carries this substitution without the rest";
 
 /// Annotate every row of a contig with the catalogue entries it matches.
 ///
@@ -543,6 +642,9 @@ pub fn annotate_catalogue(
 
     for variant in variants.iter_mut() {
         let mut hits: Vec<String> = Vec::new();
+        let mut withheld: Vec<String> = Vec::new();
+        let several = variant.snp_aa_changes.len() > 1;
+        let codon_carried_by_none = several && phase.codon_carried_by_none(variant);
         for (position, alternate) in substitutions_of(variant) {
             for &index in by_position
                 .get(&(position, alternate))
@@ -557,18 +659,23 @@ pub fn annotate_catalogue(
             .hgvs_g
             .clone()
             .or_else(|| crate::variants::hgvs::genomic(variant));
+        // A descriptor of several substitutions (`g.[1C>A;2G>C]`) names the
+        // codon reading, and stands or falls with it.
         for &index in genomic
             .as_deref()
             .and_then(|written| by_descriptor.get(written))
             .into_iter()
             .flatten()
         {
-            hits.push(describe(&catalogue.entries[index], None));
+            let entry = &catalogue.entries[index];
+            if codon_carried_by_none {
+                withheld.push(describe(entry, Some(CODON_CARRIED_BY_NONE)));
+            } else {
+                hits.push(describe(entry, None));
+            }
         }
         let (so_term, _) = crate::output::so_consequence(variant);
-        let contradicted = phase.contradicted(variant);
         let codon_changes = protein_changes(&variant.aa_changes);
-        let single_changes = protein_changes(&variant.snp_aa_changes);
         let mut indices: Vec<usize> = std::iter::once(variant.gene.as_str())
             .chain(variant.gene.split('_'))
             .filter_map(|name| by_gene.get(name))
@@ -577,24 +684,50 @@ pub fn annotate_catalogue(
             .collect();
         indices.sort_unstable();
         indices.dedup();
+        // Whether a base's own reading is already a loss of function, so a
+        // loss-of-function match does not rest on the codon reading alone.
+        let base_lof = variant.annotations.single_bases.iter().any(|effect| {
+            crate::output::so_consequence_for(
+                variant,
+                effect.in_context(variant.change_type),
+                effect.splice,
+            )
+            .0
+            .split('&')
+            .any(|term| LOSS_OF_FUNCTION.contains(&term))
+        });
         for entry in indices.iter().map(|&index| &catalogue.entries[index]) {
             match &entry.variant {
                 CatalogueVariant::Protein(change) => {
                     let codon = codon_changes.iter().any(|a| a == change);
-                    let single = variant.snp_aa_changes.len() > 1
-                        && single_changes.iter().any(|a| a == change);
-                    let several = variant.snp_aa_changes.len() > 1;
-                    // Only a match that rests on the codon alone is at stake:
-                    // one the per-SNV reading also makes stands whatever the
-                    // molecules did, because each substitution is there on its
-                    // own.
-                    let codon_only = codon && !single && several;
-                    if codon_only && contradicted {
-                        hits.push(format!(
-                            "withheld: {} (codon reading only, the reads place these \
-                             substitutions on different molecules)",
-                            describe(entry, None)
-                        ));
+                    // The bases whose own reading names this change.
+                    let alone: Vec<usize> = if several {
+                        variant
+                            .snp_aa_changes
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, single)| {
+                                protein_changes(std::slice::from_ref(*single)).contains(change)
+                            })
+                            .map(|(base, _)| base)
+                            .collect()
+                    } else {
+                        Vec::new()
+                    };
+                    let single = !alone.is_empty();
+                    // Only a match that rests on one reading alone is at stake:
+                    // one both readings make stands whatever the molecules did.
+                    if codon && !single && several && codon_carried_by_none {
+                        withheld.push(describe(entry, Some(CODON_CARRIED_BY_NONE)));
+                        continue;
+                    }
+                    if single
+                        && !codon
+                        && alone
+                            .iter()
+                            .all(|&base| phase.alone_carried_by_none(variant, base))
+                    {
+                        withheld.push(describe(entry, Some(ALONE_CARRIED_BY_NONE)));
                         continue;
                     }
                     let note = match (codon, single) {
@@ -609,26 +742,40 @@ pub fn annotate_catalogue(
                 CatalogueVariant::CodingOther(written)
                     if variant.annotations.hgvs_c.as_deref() == Some(written.as_str()) =>
                 {
-                    hits.push(describe(entry, None));
+                    if codon_carried_by_none {
+                        withheld.push(describe(entry, Some(CODON_CARRIED_BY_NONE)));
+                    } else {
+                        hits.push(describe(entry, None));
+                    }
                 }
                 CatalogueVariant::LossOfFunction
                     if so_term
                         .split('&')
                         .any(|term| LOSS_OF_FUNCTION.contains(&term)) =>
                 {
-                    hits.push(describe(entry, None));
+                    if codon_carried_by_none && !base_lof {
+                        withheld.push(describe(entry, Some(CODON_CARRIED_BY_NONE)));
+                    } else {
+                        hits.push(describe(entry, None));
+                    }
                 }
                 _ => {}
             }
         }
         hits.dedup();
+        withheld.dedup();
         variant.annotations.catalogue = hits;
+        variant.annotations.catalogue_withheld = withheld;
 
         // Each base of a row of several, on its own: its position, its own
         // residue and consequence, its own descriptors.
         if variant.positions.len() > 1 {
             let mut bases: Vec<Vec<String>> = vec![Vec::new(); variant.positions.len()];
+            let mut bases_withheld: Vec<Vec<String>> = vec![Vec::new(); variant.positions.len()];
             for (i, base_hits) in bases.iter_mut().enumerate() {
+                // A base no molecule carries without the rest of the codon has
+                // no amino acid of its own in this sample.
+                let alone_carried_by_none = phase.alone_carried_by_none(variant, i);
                 let position = variant.positions[i];
                 let reference = variant.ref_bases.get(i).map(String::as_str).unwrap_or("");
                 let alternate = variant
@@ -669,23 +816,39 @@ pub fn annotate_catalogue(
                     base_hits.push(describe(&catalogue.entries[index], None));
                 }
                 for entry in indices.iter().map(|&index| &catalogue.entries[index]) {
-                    let hit = match &entry.variant {
-                        CatalogueVariant::Protein(change) => own_change.iter().any(|a| a == change),
-                        CatalogueVariant::CodingOther(written) => {
-                            single.and_then(|e| e.hgvs_c.as_deref()) == Some(written.as_str())
+                    let (hit, residue) = match &entry.variant {
+                        CatalogueVariant::Protein(change) => {
+                            (own_change.iter().any(|a| a == change), true)
                         }
-                        CatalogueVariant::LossOfFunction => own_term.as_deref().is_some_and(|t| {
-                            t.split('&').any(|term| LOSS_OF_FUNCTION.contains(&term))
-                        }),
-                        _ => false,
+                        CatalogueVariant::CodingOther(written) => (
+                            single.and_then(|e| e.hgvs_c.as_deref()) == Some(written.as_str()),
+                            false,
+                        ),
+                        CatalogueVariant::LossOfFunction => (
+                            own_term.as_deref().is_some_and(|t| {
+                                t.split('&').any(|term| LOSS_OF_FUNCTION.contains(&term))
+                            }),
+                            true,
+                        ),
+                        _ => (false, false),
                     };
-                    if hit {
+                    if !hit {
+                        continue;
+                    }
+                    // What the base's own residue does is carried by nothing
+                    // when the base never stands alone; its nucleotide change
+                    // itself is there either way.
+                    if residue && alone_carried_by_none {
+                        bases_withheld[i].push(describe(entry, Some(ALONE_CARRIED_BY_NONE)));
+                    } else {
                         base_hits.push(describe(entry, None));
                     }
                 }
                 base_hits.dedup();
+                bases_withheld[i].dedup();
             }
             variant.annotations.catalogue_bases = bases;
+            variant.annotations.catalogue_bases_withheld = bases_withheld;
         }
     }
     other_reference
@@ -822,6 +985,30 @@ mod tests {
                 "{written}"
             );
         }
+    }
+
+    #[test]
+    fn entries_naming_a_gene_the_annotation_lacks_are_counted() {
+        let entry = |gene: &str, written: &str| CatalogueEntry {
+            gene: gene.to_string(),
+            written: written.to_string(),
+            variant: parse_variant(written).unwrap(),
+            label: String::new(),
+        };
+        let catalogue = Catalogue {
+            entries: vec![
+                entry("rpoB", "p.Ser450Leu"),
+                entry("Rv0667", "p.Ser450Trp"),
+                entry("katG", "p.Ser315Thr"),
+                entry("katG", "LoF"),
+                entry("RVBD_0667", "p.His445Tyr"),
+            ],
+        };
+        // A combined name answers to each of its parts, as when matching.
+        let (entries, unknown) = catalogue.unknown_genes(["rpoB_Rv0667", "inhA"]);
+        assert_eq!((entries, unknown), (3, vec!["RVBD_0667", "katG"]));
+        let (entries, _) = catalogue.unknown_genes(["rpoB_Rv0667", "katG", "RVBD_0667"]);
+        assert_eq!(entries, 0);
     }
 
     #[test]

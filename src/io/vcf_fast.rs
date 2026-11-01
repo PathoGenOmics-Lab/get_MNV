@@ -114,7 +114,6 @@ struct TextRecords<'a> {
     not_carried: usize,
     overlapped: usize,
     spelled_out: usize,
-    left_aligned: usize,
     record_idx: usize,
 }
 
@@ -142,7 +141,6 @@ impl<'a> TextRecords<'a> {
             not_carried: 0,
             overlapped: 0,
             spelled_out: 0,
-            left_aligned: 0,
             record_idx: 0,
         }
     }
@@ -271,10 +269,9 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                 }
                 None => (pos, ref_allele.to_string(), alt_allele.to_string()),
             };
-            let (norm_pos, norm_ref, norm_alt, moved) =
+            let (norm_pos, norm_ref, norm_alt) =
                 self.normalization
                     .apply(start, explicit_ref, explicit_alt, sequence);
-            self.left_aligned += usize::from(moved);
             validate_vcf_allele(&norm_ref, record_idx, chrom, norm_pos, "REF")?;
             validate_vcf_allele(&norm_alt, record_idx, chrom, norm_pos, "ALT")?;
 
@@ -290,7 +287,7 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
                 cols[7],
             );
             let original_info = if self.keep_original_info {
-                crate::io::vcf::retarget_input_ann(
+                crate::io::vcf::retarget_input_info(
                     extract_text_original_info(
                         cols[7],
                         get_mnv_tags,
@@ -329,18 +326,25 @@ Split multiallelic sites first (e.g. bcftools norm -m -).",
     fn finish(self, vcf_file: &str) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
         let TextRecords {
             split_multiallelic,
+            normalization,
+            references,
             header_seen,
             mut positions_by_contig,
             split_count,
             not_carried,
             overlapped,
             spelled_out,
-            left_aligned,
             ..
         } = self;
         if !header_seen {
             return Err(format!("No #CHROM header line found in '{vcf_file}'").into());
         }
+        let left_aligned = match (normalization, references) {
+            (AlleleNormalization::LeftAlign, Some(references)) => {
+                crate::io::left_align::left_align_contigs(&mut positions_by_contig, references)
+            }
+            _ => Default::default(),
+        };
 
         for values in positions_by_contig.values_mut() {
             values.sort_by_key(|v| v.record_start);

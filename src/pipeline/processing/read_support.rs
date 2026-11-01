@@ -353,8 +353,10 @@ pub(super) fn count_indel_reads_into(
         // Once the run has left-aligned the allele, asking for that again is
         // no help: the reads put the gap somewhere else, or do not carry it.
         let hint = if args.left_align {
-            "The allele is left-aligned, so the reads either place the gap elsewhere \
-             (an aligner that does not left-align) or do not carry this indel."
+            "--left-align placed every indel it could at its leftmost equivalent \
+             position (a complex record, an ambiguity code, or a base another record \
+             changes keeps one where it was written), so the reads either place the gap \
+             elsewhere (an aligner that does not left-align) or do not carry this indel."
         } else {
             "If it lies in a homopolymer/repeat, rerun with --left-align (or left-align \
              the input with `bcftools norm -f ref.fa`) so the allele matches the read alignment."

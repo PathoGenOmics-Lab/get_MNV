@@ -76,6 +76,7 @@ struct Row {
     adjacent: Option<String>,
     catalogue: Option<String>,
     id83: Option<String>,
+    catalogue_withheld: Option<String>,
 }
 
 #[derive(Default)]
@@ -378,6 +379,7 @@ impl ReportBuilder {
                 adjacent: optional(&get(&record, "Adjacent Substitutions")),
                 catalogue: optional(&get(&record, "Catalogue")),
                 id83: optional(&get(&record, "ID83 Class")),
+                catalogue_withheld: optional(&get(&record, "Catalogue Withheld")),
             };
             self.rows.push(row);
         }
@@ -615,6 +617,8 @@ fn push_row(out: &mut String, row: &Row) {
     push_opt_str(out, row.catalogue.as_deref());
     out.push(',');
     push_opt_str(out, row.id83.as_deref());
+    out.push(',');
+    push_opt_str(out, row.catalogue_withheld.as_deref());
     out.push(']');
 }
 

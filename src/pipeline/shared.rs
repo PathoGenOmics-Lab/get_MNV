@@ -194,13 +194,16 @@ impl SharedInputs {
         }
         io::annotation::load_tsv_genes_with(
             genes_file,
-            || {
-                self.tsv_rows
-                    .get(|| io::annotation::read_tsv_gene_rows(genes_file))
-            },
+            || self.tsv_rows(args),
             snp_list,
             Some(contig),
         )
+    }
+
+    /// Every row of the TSV gene table, read once.
+    pub(crate) fn tsv_rows(&self, args: &Args) -> AppResult<Arc<Vec<io::annotation::TsvGeneRow>>> {
+        self.tsv_rows
+            .get(|| io::annotation::read_tsv_gene_rows(args.genes_file()))
     }
 
     pub(crate) fn catalogue(&self, path: &str) -> AppResult<Arc<Catalogue>> {

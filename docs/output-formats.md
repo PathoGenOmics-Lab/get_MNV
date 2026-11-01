@@ -69,6 +69,7 @@ Main columns:
 | `SBS96 Context` | COSMIC SBS96 class of each single-base substitution in the row, in Event Components order, written from the pyrimidine strand: `A[C>T]G` for a C>T between A and G, and a G>A in the same context read from the other strand as `C[C>T]T`. `DBS` or `MBS` for a base of a run of two, or three or more, adjacent substitutions, which belongs to that run rather than to the single-base spectrum. `-` for an entry whose trinucleotide context cannot be read (contig end, ambiguous base) and for rows with no substitution. The report counts these into a mutational spectrum. |
 | `Adjacent Substitutions` | HGVS genomic descriptor of the run of two or more adjacent substituted bases this row's substitutions belong to, e.g. `g.103_104delinsAT`. Every row the run touches carries the same descriptor, which is how the two codon rows of a doublet split by a codon boundary are tied together, whether the caller wrote it as one record or two. Read from positions, as COSMIC tools do; read support for the run as a whole is not counted. `-` when no substitution of the row has a substituted neighbour. |
 | `Catalogue` | The `--catalogue` entries this row matches, each written `label (gene variant)` and separated by `; `, with `codon reading only` or `per-SNV reading only` added when a codon row matches through one of its two readings alone. `-` when nothing matches or no catalogue was given. |
+| `Catalogue Withheld` | The `--catalogue` entries this row would match through a reading no molecule carries, written as in `Catalogue` with the reason: `codon reading only: no molecule carries the whole codon` when none of the molecules spanning the codon carries every substitution and `D'` says they exclude each other, `per-SNV reading only: no molecule carries this substitution without the rest` when every molecule with a substitution carries the whole codon and `D'` says they travel together. Such an entry names an amino acid nothing in the sample carries, so it is kept apart from `Catalogue` rather than stated as found. See [Read-level linkage](linkage.md#when-the-reads-refute-a-reading). `-` when nothing is withheld. Only present with `--bam`. |
 | `ID83 Class` | COSMIC ID83 class of a pure insertion or deletion, as SigProfiler labels it: `1:Del:C:2` for a C deleted from a run of three, `3:Ins:R:5` for a three-base insertion next to five or more copies of itself, `4:Del:M:2` for a four-base deletion with two bases of microhomology at its breakpoint. One-base indels are written from the pyrimidine (`C` or `T`), and copies are counted on both sides of the event, so the class does not depend on where in a repeat the caller placed it. `-` for substitutions, deletion-insertions and symbolic alleles. |
 
 Extra columns when `--bam` is used:
@@ -186,6 +187,7 @@ Common INFO fields:
 | `SBS96` | COSMIC SBS96 class of each single-base substitution, comma-separated in `COMP` order (`-` where the context cannot be read, `DBS` or `MBS` for a base of a run of adjacent substitutions) |
 | `ADJSUB` | HGVS genomic descriptor of each run of two or more adjacent substituted bases the record belongs to, shared by every record of the run |
 | `CAT` | `--catalogue` entries the record matches, as in the `Catalogue` column (percent-encoded) |
+| `CATW` | `--catalogue` entries withheld because no read carries the reading they match through, as in the `Catalogue Withheld` column (percent-encoded, only with `--bam`) |
 | `ID83` | COSMIC ID83 class of a pure insertion or deletion (e.g. `1:Del:C:2`) |
 | `ANN` | The record's annotation in the format snpEff writes, described [below](#the-ann-field) |
 
@@ -283,7 +285,7 @@ Top-level keys:
 | `inputs` | The input paths: `vcf`, `fasta`, `annotation`, `bam`, plus `checksums` |
 | `output_tsv`, `output_vcf`, `output_bcf` | The files this run wrote, `null` for each one it did not |
 | `contigs` | One entry per contig, with its own counts |
-| `timings` | `parse_inputs_ms`, `process_ms`, `emit_ms`, `total_ms` |
+| `timings` | `parse_inputs_ms`, `process_ms`, `emit_ms`, `total_ms`. In the `aggregate` of a `--sample all` run the first three add up the samples' own, which run side by side, and `total_ms` is the cohort's wall-clock time |
 | `global` | The run-wide counts, below |
 
 Inside `global`:

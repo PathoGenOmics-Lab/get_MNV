@@ -69,9 +69,24 @@ normalización que hace `bcftools norm -f ref.fa`:
   ejecución igual que detiene a bcftools.
 - Un `<DEL>` o un `<DUP>` que get_MNV escribe a partir de la referencia es un
   indel explícito desde ese momento y se alinea a la izquierda como cualquier
-  otro. bcftools deja los registros simbólicos donde están.
+  otro. bcftools mueve también los simbólicos y reescribe su `END`, así que un
+  `<DEL>` de más de 10.000 bases, que get_MNV deja como está escrito, puede
+  quedar aquí más a la derecha que en la salida de bcftools.
 - La entrada TSV de iVar también se alinea a la izquierda. iVar lee sus indels
   del alineamiento, así que normalmente ya están donde los tienen las lecturas.
+- A diferencia de bcftools, que lee cada registro por separado, un indel se
+  detiene en una base que cambia otro registro de la muestra en las mismas
+  moléculas. iVar y los llamadores de haplotipos escriben una deleción detrás
+  de una sustitución anclada en la base sustituida (`108 A>T` junto a
+  `108 AA>A`), y en las moléculas que llevan las dos la repetición acaba en la
+  sustitución, como acaba el recorrido de un alineador. Un registro en otras
+  moléculas no lo detiene: otro alelo indel del mismo sitio, uno que el
+  llamador fasó aparte, o uno con menos de la mitad de la frecuencia del indel.
+- El `END` de un registro movido, que se conserva con `--keep-original-info`,
+  se reescribe para el registro tal como queda escrito. Los registros que se
+  convierten en un mismo cambio al moverse se conservan, como los conserva
+  bcftools sin `-d`, y un aviso los nombra, porque cada uno se cuenta con todas
+  las lecturas de ese cambio.
 
 El cambio de proteína y las descripciones HGVS no dependen de dónde se escribió
 el registro, porque HGVS coloca un indel en su posición más 3' diga lo que diga
@@ -141,18 +156,36 @@ que la misma deleción escrita ahí. La que en esa posición sigue llegando a la
 base de antes del codón de inicio pierde el inicio. La fila conserva el registro
 tal como está escrito.
 
-En el otro extremo, una inserción o deleción del último exón que se desplaza en
-3' por el transcrito, como la coloca HGVS, hasta no cambiar ninguna base
-codificante después del codón de parada no es del gen: se da como se dan las
-bases que siguen al gen, intergénica, esté escrito como esté su registro. El
-caso habitual es una serie de As que empieza en un TAA: una A de menos,
-alineada a la izquierda sobre el codón de parada, se leería si no como un
-corrimiento de marco en el último residuo de la proteína, cuando el codón de
-parada sigue ahí de cualquier forma. En ningún extremo se mueve un indel más
-allá de una base que cambia otro registro, porque describiría otro haplotipo.
-Una deleción que en su posición más 3' sigue quitando bases del codón de parada
-se lee tal como está escrita. Las filas que salen así de un gen no tienen
-recuento de lecturas, como no lo tienen los indels intergénicos.
+Una inserción o deleción que puede colocarse entera fuera de la proteína no
+cambia ninguna base codificante y no es del gen: se da como se dan las bases de
+fuera del gen, intergénica, esté escrito como esté su registro. En el codón de
+parada ese sitio es su posición más 3' a lo largo del transcrito, como la
+coloca HGVS. El caso habitual es una serie de As que empieza en un TAA: una A
+de menos, alineada a la izquierda sobre el codón de parada, se leería si no
+como un corrimiento de marco en el último residuo de la proteína, cuando el
+codón de parada sigue ahí de cualquier forma. Una deleción que en su posición
+más 3' sigue quitando bases del codón de parada se lee tal como está escrita, y
+una secuencia codificante que no acaba en un límite de codón, como una fila CDS
+que acaba a mitad de codón en el borde de un exón, no tiene codón de parada que
+rebasar. En el codón de inicio el sitio es su posición más 5' a lo largo del
+transcrito: una A de menos o de más en una serie de As que acaba en la A de un
+ATG deja un ATG donde lo encuentra el ribosoma, y la misma proteína detrás,
+aunque HGVS escriba el cambio sobre el codón de inicio (`c.1del`, `c.1dup`).
+La que deja un codón de iniciación donde empezaba el codón de inicio, como hace
+una copia de las primeras bases de la proteína, sigue siendo del gen: el
+ribosoma lee la copia.
+
+En ningún extremo se mueve un indel más allá de una base que cambia otro
+registro en las mismas moléculas, porque describiría otro haplotipo. Se da por
+hecho que los registros comparten las moléculas del indel salvo que digan lo
+contrario: dos alelos indel de un mismo sitio, como los deja un registro
+multialélico partido, son alternativas; un llamador puede fasar dos registros
+en haplotipos distintos; y un registro con menos de la mitad de la frecuencia
+del indel falta en la mayoría de las moléculas que lo llevan. Un haplotipo
+fasado que contiene un indel que queda fuera de la proteína no se da como
+haplotipo propio, porque las filas de sus otras variantes ya dicen lo que hace a
+la proteína. Un registro complejo que escribe ese indel junto a una sustitución
+en una sola línea se sigue leyendo como un solo cambio.
 
 Cuando una fila MNV solapa un indel, get_MNV conserva la fila MNV como contexto
 posicional y marca su efecto en el aminoácido como `Unknown` con
