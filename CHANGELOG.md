@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- **A catalogue match the reads refute is withheld.** A codon-level match
+  asserts that one molecule carries every substitution of the codon, and with
+  `--bam` the molecules can say otherwise. When `D'` falls below
+  `--phase-conflict-dprime` (0.5) with a Fisher p at or under
+  `--phase-conflict-p` (0.05), an entry matched through the codon reading alone
+  is listed prefixed `withheld` with the reason, rather than stated as found:
+  the amino acid that codon spells is carried by nothing in the sample. A match
+  the per-SNV reading also makes is untouched, and without `--bam` nothing
+  changes, since there is no linkage to read. `--keep-unphased-codon-matches`
+  restores the previous behaviour. Two samples can give byte-identical VCFs and
+  mean opposite things, and this is the difference between reporting what was
+  found and reporting what was inferred.
+
 - **The WHO catalogue of *M. tuberculosis* resistance mutations, ready for
   `--catalogue`.** `example/who_catalogue_2023.tsv` holds the 1,379 entries of
   groups 1 and 2 of the 2023 catalogue (second edition), labelled with the drug

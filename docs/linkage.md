@@ -144,6 +144,46 @@ the suite itself. It sweeps 2x2 tables covering independence, both directions of
 association, and the degenerate tables where `D'` has no value, alongside the
 linkage-support sweeps.
 
+## When the reads refute the codon
+
+A codon-level match in the `Catalogue` column asserts that one molecule carries
+every substitution of the codon. `D'` can refute that. When it does, an entry
+matched through the codon reading **alone** names an amino acid nothing in the
+sample carries, and get_MNV withholds it:
+
+```
+withheld: RIF: Assoc w R (rpoB p.Ser450Tyr) (codon reading only, the reads
+place these substitutions on different molecules)
+```
+
+The entry is still listed, so nothing is hidden, but it is no longer stated as
+found. A match the per-SNV reading also makes is untouched: each of those
+substitutions is on the molecules on its own, whatever company it keeps.
+
+This needs `--bam`, since without molecules there is no `D'` and nothing
+changes. Two thresholds govern it, and both must be met:
+
+| Flag | Default | What it asks |
+|---|---|---|
+| `--phase-conflict-dprime` | `0.5` | how far below zero `D'` must fall |
+| `--phase-conflict-p` | `0.05` | largest Fisher exact p-value accepted |
+
+Requiring both is deliberate. The p-value alone would let a deep sample refute
+a codon on a `D'` of -0.05, a measurable but meaningless exclusion; the
+magnitude alone would let three molecules do it. `--keep-unphased-codon-matches`
+restores the behaviour of earlier versions, which listed such a match as any
+other.
+
+### Why this is withheld rather than deleted
+
+Two samples can give byte-identical VCFs and mean opposite things: 30% of
+molecules carrying `S450Y`, against a premature stop and a synonymous change
+at 30% each on separate molecules. The first holds a resistant
+sub-population; the second holds none, and calling it `S450Y` invents a variant
+nothing carries. The VCF cannot tell them apart and the reads can, so the
+honest output names the entry, says the molecules were asked, and says what
+they answered.
+
 ## Limits
 
 - The statistic is **within a window**: a codon, or a local haplotype window.
