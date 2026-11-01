@@ -21,7 +21,7 @@ pub(crate) const GET_MNV_INFO_TAGS: &[&str] = &[
     "GENE", "AA", "CT", "TYPE", "ODP", "OFREQ", "SR", "SRF", "SRR", "MR", "MRF", "MRR", "DP",
     "FREQ", "SBP", "MSBP", "EC", "COMP", "ER", "ERF", "ERR", "EDP", "EFREQ", "SO", "IMPACT", "GD",
     "MNVSHIFT", "DBS", "MNVPS", "MNVPR", "FSPH", "DPHASE", "LD", "LDP", "NMD", "HGVSG", "HGVSC",
-    "SBS96", "ADJSUB", "CAT", "ID83",
+    "SBS96", "ADJSUB", "CAT", "CATW", "ID83",
 ];
 
 #[derive(Debug, Clone)]
@@ -183,6 +183,37 @@ impl VcfPosition {
         positions.sort_unstable();
         positions.dedup();
         positions
+    }
+
+    /// Whether `other` can be on the molecules that carry this record, as far
+    /// as the records themselves say. Two indel alleles of one site, as a split
+    /// multiallelic record leaves them, are alternatives; a caller can phase two
+    /// alleles apart; and a record at under half this one's frequency is
+    /// missing from most of the molecules that carry it. Anything else is
+    /// taken to be on them, since records describe one haplotype together.
+    pub fn may_share_molecules_with(&self, other: &VcfPosition) -> bool {
+        use crate::variants::AlleleComponentKind;
+
+        let indel = |record: &VcfPosition| {
+            record.event().components.iter().any(|component| {
+                matches!(
+                    component.kind,
+                    AlleleComponentKind::Insertion | AlleleComponentKind::Deletion
+                )
+            })
+        };
+        if other.record_start == self.record_start && indel(self) && indel(other) {
+            return false;
+        }
+        if let (Some(own), Some(theirs)) = (&self.declared_phase, &other.declared_phase) {
+            if own.shares_haplotype_with(theirs) == Some(false) {
+                return false;
+            }
+        }
+        !matches!(
+            (self.original_freq, other.original_freq),
+            (Some(own), Some(theirs)) if theirs * 2.0 < own
+        )
     }
 
     /// The first and last base this record's components act on. Every overlap,
@@ -407,56 +438,61 @@ pub enum AlleleNormalization {
     /// `--normalize-alleles`: the context REF and ALT share is trimmed wherever
     /// that leaves the event where it was ([`normalize_ref_alt`]).
     Trim,
-    /// `--left-align`: trimmed and moved to the leftmost place that describes
-    /// the same change, as `bcftools norm -f` writes it. A record left-alignment
-    /// leaves as written is still trimmed, so this includes [`Self::Trim`].
+    /// `--left-align`: trimmed as each record is read, and moved to the
+    /// leftmost place that describes the same change, as `bcftools norm -f`
+    /// writes it, once the whole contig is read and every other record's bases
+    /// are known ([`super::left_align::left_align_contigs`]). This includes
+    /// [`Self::Trim`].
     LeftAlign,
 }
 
 impl AlleleNormalization {
-    /// The record as this setting writes it, and whether that moved its event
-    /// rather than only respelling it, which is what [`log_left_aligned`]
-    /// counts. `sequence` is the record's contig, which left-alignment walks;
-    /// without it a record is only trimmed.
+    /// The record as this setting writes it while it is read. `sequence` is the
+    /// record's contig. A REF that disagrees with it is kept as written, so the
+    /// check every REF meets stops the run on it: trimmed first, the bases that
+    /// disagreed could be cut away, and the record was read against a FASTA it
+    /// was not written for without a word.
     pub(crate) fn apply(
         self,
         pos: usize,
         ref_allele: String,
         alt_allele: String,
         sequence: Option<&str>,
-    ) -> (usize, String, String, bool) {
-        let trimmed = |ref_allele: &str, alt_allele: &str| {
-            let (pos, ref_allele, alt_allele) = normalize_ref_alt(pos, ref_allele, alt_allele);
-            (pos, ref_allele, alt_allele, false)
-        };
+    ) -> (usize, String, String) {
+        let disagrees = sequence.is_some_and(|sequence| {
+            pos.checked_sub(1)
+                .and_then(|start| sequence.as_bytes().get(start..start + ref_allele.len()))
+                .is_none_or(|bases| !bases.eq_ignore_ascii_case(ref_allele.as_bytes()))
+        });
         match self {
-            Self::AsWritten => (pos, ref_allele, alt_allele, false),
-            Self::Trim => trimmed(&ref_allele, &alt_allele),
-            Self::LeftAlign => {
-                let aligned = sequence.and_then(|seq| {
-                    super::left_align::left_align(pos, &ref_allele, &alt_allele, seq)
-                });
-                match aligned {
-                    Some((new_pos, new_ref, new_alt)) => {
-                        let moved =
-                            crate::variants::decompose_allele(pos, &ref_allele, &alt_allele)
-                                .components
-                                != crate::variants::decompose_allele(new_pos, &new_ref, &new_alt)
-                                    .components;
-                        (new_pos, new_ref, new_alt, moved)
-                    }
-                    None => trimmed(&ref_allele, &alt_allele),
-                }
-            }
+            Self::AsWritten => (pos, ref_allele, alt_allele),
+            Self::Trim | Self::LeftAlign if disagrees => (pos, ref_allele, alt_allele),
+            Self::Trim | Self::LeftAlign => normalize_ref_alt(pos, &ref_allele, &alt_allele),
         }
     }
 }
 
-pub(crate) fn log_left_aligned(moved: usize) {
-    if moved > 0 {
+pub(crate) fn log_left_aligned(aligned: super::left_align::LeftAligned) {
+    if aligned.moved > 0 {
         log::info!(
-            "Left-aligned {moved} indel(s) against the reference: each now sits at the \
-             leftmost position that describes the same change, where aligners place it"
+            "Left-aligned {} indel(s) against the reference: each now sits at the \
+             leftmost position that describes the same change, where aligners place it",
+            aligned.moved
+        );
+    }
+    if aligned.held > 0 {
+        log::info!(
+            "{} indel(s) stopped short of their leftmost position at a base another record \
+             of the sample changes, since moving past it would describe another haplotype",
+            aligned.held
+        );
+    }
+    if let Some(example) = &aligned.duplicate {
+        log::warn!(
+            "{} indel record(s) describe the same change as another once left-aligned \
+             (e.g. {example}), and each is counted with every read of it; drop the \
+             duplicates to count it once",
+            aligned.duplicates
         );
     }
 }
@@ -719,7 +755,14 @@ pub(crate) fn filter_and_subset_original_info<F: Fn(&str) -> bool>(
 /// or spelled-out allele as such, so an entry left as it was named an allele no
 /// output record has and was never shown. Entries for the record's other ALTs
 /// go: each split record carries its own.
-pub(crate) fn retarget_input_ann(
+///
+/// `END` is the last base of the record's REF. A record trimmed, moved or
+/// spelled out from a symbolic allele kept the `END` of the record it came
+/// from, which htslib reads as the record's span: a left-aligned `155 TCC>T`
+/// carried the `END=160` of the `158 CCC>C` it was written as, and spanned
+/// 155 to 160. It is rewritten for an explicit allele and kept for a symbolic
+/// one, which is never moved.
+pub(crate) fn retarget_input_info(
     info: Option<String>,
     record_alt: &str,
     position: usize,
@@ -727,7 +770,10 @@ pub(crate) fn retarget_input_ann(
     alt_allele: &str,
 ) -> Option<String> {
     let info = info?;
-    if !info.split(';').any(|field| field.starts_with("ANN=")) {
+    let explicit = !(alt_allele.starts_with('<') && alt_allele.ends_with('>'));
+    let has_ann = info.split(';').any(|field| field.starts_with("ANN="));
+    let has_end = explicit && info.split(';').any(|field| field.starts_with("END="));
+    if !has_ann && !has_end {
         return Some(info);
     }
     let event = crate::variants::decompose_allele(position, ref_allele, alt_allele);
@@ -738,6 +784,9 @@ pub(crate) fn retarget_input_ann(
     let fields: Vec<String> = info
         .split(';')
         .filter_map(|field| {
+            if explicit && field.starts_with("END=") {
+                return Some(format!("END={}", position + ref_allele.len().max(1) - 1));
+            }
             let Some(value) = field.strip_prefix("ANN=") else {
                 return Some(field.to_string());
             };
@@ -1176,7 +1225,6 @@ struct VcfRecords<'a> {
     not_carried: usize,
     overlapped: usize,
     spelled_out: usize,
-    left_aligned: usize,
     record_idx: usize,
     header_seen: bool,
 }
@@ -1203,7 +1251,6 @@ impl<'a> VcfRecords<'a> {
             not_carried: 0,
             overlapped: 0,
             spelled_out: 0,
-            left_aligned: 0,
             record_idx: 0,
             header_seen: false,
         }
@@ -1316,17 +1363,16 @@ impl<'a> VcfRecords<'a> {
                     }
                     None => (pos, ref_allele.to_string(), alt_allele.to_string()),
                 };
-            let (normalized_pos, normalized_ref, normalized_alt, moved) =
+            let (normalized_pos, normalized_ref, normalized_alt) =
                 self.normalization
                     .apply(start, explicit_ref, explicit_alt, sequence);
-            self.left_aligned += usize::from(moved);
             validate_vcf_allele(&normalized_ref, record_idx, chrom, normalized_pos, "REF")?;
             validate_vcf_allele(&normalized_alt, record_idx, chrom, normalized_pos, "ALT")?;
 
             let (original_dp, original_freq) =
                 parse_original_metrics_from_fields(info, &format_keys, sample_field, alt_idx);
             let original_info = if self.keep_original_info {
-                retarget_input_ann(
+                retarget_input_info(
                     filter_and_subset_original_info(
                         info,
                         |k| self.own_tags.contains(k),
@@ -1363,18 +1409,25 @@ impl<'a> VcfRecords<'a> {
     fn finish(self) -> AppResult<HashMap<String, Vec<VcfPosition>>> {
         let VcfRecords {
             split_multiallelic,
+            normalization,
+            references,
             mut positions_by_contig,
             split_count,
             not_carried,
             overlapped,
             spelled_out,
-            left_aligned,
             header_seen,
             ..
         } = self;
         if !header_seen {
             return Err("No #CHROM header line found in VCF".into());
         }
+        let left_aligned = match (normalization, references) {
+            (AlleleNormalization::LeftAlign, Some(references)) => {
+                super::left_align::left_align_contigs(&mut positions_by_contig, references)
+            }
+            _ => Default::default(),
+        };
 
         for values in positions_by_contig.values_mut() {
             values.sort_by_key(|v| v.record_start);

@@ -104,7 +104,7 @@ impl FrameshiftPhasing {
 /// do not opt in (tests, benchmarks, the public `get_mnv_variants_for_gene`
 /// wrapper) see no change.
 #[derive(Debug, Clone, Default)]
-pub struct IndelAnnotationConfig {
+pub struct IndelAnnotationConfig<'a> {
     /// Minimum allele frequency an *upstream* indel must reach to contribute to
     /// downstream frameshift propagation. `0.0` (default) propagates from every
     /// indel regardless of frequency, matching the original behaviour. Raising
@@ -121,9 +121,27 @@ pub struct IndelAnnotationConfig {
     /// as `EFREQ`. Many callers write no `AF`, which left the gate inert exactly
     /// where read evidence existed.
     pub observed_indel_freq: HashMap<(usize, String, String), f64>,
+    /// Every record of the contig. An indel at either end of the protein is
+    /// moved along its repeat to see whether it leaves the coding sequence,
+    /// and never past a base another record changes, which can lie well
+    /// beyond the records a gene is given: a deletion running out of a stop
+    /// codon slid past a substitution ten bases after the gene and lost its
+    /// frameshift. Empty, the gene's own records stand in, as for the public
+    /// wrapper and the tests.
+    pub contig_records: &'a [VcfPosition],
 }
 
-impl IndelAnnotationConfig {
+impl IndelAnnotationConfig<'_> {
+    /// The records an indel of this gene may not be moved past: the contig's,
+    /// or the gene's own when the caller gave none.
+    pub(super) fn neighbours<'b>(&'b self, gene_records: &'b [VcfPosition]) -> &'b [VcfPosition] {
+        if self.contig_records.is_empty() {
+            gene_records
+        } else {
+            self.contig_records
+        }
+    }
+
     /// The indel's frequency as the reads measured it, if they were consulted.
     pub(super) fn observed_freq(&self, indel: &VcfPosition) -> Option<f64> {
         self.observed_indel_freq

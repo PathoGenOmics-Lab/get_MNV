@@ -492,6 +492,18 @@ pub(crate) fn build_info_string(
     if !catalogue.is_empty() {
         builder.push_text("CAT", &catalogue.join("; "));
     }
+    let withheld = match base {
+        Some(i) if !variant.annotations.catalogue_bases_withheld.is_empty() => variant
+            .annotations
+            .catalogue_bases_withheld
+            .get(i)
+            .cloned()
+            .unwrap_or_default(),
+        _ => variant.annotations.catalogue_withheld.clone(),
+    };
+    if !withheld.is_empty() {
+        builder.push_text("CATW", &withheld.join("; "));
+    }
     if let Some(id83) = variant.annotations.id83.as_deref() {
         builder.push_text("ID83", id83);
     }
@@ -924,6 +936,10 @@ pub(crate) fn write_info_header(
     writeln!(
         writer,
         "##INFO=<ID=CAT,Number=1,Type=String,Description=\"--catalogue entries this record matches, as label (gene variant), with a note when a codon matches through one of its readings only; percent-encoded per the VCF spec\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=CATW,Number=1,Type=String,Description=\"--catalogue entries withheld because no read carries the reading they match through: the reads put the codon's substitutions on different molecules, or a substitution always with the rest. Only with --bam; percent-encoded per the VCF spec\">"
     )?;
     writeln!(
         writer,

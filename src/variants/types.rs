@@ -298,6 +298,15 @@ pub struct VariantAnnotations {
     /// that base alone says. The row's own `catalogue` stays the codon's.
     #[serde(default)]
     pub catalogue_bases: Vec<Vec<String>>,
+    /// The `--catalogue` entries this row would match through a reading no
+    /// molecule carries: the reads put a codon's substitutions on different
+    /// molecules, or one substitution always with the rest. Kept apart from
+    /// `catalogue`, so a match always means the sample carries what it names.
+    #[serde(default)]
+    pub catalogue_withheld: Vec<String>,
+    /// The same, for each base of a row of several on its own.
+    #[serde(default)]
+    pub catalogue_bases_withheld: Vec<Vec<String>>,
     /// The row's one allele joins several input records: a local haplotype
     /// read off the reads. Its effect comes from combining them.
     #[serde(default)]

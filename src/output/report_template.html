@@ -1048,7 +1048,7 @@ var D = DATA.dict, ROWS = DATA.rows, META = DATA.meta;
 var C = {sample:0,chrom:1,gene:2,pos:3,ref:4,alt:5,aa:6,type:7,change:8,so:9,impact:10,
          grantham:11,shift:12,dbs:13,nmd:14,hgvsg:15,hgvsc:16,freq:17,depth:18,
          refCodon:19,altCodon:20,evClass:21,evComp:22,reads:23,phasing:24,phReads:25,
-         sbs:26,adj:27,cat:28,id:29};
+         sbs:26,adj:27,cat:28,id:29,catw:30};
 
 var TYPE_COLOR = {"SNP":"var(--s1)","MNV":"var(--s2)","SNP/MNV":"var(--s3)","INDEL":"var(--s4)"};
 var IMP_COLOR  = {"HIGH":"var(--critical)","MODERATE":"var(--serious)","LOW":"var(--warning)","MODIFIER":"var(--muted)"};
@@ -2232,8 +2232,11 @@ function openDrawer(ri){
      + row("Genomic",txt(r,"hgvsg")) + row("Coding",txt(r,"hgvsc")) + row("Protein",txt(r,"aa"))
      + row("Adjacent run",txt(r,"adj"))
      + '</dl></section>';
-  if(r[C.cat]) b += '<section><h4>Catalogue</h4><dl class="kv">'
-     + String(r[C.cat]).split("; ").map(function(hit){ return row("Match", hit); }).join("")
+  // A withheld entry is one the sample would match through a reading no read
+  // carries; it is shown beside the matches, never counted as one.
+  if(r[C.cat] || r[C.catw]) b += '<section><h4>Catalogue</h4><dl class="kv">'
+     + (r[C.cat] ? String(r[C.cat]).split("; ").map(function(hit){ return row("Match", hit); }).join("") : "")
+     + (r[C.catw] ? String(r[C.catw]).split("; ").map(function(hit){ return row("Withheld", hit); }).join("") : "")
      + '</dl></section>';
   b += '<section><h4>Codons</h4><dl class="kv">'
      + row("Reference",txt(r,"refCodon")) + row("Variant",txt(r,"altCodon"))
@@ -2368,14 +2371,14 @@ document.getElementById("thead").addEventListener("click", function(e){
 document.getElementById("exportBtn").addEventListener("click", function(){
   var head = ["Sample","Contig","Gene","Positions","Reference Bases","Base Changes","AA Changes",
               "Variant Type","Change Type","SO Term","Impact","Grantham","MNV Consequence Shift",
-              "DBS Class","NMD Prediction","HGVS g.","HGVS c.","SBS96 Context","Adjacent Substitutions","Catalogue","ID83 Class","Frequency","Depth"];
+              "DBS Class","NMD Prediction","HGVS g.","HGVS c.","SBS96 Context","Adjacent Substitutions","Catalogue","ID83 Class","Catalogue Withheld","Frequency","Depth"];
   var lines = [head.join("\t")];
   view.forEach(function(i){
     var r = ROWS[i];
     lines.push([sampleOf(r),chromOf(r),geneOf(r),txt(r,"pos"),txt(r,"ref"),txt(r,"alt"),txt(r,"aa"),
                 typeOf(r),changeOf(r),soOf(r),impOf(r),
                 r[C.grantham]===null||r[C.grantham]===undefined?"-":r[C.grantham],
-                txt(r,"shift"),txt(r,"dbs"),txt(r,"nmd"),txt(r,"hgvsg"),txt(r,"hgvsc"),txt(r,"sbs"),txt(r,"adj"),txt(r,"cat"),txt(r,"id"),
+                txt(r,"shift"),txt(r,"dbs"),txt(r,"nmd"),txt(r,"hgvsg"),txt(r,"hgvsc"),txt(r,"sbs"),txt(r,"adj"),txt(r,"cat"),txt(r,"id"),txt(r,"catw"),
                 r[C.freq]===null||r[C.freq]===undefined?"-":r[C.freq].toFixed(4),
                 r[C.depth]===null||r[C.depth]===undefined?"-":r[C.depth]].join("\t"));
   });

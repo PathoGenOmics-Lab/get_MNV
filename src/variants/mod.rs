@@ -20,7 +20,7 @@ mod types;
 pub use codon::{
     build_intergenic_variant, build_intron_variant, build_non_coding_variant, build_splice_variant,
     genomic_for_cds, get_mnv_variants_for_gene, get_mnv_variants_for_gene_with_config, intron_span,
-    last_cds_position, lies_past_coding_sequence, local_haplotype_components, noncodon_hgvs_c,
+    last_cds_position, lies_outside_coding_sequence, local_haplotype_components, noncodon_hgvs_c,
     pair_key, phased_haplotype_variant, process_codon, CodingNumbering, FrameshiftPairKey,
     FrameshiftPhasing, IndelAnnotationConfig, PairLinkage,
 };

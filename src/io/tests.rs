@@ -712,7 +712,9 @@ chr1\t9\t.\tG\tA\t50\tPASS\t.\tGT:AD\t1:6,2\t1:3,3\n\
 
 /// `--left-align` moves an indel written at the right end of its repeat to the
 /// left end, where an aligner puts the gap, and both readers move it alike.
-/// `--normalize-alleles` alone only trims, so it never moves one.
+/// `--normalize-alleles` alone only trims, so it never moves one. The insertion
+/// in the CA repeat stops at the substitution inside it: on the molecules that
+/// carry both, the repeat ends at that G, and so does an aligner's walk.
 #[test]
 fn test_both_readers_left_align_indels_against_the_reference() {
     //                    1 2-5  6-11   12
@@ -767,7 +769,7 @@ chr1\t11\t.\tA\tACA\t50\tPASS\t.\n";
             describe(&aligned),
             vec![
                 "chr1:1 GA>G dp=None freq=None",
-                "chr1:4 A>AAC dp=None freq=None",
+                "chr1:8 C>CAC dp=None freq=None",
                 "chr1:8 C>G dp=None freq=None",
             ],
             "{path:?}"
@@ -787,4 +789,57 @@ chr1\t11\t.\tA\tACA\t50\tPASS\t.\n";
     }
     fs::remove_file(&plain).ok();
     fs::remove_file(&gz).ok();
+}
+
+/// A record's kept `END` is the last base of the REF it is written with, so a
+/// record trimmed, moved or spelled out does not keep the span of the record
+/// it came from. A symbolic allele, never moved, keeps its own.
+#[test]
+fn test_kept_end_follows_the_record_as_written() {
+    let retarget = |info: &str, pos: usize, ref_allele: &str, alt_allele: &str| {
+        super::vcf::retarget_input_info(
+            Some(info.to_string()),
+            alt_allele,
+            pos,
+            ref_allele,
+            alt_allele,
+        )
+    };
+    assert_eq!(
+        retarget("END=160;SVTYPE=DEL;SVLEN=-2", 155, "TCC", "T").as_deref(),
+        Some("END=157;SVTYPE=DEL;SVLEN=-2")
+    );
+    assert_eq!(
+        retarget("SVTYPE=DEL;END=252", 249, "GAC", "G").as_deref(),
+        Some("SVTYPE=DEL;END=251")
+    );
+    assert_eq!(
+        retarget("END=20000;SVTYPE=INV", 100, "A", "<INV>").as_deref(),
+        Some("END=20000;SVTYPE=INV")
+    );
+    // A key that only ends in END is another key.
+    assert_eq!(
+        retarget("BLEND=3", 155, "TCC", "T").as_deref(),
+        Some("BLEND=3")
+    );
+}
+
+/// A REF the reference disagrees with is kept as written by every setting, so
+/// the run stops on it; trimmed, the disagreeing base could be cut away.
+#[test]
+fn test_a_ref_the_reference_disagrees_with_is_not_trimmed() {
+    // 107-112 read GAAAAC; the record says the base after the run is G.
+    let sequence = format!("{}GAAAAC{}", "T".repeat(106), "T".repeat(10));
+    for normalization in [AlleleNormalization::Trim, AlleleNormalization::LeftAlign] {
+        assert_eq!(
+            normalization.apply(110, "AAG".to_string(), "AG".to_string(), Some(&sequence)),
+            (110, "AAG".to_string(), "AG".to_string()),
+            "{normalization:?}"
+        );
+        assert_eq!(
+            normalization.apply(110, "AAC".to_string(), "AC".to_string(), Some(&sequence)),
+            (110, "AA".to_string(), "A".to_string()),
+            "{normalization:?}"
+        );
+    }
 }

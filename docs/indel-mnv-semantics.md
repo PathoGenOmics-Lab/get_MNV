@@ -62,10 +62,24 @@ that.
   ambiguity code such as `R`, which bcftools refuses as well, and a REF that
   disagrees with the reference, which stops the run as it stops bcftools.
 - A `<DEL>` or `<DUP>` that get_MNV writes out from the reference is an explicit
-  indel from then on and is left-aligned like any other. bcftools leaves
-  symbolic records where they are.
+  indel from then on and is left-aligned like any other. bcftools moves the
+  symbolic ones as well and rewrites their `END`, so a `<DEL>` over 10,000
+  bases, which get_MNV leaves as written, can sit further right here
+  than in bcftools' output.
 - iVar TSV input is left-aligned too. iVar reads its indels off the alignment,
   so they are usually where the reads have them already.
+- Unlike bcftools, which reads each record alone, an indel stops at a base
+  another record of the sample changes on the same molecules. iVar and
+  haplotype callers write a deletion after a substitution anchored on the
+  substituted base (`108 A>T` beside `108 AA>A`), and on the molecules that
+  carry both the repeat ends at the substitution, as an aligner's walk does.
+  A record on other molecules does not stop it: another indel allele of the
+  same site, one the caller phased apart, or one at under half the indel's
+  frequency.
+- A moved record's `END`, kept with `--keep-original-info`, is rewritten for
+  the record as it is written now. Records that become one change once moved
+  are kept, as bcftools keeps them without `-d`, and a warning names them,
+  since each is counted with every read of that change.
 
 The protein change and the HGVS descriptions do not depend on where the record
 was written, since HGVS places an indel at its 3'-most position whatever the
@@ -129,16 +143,33 @@ inside the gene and reads `Met2del`, with the same codons and `c.` as the same
 deletion written there. One that still reaches the base before the start codon
 in that place loses the start. The row keeps the record as written.
 
-At the other end, an insertion or deletion in the last exon that moves 3'
-along the transcript, as HGVS places it, until it changes no coding base past
-the stop codon is not the gene's: it is reported as the bases after the gene
-are, intergenic, however its record is written. A run of As that begins in a
-TAA is the usual case: one A fewer, left-aligned onto the stop codon, would
-otherwise read as a frameshift at the protein's last residue, while the stop
-codon is there either way. Neither end moves an indel past a base another
-record changes, which would describe another haplotype. A deletion that still
-removes stop-codon bases in its 3'-most place is read as written. Rows moved
-out of a gene this way get no read counts, as intergenic indels do not.
+An insertion or deletion that can be placed wholly outside the protein changes
+no coding base and is not the gene's: it is reported as the bases outside the
+gene are, intergenic, however its record is written. At the stop codon that
+place is its 3'-most along the transcript, as HGVS places it. A run of As that
+begins in a TAA is the usual case: one A fewer, left-aligned onto the stop
+codon, would otherwise read as a frameshift at the protein's last residue,
+while the stop codon is there either way. A deletion that still removes
+stop-codon bases in its 3'-most place is read as written, and a coding sequence
+that does not end on a codon boundary, as a CDS row ending at an exon edge
+mid-codon does, has no stop codon to move past. At the start codon the place is
+its 5'-most along the transcript: one A fewer or one more in a run of As that
+ends in the A of an ATG leaves an ATG where the ribosome finds it, and the same
+protein behind it, though HGVS writes the change on the start codon (`c.1del`,
+`c.1dup`). One that puts an initiation codon where the start codon began, as a
+copy of the protein's first bases does, stays the gene's: the ribosome reads
+the copy.
+
+Neither end moves an indel past a base another record changes on the same
+molecules, which would describe another haplotype. Records are taken to share
+the indel's molecules unless they say otherwise: two indel alleles of one site,
+as a split multiallelic record leaves them, are alternatives; a caller can
+phase two records apart; and a record whose frequency is under half the
+indel's is missing from most of the molecules that carry it. A phased
+haplotype holding an indel that lies outside the protein is not reported as a
+haplotype of its own, since its other variants' rows already say what it does
+to the protein. A complex record that writes such an indel together with a
+substitution in one line is still read as one change.
 
 When an MNV row overlaps an indel, get_MNV keeps the MNV row as positional
 context and marks its amino-acid effect as `Unknown` with

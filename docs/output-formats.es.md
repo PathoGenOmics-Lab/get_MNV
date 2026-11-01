@@ -71,6 +71,7 @@ Columnas principales:
 | `SBS96 Context` | Clase COSMIC SBS96 de cada sustitución de una base de la fila, en el orden de Event Components, escrita desde la hebra de la pirimidina: `A[C>T]G` para una C>T entre A y G, y una G>A en el mismo contexto se lee desde la otra hebra como `C[C>T]T`. `DBS` o `MBS` para una base de una racha de dos, o de tres o más, sustituciones adyacentes, que pertenece a esa racha y no al espectro de una base. `-` para una entrada cuyo contexto de trinucleótido no se puede leer (final del contig, base ambigua) y para filas sin sustitución. El informe las cuenta en un espectro mutacional. |
 | `Adjacent Substitutions` | Descriptor HGVS genómico de la racha de dos o más bases sustituidas adyacentes a la que pertenecen las sustituciones de la fila, p. ej. `g.103_104delinsAT`. Todas las filas que toca la racha llevan el mismo descriptor, y así quedan enlazadas las dos filas de codón de un doblete partido por un límite de codón, tanto si el llamador lo escribió como un registro como si fueron dos. Se lee por posiciones, como hacen las herramientas de COSMIC; no se cuenta el soporte de lecturas de la racha completa. `-` cuando ninguna sustitución de la fila tiene una vecina sustituida. |
 | `Catalogue` | Las entradas de `--catalogue` con las que coincide la fila, cada una escrita `label (gene variant)` y separadas por `; `, con `codon reading only` o `per-SNV reading only` añadido cuando una fila de codón coincide solo por una de sus dos lecturas. `-` cuando no coincide nada o no se dio catálogo. |
+| `Catalogue Withheld` | Las entradas de `--catalogue` con las que la fila coincidiría por una lectura que ninguna molécula lleva, escritas como en `Catalogue` y con el motivo: `codon reading only: no molecule carries the whole codon` cuando ninguna de las moléculas que cubren el codón lleva todas las sustituciones y `D'` dice que se excluyen, `per-SNV reading only: no molecule carries this substitution without the rest` cuando toda molécula con una sustitución lleva el codón entero y `D'` dice que viajan juntas. Esa entrada nombra un aminoácido que nada en la muestra lleva, así que se aparta de `Catalogue` en vez de afirmarse como encontrada. Consulta [Ligamiento a nivel de lectura](linkage.es.md#cuando-las-lecturas-desmienten-una-lectura). `-` cuando no se retiene nada. Solo con `--bam`. |
 | `ID83 Class` | Clase COSMIC ID83 de una inserción o deleción pura, como la etiqueta SigProfiler: `1:Del:C:2` para una C borrada de una racha de tres, `3:Ins:R:5` para una inserción de tres bases junto a cinco o más copias de sí misma, `4:Del:M:2` para una deleción de cuatro bases con dos de microhomología en su punto de rotura. Los indels de una base se escriben desde la pirimidina (`C` o `T`), y las copias se cuentan a los dos lados del evento, así que la clase no depende de dónde colocó el llamador el indel dentro de una repetición. `-` para sustituciones, deleciones-inserciones y alelos simbólicos. |
 
 Columnas adicionales cuando se usa `--bam`:
@@ -188,6 +189,7 @@ Campos INFO comunes:
 | `SBS96` | Clase COSMIC SBS96 de cada sustitución de una base, separadas por comas en el orden de `COMP` (`-` donde no se puede leer el contexto, `DBS` o `MBS` para una base de una racha de sustituciones adyacentes) |
 | `ADJSUB` | Descriptor HGVS genómico de cada racha de dos o más bases sustituidas adyacentes a la que pertenece el registro, compartido por todos los registros de la racha |
 | `CAT` | Entradas de `--catalogue` con las que coincide el registro, como en la columna `Catalogue` (percent-encoded) |
+| `CATW` | Entradas de `--catalogue` retenidas porque ninguna lectura lleva la lectura por la que coinciden, como en la columna `Catalogue Withheld` (percent-encoded, solo con `--bam`) |
 | `ID83` | Clase COSMIC ID83 de una inserción o deleción pura (p. ej. `1:Del:C:2`) |
 | `ANN` | La anotación del registro en el formato que escribe snpEff, descrita [más abajo](#el-campo-ann) |
 
@@ -287,7 +289,7 @@ Claves de primer nivel:
 | `inputs` | Las rutas de entrada: `vcf`, `fasta`, `annotation`, `bam`, y además `checksums` |
 | `output_tsv`, `output_vcf`, `output_bcf` | Los archivos que escribió esta ejecución, `null` en cada uno que no escribió |
 | `contigs` | Una entrada por contig, con sus propios recuentos |
-| `timings` | `parse_inputs_ms`, `process_ms`, `emit_ms`, `total_ms` |
+| `timings` | `parse_inputs_ms`, `process_ms`, `emit_ms`, `total_ms`. En el `aggregate` de una ejecución con `--sample all` los tres primeros suman los de cada muestra, que se ejecutan a la vez, y `total_ms` es el tiempo real de toda la cohorte |
 | `global` | Los recuentos de toda la ejecución, abajo |
 
 Dentro de `global`:

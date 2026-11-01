@@ -30,7 +30,9 @@
 //! (`R` as `A`), moves an indel through it and writes that base into REF, which
 //! then disagrees with the FASTA the run checks every REF against.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, HashSet, VecDeque};
+
+use super::vcf::VcfPosition;
 
 /// Whether every base of an allele is one left-alignment can compare: A, C, G,
 /// T or N, in either case.
@@ -50,6 +52,18 @@ pub(crate) fn left_align(
     ref_allele: &str,
     alt_allele: &str,
     sequence: &str,
+) -> Option<(usize, String, String)> {
+    left_align_from(pos, ref_allele, alt_allele, sequence, 1)
+}
+
+/// [`left_align`], walking no further left than an anchor on base `floor`
+/// (1-based), past which the record would describe another change.
+fn left_align_from(
+    pos: usize,
+    ref_allele: &str,
+    alt_allele: &str,
+    sequence: &str,
+    floor: usize,
 ) -> Option<(usize, String, String)> {
     if pos == 0
         || !plain_bases(ref_allele)
@@ -75,8 +89,9 @@ pub(crate) fn left_align(
         if !seq[end - 1].eq_ignore_ascii_case(&last) {
             break;
         }
-        // At the contig's first base there is nothing to the left to take.
-        if (end - start).min(alt.len()) <= 1 && start == 0 {
+        // At the contig's first base there is nothing to the left to take,
+        // and at the floor nothing the record may take.
+        if (end - start).min(alt.len()) <= 1 && start < floor.max(1) {
             break;
         }
         end -= 1;
@@ -98,6 +113,153 @@ pub(crate) fn left_align(
         && aligned_ref.eq_ignore_ascii_case(ref_allele)
         && aligned_alt.eq_ignore_ascii_case(alt_allele);
     (!unchanged).then_some((start + 1, aligned_ref, aligned_alt))
+}
+
+/// What left-aligning a sample's records did, for the run's log.
+#[derive(Debug, Default)]
+pub(crate) struct LeftAligned {
+    /// Indels moved to another place.
+    pub moved: usize,
+    /// Indels that stopped short of their leftmost place at a base another
+    /// record changes.
+    pub held: usize,
+    /// Records that describe the same change as another once moved.
+    pub duplicates: usize,
+    /// One of those, as `POS REF>ALT`.
+    pub duplicate: Option<String>,
+}
+
+/// Every contig's indels left-aligned against its sequence (see
+/// [`left_align_records`]), and what that did across them.
+pub(crate) fn left_align_contigs(
+    positions_by_contig: &mut HashMap<String, Vec<VcfPosition>>,
+    references: &super::ReferenceMap,
+) -> LeftAligned {
+    let mut total = LeftAligned::default();
+    for (contig, records) in positions_by_contig.iter_mut() {
+        let Some(sequence) = references.get(contig) else {
+            continue;
+        };
+        let done = left_align_records(records, sequence);
+        total.moved += done.moved;
+        total.held += done.held;
+        total.duplicates += done.duplicates;
+        total.duplicate = total.duplicate.or(done.duplicate);
+    }
+    total
+}
+
+/// One contig's indels each moved to its leftmost equivalent place, as
+/// [`left_align`] and `bcftools norm -f` write it, but never past a base another
+/// record of the sample changes on the same molecules (see
+/// [`VcfPosition::may_share_molecules_with`]).
+///
+/// `bcftools norm` reads each record on its own. A deletion written after a
+/// substitution in the same repeat, as iVar and haplotype callers write
+/// `108 A>T` beside `108 AA>A`, then moved onto the substituted base: the
+/// deletion found no read with that gap, the phased row of the two was lost,
+/// and the substitution's own missense became Unknown. Here the walk stops at
+/// that base, which is where every read of the two puts the gap.
+///
+/// Each record's kept INFO follows it (see [`super::vcf::retarget_input_info`]).
+pub(crate) fn left_align_records(records: &mut [VcfPosition], sequence: &str) -> LeftAligned {
+    // Every base a record changes, with the record, by position: each indel
+    // finds the nearest one on its left without asking every record.
+    let mut changed: Vec<(usize, usize)> = records
+        .iter()
+        .enumerate()
+        .flat_map(|(index, record)| {
+            record
+                .changed_positions()
+                .into_iter()
+                .map(move |position| (position, index))
+        })
+        .collect();
+    changed.sort_unstable();
+    let mut done = LeftAligned::default();
+    // Every place is chosen against the records as written, before any moves.
+    let placements: Vec<Option<(usize, String, String)>> = records
+        .iter()
+        .enumerate()
+        .map(|(index, record)| {
+            // Most records do not move at all, and need no neighbour.
+            let (unbounded, ..) = left_align(
+                record.record_start,
+                &record.ref_allele,
+                &record.alt_allele,
+                sequence,
+            )?;
+            let below = changed.partition_point(|&(position, _)| position <= record.record_start);
+            let floor = changed[..below]
+                .iter()
+                .rev()
+                .find(|&&(_, other)| {
+                    other != index && record.may_share_molecules_with(&records[other])
+                })
+                .map_or(1, |&(position, _)| position);
+            let placed = left_align_from(
+                record.record_start,
+                &record.ref_allele,
+                &record.alt_allele,
+                sequence,
+                floor,
+            );
+            if placed.as_ref().map(|(at, ..)| *at) != Some(unbounded) {
+                done.held += 1;
+            }
+            placed
+        })
+        .collect();
+    let mut moved_records = HashSet::new();
+    for (index, placement) in placements.into_iter().enumerate() {
+        let Some((pos, ref_allele, alt_allele)) = placement else {
+            continue;
+        };
+        let record = &mut records[index];
+        let moved = crate::variants::decompose_allele(
+            record.record_start,
+            &record.ref_allele,
+            &record.alt_allele,
+        )
+        .components
+            != crate::variants::decompose_allele(pos, &ref_allele, &alt_allele).components;
+        if moved {
+            done.moved += 1;
+            moved_records.insert(index);
+        }
+        record.original_info = super::vcf::retarget_input_info(
+            record.original_info.take(),
+            &record.alt_allele,
+            pos,
+            &ref_allele,
+            &alt_allele,
+        );
+        record.record_start = pos;
+        record.ref_allele = ref_allele;
+        record.alt_allele = alt_allele;
+    }
+    // Two spellings of one change, both moved to its one leftmost place.
+    let mut seen: HashMap<(usize, &str, &str), usize> = HashMap::new();
+    for (index, record) in records.iter().enumerate() {
+        let key = (
+            record.record_start,
+            record.ref_allele.as_str(),
+            record.alt_allele.as_str(),
+        );
+        match seen.get(&key) {
+            Some(&first) if moved_records.contains(&index) || moved_records.contains(&first) => {
+                done.duplicates += 1;
+                done.duplicate.get_or_insert_with(|| {
+                    format!("{} {}>{}", key.0, record.ref_allele, record.alt_allele)
+                });
+            }
+            Some(_) => {}
+            None => {
+                seen.insert(key, index);
+            }
+        }
+    }
+    done
 }
 
 #[cfg(test)]
@@ -350,6 +512,90 @@ mod tests {
     ) -> (usize, String, String) {
         left_align(pos, ref_allele, alt_allele, sequence)
             .unwrap_or_else(|| record(pos, ref_allele, alt_allele))
+    }
+
+    fn written(
+        pos: usize,
+        ref_allele: &str,
+        alt_allele: &str,
+        freq: Option<f64>,
+    ) -> crate::io::VcfPosition {
+        crate::io::VcfPosition {
+            record_start: pos,
+            ref_allele: ref_allele.to_string(),
+            alt_allele: alt_allele.to_string(),
+            original_dp: None,
+            original_freq: freq,
+            original_info: None,
+            declared_phase: None,
+        }
+    }
+
+    fn placed(records: &[crate::io::VcfPosition]) -> Vec<(usize, String, String)> {
+        records
+            .iter()
+            .map(|r| record(r.record_start, &r.ref_allele, &r.alt_allele))
+            .collect()
+    }
+
+    // CCCCCC G AAAA C TTTTT: the A run is 8-11.
+    const RUN: &str = "CCCCCCGAAAACTTTTT";
+
+    #[test]
+    fn an_indel_stops_at_a_base_another_record_changes() {
+        // iVar writes a deletion after a substitution anchored on the
+        // substituted base; moved onto it, the deletion described a gap no read
+        // has.
+        let mut records = vec![written(8, "A", "T", None), written(8, "AA", "A", None)];
+        let done = super::left_align_records(&mut records, RUN);
+        assert_eq!(
+            placed(&records),
+            vec![record(8, "A", "T"), record(8, "AA", "A")]
+        );
+        assert_eq!((done.moved, done.held), (0, 1));
+        // Written further right, it moves as far as the substituted base.
+        let mut records = vec![written(8, "A", "T", None), written(10, "AA", "A", None)];
+        let done = super::left_align_records(&mut records, RUN);
+        assert_eq!(placed(&records)[1], record(8, "AA", "A"));
+        assert_eq!((done.moved, done.held), (1, 1));
+        // Alone it goes all the way, as bcftools moves it.
+        let mut records = vec![written(10, "AA", "A", None)];
+        super::left_align_records(&mut records, RUN);
+        assert_eq!(placed(&records), vec![record(7, "GA", "G")]);
+    }
+
+    #[test]
+    fn a_record_on_other_molecules_does_not_stop_an_indel() {
+        // A substitution on a twentieth of the molecules is on few of the
+        // deletion's, and most reads put its gap at the left end.
+        let mut records = vec![
+            written(8, "A", "T", Some(0.05)),
+            written(10, "AA", "A", Some(1.0)),
+        ];
+        super::left_align_records(&mut records, RUN);
+        assert_eq!(placed(&records)[1], record(7, "GA", "G"));
+        // The other allele of a split multiallelic site is no company at all.
+        let mut records = vec![written(10, "AA", "A", None), written(10, "A", "AA", None)];
+        super::left_align_records(&mut records, RUN);
+        assert_eq!(
+            placed(&records),
+            vec![record(7, "GA", "G"), record(7, "G", "GA")]
+        );
+    }
+
+    #[test]
+    fn spellings_of_one_change_that_meet_are_counted() {
+        let mut records = vec![
+            written(10, "AA", "A", Some(1.0)),
+            written(9, "AA", "A", Some(0.4)),
+        ];
+        let done = super::left_align_records(&mut records, RUN);
+        assert_eq!(
+            placed(&records),
+            vec![record(7, "GA", "G"), record(7, "GA", "G")]
+        );
+        assert_eq!(done.duplicates, 1);
+        assert_eq!(done.duplicate.as_deref(), Some("7 GA>G"));
     }
 
     #[test]

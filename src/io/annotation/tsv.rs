@@ -101,6 +101,13 @@ pub(crate) struct TsvGeneRow {
     contig: Option<String>,
 }
 
+impl TsvGeneRow {
+    /// The gene's name as the table writes it.
+    pub(crate) fn name(&self) -> &str {
+        &self.gene.name
+    }
+}
+
 /// Every row of the TSV gene table, read and checked, whatever its contig. The
 /// first row that fails a check fails the whole table, as it fails the run.
 pub(crate) fn read_tsv_gene_rows(genes_file: &str) -> AppResult<Vec<TsvGeneRow>> {

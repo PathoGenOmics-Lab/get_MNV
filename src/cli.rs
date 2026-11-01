@@ -100,7 +100,9 @@ pub struct Args {
     /// Left-align indels against the reference before processing, as
     /// `bcftools norm -f` does. An indel in a homopolymer or repeat moves to its
     /// leftmost equivalent position, where aligners place the gap, so its read
-    /// support can be counted. Includes the trimming of --normalize-alleles
+    /// support can be counted, but not past a base another record of the
+    /// sample changes on the same molecules. Includes the trimming of
+    /// --normalize-alleles
     #[arg(long = "left-align")]
     pub left_align: bool,
 
@@ -257,28 +259,33 @@ pub struct Args {
     #[arg(long = "catalogue", value_name = "TSV_FILE")]
     pub catalogue: Option<String>,
 
-    /// Keep a catalogue match that only the codon reading supports even when
-    /// the reads place that codon's substitutions on different molecules.
+    /// Keep a catalogue match that one reading of a codon alone supports even
+    /// when no read carries that reading.
     ///
     /// With `--bam`, the molecules say whether a codon's substitutions travel
-    /// together. When they travel apart, the amino acid the codon spells is
-    /// carried by nothing in the sample, and a catalogue entry matched through
-    /// it alone is withheld: it is still listed, prefixed `withheld`, with the
-    /// reason, so the row keeps the evidence without asserting the change.
-    /// Pass this to list such a match as any other, which is what every
-    /// version before this one did.
+    /// together. When no molecule carries the whole codon, the amino acid the
+    /// codon spells is carried by nothing in the sample; when every molecule
+    /// with a substitution carries the rest too, that substitution's own amino
+    /// acid is not either. A catalogue entry matched through such a reading
+    /// alone is withheld: it moves to the Catalogue Withheld column and the
+    /// CATW INFO key, with the reason, so the row keeps the evidence without
+    /// asserting the change. Pass this to list such a match as any other,
+    /// as get_MNV did before it withheld any.
     #[arg(long = "keep-unphased-codon-matches")]
     pub keep_unphased_codon_matches: bool,
 
-    /// How far `D'` must fall below zero before the reads are taken to
-    /// contradict a codon reading (default: 0.5). `D'` runs from -1, the
-    /// substitutions never sharing a molecule as far as their frequencies
-    /// allow, to +1, always sharing one.
+    /// How far `D'` must be from zero before the reads are taken to refute a
+    /// reading of a codon (default: 0.5): at or below -0.5 the codon reading,
+    /// at or above 0.5 the per-SNV one, and in either case only when no read
+    /// carries the refuted reading. `D'` runs from -1, the substitutions never
+    /// sharing a molecule as far as their frequencies allow, to +1, always
+    /// sharing one. Between 0 and 1.
     #[arg(long = "phase-conflict-dprime", default_value_t = 0.5)]
     pub phase_conflict_dprime: f64,
 
     /// Largest Fisher exact p-value accepted as evidence that a codon's
-    /// substitutions exclude each other (default: 0.05).
+    /// substitutions exclude each other, or travel together (default: 0.05).
+    /// Between 0 and 1.
     #[arg(long = "phase-conflict-p", default_value_t = 0.05)]
     pub phase_conflict_p: f64,
 

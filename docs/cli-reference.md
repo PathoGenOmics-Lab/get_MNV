@@ -96,7 +96,7 @@ These apply only when `--bam` is provided.
 | `--count-mates-separately` | off | Count the two mates of a paired-end fragment as two observations instead of one molecule. |
 | `--phased-indel-min-freq <F>` | `0.0` | Minimum BAM-derived frequency to emit a phased indel/complex haplotype row. |
 | `--normalize-alleles` | off | Trim shared REF/ALT prefix/suffix before processing. |
-| `--left-align` | off | Left-align indels against the reference before processing, as `bcftools norm -f` does: an indel in a homopolymer or repeat moves to its leftmost equivalent position, where aligners place the gap, so its read support can be counted. Includes the trimming of `--normalize-alleles`; complex records are trimmed but not moved. Applies to VCF and iVar TSV input. See [Left-Alignment](indel-mnv-semantics.md#left-alignment). |
+| `--left-align` | off | Left-align indels against the reference before processing, as `bcftools norm -f` does: an indel in a homopolymer or repeat moves to its leftmost equivalent position, where aligners place the gap, so its read support can be counted. An indel stops at a base another record of the sample changes on the same molecules, where its reads put the gap. Includes the trimming of `--normalize-alleles`; complex records are trimmed but not moved. Applies to VCF and iVar TSV input. See [Left-Alignment](indel-mnv-semantics.md#left-alignment). |
 | `--split-multiallelic` | on | Split multiallelic VCF records into independent ALT alleles. On by default since 1.1.6; still accepted so existing commands keep working. |
 
 ## Output
@@ -137,6 +137,9 @@ These apply only when `--bam` is provided.
 | `--report-from <TSV>...` | Build the report from existing get_MNV TSV files instead of running the pipeline, for cohorts processed one sample per run. Each file becomes one sample, labelled by its file name. Requires `--report`, `--matrix` or both for the output. |
 | `--matrix <TSV_FILE>` | Write a variant-by-sample matrix as TSV: one row per variant, one column per sample, holding the allele frequency the reads gave, `called` for a call with no measured frequency, or `NA` where the sample has no call. Works in a normal run, with `--sample all`, and with `--report-from`; needs the TSV output like `--report`. |
 | `--catalogue <TSV_FILE>` | Flag calls that match a catalogue of known variants: a tab-separated table with `gene`, `variant` and optional `label` columns, the variant written as `p.`, `c.`, `n.`, `g.` or `LoF`. Matches go to the `Catalogue` column and `CAT` INFO key. See [Input formats](input-formats.md#5-catalogue-of-known-variants-optional). `example/who_catalogue_2023.tsv` is the WHO catalogue of *M. tuberculosis* resistance mutations in this form. |
+| `--keep-unphased-codon-matches` | List a catalogue match that one reading of a codon alone makes even when no read carries that reading. By default, with `--bam`, such a match goes to the `Catalogue Withheld` column and the `CATW` INFO key instead, with the reason. See [Read-level linkage](linkage.md#when-the-reads-refute-a-reading). |
+| `--phase-conflict-dprime <F>` | How far `D'` must be from zero before the reads refute a reading of a codon: at or below minus this value the codon reading, at or above it the per-SNV one, and in either case only when no read carries the refuted reading. Between 0 and 1. Default: `0.5`. |
+| `--phase-conflict-p <F>` | Largest Fisher exact p-value accepted as that evidence, so a handful of molecules refutes nothing. Between 0 and 1. Default: `0.05`. |
 
 See [Output formats](output-formats.md#interactive-html-report) for what the report contains.
 

@@ -159,6 +159,21 @@ pub(crate) fn parse_inputs(
             None => crate::variants::catalogue::Catalogue::load(path).map(Arc::new),
         })
         .transpose()?;
+    if let Some(catalogue) = &catalogue {
+        match &preloaded_gff {
+            Some(by_contig) => catalogue.warn_about_unknown_genes(
+                by_contig.values().flatten().map(|gene| gene.name.as_str()),
+            ),
+            None => {
+                let rows = match shared {
+                    Some(shared) => shared.tsv_rows(args),
+                    None => io::annotation::read_tsv_gene_rows(args.genes_file()).map(Arc::new),
+                }
+                .map_err(reclassify_generic_as_validation)?;
+                catalogue.warn_about_unknown_genes(rows.iter().map(|row| row.name()));
+            }
+        }
+    }
 
     Ok(ParsedInputs {
         base_name,

@@ -6,18 +6,30 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
-- **A catalogue match the reads refute is withheld.** A codon-level match
-  asserts that one molecule carries every substitution of the codon, and with
-  `--bam` the molecules can say otherwise. When `D'` falls below
-  `--phase-conflict-dprime` (0.5) with a Fisher p at or under
-  `--phase-conflict-p` (0.05), an entry matched through the codon reading alone
-  is listed prefixed `withheld` with the reason, rather than stated as found:
-  the amino acid that codon spells is carried by nothing in the sample. A match
-  the per-SNV reading also makes is untouched, and without `--bam` nothing
-  changes, since there is no linkage to read. `--keep-unphased-codon-matches`
-  restores the previous behaviour. Two samples can give byte-identical VCFs and
-  mean opposite things, and this is the difference between reporting what was
-  found and reporting what was inferred.
+- **A catalogue match no molecule carries is withheld.** A codon-level match
+  asserts that one molecule carries every substitution of the codon, and a
+  per-SNV match that one carries a substitution without the rest; with
+  `--bam` the molecules can say otherwise. When none of the molecules spanning
+  a codon carries the whole codon and `D'` is at or below minus
+  `--phase-conflict-dprime` (0.5), or every molecule with a substitution
+  carries the rest and `D'` is at or above it, both with a Fisher p at or under
+  `--phase-conflict-p` (0.05), an entry matched through the refuted reading
+  alone moves to a `Catalogue Withheld` column and a `CATW` INFO key, with the
+  reason, rather than being stated as found: the amino acid it names is
+  carried by nothing in the sample. `D'` alone does not decide, since with
+  both substitutions above half the molecules it reaches -1 while 30% of them
+  carry the whole codon. A match both readings make, or one on a nucleotide,
+  is untouched, and without `--bam` nothing changes. Both thresholds must lie
+  between 0 and 1. `--keep-unphased-codon-matches` lists every such match as
+  any other. Two samples can give byte-identical VCFs and mean opposite
+  things, and this is the difference between reporting what was found and
+  reporting what was inferred.
+- **`--catalogue` says when an entry can never match.** An entry naming a gene
+  the annotation does not have, under any of its names, matched nothing
+  without a word, so a catalogue writing `Rv0667` against an annotation that
+  says `RVBD_0667` looked like a sample with no resistance; such entries are
+  now counted in a warning with examples. So are `n.` entries other than a
+  substitution, which get_MNV writes no descriptor to compare with.
 
 - **The WHO catalogue of *M. tuberculosis* resistance mutations, ready for
   `--catalogue`.** `example/who_catalogue_2023.tsv` holds the 1,379 entries of
@@ -50,8 +62,15 @@ All notable changes to this project are documented in this file.
   at the start of a contig. Shared REF/ALT context is trimmed, so the flag
   includes `--normalize-alleles`; substitutions and complex records are trimmed
   but never moved; symbolic alleles, ambiguity codes and a REF that disagrees
-  with the reference are left as written. It applies to VCF and iVar TSV input,
-  is off by default, and has a toggle in the desktop app, whose "Normalize
+  with the reference are left as written, and the last stops the run. Unlike
+  `bcftools norm`, which reads each record alone, it stops an indel at a base
+  another record of the sample changes on the same molecules: iVar and
+  haplotype callers write a deletion after a substitution anchored on the
+  substituted base, and moved onto it the deletion described a gap no read
+  has, the phased row of the two was lost and the substitution became
+  Unknown. A moved record's kept `END` follows it, and records that become one
+  change are reported in a warning. It applies to VCF and iVar TSV input, is
+  off by default, and has a toggle in the desktop app, whose "Normalize
   alleles" tooltip claimed to left-align and now says it only trims.
 
   `tests/leftalign` checks it against `bcftools norm -f` on 3,554 indels and
@@ -94,9 +113,14 @@ All notable changes to this project are documented in this file.
   byte for byte. 200 samples of the example take 0.12 s instead of 30 s, and
   3,000 take 1.5 s instead of 8 minutes. A cohort with a BAM and
   fewer samples than threads still runs one sample at a time, with its genes
-  spread over the threads. When a sample fails, the run still stops with that
-  sample's error, but a sample after it that was already running finishes and
-  keeps its output. Programs that embed the library get the cohort speed-up by
+  spread over the threads. When a sample fails, or panics, the run still stops
+  with that sample's error and no sample after it starts, but one that was
+  already running finishes and keeps its output. Two samples whose names differ
+  only in case are refused, as samples naming one file already were, since
+  macOS and Windows keep them in one file and side by side they tore its lines.
+  The aggregate `total_ms` of `--summary-json` and `--run-manifest` is the
+  cohort's wall-clock time; the phase times beside it add up the samples'.
+  Programs that embed the library get the cohort speed-up by
   installing their logger with `get_mnv::logging::install`; with any other
   logger the samples run one after another, as before.
 
@@ -113,6 +137,52 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- **An indel at either end of a protein is read the same however it is
+  written.** One A fewer or one more in a run of As that ends in the A of an
+  ATG leaves the start codon whole, but written on it (`6 A>AA`, as
+  `--left-align` writes it on the minus strand) it was a HIGH `Met1?` and
+  matched `LoF` entries, while written before the gene (`5 C>CA`) it was
+  intergenic. An indel in the first exon that can be placed wholly before the
+  start codon, without leaving an initiation codon where it began, is now
+  reported as the bases before the gene are, as one that can be placed past
+  the stop codon already was; a copy of the protein's first bases, which puts
+  an ATG there, stays the gene's. Its splice consequence is now read where its
+  protein change is, so the same in-frame deletion no longer gains or loses
+  `splice_region_variant` with the spelling, and an indel that leaves a
+  protein through its last exon no longer names the gene's splice region.
+- **Only records on the same molecules hold an indel in place.** An indel is
+  not moved past a base another record changes, which kept two problems: the
+  gene was shown only the records within eight bases of it, so a frameshift on
+  a stop codon slid past a substitution ten bases on and came out intergenic;
+  and every record counted, so a substitution at 5% held a fixed deletion on a
+  stop codon and turned it into a HIGH frameshift with a `LoF` match, and the
+  two alleles of a split multiallelic site held each other. The whole contig
+  is now asked, and a record holds an indel only when it can share its
+  molecules: not another indel allele of the same site, not one the caller
+  phased apart, and not one at under half the indel's frequency.
+- **A CDS row ending mid-codon keeps the frameshifts at its end.** Three bases
+  that spelled a stop at the end of a row whose length is not a whole number
+  of codons, as at an exon edge, were read as its stop codon, and a deletion
+  in the run after them left the gene.
+- **A phased haplotype holding an indel past the stop codon is not a
+  frameshift.** With `--bam`, a substitution in the last sense codon and an A
+  deleted from the stop codon's run on the same molecules made a compound row
+  that called the substitution's missense a frameshift, and the deletion's own
+  row disappeared behind it. Such a haplotype is no longer reported as a row of
+  its own; a complex record writing both in one line is still read as one
+  change.
+- **`--normalize-alleles` no longer trims away a REF base the FASTA
+  disagrees with.** A record whose REF disagrees with the reference stops the
+  run, but trimmed first, the disagreeing base could be cut off with the
+  context: `110 AAG>AG` against a FASTA reading AAC came out as `110 AA>A` and
+  was annotated without a word. Such a record is now kept as written, so the
+  run stops on it, as it does without the flag and as `bcftools norm` does.
+- **`Haplotype LD p` no longer depends on the order of a codon's pairs.** With
+  three substitutions in a codon the weakest pair decides, and of two pairs
+  equally weak the first along the codon was reported, so the same molecules
+  gave a p-value of 0.49 or of 3e-26 beside the same `D'` of -1 depending on
+  which base held the rare substitution. The better supported of them is now
+  reported.
 - **Each unnamed read counts once with `--count-mates-separately`.** With mates
   counted separately a read was told apart by its name, its segment and its
   start, so reads without a name that began at one place were one molecule:
@@ -177,8 +247,8 @@ All notable changes to this project are documented in this file.
   haplotype, and neither is a deletion moved into a gene across its start. A
   deletion that still removes stop-codon bases there is read as written,
   since how many of its bases count as coding only reflects where its record
-  cuts. The rows moved are no longer counted against the reads, as
-  intergenic indels are not. On WHO's genomic variants for groups 1 and 2 this
+  cuts. The rows moved keep their read counts, as intergenic
+  indels do. On WHO's genomic variants for groups 1 and 2 this
   moves two deletions WHO links to fbiC `p.Ala855fs`, which the bases after
   them repeat, so fbiC's coding sequence stays whole: 6 records are now
   flagged for none of their drugs instead of 4.

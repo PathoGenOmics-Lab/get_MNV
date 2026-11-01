@@ -411,11 +411,13 @@ struct SampleOutcome {
     /// Each progress event with the number of held lines that came before it.
     progress: Vec<(usize, ProgressEvent)>,
     summary: AppResult<RunSummary>,
+    /// What the sample panicked with, passed on once its lines are written.
+    panic: Option<Box<dyn std::any::Any + Send>>,
 }
 
 impl SampleOutcome {
     /// Write the sample's lines and report its progress, in the order the
-    /// sample produced them.
+    /// sample produced them, then pass on its panic if it had one.
     fn release(self, on_progress: &dyn Fn(ProgressEvent)) -> AppResult<RunSummary> {
         let mut written = 0;
         for (position, event) in self.progress {
@@ -427,6 +429,9 @@ impl SampleOutcome {
         }
         for line in &self.held[written..] {
             line.write();
+        }
+        if let Some(payload) = self.panic {
+            std::panic::resume_unwind(payload);
         }
         self.summary
     }
@@ -526,20 +531,36 @@ fn samples_side_by_side(
                             .borrow_mut()
                             .push((crate::logging::held_so_far(), event));
                     };
-                    let (summary, held) = crate::logging::holding(|| {
-                        info!("Processing sample '{sample}' in --sample all mode");
-                        run_single(
-                            args,
-                            Some(sample),
-                            Some(sample),
-                            false,
-                            &report,
-                            SampleRun {
-                                shared: Some(shared),
-                                parallel_genes: false,
-                            },
-                        )
+                    // A panic is caught inside the hold, with the lines the
+                    // sample logged before it, and stops the samples after it
+                    // as an error does. Left to unwind the worker, it lost
+                    // those lines, so nothing said which sample it was, and
+                    // every other sample ran to the end first.
+                    let (ran, held) = crate::logging::holding(|| {
+                        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            info!("Processing sample '{sample}' in --sample all mode");
+                            run_single(
+                                args,
+                                Some(sample),
+                                Some(sample),
+                                false,
+                                &report,
+                                SampleRun {
+                                    shared: Some(shared),
+                                    parallel_genes: false,
+                                },
+                            )
+                        }))
                     });
+                    let (summary, panic) = match ran {
+                        Ok(summary) => (summary, None),
+                        Err(payload) => (
+                            Err(AppError::msg(format!(
+                                "Sample '{sample}' was not processed"
+                            ))),
+                            Some(payload),
+                        ),
+                    };
                     if summary.is_err() {
                         first_failure.fetch_min(index, Ordering::SeqCst);
                     }
@@ -548,6 +569,7 @@ fn samples_side_by_side(
                         held,
                         progress: progress.into_inner(),
                         summary,
+                        panic,
                     };
                     if sender.send(outcome).is_err() {
                         break;
@@ -666,6 +688,19 @@ pub fn run_with_progress(
             "--phased-indel-min-freq must be between 0 and 1 (it is an allele frequency, not a percentage)",
         ));
     }
+    // A negative value read as a D' itself, or NaN, used to pass and either
+    // withhold matches on reads that carry them or switch withholding off.
+    if !(0.0..=1.0).contains(&args.phase_conflict_dprime) {
+        return Err(AppError::config(
+            "--phase-conflict-dprime must be between 0 and 1: it is how far D' must be from zero, \
+             so 0.5 asks for D' at or below -0.5 to refute a codon reading",
+        ));
+    }
+    if !(0.0..=1.0).contains(&args.phase_conflict_p) {
+        return Err(AppError::config(
+            "--phase-conflict-p must be between 0 and 1 (it is a p-value)",
+        ));
+    }
     if (args.min_snp_frequency > 0.0 || args.min_mnv_frequency > 0.0) && args.bam_file.is_none() {
         return Err(AppError::config(
             "--min-snp-frequency and --min-mnv-frequency require --bam because frequencies are calculated from read support",
@@ -716,19 +751,30 @@ pub fn run_with_progress(
     // name cannot hold replaced. Two samples that come out the same, whether the
     // header repeats a name or `a/b` and `a_b` both sanitize to `a_b`, would
     // write to one file and the second would overwrite the first, leaving a
-    // cohort short one sample with nothing said about it.
+    // cohort short one sample with nothing said about it. Compared without
+    // case, since the usual file systems of macOS and Windows do: `S1` and `s1`
+    // wrote one file there, and side by side they tore its lines.
     let mut stems: std::collections::HashMap<String, &String> = std::collections::HashMap::new();
     for sample in &sample_names {
         let stem = sanitize_sample_for_path(sample);
-        if let Some(previous) = stems.insert(stem.clone(), sample) {
+        if let Some(previous) = stems.insert(stem.to_lowercase(), sample) {
+            let previous_stem = sanitize_sample_for_path(previous);
+            let names = if previous_stem == stem {
+                format!("both name their output 'sample_{stem}'")
+            } else {
+                format!(
+                    "name their outputs 'sample_{previous_stem}' and 'sample_{stem}', one file \
+                     wherever file names ignore case, as on macOS and Windows"
+                )
+            };
             return Err(AppError::validation(format!(
-                "Samples '{previous}' and '{sample}' both name their output 'sample_{stem}', so one \
-                 would overwrite the other. Rename one of them in the VCF header, or process them \
-                 one at a time with --sample."
+                "Samples '{previous}' and '{sample}' {names}, so one would overwrite the other. \
+                 Rename one of them in the VCF header, or process them one at a time with --sample."
             )));
         }
     }
 
+    let cohort_start = Instant::now();
     let (sample_summaries, shared) = run_samples(args, &sample_names, on_progress)?;
 
     let mut aggregate = RunSummary {
@@ -762,8 +808,11 @@ pub fn run_with_progress(
         aggregate.timings.parse_inputs_ms += sample_summary.timings.parse_inputs_ms;
         aggregate.timings.process_ms += sample_summary.timings.process_ms;
         aggregate.timings.emit_ms += sample_summary.timings.emit_ms;
-        aggregate.timings.total_ms += sample_summary.timings.total_ms;
     }
+    // The samples run side by side, so the phases above add up their time and
+    // the run's own length is measured whole: summed as well, it came out
+    // several times the wall time of the run.
+    aggregate.timings.total_ms = cohort_start.elapsed().as_secs_f64() * 1000.0;
 
     // One combined report and matrix covering every sample of the multi-sample VCF.
     if args.report.is_some() || args.matrix.is_some() {

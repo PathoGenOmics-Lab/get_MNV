@@ -94,6 +94,14 @@ fn annotation_cells(variant: &VariantInfo, bam_provided: bool) -> Vec<String> {
         .clone()
         .unwrap_or_else(|| "-".to_string());
     cells.extend([nmd, hgvs_g, hgvs_c, sbs96, adjacent, catalogue, id83]);
+    // Withholding needs reads, so the column comes with the BAM's.
+    if bam_provided {
+        cells.push(if variant.annotations.catalogue_withheld.is_empty() {
+            "-".to_string()
+        } else {
+            variant.annotations.catalogue_withheld.join("; ")
+        });
+    }
     cells
 }
 
@@ -583,6 +591,7 @@ impl TsvWriter {
                 "Adjacent Substitutions",
                 "Catalogue",
                 "ID83 Class",
+                "Catalogue Withheld",
             ]
         } else {
             vec![

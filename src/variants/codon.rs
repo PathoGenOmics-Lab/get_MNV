@@ -495,7 +495,13 @@ fn get_mnv_variants_for_transcript(
         }
     }
 
-    let (indels, placed) = coding_placements(gene, reference, indels, snp_list, genetic_code);
+    let (indels, placed) = coding_placements(
+        gene,
+        reference,
+        indels,
+        config.neighbours(snp_list),
+        genetic_code,
+    );
     let ptc_protein_pos =
         frameshift_ptc_protein_pos(gene, reference, &placed, genetic_code, config);
 
@@ -652,7 +658,7 @@ fn get_mnv_variants_for_transcript(
             event_components,
             annotations: crate::variants::VariantAnnotations {
                 nmd,
-                splice: splice_consequence_for_indel(gene, &indel),
+                splice: splice_consequence_for_indel(gene, &coding),
                 hgvs_c: indel_hgvs_c(gene, &coding, reference),
                 initiator_lost,
                 ..Default::default()
@@ -664,11 +670,12 @@ fn get_mnv_variants_for_transcript(
 }
 
 /// Where the coding sequence sees each indel (see
-/// [`indel_effect::coding_placement`] and [`indel_effect::placed_past_the_stop`]),
-/// beside the records it keeps. The rows keep each record as written, which is
-/// what its reads are counted against. An indel HGVS places wholly past the
-/// stop codon changes no coding base, so the gene leaves it out and it is
-/// reported as the bases past the gene are.
+/// [`indel_effect::coding_placement`] and
+/// [`indel_effect::placed_outside_the_protein`]), beside the records it keeps.
+/// The rows keep each record as written, which is what its reads are counted
+/// against. An indel that can be placed wholly past the stop codon or before
+/// the start codon changes no coding base, so the gene leaves it out and it is
+/// reported as the bases outside the gene are.
 fn coding_placements(
     gene: &Gene,
     reference: &crate::io::Reference,
@@ -679,7 +686,7 @@ fn coding_placements(
     let mut kept = Vec::with_capacity(indels.len());
     let mut placed = Vec::with_capacity(indels.len());
     for indel in indels {
-        if indel_effect::placed_past_the_stop(gene, reference, &indel, others, genetic_code) {
+        if indel_effect::placed_outside_the_protein(gene, reference, &indel, others, genetic_code) {
             continue;
         }
         let coding = indel_effect::coding_placement(gene, reference, &indel, others)
@@ -690,12 +697,12 @@ fn coding_placements(
     (kept, placed)
 }
 
-/// Whether HGVS places this indel wholly past `gene`'s stop codon, where it
-/// changes no coding base, given `others`, the records the gene is given. The
-/// gene then reports nothing for it, and nothing else may name the gene for it
-/// either: it is reported as the bases past the gene are, however the record is
-/// written.
-pub fn lies_past_coding_sequence(
+/// Whether this indel can be placed wholly past `gene`'s stop codon or before
+/// its start codon, where it changes no coding base, without moving past a
+/// base one of `others` changes. The gene then reports nothing for it, and
+/// nothing else may name the gene for it either: it is reported as the bases
+/// outside the gene are, however the record is written.
+pub fn lies_outside_coding_sequence(
     gene: &Gene,
     reference: &crate::io::Reference,
     variant: &crate::io::VcfPosition,
@@ -703,7 +710,7 @@ pub fn lies_past_coding_sequence(
     genetic_code: crate::genetic_code::GeneticCode,
 ) -> bool {
     gene.biotype.is_coding()
-        && indel_effect::placed_past_the_stop(gene, reference, variant, others, genetic_code)
+        && indel_effect::placed_outside_the_protein(gene, reference, variant, others, genetic_code)
 }
 
 /// The splice consequence of an indel, taken from the bases it changes.
@@ -812,7 +819,13 @@ pub fn get_mnv_variants_for_gene_with_config(
         return variants;
     }
 
-    let (indels, placed) = coding_placements(gene, reference, indels, snp_list, genetic_code);
+    let (indels, placed) = coding_placements(
+        gene,
+        reference,
+        indels,
+        config.neighbours(snp_list),
+        genetic_code,
+    );
     let ptc_protein_pos =
         frameshift_ptc_protein_pos(gene, reference, &placed, genetic_code, config);
 
@@ -982,7 +995,7 @@ pub fn get_mnv_variants_for_gene_with_config(
             event_class: Some(event_class),
             event_components,
             annotations: crate::variants::VariantAnnotations {
-                splice: splice_consequence_for_indel(gene, &indel),
+                splice: splice_consequence_for_indel(gene, &coding),
                 hgvs_c: indel_hgvs_c(gene, &coding, reference),
                 initiator_lost,
                 ..Default::default()

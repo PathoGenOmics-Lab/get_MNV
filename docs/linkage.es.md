@@ -149,36 +149,49 @@ direcciones de asociación, y las tablas degeneradas donde `D'` no tiene valor,
 junto a los barridos de soporte de fase.
 
 
-## Cuando las lecturas desmienten al codón
+## Cuando las lecturas desmienten una lectura
 
-Una coincidencia a nivel de codón en la columna `Catalogue` afirma que una
-misma molécula lleva todas las sustituciones del codón. `D'` puede desmentirlo.
-Cuando lo hace, una entrada que coincide **solo** por la lectura de codón nombra
-un aminoácido que nada en la muestra lleva, y get_MNV la retiene:
+Un codón con dos sustituciones tiene dos lecturas, y una coincidencia del
+catálogo que hace solo una de ellas afirma algo de las moléculas. Una
+coincidencia a nivel de codón en la columna `Catalogue` afirma que una misma
+molécula lleva todas las sustituciones del codón; una coincidencia por SNV,
+que una lleva una sustitución sin las demás. Con `--bam` las moléculas pueden
+desmentir cualquiera de las dos. Una entrada que coincide **solo** por una
+lectura desmentida nombra un aminoácido que nada en la muestra lleva, y
+get_MNV la retiene: la entrada pasa a la columna `Catalogue Withheld` (la clave
+INFO `CATW` en el VCF), con el motivo.
 
 ```
-withheld: RIF: Assoc w R (rpoB p.Ser450Tyr) (codon reading only, the reads
-place these substitutions on different molecules)
+Catalogue           -
+Catalogue Withheld  RIF: Assoc w R (rpoB p.Ser450Tyr, codon reading only: no molecule carries the whole codon)
 ```
 
 La entrada se sigue listando, así que no se oculta nada, pero deja de afirmarse
-como encontrada. Una coincidencia que también hace la lectura por SNV no se
-toca: cada una de esas sustituciones está en las moléculas por sí misma,
-acompañada o no.
+como encontrada. Una coincidencia que hacen las dos lecturas no se toca, ni
+tampoco una coincidencia de nucleótido (`c.1349C>A`, `g.761155C>A`): esa base
+está en las moléculas, acompañada o no.
 
-Requiere `--bam`, porque sin moléculas no hay `D'` y nada cambia. Lo gobiernan
-dos umbrales, y hay que cumplir los dos:
+**Deciden las moléculas, `D'` lo confirma.** La lectura de codón queda
+desmentida cuando ninguna de las moléculas que cubren el codón lleva todas las
+sustituciones (`MNV Reads` es 0) y `D'` está en `-0,5` o por debajo; la lectura
+propia de una sustitución, cuando toda molécula que la lleva lleva el codón
+entero (su `SNP Reads` es 0 y `MNV Reads` no) y `D'` está en `0,5` o por
+encima. `D'` solo no basta: con las dos sustituciones en más de la mitad de las
+moléculas, alguna tiene que compartirlas, así que `D'` llega a `-1` con un 30%
+de las moléculas llevando el codón entero, y ese aminoácido está en la muestra.
+Requiere `--bam`, porque sin moléculas no hay nada que contar y nada cambia. Dos
+umbrales gobiernan el lado de `D'`, y hay que cumplir los dos:
 
 | Opción | Por defecto | Qué exige |
 |---|---|---|
-| `--phase-conflict-dprime` | `0.5` | cuánto debe bajar `D'` de cero |
+| `--phase-conflict-dprime` | `0.5` | cuánto debe alejarse `D'` de cero |
 | `--phase-conflict-p` | `0.05` | mayor p-valor exacto de Fisher aceptado |
 
 Exigir ambos es deliberado. El p-valor solo dejaría que una muestra profunda
-desmintiera un codón con `D'` de -0,05, una exclusión medible y sin sentido; la
-magnitud sola dejaría que lo hicieran tres moléculas.
-`--keep-unphased-codon-matches` restaura el comportamiento de versiones
-anteriores, que listaban esa coincidencia como cualquier otra.
+desmintiera una lectura con `D'` de -0,05, una exclusión medible y sin sentido;
+la magnitud sola dejaría que lo hicieran tres moléculas.
+`--keep-unphased-codon-matches` lista todas esas coincidencias en `Catalogue`
+como cualquier otra.
 
 ### Por qué se retiene en vez de borrarse
 
