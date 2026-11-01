@@ -74,6 +74,18 @@ pub(super) fn build_read_key(rec: &bam::Record) -> ReadKey {
     }
 }
 
+/// The key of a read without a name: its segment and start only, the same for
+/// every unnamed read that begins at one place.
+#[cfg(test)]
+pub(super) fn test_unnamed_read_key() -> ReadKey {
+    ReadKey {
+        qname: Vec::new(),
+        is_first_segment: true,
+        is_last_segment: false,
+        start_pos: 0,
+    }
+}
+
 /// A distinct per-record key for tests that build a cache without a BAM.
 #[cfg(test)]
 pub(super) fn test_read_key(index: usize) -> ReadKey {

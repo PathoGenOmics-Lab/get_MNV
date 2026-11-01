@@ -198,7 +198,13 @@ fn write_synthetic_bam_q(
     }
     writer.try_finish().expect("finish synthetic BAM");
 
-    let index = noodles::bam::fs::index(path).expect("index synthetic BAM");
+    // noodles builds a BAI unless a contig is too long for one, which no
+    // synthetic contig here is.
+    let noodles::bam::Index::Bai(index) =
+        noodles::bam::fs::index(path).expect("index synthetic BAM")
+    else {
+        panic!("a synthetic contig this short is indexed as BAI, not CSI");
+    };
     noodles::bam::bai::fs::write(path.with_extension("bam.bai"), &index)
         .expect("write synthetic BAI");
 }

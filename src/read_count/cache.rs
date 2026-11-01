@@ -7,12 +7,12 @@ use noodles::sam::Header;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
 
-#[cfg(test)]
-use super::observation::test_read_key;
 use super::observation::{
     build_molecule_key, build_read_key, build_region, get_query_pos, increment_directional_count,
     MoleculeKey, ReadKey,
 };
+#[cfg(test)]
+use super::observation::{test_read_key, test_unnamed_read_key};
 use super::ReadCountSummary;
 
 #[derive(Debug, Clone)]
@@ -108,7 +108,12 @@ fn molecules(reads: &[CachedReadObservation], pair_aware: bool) -> Vec<MoleculeO
     let mut merged: Vec<MoleculeObservation> = Vec::new();
 
     for read in reads {
-        let identity = if pair_aware {
+        // A read without a name is its own molecule whichever way mates are
+        // counted. Its read key is only its segment and its start, which every
+        // unnamed read beginning at one place shares, so with mates counted
+        // separately twenty such reads came to one.
+        let unnamed = matches!(*read.fragment, MoleculeKey::Unnamed(_));
+        let identity = if pair_aware || unnamed {
             read.fragment.clone()
         } else {
             Rc::new(MoleculeKey::Record((*read.key).clone()))
@@ -627,6 +632,30 @@ mod counting_tests {
         );
         assert_eq!(summary.mnv_count, 2);
         assert_eq!(summary.total_reads, vec![2, 2]);
+    }
+
+    /// Reads without a name are each their own molecule however mates are
+    /// counted. With mates counted separately they were keyed by segment and
+    /// start alone, so unnamed reads starting at one place counted as one.
+    #[test]
+    fn unnamed_reads_are_each_their_own_molecule() {
+        let both = vec![Some(('T', GOOD)), Some(('A', GOOD))];
+        let records = [
+            ("r", false, both.clone()),
+            ("r", false, both.clone()),
+            ("r", false, both),
+        ];
+        let mut cache = cache_from_molecules(&POSITIONS, &records);
+        for (index, read) in cache.reads.iter_mut().enumerate() {
+            read.key = Rc::new(test_unnamed_read_key());
+            read.fragment = Rc::new(MoleculeKey::Unnamed(index));
+        }
+        for pair_aware in [true, false] {
+            let summary = count_reads_from_cache(&cache, &POSITIONS, &alts(), 20, pair_aware)
+                .expect("counted");
+            assert_eq!(summary.total_reads, vec![3, 3], "pair_aware={pair_aware}");
+            assert_eq!(summary.mnv_count, 3, "pair_aware={pair_aware}");
+        }
     }
 
     /// A molecule read from both ends is evidence on both strands.
