@@ -173,6 +173,11 @@ impl AnalysisConfig {
             report_from: Vec::new(),
             matrix: None,
             catalogue: None,
+            // These only weigh catalogue matches, and the desktop app runs
+            // without a catalogue, so it passes the CLI defaults.
+            keep_unphased_codon_matches: false,
+            phase_conflict_dprime: 0.5,
+            phase_conflict_p: 0.05,
         }
     }
 }
