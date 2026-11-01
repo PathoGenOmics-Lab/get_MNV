@@ -148,6 +148,48 @@ la propia suite. Barre tablas 2x2 que cubren la independencia, las dos
 direcciones de asociación, y las tablas degeneradas donde `D'` no tiene valor,
 junto a los barridos de soporte de fase.
 
+
+## Cuando las lecturas desmienten al codón
+
+Una coincidencia a nivel de codón en la columna `Catalogue` afirma que una
+misma molécula lleva todas las sustituciones del codón. `D'` puede desmentirlo.
+Cuando lo hace, una entrada que coincide **solo** por la lectura de codón nombra
+un aminoácido que nada en la muestra lleva, y get_MNV la retiene:
+
+```
+withheld: RIF: Assoc w R (rpoB p.Ser450Tyr) (codon reading only, the reads
+place these substitutions on different molecules)
+```
+
+La entrada se sigue listando, así que no se oculta nada, pero deja de afirmarse
+como encontrada. Una coincidencia que también hace la lectura por SNV no se
+toca: cada una de esas sustituciones está en las moléculas por sí misma,
+acompañada o no.
+
+Requiere `--bam`, porque sin moléculas no hay `D'` y nada cambia. Lo gobiernan
+dos umbrales, y hay que cumplir los dos:
+
+| Opción | Por defecto | Qué exige |
+|---|---|---|
+| `--phase-conflict-dprime` | `0.5` | cuánto debe bajar `D'` de cero |
+| `--phase-conflict-p` | `0.05` | mayor p-valor exacto de Fisher aceptado |
+
+Exigir ambos es deliberado. El p-valor solo dejaría que una muestra profunda
+desmintiera un codón con `D'` de -0,05, una exclusión medible y sin sentido; la
+magnitud sola dejaría que lo hicieran tres moléculas.
+`--keep-unphased-codon-matches` restaura el comportamiento de versiones
+anteriores, que listaban esa coincidencia como cualquier otra.
+
+### Por qué se retiene en vez de borrarse
+
+Dos muestras pueden dar VCF idénticos byte a byte y significar lo contrario: un
+30% de moléculas con `S450Y`, frente a una parada prematura y un cambio
+sinónimo al 30% cada uno en moléculas distintas. La primera tiene una
+subpoblación resistente; la segunda no, y llamarla `S450Y` inventa una variante
+que nadie lleva. El VCF no las distingue y las lecturas sí, así que la salida
+honesta nombra la entrada, dice que se preguntó a las moléculas y dice qué
+contestaron.
+
 ## Límites
 
 - El estadístico es **dentro de una ventana**: un codón, o una ventana de
