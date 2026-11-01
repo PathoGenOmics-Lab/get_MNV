@@ -49,6 +49,15 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- **Rust 1.91 is the minimum, for noodles 0.118.** noodles 0.118 and every
+  crate of its family declare Rust 1.91, so `rust-version`, the `msrv` job and
+  the install notes move from 1.89 to it. The same update moves lru to 0.19 and
+  the desktop app's Tauri plugins to their current releases, with the Rust
+  crates and the npm packages on the same minor, as Tauri requires to bundle.
+- **The frontend's linters use minimatch 11.** eslint and typescript-eslint
+  still ask for minimatch 10, which has a denial of service through glob
+  patterns (GHSA-g3hv-75wg-m249, fixed in 11.0.1), so `package.json` overrides
+  it. It is a development dependency: the tool and the app never ship it.
 - **A gene looks only at the variants near it.** Every gene was tested
   against every variant of its contig, decomposing the allele again for each
   test, so on a bacterial genome nearly all of a run went into deciding which
@@ -91,6 +100,13 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- **Each unnamed read counts once with `--count-mates-separately`.** With mates
+  counted separately a read was told apart by its name, its segment and its
+  start, so reads without a name that began at one place were one molecule:
+  twenty such reads read as one. Unnamed reads now stay their own molecules in
+  both modes, as they already did when mates are paired. noodles 0.118 names
+  the unnamed reads of a CRAM, so a CRAM of them counted twenty where its BAM
+  counted one, which is how the scenario suite caught it.
 - **A copy of the stop codon is not a stop gained.** An in-frame insertion
   that repeats the terminal stop codon, alone or with the codon before it
   (`TAA` to `TAATAA`), adds a stop no ribosome reaches and leaves the protein
