@@ -26,7 +26,7 @@ window.GET_MNV_DOCS_INDEX = [
 "page": "Home",
 "section": "Install",
 "url": "index.html#install",
-"text": "One binary, no C dependencies, on macOS, Linux and Windows. A desktop app does the same with drag and drop. Bioconda conda install -c bioconda get_mnv From source git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV cargo install --path . Rust 1.89 or newer. Desktop app macOS, Linux and Windows builds on the Releases page , with a guided tutorial . Not signed with an Apple certificate: on the first launch, right-click the app and choose Open. Check what you downloaded Every release carries a SHA256SUMS file covering all of its assets. Download it next to the file you want and check them together; each file it finds prints OK . sha256sum --ignore-missing -c SHA256SUMS On macOS, shasum -a 256 --ignore-missing -c SHA256SUMS does the same."
+"text": "One binary, no C dependencies, on macOS, Linux and Windows. A desktop app does the same with drag and drop. Bioconda conda install -c bioconda get_mnv From source git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV cargo install --path . Rust 1.91 or newer. Desktop app macOS, Linux and Windows builds on the Releases page , with a guided tutorial . Not signed with an Apple certificate: on the first launch, right-click the app and choose Open. Check what you downloaded Every release carries a SHA256SUMS file covering all of its assets. Download it next to the file you want and check them together; each file it finds prints OK . sha256sum --ignore-missing -c SHA256SUMS On macOS, shasum -a 256 --ignore-missing -c SHA256SUMS does the same."
 },
 {
 "lang": "en",
@@ -1111,7 +1111,7 @@ window.GET_MNV_DOCS_INDEX = [
 "page": "Inicio",
 "section": "Instalación",
 "url": "es/index.html#install",
-"text": "Un solo binario, sin dependencias de C, en macOS, Linux y Windows. Una aplicación de escritorio hace lo mismo arrastrando y soltando. Bioconda conda install -c bioconda get_mnv Desde el código fuente git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV cargo install --path . Rust 1.89 o posterior. Aplicación de escritorio Versiones para macOS, Linux y Windows en la página de versiones , con un tutorial guiado. No está firmada con un certificado de Apple: la primera vez, clic derecho sobre la aplicación y Abrir. Comprueba lo que has descargado Cada versión trae un fichero SHA256SUMS que cubre todos sus ficheros. Descárgalo junto al que quieras y compruébalos juntos; cada fichero que encuentra imprime OK . sha256sum --ignore-missing -c SHA256SUMS En macOS, shasum -a 256 --ignore-missing -c SHA256SUMS hace lo mismo."
+"text": "Un solo binario, sin dependencias de C, en macOS, Linux y Windows. Una aplicación de escritorio hace lo mismo arrastrando y soltando. Bioconda conda install -c bioconda get_mnv Desde el código fuente git clone https://github.com/PathoGenOmics-Lab/get_MNV.git cd get_MNV cargo install --path . Rust 1.91 o posterior. Aplicación de escritorio Versiones para macOS, Linux y Windows en la página de versiones , con un tutorial guiado. No está firmada con un certificado de Apple: la primera vez, clic derecho sobre la aplicación y Abrir. Comprueba lo que has descargado Cada versión trae un fichero SHA256SUMS que cubre todos sus ficheros. Descárgalo junto al que quieras y compruébalos juntos; cada fichero que encuentra imprime OK . sha256sum --ignore-missing -c SHA256SUMS En macOS, shasum -a 256 --ignore-missing -c SHA256SUMS hace lo mismo."
 },
 {
 "lang": "es",
