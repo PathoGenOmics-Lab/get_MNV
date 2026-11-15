@@ -47,6 +47,8 @@ pub struct RunSummary {
     pub output_tsv: Option<String>,
     pub output_vcf: Option<String>,
     pub output_bcf: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_catalogue_codons: Option<String>,
     pub contigs: Vec<ContigSummary>,
     pub timings: RunTimings,
     pub global: GlobalSummary,
@@ -64,6 +66,7 @@ impl Default for RunSummary {
             output_tsv: None,
             output_vcf: None,
             output_bcf: None,
+            output_catalogue_codons: None,
             contigs: Vec::new(),
             timings: RunTimings::default(),
             global: GlobalSummary::default(),

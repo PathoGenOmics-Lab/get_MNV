@@ -53,6 +53,8 @@ pub(super) fn compute_annotations(
         declared_phase: None,
         // Filled in by the pipeline, from the molecules the reads showed.
         linkage: None,
+        codon_phase: None,
+        alone_on_molecules: None,
         // Filled in per contig by the pipeline, which has the sequence.
         sbs96: Vec::new(),
         // Filled in per contig by the pipeline, which sees every row at once.

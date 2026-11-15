@@ -144,6 +144,26 @@ the suite itself. It sweeps 2x2 tables covering independence, both directions of
 association, and the degenerate tables where `D'` has no value, alongside the
 linkage-support sweeps.
 
+## Cis or trans: the Codon Phase column
+
+`D'` and its p-value are numbers; the `Codon Phase` column (the `CPHASE` INFO
+key) turns them into the reading a person would act on, with the same two
+thresholds that decide when a catalogue match is withheld (below):
+
+| `Codon Phase` | When | What it means for the codon |
+|---|---|---|
+| `cis` | `D'` >= `--phase-conflict-dprime` and p <= `--phase-conflict-p` | One molecule carries every substitution: read the codon as one change, as in `AA Changes` |
+| `trans` | `D'` <= minus `--phase-conflict-dprime` and p <= `--phase-conflict-p` | The substitutions sit on different molecules: read each on its own, as in `SNP AA Changes` |
+| `unresolved` | linkage measured, neither of the above | The molecules were asked and did not answer clearly enough |
+| `-` | no linkage | Nothing was measured; this is not a finding |
+
+In a clonal sample a codon with two substitutions is `cis` by construction,
+since every molecule carries both. The column matters in mixed samples, where
+two changes in one codon can be one double mutant (`cis`) or two populations
+with one change each (`trans`). In the second case the merged codon names an
+amino acid no molecule carries: a mixture of `GAC>GGC` (Asp>Gly) and `GAC>AAC`
+(Asp>Asn) merges to `AGC` (Ser).
+
 ## When the reads refute a reading
 
 A codon with two substitutions has two readings, and a catalogue match made
@@ -185,6 +205,23 @@ Requiring both is deliberate. The p-value alone would let a deep sample refute
 a reading on a `D'` of -0.05, a measurable but meaningless exclusion; the
 magnitude alone would let three molecules do it. `--keep-unphased-codon-matches`
 lists every such match in `Catalogue` as any other.
+
+### A substitution that always travels with another change
+
+`D'` is measured against the row's own alternates, and in a codon with a
+second alternate at one position that is not enough. Take a codon `GCT` read
+on molecules as `CTT`, `TCT`, `CCT` and the reference: the row pairing `G>T`
+at the first base with `C>T` at the second is trans, and the `C>T` molecules
+(`CTT`) do lack that row's `G>T`, so by the row's own counts `C>T` stands
+alone. It does not: it is always with `G>C`, and its per-SNV codon `GTT` is on
+no molecule. So with `--catalogue` and `--bam` get_MNV also counts, for each
+substitution of a row, the molecules that carry it with every other position
+of the row at reference. A per-SNV match is withheld when that count is zero
+and the molecules spanning the row are enough for the absence to be evidence:
+had the per-SNV codon been on a fraction `--catalogue-codon-min-freq` (0.05)
+of them, seeing it on none would have probability at most
+`--phase-conflict-p` (0.05). At the defaults that needs 59 molecules; below
+that the match stands. `--keep-unphased-codon-matches` lists these too.
 
 ### Why this is withheld rather than deleted
 

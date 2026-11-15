@@ -61,6 +61,7 @@ Main columns:
 | `MNV Phasing Support` | BAM-derived phasing (linkage) support: among the reads that observe *every* position of the codon and carry the least-supported constituent SNV, the fraction that also carry the full MNV haplotype. `1.0000` = perfect co-occurrence (a genuine haplotype); low values mean the SNVs largely fall on different molecules (a same-codon coincidence, not a real MNV). `0.0000` is a finding: reads did span the codon and none carried both. `-` means the question could not be answered: no `--bam`, a single SNV, or no read reaching across the codon (common when a codon straddles an intron and the fragments are shorter than the intron). |
 | `Haplotype LD` | Read-level linkage disequilibrium (`D'`) between the variants this row claims travel together, over the molecules that observed them. It covers both kinds of multi-variant row: a codon MNV and a local indel haplotype. A co-occurrence ratio cannot separate a haplotype from an accident of frequency: two substitutions on 90% of molecules each are found together on 81% of them by arithmetic alone, and the ratio calls that 0.9. `D'` measures the excess over what the two frequencies predict, normalised by the most it could have been. `+1` = they travel together as far as their frequencies allow, so the MNV is one haplotype. `~0` = they co-occur exactly as chance predicts, so they merely share a codon. `-1` = they exclude each other: both present, never on one molecule, which in a haploid population is two competing lineages rather than one variant. With three or more variants the weakest pair decides, since the row claims one molecule carries all of them. It answers a different question from the read count beside it: the count is how many molecules *are* this combination, while `D'` is whether its variants co-occur more than their own frequencies predict, so a haplotype carried by few molecules can still be perfectly linked and one carried by many can be a coincidence. `-` when no molecule observed the variants together, or when one of them is on every such molecule or none, which leaves nothing to correlate. Only present with `--bam`. |
 | `Haplotype LD p` | Two-tailed Fisher exact p-value for that table, so a `D'` of 1.0 from four molecules is not read as one from four hundred. `-` under the same conditions as the column above. Only present with `--bam`. See [Linkage](linkage.md). |
+| `Codon Phase` | How the row's variants sit on the molecules, read from the two columns before it with the `--phase-conflict-dprime` and `--phase-conflict-p` thresholds (0.5 and 0.05). `cis`: they travel together (`D'` at or above 0.5), so read the codon as one change and `AA Changes` is the allele. `trans`: they exclude each other (`D'` at or below -0.5), so read each on its own: in a mixed sample this is two populations, the alleles are in `SNP AA Changes`, and the amino acid in `AA Changes` is carried by no molecule. `unresolved`: the molecules were asked and neither reading is supported, for instance a `D'` of -1 from too few molecules to pass the p-value. `-` when `Haplotype LD` is `-`. Only present with `--bam`. See [Linkage](linkage.md#cis-or-trans-the-codon-phase-column). |
 | `MNV Phasing Reads` | How many reads `MNV Phasing Support` was computed from, so `1.0000` from 3 reads is not read as `1.0000` from 300. `-` exactly when that column is `-`, which is not the same condition as the two linkage columns beside it. Only present with `--bam`. |
 | `Frameshift Phasing` | What the reads said about this codon sharing molecules with each upstream indel, as `trans:1234:0/18`: the verdict, the indel's position, and the cis reads out of the reads able to answer. Several are joined with ` \| `. A codon that is not labelled frameshifted otherwise looks the same whether the reads proved the indel is on other molecules or nobody asked; `-` is that second case. Only present with `--bam`. |
 | `NMD Prediction` | Nonsense-mediated decay prediction for a premature stop under the 50-nt rule: `NMD-triggering` when the PTC is more than 50 nt upstream of the last exon-exon junction, `NMD-escaping` when it is in the last exon or within 50 nt of that junction. `-` for variants without a premature stop and for transcripts with no exon-exon junction. Requires a spliced (GFF/GTF transcript) CDS model whose segments are separated by real introns; a single CDS segment, or segments joined by ribosomal slippage, has no junction. |
@@ -181,6 +182,7 @@ Common INFO fields:
 | `DPHASE` | Phase the input VCF declared for this row, verdict:phase_set |
 | `LD` | Linkage disequilibrium D-prime between the codon's substitutions |
 | `LDP` | Fisher exact p-value for that linkage table |
+| `CPHASE` | `cis`, `trans` or `unresolved`: how the codon's substitutions sit on the molecules, as in `Codon Phase` |
 | `NMD` | Nonsense-mediated decay prediction for a premature stop (50-nt rule) |
 | `HGVSG` | HGVS genomic descriptor (MNV allele-bracket `;` percent-encoded) |
 | `HGVSC` | HGVS coding descriptor for a coding substitution or indel (`;` percent-encoded) |
@@ -259,6 +261,45 @@ Default file name:
 ```text
 <input_name>.MNV.bcf
 ```
+
+## Catalogue codons read from the molecules
+
+With `--read-catalogue-codons` (and `--bam` and `--catalogue`), get_MNV also
+reads every codon a catalogue protein entry names (`p.Asp94Gly`, `p.Gln445*`)
+straight from the reads, whatever the variant input says there:
+
+```text
+<input_name>.catalogue_codons.tsv
+```
+
+Every other table starts from a variant record, so a minority population the
+caller did not report is never asked about. This one starts from the codon:
+each molecule that reads all three bases contributes the triplet it carries,
+the mates of a fragment counting once, at the `--quality` and `--min-mapq`
+floors. A triplet is one molecule's codon, so two changes on different
+molecules are two alleles, each with its own amino acid, and the merged codon
+that no molecule carries is never reported.
+
+| Column | Meaning |
+|---|---|
+| `Chromosome`, `Gene` | Where the codon is |
+| `Codon` | Protein position |
+| `Positions` | Genomic positions of the codon's bases, in the order the ribosome reads them |
+| `Reference Codon`, `Codon Allele` | Reference and observed codon, coding strand |
+| `AA Change` | The observed codon's amino acid, as `Asp94Gly` (`Ter` for a stop) |
+| `Molecules` | Molecules carrying this codon allele |
+| `Spanning Molecules` | Molecules that read all three bases |
+| `Partial Molecules` | Molecules that reached the codon but left a base unread, below the quality floor, in an indel, or with mates that disagree |
+| `Frequency` | `Molecules` over `Spanning Molecules` |
+| `Catalogue` | The entries this allele matches, as in the main table's `Catalogue` column; a stop also matches a loss-of-function entry for the gene. `-` when none |
+
+Only non-reference alleles at or above `--catalogue-codon-min-freq` (0.05) and
+`--catalogue-codon-min-reads` (3) are written. Codons are read only on contigs
+the variant input names, and only for protein entries that name one residue;
+frameshifts, start loss and loss-of-function entries are not single codons and
+are not read. On 86 clinical isolates with two minority changes in one gyrA
+codon, the alleles found at every catalogue codon matched those read from the
+same reads by an independent script.
 
 ## JSON Files
 

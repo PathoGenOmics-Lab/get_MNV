@@ -2,6 +2,7 @@
 //! change classification.
 
 pub mod catalogue;
+pub mod catalogue_codons;
 mod codon;
 pub mod consequence;
 pub mod declared_phase;

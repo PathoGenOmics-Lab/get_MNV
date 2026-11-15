@@ -63,6 +63,7 @@ Columnas principales:
 | `MNV Phasing Support` | Soporte de fasing (ligamiento) derivado del BAM: entre las lecturas que observan *todas* las posiciones del codón y llevan el SNV constituyente menos soportado, la fracción que además lleva el haplotipo MNV completo. `1.0000` = co-ocurrencia perfecta (un haplotipo real); valores bajos indican que los SNV caen mayoritariamente en moléculas distintas (una coincidencia en el mismo codón, no un MNV real). `0.0000` es un hallazgo: hubo lecturas que cruzaron el codón y ninguna llevaba ambos. `-` significa que no se pudo responder: sin `--bam`, un SNV suelto, o ninguna lectura que alcance de un extremo a otro del codón (habitual cuando un codón cruza un intrón y los fragmentos son más cortos que él). |
 | `Haplotype LD` | Desequilibrio de ligamiento (`D'`) a nivel de lectura entre las variantes que esta fila afirma que van juntas, sobre las moléculas que las observaron. Cubre los dos tipos de fila con varias variantes: un MNV de codón y un haplotipo local de indel. Un ratio de co-ocurrencia no puede separar un haplotipo de una casualidad de frecuencias: dos sustituciones que están cada una en el 90% de las moléculas se encuentran juntas en el 81% por pura aritmética, y el ratio eso lo llama 0.9. `D'` mide el exceso sobre lo que predicen esas dos frecuencias, normalizado por el máximo que podría haber sido. `+1` = van juntas todo lo que sus frecuencias permiten, así que el MNV es un haplotipo real. `~0` = co-ocurren exactamente lo que predice el azar, así que solo comparten codón. `-1` = se excluyen: ambas presentes, nunca en la misma molécula, lo que en una población haploide son dos linajes en competencia y no una variante. Con tres o más variantes decide el par más débil, porque la fila afirma que una molécula las lleva todas. Responde a una pregunta distinta que el recuento de al lado: el recuento es cuántas moléculas *son* esa combinación, mientras que `D'` es si sus variantes co-ocurren más de lo que predicen sus propias frecuencias, así que un haplotipo con pocas moléculas puede estar perfectamente ligado y uno con muchas puede ser una casualidad. `-` cuando ninguna molécula observó las variantes juntas, o cuando una de ellas está en todas esas moléculas o en ninguna, que no deja nada que correlacionar. Solo aparece con `--bam`. |
 | `Haplotype LD p` | Valor p exacto de Fisher a dos colas para esa tabla, para que un `D'` de 1.0 con cuatro moléculas no se lea igual que uno con cuatrocientas. `-` en los mismos casos que la columna anterior. Solo aparece con `--bam`. Mira [Ligamiento](linkage.es.md). |
+| `Codon Phase` | Cómo están las variantes de la fila en las moléculas, leído de las dos columnas anteriores con los umbrales de `--phase-conflict-dprime` y `--phase-conflict-p` (0.5 y 0.05). `cis`: van juntas (`D'` de 0.5 o más), así que el codón se lee como un solo cambio y `AA Changes` es el alelo. `trans`: se excluyen (`D'` de -0.5 o menos), así que cada una se lee por separado: en una muestra mezclada son dos poblaciones, los alelos están en `SNP AA Changes`, y el aminoácido de `AA Changes` no lo lleva ninguna molécula. `unresolved`: se preguntó a las moléculas y ninguna de las dos lecturas tiene apoyo, por ejemplo un `D'` de -1 con muy pocas moléculas para pasar el valor p. `-` cuando `Haplotype LD` es `-`. Solo aparece con `--bam`. Mira [Ligamiento](linkage.es.md#cis-o-trans-la-columna-codon-phase). |
 | `MNV Phasing Reads` | Sobre cuántas lecturas se calculó `MNV Phasing Support`, para que un `1.0000` con 3 lecturas no se lea igual que uno con 300. Sale `-` exactamente cuando esa columna sale `-`, que no es el mismo criterio que el de las dos columnas de ligamiento de al lado. Solo aparece con `--bam`. |
 | `Frameshift Phasing` | Lo que dijeron las lecturas sobre si este codón comparte moléculas con cada indel aguas arriba, como `trans:1234:0/18`: el veredicto, la posición del indel, y las lecturas en cis sobre las que podían responder. Varios se unen con ` \| `. Un codón sin la marca de frameshift se ve igual tanto si las lecturas probaron que el indel está en otras moléculas como si nadie preguntó; `-` es el segundo caso. Solo aparece con `--bam`. |
 | `NMD Prediction` | Predicción de decaimiento mediado por sin sentido (NMD) para un stop prematuro según la regla de los 50 nt: `NMD-triggering` cuando el PTC está a más de 50 nt aguas arriba de la última unión exón-exón, `NMD-escaping` cuando está en el último exón o a menos de 50 nt de esa unión. `-` para variantes sin stop prematuro y para transcritos sin unión exón-exón. Requiere un modelo de CDS con splicing (transcrito GFF/GTF) cuyos segmentos estén separados por intrones reales; un único segmento CDS, o segmentos unidos por deslizamiento ribosómico, no tiene unión. |
@@ -183,6 +184,7 @@ Campos INFO comunes:
 | `DPHASE` | Fase que declaró el VCF de entrada para esta fila, veredicto:conjunto |
 | `LD` | Desequilibrio de ligamiento D-prime entre las sustituciones del codón |
 | `LDP` | Valor p exacto de Fisher para esa tabla de ligamiento |
+| `CPHASE` | `cis`, `trans` o `unresolved`: cómo están las sustituciones del codón en las moléculas, como en `Codon Phase` |
 | `NMD` | Predicción de NMD para un stop prematuro (regla de los 50 nt) |
 | `HGVSG` | Descriptor HGVS genómico (bracket de MNV con `;` percent-encoded) |
 | `HGVSC` | Descriptor HGVS codificante para una sustitución o un indel (`;` percent-encoded) |
@@ -263,6 +265,47 @@ Nombre de archivo por defecto:
 ```text
 <input_name>.MNV.bcf
 ```
+
+## Codones del catálogo leídos de las moléculas
+
+Con `--read-catalogue-codons` (y `--bam` y `--catalogue`), get_MNV lee además
+cada codón que nombra una entrada proteica del catálogo (`p.Asp94Gly`,
+`p.Gln445*`) directamente de las lecturas, diga lo que diga la entrada de
+variantes:
+
+```text
+<input_name>.catalogue_codons.tsv
+```
+
+Todas las demás tablas parten de un registro de variante, así que a una
+población minoritaria que el llamador no reportó nunca se le pregunta. Esta
+parte del codón: cada molécula que lee las tres bases aporta el triplete que
+lleva, los dos mates de un fragmento cuentan una vez, con los umbrales de
+`--quality` y `--min-mapq`. Un triplete es el codón de una molécula, así que dos
+cambios en moléculas distintas son dos alelos, cada uno con su aminoácido, y el
+codón combinado que no lleva ninguna molécula no se reporta nunca.
+
+| Columna | Significado |
+|---|---|
+| `Chromosome`, `Gene` | Dónde está el codón |
+| `Codon` | Posición en la proteína |
+| `Positions` | Posiciones genómicas de las bases del codón, en el orden en que las lee el ribosoma |
+| `Reference Codon`, `Codon Allele` | Codón de referencia y observado, en la hebra codificante |
+| `AA Change` | El aminoácido del codón observado, como `Asp94Gly` (`Ter` para un stop) |
+| `Molecules` | Moléculas que llevan este alelo de codón |
+| `Spanning Molecules` | Moléculas que leen las tres bases |
+| `Partial Molecules` | Moléculas que llegan al codón pero dejan una base sin leer, por debajo del umbral de calidad, en un indel o con mates que no coinciden |
+| `Frequency` | `Molecules` entre `Spanning Molecules` |
+| `Catalogue` | Las entradas con las que coincide este alelo, como en la columna `Catalogue` de la tabla principal; un stop coincide también con una entrada de pérdida de función del gen. `-` si ninguna |
+
+Solo se escriben alelos distintos de la referencia que alcanzan
+`--catalogue-codon-min-freq` (0.05) y `--catalogue-codon-min-reads` (3). Los
+codones se leen solo en los contigs que nombra la entrada de variantes, y solo
+para entradas proteicas que nombran un residuo; los desplazamientos de marco,
+la pérdida del inicio y las entradas de pérdida de función no son un codón y no
+se leen. En 86 aislados clínicos con dos cambios minoritarios en un codón de
+gyrA, los alelos encontrados en cada codón del catálogo coincidieron con los
+leídos de las mismas lecturas por un script independiente.
 
 ## Archivos JSON
 

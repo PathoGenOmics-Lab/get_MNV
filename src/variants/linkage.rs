@@ -69,6 +69,120 @@ impl CodonLinkage {
     }
 }
 
+/// What the molecules say about how this row's substitutions are arranged,
+/// using the same thresholds that decide whether a catalogue reading is
+/// withheld.
+///
+/// In a clonal sample every substitution is on every molecule and the codon is
+/// read as one change. In a mixed sample two substitutions in one codon can sit
+/// on one molecule (cis, one double mutant) or on different molecules (trans,
+/// two populations, each with one change). A trans codon read as one change
+/// names an amino acid that no molecule carries; its real alleles are the
+/// per-SNV ones.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CodonPhase {
+    /// The substitutions travel together: read the codon as one change.
+    Cis,
+    /// The substitutions exclude each other: read each one on its own.
+    Trans,
+    /// The molecules were consulted but neither reading is supported strongly
+    /// enough.
+    Unresolved,
+}
+
+impl CodonPhase {
+    /// Classify a measured linkage. `None` when there is no linkage to read,
+    /// which says nothing about the arrangement.
+    pub fn classify(
+        linkage: Option<CodonLinkage>,
+        min_magnitude: f64,
+        max_p_value: f64,
+    ) -> Option<Self> {
+        let ld = linkage?;
+        Some(if ld.confirms_codon(min_magnitude, max_p_value) {
+            Self::Cis
+        } else if ld.contradicts_codon(min_magnitude, max_p_value) {
+            Self::Trans
+        } else {
+            Self::Unresolved
+        })
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Cis => "cis",
+            Self::Trans => "trans",
+            Self::Unresolved => "unresolved",
+        }
+    }
+}
+
+impl std::fmt::Display for CodonPhase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// For each substitution of a row, how many molecules carry it with every
+/// other position of the row at the reference base: the molecules that carry
+/// that substitution's own codon, and so its per-SNV amino acid.
+///
+/// Not the same as the row's `SNP Reads`, which counts molecules carrying the
+/// substitution without *this row's* other alternates. Where another position
+/// of the codon has a second alternate, a molecule can lack this row's
+/// alternate there and still not be reference, and then it carries a third
+/// codon, not the per-SNV one.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct AloneOnMolecules {
+    /// Per substitution, in the row's order.
+    pub alone: Vec<usize>,
+    /// Molecules that read every position of the row.
+    pub spanning: usize,
+}
+
+impl AloneOnMolecules {
+    /// Whether no molecule carries substitution `base` with the rest of the row
+    /// at reference, and `spanning` molecules are enough for that absence to
+    /// mean something: had that codon been on a fraction `min_frequency` of the
+    /// molecules, seeing it on none would have probability at most
+    /// `max_p_value`.
+    pub fn refutes_alone(&self, base: usize, min_frequency: f64, max_p_value: f64) -> bool {
+        if self.alone.get(base) != Some(&0) || self.spanning == 0 || min_frequency <= 0.0 {
+            return false;
+        }
+        let exponent = i32::try_from(self.spanning).unwrap_or(i32::MAX);
+        (1.0 - min_frequency.min(1.0)).powi(exponent) <= max_p_value
+    }
+
+    /// Count, from the bases each molecule carried at the row's positions.
+    pub fn from_bases(
+        counts: &std::collections::BTreeMap<Vec<u8>, usize>,
+        references: &[u8],
+        alternates: &[u8],
+    ) -> Self {
+        let mut alone = vec![0usize; references.len()];
+        let mut spanning = 0usize;
+        for (bases, &count) in counts {
+            if bases.len() != references.len() {
+                continue;
+            }
+            spanning += count;
+            for (base, slot) in alone.iter_mut().enumerate() {
+                let carries = bases[base] == alternates[base];
+                let rest_reference = bases
+                    .iter()
+                    .zip(references)
+                    .enumerate()
+                    .all(|(other, (seen, reference))| other == base || seen == reference);
+                if carries && rest_reference {
+                    *slot += count;
+                }
+            }
+        }
+        Self { alone, spanning }
+    }
+}
+
 /// The 2x2 table of molecules for one pair of positions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PairTable {
@@ -510,5 +624,64 @@ mod tests {
         assert!(weak.d_prime < 0.0, "fewer together than chance predicts");
         assert!(weak.d_prime > -0.5, "but not nearly all the way");
         assert!(!weak.contradicts_codon(0.5, 0.05));
+    }
+
+    #[test]
+    fn codon_phase_reads_cis_trans_and_unresolved_from_the_same_thresholds() {
+        let ld = |d_prime: f64, p_value: f64| CodonLinkage {
+            d_prime,
+            r_squared: 0.0,
+            p_value,
+            molecules: 100,
+        };
+        assert_eq!(
+            CodonPhase::classify(Some(ld(1.0, 1e-10)), 0.5, 0.05),
+            Some(CodonPhase::Cis)
+        );
+        assert_eq!(
+            CodonPhase::classify(Some(ld(-1.0, 1e-10)), 0.5, 0.05),
+            Some(CodonPhase::Trans)
+        );
+        // Strong but not significant, and significant but weak: neither reading.
+        assert_eq!(
+            CodonPhase::classify(Some(ld(-1.0, 0.2)), 0.5, 0.05),
+            Some(CodonPhase::Unresolved)
+        );
+        assert_eq!(
+            CodonPhase::classify(Some(ld(0.2, 1e-10)), 0.5, 0.05),
+            Some(CodonPhase::Unresolved)
+        );
+        // No linkage is no claim at all, not an unresolved one.
+        assert_eq!(CodonPhase::classify(None, 0.5, 0.05), None);
+        assert_eq!(CodonPhase::Trans.to_string(), "trans");
+    }
+
+    #[test]
+    fn a_substitution_always_with_another_change_is_alone_on_no_molecule() {
+        use std::collections::BTreeMap;
+        // Row of two positions, reference G C, alternates T T. Molecules: C T
+        // (the second alternate with another change at the first position),
+        // T C (first alone), G C (reference).
+        let counts = BTreeMap::from([
+            (b"CT".to_vec(), 35),
+            (b"TC".to_vec(), 34),
+            (b"CC".to_vec(), 20),
+            (b"GC".to_vec(), 4),
+        ]);
+        let alone = AloneOnMolecules::from_bases(&counts, b"GC", b"TT");
+        assert_eq!(alone.alone, vec![34, 0]);
+        assert_eq!(alone.spanning, 93);
+        // 0.95^93 is under 0.01: the absence is evidence.
+        assert!(alone.refutes_alone(1, 0.05, 0.05));
+        // The first substitution is carried alone, so nothing is refuted.
+        assert!(!alone.refutes_alone(0, 0.05, 0.05));
+        // On 23 molecules, 0.95^23 is about 0.31: absence is not evidence.
+        let few = AloneOnMolecules {
+            alone: vec![8, 0],
+            spanning: 23,
+        };
+        assert!(!few.refutes_alone(1, 0.05, 0.05));
+        // A floor of zero asks for nothing and so refutes nothing.
+        assert!(!alone.refutes_alone(1, 0.0, 0.05));
     }
 }

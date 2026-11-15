@@ -298,6 +298,15 @@ pub(crate) fn codon_linkage_fields(variant: &VariantInfo) -> (String, String) {
     }
 }
 
+/// `cis`, `trans` or `unresolved` from the molecules; `-` when no linkage was
+/// measured.
+pub(crate) fn codon_phase_field(variant: &VariantInfo) -> String {
+    variant
+        .annotations
+        .codon_phase
+        .map_or_else(|| "-".to_string(), |phase| phase.to_string())
+}
+
 /// What the reads said about each upstream indel sharing molecules with this
 /// codon, as `trans:1234:0/18 | cis:1250:17/18`: the verdict, the indel's
 /// position, and the reads behind it. `-` when the reads were never consulted,
@@ -449,6 +458,9 @@ pub(crate) fn build_info_string(
     if let Some(linkage) = variant.annotations.linkage {
         builder.push("LD", format!("{:.4}", linkage.d_prime));
         builder.push("LDP", format!("{:.3e}", linkage.p_value));
+    }
+    if let Some(phase) = variant.annotations.codon_phase {
+        builder.push_text("CPHASE", phase.as_str());
     }
     if !variant.annotations.frameshift_linkage.is_empty() {
         builder.push_text("FSPH", &frameshift_linkage_field(variant));
@@ -904,6 +916,10 @@ pub(crate) fn write_info_header(
     writeln!(
         writer,
         "##INFO=<ID=LDP,Number=1,Type=Float,Description=\"Two-tailed Fisher exact p-value for the LD table, so a D-prime from four molecules is not read as one from four hundred\">"
+    )?;
+    writeln!(
+        writer,
+        "##INFO=<ID=CPHASE,Number=1,Type=String,Description=\"Arrangement of the codon's substitutions on the molecules, read from LD and LDP with the phase-conflict thresholds: cis (one molecule carries them all, read the codon as one change), trans (they sit on different molecules, read each on its own) or unresolved\">"
     )?;
     writeln!(
         writer,

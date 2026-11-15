@@ -8,6 +8,8 @@ pub(crate) struct OutputPaths {
     pub tsv: Option<String>,
     pub vcf: Option<String>,
     pub bcf: Option<String>,
+    /// `--read-catalogue-codons` table.
+    pub catalogue_codons: Option<String>,
 }
 
 impl OutputPaths {
@@ -55,11 +57,15 @@ impl OutputPaths {
             Some(format!("{output_stem}.MNV.bcf"))
         };
 
+        let catalogue_codons = (!args.dry_run && args.read_catalogue_codons)
+            .then(|| format!("{output_stem}.catalogue_codons.tsv"));
+
         Self {
             output_stem,
             tsv,
             vcf,
             bcf,
+            catalogue_codons,
         }
     }
 }

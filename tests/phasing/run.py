@@ -338,7 +338,139 @@ def run_linkage_case(both: int, first: int, second: int, neither: int, work: Pat
         else:
             if abs(parsed - want_p) > 1e-3 * max(want_p, 1e-12):
                 problems.append(f"{name}: Haplotype LD p expected {want_p:.3e}, got {got_p}")
+    want_phase = expected_phase(want_d, want_p)
+    got_phase = row.get("Codon Phase", "<absent>")
+    if got_phase != want_phase:
+        problems.append(f"{name}: Codon Phase expected {want_phase}, got {got_phase}")
     return problems
+
+
+def expected_phase(d_prime: str, p_value: float | None) -> str:
+    """The Codon Phase the default thresholds (0.5, 0.05) give for a linkage."""
+    if d_prime == MISSING or p_value is None:
+        return MISSING
+    d = float(d_prime)
+    if d >= 0.5 and p_value <= 0.05:
+        return "cis"
+    if d <= -0.5 and p_value <= 0.05:
+        return "trans"
+    return "unresolved"
+
+
+def run_catalogue_codon_case(work: Path) -> list[str]:
+    """--read-catalogue-codons on a trans codon the caller only half called.
+
+    geneA codon 10 is GCT (Ala) at 28-30. Twenty molecules carry 28G>A (ACT,
+    Thr), twenty carry 29C>G (GGT, Gly), none carries both, and sixty are
+    reference. The VCF holds 28G>A alone, as if the caller missed the other
+    population. The reader must find both alleles from the molecules, match
+    each to its catalogue entry, and never report the merged codon AGT (Ser),
+    which no molecule carries.
+    """
+    groups = [
+        ReadGroup(name_prefix="r_thr", start=PLUS.span_start, length=PLUS.span_length,
+                  ops=[Op(kind="snv", pos=28, seq="A")], count=20),
+        ReadGroup(name_prefix="r_gly", start=PLUS.span_start, length=PLUS.span_length,
+                  ops=[Op(kind="snv", pos=29, seq="G")], count=20),
+        ReadGroup(name_prefix="r_ref", start=PLUS.span_start, length=PLUS.span_length,
+                  ops=[], count=60),
+    ]
+    catalogue = work / "catalogue_codon_case.tsv"
+    catalogue.write_text(
+        "gene\tvariant\tlabel\n"
+        "geneA\tp.Ala10Thr\tR\n"
+        "geneA\tp.Ala10Gly\tR\n"
+        "geneA\tp.Ala10Ser\tR\n"
+    )
+    name = "catalogue_codons_trans"
+    scenario = Scenario(
+        name=name,
+        description="catalogue codon read from the molecules, half of it uncalled",
+        variants=[VcfRecord(pos=28, ref="G", alt="A")],
+        reads=groups,
+        expected=[],
+        extra_cli_args=["--catalogue", str(catalogue), "--read-catalogue-codons"],
+    )
+    _, _, out = run_scenario(scenario, work)
+    table = out.parent / out.name.replace(".MNV.tsv", ".catalogue_codons.tsv")
+    if not table.exists():
+        return [f"{name}: {table.name} was not written"]
+    _, rows = parse_tsv(table)
+    got = sorted(
+        (r["Codon Allele"], r["AA Change"], r["Molecules"], r["Spanning Molecules"],
+         r["Catalogue"])
+        for r in rows
+    )
+    want = [
+        ("ACT", "Ala10Thr", "20", "100", "R (geneA p.Ala10Thr)"),
+        ("GGT", "Ala10Gly", "20", "100", "R (geneA p.Ala10Gly)"),
+    ]
+    if got != want:
+        return [f"{name}: expected {want}, got {got}"]
+    return []
+
+
+def run_third_allele_case(scale: int, work: Path) -> list[str]:
+    """A per-SNV catalogue match whose codon no molecule carries, in a codon
+    with a second alternate at another position.
+
+    geneA codon 10 is GCT (Ala) at 28-30. Molecules: CTT (Leu, 28G>C + 29C>T),
+    TCT (Ser, 28G>T), CCT (Pro, 28G>C) and reference, in the ratio 35:34:20:4.
+    29C>T never appears with 28 at reference, so its per-SNV codon GTT (Val)
+    is on no molecule. The row pairing 28G>T with 29C>T is trans, and there a
+    molecule with CTT lacks 28G>T, so `D'` against that row's alternates cannot
+    see that Val is absent; counting the molecules with the rest of the row at
+    reference can, once there are enough of them for the absence to mean
+    something. At full depth (93 molecules) Val must be withheld from every
+    row; at a quarter of it (23) the absence is not evidence and the trans
+    row must still list it.
+    """
+    counts = {"leu": 35, "ser": 34, "pro": 20, "ref": 4}
+    counts = {k: max(1, round(v * scale / 4)) for k, v in counts.items()}
+    ops = {
+        "leu": [Op(kind="snv", pos=28, seq="C"), Op(kind="snv", pos=29, seq="T")],
+        "ser": [Op(kind="snv", pos=28, seq="T")],
+        "pro": [Op(kind="snv", pos=28, seq="C")],
+        "ref": [],
+    }
+    groups = [
+        ReadGroup(name_prefix=f"r_{k}", start=PLUS.span_start, length=PLUS.span_length,
+                  ops=ops[k], count=n)
+        for k, n in counts.items()
+    ]
+    catalogue = work / "catalogue_third_allele.tsv"
+    catalogue.write_text("gene\tvariant\tlabel\ngeneA\tp.Ala10Val\tR\n")
+    name = f"third_allele_scale{scale}"
+    scenario = Scenario(
+        name=name,
+        description="per-SNV codon carried by no molecule, second alternate in the codon",
+        variants=[
+            VcfRecord(pos=28, ref="G", alt="C,T", genotype="1/2"),
+            VcfRecord(pos=29, ref="C", alt="T", genotype="0/1"),
+        ],
+        reads=groups,
+        expected=[],
+        extra_cli_args=["--catalogue", str(catalogue)],
+    )
+    _, _, out = run_scenario(scenario, work)
+    _, rows = parse_tsv(out)
+    codon_rows = [r for r in rows if r.get("Positions") == "28, 29"]
+    trans = [r for r in codon_rows if r.get("AA Changes") == "Ala10Phe"]
+    if len(codon_rows) != 2 or len(trans) != 1:
+        return [f"{name}: expected the cis and the trans row, got "
+                f"{[r.get('AA Changes') for r in codon_rows]}"]
+    listed = [r["AA Changes"] for r in codon_rows if "Ala10Val" in r.get("Catalogue", "")]
+    if scale == 4:
+        if listed:
+            return [f"{name}: Ala10Val is on no molecule but is listed in {listed}"]
+        if "Ala10Val" not in trans[0].get("Catalogue Withheld", ""):
+            return [f"{name}: Ala10Val not withheld in the trans row: "
+                    f"{trans[0].get('Catalogue Withheld')}"]
+    elif "Ala10Val" not in trans[0].get("Catalogue", ""):
+        return [f"{name}: with {sum(counts.values())} molecules the absence is not evidence, "
+                f"so the trans row should still list Ala10Val; got "
+                f"{trans[0].get('Catalogue')} / {trans[0].get('Catalogue Withheld')}"]
+    return []
 
 
 def run_case(
@@ -504,7 +636,11 @@ def main() -> int:
     for mixture in linkage_cases:
         problems.extend(run_linkage_case(*mixture, work))
 
-    total_cases = len(cases) + 1 + len(linkage_cases)
+    problems.extend(run_catalogue_codon_case(work))
+    problems.extend(run_third_allele_case(4, work))
+    problems.extend(run_third_allele_case(1, work))
+
+    total_cases = len(cases) + 1 + len(linkage_cases) + 3
     print(f"{total_cases} phased mixtures built, {total_cases} rows compared")
     print("  codons: " + ", ".join(
         f"{c.label}({c.gene}, {len(c.positions)} SNV(s))"

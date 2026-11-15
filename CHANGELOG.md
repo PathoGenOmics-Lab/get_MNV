@@ -6,6 +6,33 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- **A per-SNV catalogue match is withheld when no molecule carries its
+  codon.** In a codon with a second alternate at one position, a substitution
+  can lack the row's other alternate and still always travel with another
+  change, so `D'` against the row's own alternates saw it as standing alone.
+  With `--bam` and `--catalogue`, get_MNV now also counts the molecules
+  carrying each substitution with the rest of the row at reference, and
+  withholds a per-SNV match when there are none and the spanning molecules are
+  enough for that to be evidence at `--catalogue-codon-min-freq` and
+  `--phase-conflict-p` (59 molecules at the defaults).
+- **`--read-catalogue-codons` reads catalogue codons from the molecules.**
+  With `--bam` and `--catalogue`, every codon a protein entry names is read
+  straight from the reads, one triplet per molecule, whatever the variant
+  input called there, and the codon alleles found go to
+  `<prefix>.catalogue_codons.tsv` with their molecules, frequency and
+  catalogue matches. A minority population the caller missed is still found,
+  and two changes on different molecules are two alleles rather than one
+  merged codon. `--catalogue-codon-min-freq` (0.05) and
+  `--catalogue-codon-min-reads` (3) set what is written.
+- **A `Codon Phase` column says whether a codon is cis or trans.** With
+  `--bam`, every multi-variant row gets `cis` (the substitutions travel
+  together, read the codon as one change), `trans` (they sit on different
+  molecules, read each on its own) or `unresolved`, from `Haplotype LD` and
+  `Haplotype LD p` with the `--phase-conflict-dprime` and `--phase-conflict-p`
+  thresholds, plus a `CPHASE` INFO key in the VCF. In a mixed sample a trans
+  codon's `AA Changes` names an amino acid no molecule carries, and its alleles
+  are the ones in `SNP AA Changes`. Existing columns keep their values; the new
+  one sits after `Haplotype LD p`.
 - **A catalogue match no molecule carries is withheld.** A codon-level match
   asserts that one molecule carries every substitution of the codon, and a
   per-SNV match that one carries a substitution without the rest; with
