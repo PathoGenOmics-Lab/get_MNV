@@ -455,6 +455,65 @@ fn every_gene_of_contig(
     })
 }
 
+fn should_count_alone_on_molecules(args: &Args) -> bool {
+    args.bam_file.is_some() && args.catalogue.is_some() && !args.dry_run
+}
+
+/// For every row of several single-base substitutions, the molecules that
+/// carry each substitution with the rest of the row at reference: what a
+/// per-SNV catalogue match claims exists.
+fn count_alone_on_molecules(
+    args: &Args,
+    contig: &str,
+    variants: &mut [VariantInfo],
+) -> AppResult<()> {
+    let Some(bam_path) = args.bam_file.as_ref() else {
+        return Ok(());
+    };
+    let single_bases = |bases: &[String]| -> Option<Vec<u8>> {
+        bases
+            .iter()
+            .map(|b| (b.len() == 1).then(|| b.as_bytes()[0].to_ascii_uppercase()))
+            .collect()
+    };
+    let mut reader: Option<(io::AlignmentReader, Header)> = None;
+    for variant in variants.iter_mut() {
+        if variant.positions.len() < 2 || variant.positions.len() != variant.base_changes.len() {
+            continue;
+        }
+        let (Some(references), Some(alternates)) = (
+            single_bases(&variant.ref_bases),
+            single_bases(&variant.base_changes),
+        ) else {
+            continue;
+        };
+        if reader.is_none() {
+            reader = Some(
+                io::AlignmentReader::open(bam_path, &args.fasta_file).map_err(|e| {
+                    AppError::validation(format!("Failed to open '{bam_path}': {e}"))
+                })?,
+            );
+        }
+        let (bam, header) = reader.as_mut().expect("opened above");
+        let observed = crate::read_count::read_position_bases(
+            bam,
+            header,
+            contig,
+            &variant.positions,
+            args.min_quality,
+            args.min_mapq,
+            !args.count_mates_separately,
+        )?;
+        variant.annotations.alone_on_molecules =
+            Some(crate::variants::linkage::AloneOnMolecules::from_bases(
+                &observed.counts,
+                &references,
+                &alternates,
+            ));
+    }
+    Ok(())
+}
+
 /// `--read-catalogue-codons`: every codon a catalogue protein entry names on
 /// this contig, read from the molecules, and the codon alleles they carry.
 pub(crate) fn read_catalogue_codons(
@@ -1150,6 +1209,9 @@ pub(crate) fn process_contig(
     // gene is placed from the gene's start, and that gene holds no variant.
     if let Some(catalogue) = catalogue {
         let every_gene = every_gene_of_contig(args, contig, parsed, run)?;
+        if should_count_alone_on_molecules(args) {
+            count_alone_on_molecules(args, contig, &mut all_variants)?;
+        }
         let other_reference = crate::variants::catalogue::annotate_catalogue(
             catalogue,
             &mut all_variants,
@@ -1159,6 +1221,7 @@ pub(crate) fn process_contig(
                 min_magnitude: args.phase_conflict_dprime,
                 max_p_value: args.phase_conflict_p,
                 keep_unphased: args.keep_unphased_codon_matches,
+                min_frequency: args.catalogue_codon_min_freq,
             },
         );
         if other_reference > 0 {

@@ -17,7 +17,9 @@ mod observation;
 mod phasing;
 
 pub use cache::{build_region_observation_cache, count_reads_from_cache, RegionObservationCache};
-pub use codon_reading::{read_codon_triplets, CodonReadRequest, CodonTriplets};
+pub use codon_reading::{
+    read_codon_triplets, read_position_bases, CodonReadRequest, CodonTriplets, PositionBases,
+};
 pub use haplotype::{
     observe_local_haplotypes, LocalHaplotypeObservations, LocalHaplotypeRequest, LocalVariant,
     ObservedHaplotype,

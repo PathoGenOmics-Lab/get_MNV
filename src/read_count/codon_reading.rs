@@ -27,6 +27,15 @@ pub struct CodonReadRequest<'a> {
     pub pair_aware: bool,
 }
 
+/// The bases each molecule carries at a set of positions, in the requested
+/// order, counted over the molecules that read every one of them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PositionBases {
+    pub counts: BTreeMap<Vec<u8>, usize>,
+    pub spanning: usize,
+    pub partial: usize,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CodonTriplets {
     /// Molecules per triplet, in genomic bases in the requested order.
@@ -72,15 +81,40 @@ pub fn read_codon_triplets(
     header: &Header,
     request: CodonReadRequest<'_>,
 ) -> AppResult<CodonTriplets> {
-    let CodonReadRequest {
-        chrom,
-        positions,
-        min_phred_quality,
-        min_mapq,
-        pair_aware,
-    } = request;
-    let start = *positions.iter().min().expect("three positions");
-    let end = *positions.iter().max().expect("three positions");
+    let bases = read_position_bases(
+        bam_reader,
+        header,
+        request.chrom,
+        &request.positions,
+        request.min_phred_quality,
+        request.min_mapq,
+        request.pair_aware,
+    )?;
+    Ok(CodonTriplets {
+        counts: bases
+            .counts
+            .into_iter()
+            .map(|(key, count)| ([key[0], key[1], key[2]], count))
+            .collect(),
+        spanning: bases.spanning,
+        partial: bases.partial,
+    })
+}
+
+/// The bases each molecule carries at `positions`, molecule by molecule: the
+/// same reading as [`read_codon_triplets`] for any number of positions.
+pub fn read_position_bases(
+    bam_reader: &mut crate::io::AlignmentReader,
+    header: &Header,
+    chrom: &str,
+    positions: &[usize],
+    min_phred_quality: u8,
+    min_mapq: u8,
+    pair_aware: bool,
+) -> AppResult<PositionBases> {
+    let (Some(&start), Some(&end)) = (positions.iter().min(), positions.iter().max()) else {
+        return Ok(PositionBases::default());
+    };
     if start == 0 {
         return Err(AppError::validation(format!(
             "Invalid codon position on {chrom}: positions are 1-based"
@@ -94,7 +128,7 @@ pub fn read_codon_triplets(
     })?;
 
     struct MoleculeView {
-        bases: [Option<u8>; 3],
+        bases: Vec<Option<u8>>,
         conflicted: bool,
     }
     let mut views: HashMap<super::observation::MoleculeKey, MoleculeView> = HashMap::new();
@@ -122,11 +156,14 @@ pub fn read_codon_triplets(
         if mapq < min_mapq || !reaches(&record, start, end) {
             continue;
         }
-        let read = positions.map(|position| base_at(&record, position, min_phred_quality));
+        let read: Vec<Option<u8>> = positions
+            .iter()
+            .map(|&position| base_at(&record, position, min_phred_quality))
+            .collect();
         let view = views
             .entry(build_molecule_key(&record, pair_aware, record_index))
-            .or_insert(MoleculeView {
-                bases: [None; 3],
+            .or_insert_with(|| MoleculeView {
+                bases: vec![None; positions.len()],
                 conflicted: false,
             });
         for (slot, base) in view.bases.iter_mut().zip(read) {
@@ -139,15 +176,16 @@ pub fn read_codon_triplets(
         }
     }
 
-    let mut triplets = CodonTriplets::default();
+    let mut observed = PositionBases::default();
     for view in views.into_values() {
-        match view.bases {
-            [Some(a), Some(b), Some(c)] if !view.conflicted => {
-                *triplets.counts.entry([a, b, c]).or_insert(0) += 1;
-                triplets.spanning += 1;
+        let complete: Option<Vec<u8>> = view.bases.iter().copied().collect();
+        match complete {
+            Some(bases) if !view.conflicted => {
+                *observed.counts.entry(bases).or_insert(0) += 1;
+                observed.spanning += 1;
             }
-            _ => triplets.partial += 1,
+            _ => observed.partial += 1,
         }
     }
-    Ok(triplets)
+    Ok(observed)
 }

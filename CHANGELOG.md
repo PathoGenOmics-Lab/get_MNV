@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- **A per-SNV catalogue match is withheld when no molecule carries its
+  codon.** In a codon with a second alternate at one position, a substitution
+  can lack the row's other alternate and still always travel with another
+  change, so `D'` against the row's own alternates saw it as standing alone.
+  With `--bam` and `--catalogue`, get_MNV now also counts the molecules
+  carrying each substitution with the rest of the row at reference, and
+  withholds a per-SNV match when there are none and the spanning molecules are
+  enough for that to be evidence at `--catalogue-codon-min-freq` and
+  `--phase-conflict-p` (59 molecules at the defaults).
 - **`--read-catalogue-codons` reads catalogue codons from the molecules.**
   With `--bam` and `--catalogue`, every codon a protein entry names is read
   straight from the reads, one triplet per molecule, whatever the variant

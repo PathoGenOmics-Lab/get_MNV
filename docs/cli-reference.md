@@ -141,7 +141,7 @@ These apply only when `--bam` is provided.
 | `--phase-conflict-dprime <F>` | How far `D'` must be from zero before the reads refute a reading of a codon: at or below minus this value the codon reading, at or above it the per-SNV one, and in either case only when no read carries the refuted reading. Between 0 and 1. Default: `0.5`. |
 | `--phase-conflict-p <F>` | Largest Fisher exact p-value accepted as that evidence, so a handful of molecules refutes nothing. Between 0 and 1. Default: `0.05`. |
 | `--read-catalogue-codons` | Read every codon a `--catalogue` protein entry names straight from the `--bam`, molecule by molecule, whatever the variant input called there, and write the codon alleles found to `<prefix>.catalogue_codons.tsv`. Requires `--bam` and `--catalogue`. See [Output formats](output-formats.md#catalogue-codons-read-from-the-molecules). |
-| `--catalogue-codon-min-freq <F>` | Smallest fraction of the molecules spanning a catalogue codon that a codon allele must reach to be written. Between 0 and 1. Default: `0.05`. |
+| `--catalogue-codon-min-freq <F>` | Smallest fraction of the molecules spanning a catalogue codon that a codon allele must reach to be written. Also, with `--bam` and `--catalogue`, the frequency a per-SNV codon carried by no molecule would have needed for its absence to withhold the match (see [Read-level linkage](linkage.md#a-substitution-that-always-travels-with-another-change)). Between 0 and 1. Default: `0.05`. |
 | `--catalogue-codon-min-reads <N>` | Fewest molecules a codon allele must be read on to be written. Default: `3`. |
 
 See [Output formats](output-formats.md#interactive-html-report) for what the report contains.

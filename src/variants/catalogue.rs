@@ -480,6 +480,9 @@ pub struct PhasePolicy {
     pub max_p_value: f64,
     /// List a contradicted codon-only match as any other, as before this existed.
     pub keep_unphased: bool,
+    /// Frequency a per-SNV codon would have to reach for its absence from
+    /// every molecule to count as evidence (`--catalogue-codon-min-freq`).
+    pub min_frequency: f64,
 }
 
 impl Default for PhasePolicy {
@@ -488,6 +491,7 @@ impl Default for PhasePolicy {
             min_magnitude: 0.5,
             max_p_value: 0.05,
             keep_unphased: false,
+            min_frequency: 0.05,
         }
     }
 }
@@ -508,14 +512,32 @@ impl PhasePolicy {
     /// Whether no molecule carries base `base`'s substitution without the rest
     /// of the codon: every molecule with it carries the whole codon, and the
     /// substitutions travel together more than chance allows.
+    ///
+    /// Also when no molecule carries the substitution with the rest of the row
+    /// at reference, the per-SNV codon itself, on enough molecules for that to
+    /// be evidence (see [`AloneOnMolecules::refutes_alone`]). That covers a
+    /// codon with a second alternate at another position: there the
+    /// substitution can be missing from this row's whole codon and still
+    /// travel only with another change, and `D'` against this row's alternates
+    /// cannot see it.
+    ///
+    /// [`AloneOnMolecules::refutes_alone`]: crate::variants::linkage::AloneOnMolecules::refutes_alone
     fn alone_carried_by_none(&self, variant: &VariantInfo, base: usize) -> bool {
-        !self.keep_unphased
-            && variant.snp_reads.as_ref().and_then(|reads| reads.get(base)) == Some(&0)
+        if self.keep_unphased {
+            return false;
+        }
+        let pairwise = variant.snp_reads.as_ref().and_then(|reads| reads.get(base)) == Some(&0)
             && variant.mnv_reads.is_some_and(|reads| reads > 0)
             && variant
                 .annotations
                 .linkage
-                .is_some_and(|ld| ld.confirms_codon(self.min_magnitude, self.max_p_value))
+                .is_some_and(|ld| ld.confirms_codon(self.min_magnitude, self.max_p_value));
+        let on_molecules = variant
+            .annotations
+            .alone_on_molecules
+            .as_ref()
+            .is_some_and(|alone| alone.refutes_alone(base, self.min_frequency, self.max_p_value));
+        pairwise || on_molecules
     }
 }
 

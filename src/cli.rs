@@ -301,7 +301,9 @@ pub struct Args {
 
     /// Smallest fraction of the molecules spanning a catalogue codon that a
     /// codon allele must reach to be written by --read-catalogue-codons
-    /// (default: 0.05). Between 0 and 1.
+    /// (default: 0.05). With --bam and --catalogue it is also the frequency a
+    /// per-SNV codon carried by no molecule would have needed for its absence
+    /// to withhold the match. Between 0 and 1.
     #[arg(long = "catalogue-codon-min-freq", default_value_t = 0.05)]
     pub catalogue_codon_min_freq: f64,
 

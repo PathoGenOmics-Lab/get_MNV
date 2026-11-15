@@ -213,6 +213,24 @@ la magnitud sola dejaría que lo hicieran tres moléculas.
 `--keep-unphased-codon-matches` lista todas esas coincidencias en `Catalogue`
 como cualquier otra.
 
+### Una sustitución que siempre va con otro cambio
+
+`D'` se mide frente a las alternativas de la propia fila, y en un codón con
+una segunda alternativa en una posición eso no basta. Sea un codón `GCT` leído
+en las moléculas como `CTT`, `TCT`, `CCT` y la referencia: la fila que junta
+`G>T` en la primera base con `C>T` en la segunda es trans, y las moléculas con
+`C>T` (`CTT`) no llevan el `G>T` de esa fila, así que según los recuentos de la
+fila `C>T` va sola. No es así: siempre va con `G>C`, y su codón por SNV, `GTT`,
+no está en ninguna molécula. Por eso, con `--catalogue` y `--bam`, get_MNV
+cuenta además, para cada sustitución de una fila, las moléculas que la llevan
+con el resto de posiciones de la fila en la referencia. Una coincidencia por
+SNV se retiene cuando ese recuento es cero y las moléculas que cruzan la fila
+bastan para que la ausencia sea prueba: si el codón por SNV estuviera en una
+fracción `--catalogue-codon-min-freq` (0.05) de ellas, no verlo en ninguna
+tendría probabilidad como mucho `--phase-conflict-p` (0.05). Con los valores
+por defecto hacen falta 59 moléculas; por debajo, la coincidencia se mantiene.
+`--keep-unphased-codon-matches` también las lista.
+
 ### Por qué se retiene en vez de borrarse
 
 Dos muestras pueden dar VCF idénticos byte a byte y significar lo contrario: un

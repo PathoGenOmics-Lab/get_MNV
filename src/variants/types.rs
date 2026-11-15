@@ -263,6 +263,12 @@ pub struct VariantAnnotations {
     /// [`crate::variants::linkage::CodonPhase`].
     #[serde(default)]
     pub codon_phase: Option<crate::variants::linkage::CodonPhase>,
+    /// Molecules carrying each substitution with the rest of the row at
+    /// reference. Filled only with `--bam` and `--catalogue`, for rows of
+    /// several substitutions, since it is what a per-SNV catalogue match rests
+    /// on. See [`crate::variants::linkage::AloneOnMolecules`].
+    #[serde(default)]
+    pub alone_on_molecules: Option<crate::variants::linkage::AloneOnMolecules>,
     /// COSMIC SBS96 class of each substitution component, in Event Components
     /// order (`A[C>T]G`, or `-` where the context cannot be read). Empty for a
     /// row with no substitution. See [`crate::variants::sbs`].
