@@ -69,6 +69,60 @@ impl CodonLinkage {
     }
 }
 
+/// What the molecules say about how this row's substitutions are arranged,
+/// using the same thresholds that decide whether a catalogue reading is
+/// withheld.
+///
+/// In a clonal sample every substitution is on every molecule and the codon is
+/// read as one change. In a mixed sample two substitutions in one codon can sit
+/// on one molecule (cis, one double mutant) or on different molecules (trans,
+/// two populations, each with one change). A trans codon read as one change
+/// names an amino acid that no molecule carries; its real alleles are the
+/// per-SNV ones.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CodonPhase {
+    /// The substitutions travel together: read the codon as one change.
+    Cis,
+    /// The substitutions exclude each other: read each one on its own.
+    Trans,
+    /// The molecules were consulted but neither reading is supported strongly
+    /// enough.
+    Unresolved,
+}
+
+impl CodonPhase {
+    /// Classify a measured linkage. `None` when there is no linkage to read,
+    /// which says nothing about the arrangement.
+    pub fn classify(
+        linkage: Option<CodonLinkage>,
+        min_magnitude: f64,
+        max_p_value: f64,
+    ) -> Option<Self> {
+        let ld = linkage?;
+        Some(if ld.confirms_codon(min_magnitude, max_p_value) {
+            Self::Cis
+        } else if ld.contradicts_codon(min_magnitude, max_p_value) {
+            Self::Trans
+        } else {
+            Self::Unresolved
+        })
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Cis => "cis",
+            Self::Trans => "trans",
+            Self::Unresolved => "unresolved",
+        }
+    }
+}
+
+impl std::fmt::Display for CodonPhase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// The 2x2 table of molecules for one pair of positions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PairTable {
@@ -510,5 +564,35 @@ mod tests {
         assert!(weak.d_prime < 0.0, "fewer together than chance predicts");
         assert!(weak.d_prime > -0.5, "but not nearly all the way");
         assert!(!weak.contradicts_codon(0.5, 0.05));
+    }
+
+    #[test]
+    fn codon_phase_reads_cis_trans_and_unresolved_from_the_same_thresholds() {
+        let ld = |d_prime: f64, p_value: f64| CodonLinkage {
+            d_prime,
+            r_squared: 0.0,
+            p_value,
+            molecules: 100,
+        };
+        assert_eq!(
+            CodonPhase::classify(Some(ld(1.0, 1e-10)), 0.5, 0.05),
+            Some(CodonPhase::Cis)
+        );
+        assert_eq!(
+            CodonPhase::classify(Some(ld(-1.0, 1e-10)), 0.5, 0.05),
+            Some(CodonPhase::Trans)
+        );
+        // Strong but not significant, and significant but weak: neither reading.
+        assert_eq!(
+            CodonPhase::classify(Some(ld(-1.0, 0.2)), 0.5, 0.05),
+            Some(CodonPhase::Unresolved)
+        );
+        assert_eq!(
+            CodonPhase::classify(Some(ld(0.2, 1e-10)), 0.5, 0.05),
+            Some(CodonPhase::Unresolved)
+        );
+        // No linkage is no claim at all, not an unresolved one.
+        assert_eq!(CodonPhase::classify(None, 0.5, 0.05), None);
+        assert_eq!(CodonPhase::Trans.to_string(), "trans");
     }
 }

@@ -338,7 +338,23 @@ def run_linkage_case(both: int, first: int, second: int, neither: int, work: Pat
         else:
             if abs(parsed - want_p) > 1e-3 * max(want_p, 1e-12):
                 problems.append(f"{name}: Haplotype LD p expected {want_p:.3e}, got {got_p}")
+    want_phase = expected_phase(want_d, want_p)
+    got_phase = row.get("Codon Phase", "<absent>")
+    if got_phase != want_phase:
+        problems.append(f"{name}: Codon Phase expected {want_phase}, got {got_phase}")
     return problems
+
+
+def expected_phase(d_prime: str, p_value: float | None) -> str:
+    """The Codon Phase the default thresholds (0.5, 0.05) give for a linkage."""
+    if d_prime == MISSING or p_value is None:
+        return MISSING
+    d = float(d_prime)
+    if d >= 0.5 and p_value <= 0.05:
+        return "cis"
+    if d <= -0.5 and p_value <= 0.05:
+        return "trans"
+    return "unresolved"
 
 
 def run_case(

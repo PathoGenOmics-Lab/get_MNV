@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- **A `Codon Phase` column says whether a codon is cis or trans.** With
+  `--bam`, every multi-variant row gets `cis` (the substitutions travel
+  together, read the codon as one change), `trans` (they sit on different
+  molecules, read each on its own) or `unresolved`, from `Haplotype LD` and
+  `Haplotype LD p` with the `--phase-conflict-dprime` and `--phase-conflict-p`
+  thresholds, plus a `CPHASE` INFO key in the VCF. In a mixed sample a trans
+  codon's `AA Changes` names an amino acid no molecule carries, and its alleles
+  are the ones in `SNP AA Changes`. Existing columns keep their values; the new
+  one sits after `Haplotype LD p`.
 - **A catalogue match no molecule carries is withheld.** A codon-level match
   asserts that one molecule carries every substitution of the codon, and a
   per-SNV match that one carries a substitution without the rest; with

@@ -1028,6 +1028,11 @@ pub(crate) fn process_contig(
             .or_else(|| named.first().copied())
     };
     for variant in &mut all_variants {
+        variant.annotations.codon_phase = crate::variants::linkage::CodonPhase::classify(
+            variant.annotations.linkage,
+            args.phase_conflict_dprime,
+            args.phase_conflict_p,
+        );
         // A complex indel's substitution is part of the indel event, as it is
         // for the runs: counting it as a single-base substitution too would
         // count one event in two spectra.

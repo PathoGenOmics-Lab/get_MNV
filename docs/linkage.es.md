@@ -149,6 +149,26 @@ direcciones de asociación, y las tablas degeneradas donde `D'` no tiene valor,
 junto a los barridos de soporte de fase.
 
 
+## Cis o trans: la columna Codon Phase
+
+`D'` y su valor p son números; la columna `Codon Phase` (la clave INFO
+`CPHASE`) los convierte en la lectura con la que se actúa, con los mismos dos
+umbrales que deciden cuándo se retiene una coincidencia del catálogo (abajo):
+
+| `Codon Phase` | Cuándo | Qué significa para el codón |
+|---|---|---|
+| `cis` | `D'` >= `--phase-conflict-dprime` y p <= `--phase-conflict-p` | Una molécula lleva todas las sustituciones: el codón se lee como un solo cambio, como en `AA Changes` |
+| `trans` | `D'` <= menos `--phase-conflict-dprime` y p <= `--phase-conflict-p` | Las sustituciones están en moléculas distintas: cada una se lee por separado, como en `SNP AA Changes` |
+| `unresolved` | ligamiento medido, ninguna de las dos anteriores | Se preguntó a las moléculas y no respondieron con suficiente claridad |
+| `-` | sin ligamiento | No se midió nada; no es un hallazgo |
+
+En una muestra clonal un codón con dos sustituciones es `cis` por
+construcción, porque todas las moléculas llevan las dos. La columna importa en
+muestras mezcladas, donde dos cambios en un codón pueden ser un doble mutante
+(`cis`) o dos poblaciones con un cambio cada una (`trans`). En el segundo caso
+el codón combinado nombra un aminoácido que no lleva ninguna molécula: una
+mezcla de `GAC>GGC` (Asp>Gly) y `GAC>AAC` (Asp>Asn) se combina en `AGC` (Ser).
+
 ## Cuando las lecturas desmienten una lectura
 
 Un codón con dos sustituciones tiene dos lecturas, y una coincidencia del

@@ -258,6 +258,11 @@ pub struct VariantAnnotations {
     /// correlate. See [`crate::variants::linkage`].
     #[serde(default)]
     pub linkage: Option<crate::variants::linkage::CodonLinkage>,
+    /// Cis, trans or unresolved, read from `linkage` with the phase-conflict
+    /// thresholds. `None` when there is no linkage. See
+    /// [`crate::variants::linkage::CodonPhase`].
+    #[serde(default)]
+    pub codon_phase: Option<crate::variants::linkage::CodonPhase>,
     /// COSMIC SBS96 class of each substitution component, in Event Components
     /// order (`A[C>T]G`, or `-` where the context cannot be read). Empty for a
     /// row with no substitution. See [`crate::variants::sbs`].

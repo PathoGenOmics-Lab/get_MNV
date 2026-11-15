@@ -144,6 +144,26 @@ the suite itself. It sweeps 2x2 tables covering independence, both directions of
 association, and the degenerate tables where `D'` has no value, alongside the
 linkage-support sweeps.
 
+## Cis or trans: the Codon Phase column
+
+`D'` and its p-value are numbers; the `Codon Phase` column (the `CPHASE` INFO
+key) turns them into the reading a person would act on, with the same two
+thresholds that decide when a catalogue match is withheld (below):
+
+| `Codon Phase` | When | What it means for the codon |
+|---|---|---|
+| `cis` | `D'` >= `--phase-conflict-dprime` and p <= `--phase-conflict-p` | One molecule carries every substitution: read the codon as one change, as in `AA Changes` |
+| `trans` | `D'` <= minus `--phase-conflict-dprime` and p <= `--phase-conflict-p` | The substitutions sit on different molecules: read each on its own, as in `SNP AA Changes` |
+| `unresolved` | linkage measured, neither of the above | The molecules were asked and did not answer clearly enough |
+| `-` | no linkage | Nothing was measured; this is not a finding |
+
+In a clonal sample a codon with two substitutions is `cis` by construction,
+since every molecule carries both. The column matters in mixed samples, where
+two changes in one codon can be one double mutant (`cis`) or two populations
+with one change each (`trans`). In the second case the merged codon names an
+amino acid no molecule carries: a mixture of `GAC>GGC` (Asp>Gly) and `GAC>AAC`
+(Asp>Asn) merges to `AGC` (Ser).
+
 ## When the reads refute a reading
 
 A codon with two substitutions has two readings, and a catalogue match made
