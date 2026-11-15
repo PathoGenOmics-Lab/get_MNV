@@ -436,6 +436,87 @@ fn count_intergenic_variant_reads(
     Ok(())
 }
 
+/// Every gene of a contig, with or without a record near it: what the catalogue
+/// is placed against, since an entry can name a gene the variant input never
+/// touched.
+fn every_gene_of_contig(
+    args: &Args,
+    contig: &str,
+    parsed: &ParsedInputs,
+    run: SampleRun<'_>,
+) -> AppResult<Vec<Gene>> {
+    Ok(match parsed.preloaded_gff.as_deref() {
+        Some(by_contig) => by_contig.get(contig).cloned().unwrap_or_default(),
+        None => match run.shared {
+            Some(shared) => shared.contig_genes(args, None, contig),
+            None => io::load_all_tsv_genes(args.genes_file(), contig),
+        }
+        .map_err(reclassify_generic_as_validation)?,
+    })
+}
+
+/// `--read-catalogue-codons`: every codon a catalogue protein entry names on
+/// this contig, read from the molecules, and the codon alleles they carry.
+pub(crate) fn read_catalogue_codons(
+    args: &Args,
+    contig: &str,
+    parsed: &ParsedInputs,
+    genetic_code: crate::genetic_code::GeneticCode,
+    run: SampleRun<'_>,
+) -> AppResult<Vec<crate::variants::catalogue_codons::CodonAllele>> {
+    use crate::variants::catalogue_codons::{catalogue_codons, codon_alleles, AlleleFloor};
+    let (Some(catalogue), Some(bam_path)) = (parsed.catalogue.as_deref(), args.bam_file.as_ref())
+    else {
+        return Ok(Vec::new());
+    };
+    let reference = io::reference_for_chrom(&parsed.references, contig)
+        .map_err(reclassify_generic_as_validation)?;
+    let genes = every_gene_of_contig(args, contig, parsed, run)?;
+    let codons = catalogue_codons(catalogue, &genes);
+    if codons.is_empty() {
+        return Ok(Vec::new());
+    }
+    let (mut reader, header) = io::AlignmentReader::open(bam_path, &args.fasta_file)
+        .map_err(|e| AppError::validation(format!("Failed to open '{bam_path}': {e}")))?;
+    let floor = AlleleFloor {
+        min_frequency: args.catalogue_codon_min_freq,
+        min_molecules: args.catalogue_codon_min_reads,
+    };
+    let mut alleles = Vec::new();
+    for codon in &codons {
+        let triplets = crate::read_count::read_codon_triplets(
+            &mut reader,
+            &header,
+            crate::read_count::CodonReadRequest {
+                chrom: contig,
+                positions: codon.positions,
+                min_phred_quality: args.min_quality,
+                min_mapq: args.min_mapq,
+                pair_aware: !args.count_mates_separately,
+            },
+        )?;
+        alleles.extend(codon_alleles(
+            contig,
+            &genes[codon.gene],
+            codon,
+            &triplets,
+            reference.sequence,
+            genetic_code,
+            catalogue,
+            floor,
+        ));
+    }
+    info!(
+        "Contig '{contig}' -> {} catalogue codon(s) read from the molecules, {} codon allele(s) \
+         at or above {} of the spanning molecules and {} molecule(s)",
+        codons.len(),
+        alleles.len(),
+        args.catalogue_codon_min_freq,
+        args.catalogue_codon_min_reads
+    );
+    Ok(alleles)
+}
+
 pub(crate) fn process_contig(
     args: &Args,
     contig: &str,
@@ -1068,14 +1149,7 @@ pub(crate) fn process_contig(
     // Known variants, against every gene of the contig: an entry upstream of a
     // gene is placed from the gene's start, and that gene holds no variant.
     if let Some(catalogue) = catalogue {
-        let every_gene = match preloaded_gff {
-            Some(by_contig) => by_contig.get(contig).cloned().unwrap_or_default(),
-            None => match run.shared {
-                Some(shared) => shared.contig_genes(args, None, contig),
-                None => io::load_all_tsv_genes(args.genes_file(), contig),
-            }
-            .map_err(reclassify_generic_as_validation)?,
-        };
+        let every_gene = every_gene_of_contig(args, contig, parsed, run)?;
         let other_reference = crate::variants::catalogue::annotate_catalogue(
             catalogue,
             &mut all_variants,

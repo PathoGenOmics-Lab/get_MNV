@@ -113,10 +113,15 @@ fn run_single(
         }
     }
     let mut output_cleanup = OutputCleanup {
-        paths: [paths.tsv.clone(), paths.vcf.clone(), paths.bcf.clone()]
-            .into_iter()
-            .flatten()
-            .collect(),
+        paths: [
+            paths.tsv.clone(),
+            paths.vcf.clone(),
+            paths.bcf.clone(),
+            paths.catalogue_codons.clone(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
         armed: true,
     };
 
@@ -158,6 +163,16 @@ fn run_single(
         None
     };
 
+    let mut catalogue_codon_writer = match paths.catalogue_codons.as_deref() {
+        Some(path) => {
+            let file = std::fs::File::create(path)
+                .map_err(|e| AppError::validation(format!("Failed to create '{path}': {e}")))?;
+            let mut writer = std::io::BufWriter::new(file);
+            crate::variants::catalogue_codons::write_header(&mut writer)?;
+            Some(writer)
+        }
+        None => None,
+    };
     let mut process_ms = 0.0f64;
     let mut emit_ms = 0.0f64;
     let mut summary = RunSummary {
@@ -170,6 +185,7 @@ fn run_single(
         output_tsv: paths.tsv,
         output_vcf: paths.vcf,
         output_bcf: paths.bcf,
+        output_catalogue_codons: paths.catalogue_codons.clone(),
         ..RunSummary::default()
     };
 
@@ -186,6 +202,14 @@ fn run_single(
         let (contig_variants, contig_summary) =
             process_contig(args, contig, &parsed, genetic_code, run)?;
         process_ms += process_start.elapsed().as_secs_f64() * 1000.0;
+
+        if let Some(writer) = catalogue_codon_writer.as_mut() {
+            for allele in
+                processing::read_catalogue_codons(args, contig, &parsed, genetic_code, run)?
+            {
+                crate::variants::catalogue_codons::write_allele(writer, &allele)?;
+            }
+        }
 
         let emit_start = Instant::now();
         emit_contig_variants(
@@ -233,6 +257,9 @@ fn run_single(
 
     if let Some(writer) = vcf_writer.as_mut() {
         writer.flush()?;
+    }
+    if let Some(mut writer) = catalogue_codon_writer.take() {
+        std::io::Write::flush(&mut writer)?;
     }
     drop(tsv_writer);
     drop(vcf_writer);
@@ -701,6 +728,16 @@ pub fn run_with_progress(
             "--phase-conflict-p must be between 0 and 1 (it is a p-value)",
         ));
     }
+    if args.read_catalogue_codons && (args.bam_file.is_none() || args.catalogue.is_none()) {
+        return Err(AppError::config(
+            "--read-catalogue-codons reads the codons a --catalogue names from a --bam, so it needs both",
+        ));
+    }
+    if !(0.0..=1.0).contains(&args.catalogue_codon_min_freq) {
+        return Err(AppError::config(
+            "--catalogue-codon-min-freq must be between 0 and 1 (it is a fraction of molecules, not a percentage)",
+        ));
+    }
     if (args.min_snp_frequency > 0.0 || args.min_mnv_frequency > 0.0) && args.bam_file.is_none() {
         return Err(AppError::config(
             "--min-snp-frequency and --min-mnv-frequency require --bam because frequencies are calculated from read support",
@@ -1036,6 +1073,7 @@ mod tests {
             },
             output_tsv: None,
             output_vcf: Some("out.vcf".to_string()),
+            output_catalogue_codons: None,
             output_bcf: None,
             contigs: vec![ContigSummary {
                 contig: "chr1".to_string(),

@@ -266,6 +266,47 @@ Nombre de archivo por defecto:
 <input_name>.MNV.bcf
 ```
 
+## Codones del catálogo leídos de las moléculas
+
+Con `--read-catalogue-codons` (y `--bam` y `--catalogue`), get_MNV lee además
+cada codón que nombra una entrada proteica del catálogo (`p.Asp94Gly`,
+`p.Gln445*`) directamente de las lecturas, diga lo que diga la entrada de
+variantes:
+
+```text
+<input_name>.catalogue_codons.tsv
+```
+
+Todas las demás tablas parten de un registro de variante, así que a una
+población minoritaria que el llamador no reportó nunca se le pregunta. Esta
+parte del codón: cada molécula que lee las tres bases aporta el triplete que
+lleva, los dos mates de un fragmento cuentan una vez, con los umbrales de
+`--quality` y `--min-mapq`. Un triplete es el codón de una molécula, así que dos
+cambios en moléculas distintas son dos alelos, cada uno con su aminoácido, y el
+codón combinado que no lleva ninguna molécula no se reporta nunca.
+
+| Columna | Significado |
+|---|---|
+| `Chromosome`, `Gene` | Dónde está el codón |
+| `Codon` | Posición en la proteína |
+| `Positions` | Posiciones genómicas de las bases del codón, en el orden en que las lee el ribosoma |
+| `Reference Codon`, `Codon Allele` | Codón de referencia y observado, en la hebra codificante |
+| `AA Change` | El aminoácido del codón observado, como `Asp94Gly` (`Ter` para un stop) |
+| `Molecules` | Moléculas que llevan este alelo de codón |
+| `Spanning Molecules` | Moléculas que leen las tres bases |
+| `Partial Molecules` | Moléculas que llegan al codón pero dejan una base sin leer, por debajo del umbral de calidad, en un indel o con mates que no coinciden |
+| `Frequency` | `Molecules` entre `Spanning Molecules` |
+| `Catalogue` | Las entradas con las que coincide este alelo, como en la columna `Catalogue` de la tabla principal; un stop coincide también con una entrada de pérdida de función del gen. `-` si ninguna |
+
+Solo se escriben alelos distintos de la referencia que alcanzan
+`--catalogue-codon-min-freq` (0.05) y `--catalogue-codon-min-reads` (3). Los
+codones se leen solo en los contigs que nombra la entrada de variantes, y solo
+para entradas proteicas que nombran un residuo; los desplazamientos de marco,
+la pérdida del inicio y las entradas de pérdida de función no son un codón y no
+se leen. En 86 aislados clínicos con dos cambios minoritarios en un codón de
+gyrA, los alelos encontrados en cada codón del catálogo coincidieron con los
+leídos de las mismas lecturas por un script independiente.
+
 ## Archivos JSON
 
 Tres flags escriben JSON, y todos los payloads llevan un `schema_version` para

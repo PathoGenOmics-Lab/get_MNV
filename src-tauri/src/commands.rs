@@ -178,6 +178,9 @@ impl AnalysisConfig {
             keep_unphased_codon_matches: false,
             phase_conflict_dprime: 0.5,
             phase_conflict_p: 0.05,
+            read_catalogue_codons: false,
+            catalogue_codon_min_freq: 0.05,
+            catalogue_codon_min_reads: 3,
         }
     }
 }

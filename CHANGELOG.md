@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- **`--read-catalogue-codons` reads catalogue codons from the molecules.**
+  With `--bam` and `--catalogue`, every codon a protein entry names is read
+  straight from the reads, one triplet per molecule, whatever the variant
+  input called there, and the codon alleles found go to
+  `<prefix>.catalogue_codons.tsv` with their molecules, frequency and
+  catalogue matches. A minority population the caller missed is still found,
+  and two changes on different molecules are two alleles rather than one
+  merged codon. `--catalogue-codon-min-freq` (0.05) and
+  `--catalogue-codon-min-reads` (3) set what is written.
 - **A `Codon Phase` column says whether a codon is cis or trans.** With
   `--bam`, every multi-variant row gets `cis` (the substitutions travel
   together, read the codon as one change), `trans` (they sit on different

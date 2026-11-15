@@ -10,12 +10,14 @@ use crate::variants::AlleleComponent;
 use noodles::sam::Header;
 
 mod cache;
+mod codon_reading;
 mod haplotype;
 mod indel;
 mod observation;
 mod phasing;
 
 pub use cache::{build_region_observation_cache, count_reads_from_cache, RegionObservationCache};
+pub use codon_reading::{read_codon_triplets, CodonReadRequest, CodonTriplets};
 pub use haplotype::{
     observe_local_haplotypes, LocalHaplotypeObservations, LocalHaplotypeRequest, LocalVariant,
     ObservedHaplotype,

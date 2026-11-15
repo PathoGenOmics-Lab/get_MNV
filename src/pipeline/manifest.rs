@@ -63,11 +63,15 @@ pub(crate) fn build_input_metadata(args: &Args, compute_checksums: bool) -> AppR
 /// builds its own payload and used to list the per-sample output paths with no
 /// checksum beside them, while the flag's own description promises checksums.
 pub(crate) fn output_checksums_for(summary: &RunSummary) -> AppResult<Value> {
-    Ok(json!({
+    let mut checksums = json!({
         "output_tsv_sha256": summary.output_tsv.as_deref().map(compute_sha256).transpose()?,
         "output_vcf_sha256": summary.output_vcf.as_deref().map(compute_sha256).transpose()?,
         "output_bcf_sha256": summary.output_bcf.as_deref().map(compute_sha256).transpose()?,
-    }))
+    });
+    if let Some(path) = summary.output_catalogue_codons.as_deref() {
+        checksums["output_catalogue_codons_sha256"] = json!(compute_sha256(path)?);
+    }
+    Ok(checksums)
 }
 
 pub(crate) fn build_run_manifest_value(

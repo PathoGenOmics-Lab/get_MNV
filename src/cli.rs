@@ -289,6 +289,27 @@ pub struct Args {
     #[arg(long = "phase-conflict-p", default_value_t = 0.05)]
     pub phase_conflict_p: f64,
 
+    /// Read every codon a `--catalogue` protein entry names straight from the
+    /// `--bam`, molecule by molecule, whatever the variant input called there,
+    /// and write the codon alleles found to `<prefix>.catalogue_codons.tsv`.
+    /// Each allele is one molecule's triplet, so a minority population the
+    /// caller missed is still seen, and two changes on different molecules are
+    /// two alleles rather than one merged codon. Requires --bam and
+    /// --catalogue.
+    #[arg(long = "read-catalogue-codons")]
+    pub read_catalogue_codons: bool,
+
+    /// Smallest fraction of the molecules spanning a catalogue codon that a
+    /// codon allele must reach to be written by --read-catalogue-codons
+    /// (default: 0.05). Between 0 and 1.
+    #[arg(long = "catalogue-codon-min-freq", default_value_t = 0.05)]
+    pub catalogue_codon_min_freq: f64,
+
+    /// Fewest molecules a codon allele must be read on to be written by
+    /// --read-catalogue-codons (default: 3).
+    #[arg(long = "catalogue-codon-min-reads", default_value_t = 3)]
+    pub catalogue_codon_min_reads: usize,
+
     /// NCBI translation table number for codon-to-amino-acid mapping
     /// (default: 11 = Bacterial/Archaeal/Plant Plastid).
     /// Supported: 1 (Standard), 2 (Vertebrate Mito), 3 (Yeast Mito),

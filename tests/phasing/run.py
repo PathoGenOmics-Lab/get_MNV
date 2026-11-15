@@ -357,6 +357,59 @@ def expected_phase(d_prime: str, p_value: float | None) -> str:
     return "unresolved"
 
 
+def run_catalogue_codon_case(work: Path) -> list[str]:
+    """--read-catalogue-codons on a trans codon the caller only half called.
+
+    geneA codon 10 is GCT (Ala) at 28-30. Twenty molecules carry 28G>A (ACT,
+    Thr), twenty carry 29C>G (GGT, Gly), none carries both, and sixty are
+    reference. The VCF holds 28G>A alone, as if the caller missed the other
+    population. The reader must find both alleles from the molecules, match
+    each to its catalogue entry, and never report the merged codon AGT (Ser),
+    which no molecule carries.
+    """
+    groups = [
+        ReadGroup(name_prefix="r_thr", start=PLUS.span_start, length=PLUS.span_length,
+                  ops=[Op(kind="snv", pos=28, seq="A")], count=20),
+        ReadGroup(name_prefix="r_gly", start=PLUS.span_start, length=PLUS.span_length,
+                  ops=[Op(kind="snv", pos=29, seq="G")], count=20),
+        ReadGroup(name_prefix="r_ref", start=PLUS.span_start, length=PLUS.span_length,
+                  ops=[], count=60),
+    ]
+    catalogue = work / "catalogue_codon_case.tsv"
+    catalogue.write_text(
+        "gene\tvariant\tlabel\n"
+        "geneA\tp.Ala10Thr\tR\n"
+        "geneA\tp.Ala10Gly\tR\n"
+        "geneA\tp.Ala10Ser\tR\n"
+    )
+    name = "catalogue_codons_trans"
+    scenario = Scenario(
+        name=name,
+        description="catalogue codon read from the molecules, half of it uncalled",
+        variants=[VcfRecord(pos=28, ref="G", alt="A")],
+        reads=groups,
+        expected=[],
+        extra_cli_args=["--catalogue", str(catalogue), "--read-catalogue-codons"],
+    )
+    _, _, out = run_scenario(scenario, work)
+    table = out.parent / out.name.replace(".MNV.tsv", ".catalogue_codons.tsv")
+    if not table.exists():
+        return [f"{name}: {table.name} was not written"]
+    _, rows = parse_tsv(table)
+    got = sorted(
+        (r["Codon Allele"], r["AA Change"], r["Molecules"], r["Spanning Molecules"],
+         r["Catalogue"])
+        for r in rows
+    )
+    want = [
+        ("ACT", "Ala10Thr", "20", "100", "R (geneA p.Ala10Thr)"),
+        ("GGT", "Ala10Gly", "20", "100", "R (geneA p.Ala10Gly)"),
+    ]
+    if got != want:
+        return [f"{name}: expected {want}, got {got}"]
+    return []
+
+
 def run_case(
     codon: Codon,
     molecules: list[Molecule],
@@ -520,7 +573,9 @@ def main() -> int:
     for mixture in linkage_cases:
         problems.extend(run_linkage_case(*mixture, work))
 
-    total_cases = len(cases) + 1 + len(linkage_cases)
+    problems.extend(run_catalogue_codon_case(work))
+
+    total_cases = len(cases) + 1 + len(linkage_cases) + 1
     print(f"{total_cases} phased mixtures built, {total_cases} rows compared")
     print("  codons: " + ", ".join(
         f"{c.label}({c.gene}, {len(c.positions)} SNV(s))"

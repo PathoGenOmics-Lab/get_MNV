@@ -262,6 +262,45 @@ Default file name:
 <input_name>.MNV.bcf
 ```
 
+## Catalogue codons read from the molecules
+
+With `--read-catalogue-codons` (and `--bam` and `--catalogue`), get_MNV also
+reads every codon a catalogue protein entry names (`p.Asp94Gly`, `p.Gln445*`)
+straight from the reads, whatever the variant input says there:
+
+```text
+<input_name>.catalogue_codons.tsv
+```
+
+Every other table starts from a variant record, so a minority population the
+caller did not report is never asked about. This one starts from the codon:
+each molecule that reads all three bases contributes the triplet it carries,
+the mates of a fragment counting once, at the `--quality` and `--min-mapq`
+floors. A triplet is one molecule's codon, so two changes on different
+molecules are two alleles, each with its own amino acid, and the merged codon
+that no molecule carries is never reported.
+
+| Column | Meaning |
+|---|---|
+| `Chromosome`, `Gene` | Where the codon is |
+| `Codon` | Protein position |
+| `Positions` | Genomic positions of the codon's bases, in the order the ribosome reads them |
+| `Reference Codon`, `Codon Allele` | Reference and observed codon, coding strand |
+| `AA Change` | The observed codon's amino acid, as `Asp94Gly` (`Ter` for a stop) |
+| `Molecules` | Molecules carrying this codon allele |
+| `Spanning Molecules` | Molecules that read all three bases |
+| `Partial Molecules` | Molecules that reached the codon but left a base unread, below the quality floor, in an indel, or with mates that disagree |
+| `Frequency` | `Molecules` over `Spanning Molecules` |
+| `Catalogue` | The entries this allele matches, as in the main table's `Catalogue` column; a stop also matches a loss-of-function entry for the gene. `-` when none |
+
+Only non-reference alleles at or above `--catalogue-codon-min-freq` (0.05) and
+`--catalogue-codon-min-reads` (3) are written. Codons are read only on contigs
+the variant input names, and only for protein entries that name one residue;
+frameshifts, start loss and loss-of-function entries are not single codons and
+are not read. On 86 clinical isolates with two minority changes in one gyrA
+codon, the alleles found at every catalogue codon matched those read from the
+same reads by an independent script.
+
 ## JSON Files
 
 Three flags write JSON, and every payload carries a `schema_version` so a
